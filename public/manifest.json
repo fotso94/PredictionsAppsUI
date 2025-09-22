@@ -1,0 +1,96 @@
+{
+  "short_name": "PredictionsApp",
+  "name": "PredictionsApp - Professional Soccer Predictions",
+  "description": "Professional soccer predictions with 89.9% accuracy rate. Get daily football betting tips across 300+ leagues worldwide.",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "maskable-icon-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "maskable-icon-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#7c3aed",
+  "background_color": "#ffffff",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "categories": ["sports", "entertainment", "productivity"],
+  "screenshots": [
+    {
+      "src": "screenshots/desktop-home.png",
+      "type": "image/png",
+      "sizes": "1280x800",
+      "form_factor": "wide"
+    },
+    {
+      "src": "screenshots/mobile-home.png",
+      "type": "image/png",
+      "sizes": "360x800",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Today's Predictions",
+      "short_name": "Today",
+      "description": "View today's expert predictions",
+      "url": "/predictions/today",
+      "icons": [
+        {
+          "src": "icons/today-96x96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Tomorrow's Predictions",
+      "short_name": "Tomorrow",
+      "description": "View tomorrow's predictions",
+      "url": "/predictions/tomorrow",
+      "icons": [
+        {
+          "src": "icons/tomorrow-96x96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Betting Academy",
+      "short_name": "Academy",
+      "description": "Learn betting strategies",
+      "url": "/academy",
+      "icons": [
+        {
+          "src": "icons/academy-96x96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
