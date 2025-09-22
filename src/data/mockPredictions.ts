@@ -1,0 +1,228 @@
+import type { Prediction } from '../types';
+import { mockMatches } from './mockMatches';
+
+const getMatchById = (id: string) => mockMatches.find(match => match.id === id)!;
+
+export const mockPredictions: Prediction[] = [
+  {
+    id: 'pred-1',
+    match: getMatchById('match-1'), // Man United vs Man City
+    predictionType: '1x2',
+    prediction: 'Away Win',
+    confidence: 85,
+    odds: 2.45,
+    reasoning: 'Manchester City has been in excellent form with 11 wins in 15 matches. Their away record is strong with 5 wins in 8 games. United\'s home form has been inconsistent lately.',
+    tags: ['high-confidence', 'derby', 'form-based'],
+    createdAt: '2025-09-22T10:00:00Z',
+    updatedAt: '2025-09-22T10:00:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'pred-2',
+    match: getMatchById('match-1'), // Man United vs Man City
+    predictionType: 'over_under',
+    prediction: 'Over 2.5 Goals',
+    confidence: 78,
+    odds: 1.85,
+    reasoning: 'Both teams have strong attacking records. City averages 2.3 goals per game, United 1.9. Their last 5 meetings produced an average of 2.8 goals.',
+    tags: ['goals', 'attacking-teams'],
+    createdAt: '2025-09-22T10:05:00Z',
+    updatedAt: '2025-09-22T10:05:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'pred-3',
+    match: getMatchById('match-1'), // Man United vs Man City
+    predictionType: 'btts',
+    prediction: 'Both Teams to Score - Yes',
+    confidence: 82,
+    odds: 1.75,
+    reasoning: 'Both teams have scored in 70% of their recent meetings. United has scored in 6 of their last 8 home games, while City has scored in all away games this season.',
+    tags: ['btts', 'scoring-form'],
+    createdAt: '2025-09-22T10:10:00Z',
+    updatedAt: '2025-09-22T10:10:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'pred-4',
+    match: getMatchById('match-2'), // Liverpool vs Arsenal
+    predictionType: '1x2',
+    prediction: 'Home Win',
+    confidence: 75,
+    odds: 1.95,
+    reasoning: 'Liverpool\'s home record is impressive with 6 wins in 8 games. Arsenal struggles away from home with only 3 wins in 8 away matches.',
+    tags: ['home-advantage', 'away-struggles'],
+    createdAt: '2025-09-22T11:00:00Z',
+    updatedAt: '2025-09-22T11:00:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'pred-5',
+    match: getMatchById('match-2'), // Liverpool vs Arsenal
+    predictionType: 'over_under',
+    prediction: 'Over 2.5 Goals',
+    confidence: 88,
+    odds: 1.70,
+    reasoning: 'High-scoring fixture historically. Liverpool averages 2.1 goals at home, Arsenal 1.6 away. Their H2H average is 3.1 goals per game.',
+    tags: ['high-confidence', 'goals', 'historical'],
+    createdAt: '2025-09-22T11:05:00Z',
+    updatedAt: '2025-09-22T11:05:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'pred-6',
+    match: getMatchById('match-3'), // Chelsea vs Man United
+    predictionType: 'double_chance',
+    prediction: '1X (Home Win or Draw)',
+    confidence: 70,
+    odds: 1.45,
+    reasoning: 'Chelsea has been solid at home with only 1 loss in 8 games. United\'s away form is inconsistent. Safe bet on Chelsea not losing.',
+    tags: ['safe-bet', 'home-form'],
+    createdAt: '2025-09-22T12:00:00Z',
+    updatedAt: '2025-09-22T12:00:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'pred-7',
+    match: getMatchById('match-4'), // Real Madrid vs Barcelona
+    predictionType: '1x2',
+    prediction: 'Home Win',
+    confidence: 72,
+    odds: 2.10,
+    reasoning: 'El Clasico at Bernabeu. Real Madrid has won 7 of their last 15 home meetings. Current form favors Real with 12 wins in 16 matches.',
+    tags: ['clasico', 'home-advantage', 'form'],
+    createdAt: '2025-09-22T13:00:00Z',
+    updatedAt: '2025-09-22T13:00:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'pred-8',
+    match: getMatchById('match-4'), // Real Madrid vs Barcelona
+    predictionType: 'btts',
+    prediction: 'Both Teams to Score - Yes',
+    confidence: 90,
+    odds: 1.60,
+    reasoning: 'El Clasico rarely disappoints in terms of goals. 80% of their recent meetings have seen both teams score. Both teams have potent attacks.',
+    tags: ['high-confidence', 'btts', 'clasico'],
+    createdAt: '2025-09-22T13:05:00Z',
+    updatedAt: '2025-09-22T13:05:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'pred-9',
+    match: getMatchById('match-5'), // Bayern vs Man United (UCL)
+    predictionType: '1x2',
+    prediction: 'Home Win',
+    confidence: 80,
+    odds: 1.70,
+    reasoning: 'Bayern Munich is dominant at home in European competitions. United has struggled in away Champions League matches historically.',
+    tags: ['champions-league', 'home-dominance'],
+    createdAt: '2025-09-22T14:00:00Z',
+    updatedAt: '2025-09-22T14:00:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'pred-10',
+    match: getMatchById('match-5'), // Bayern vs Man United (UCL)
+    predictionType: 'over_under',
+    prediction: 'Over 2.5 Goals',
+    confidence: 85,
+    odds: 1.65,
+    reasoning: 'Bayern averages 3.0 goals per home game. Champions League matches between these teams are typically high-scoring affairs.',
+    tags: ['high-confidence', 'goals', 'champions-league'],
+    createdAt: '2025-09-22T14:05:00Z',
+    updatedAt: '2025-09-22T14:05:00Z',
+    status: 'pending',
+  },
+  // Finished predictions with results
+  {
+    id: 'pred-11',
+    match: getMatchById('match-6'), // Man City vs Chelsea (finished 2-1)
+    predictionType: '1x2',
+    prediction: 'Home Win',
+    confidence: 75,
+    odds: 1.85,
+    reasoning: 'Manchester City\'s home form has been excellent. Chelsea\'s away record shows vulnerabilities.',
+    tags: ['home-form', 'away-struggles'],
+    createdAt: '2025-09-22T08:00:00Z',
+    updatedAt: '2025-09-22T17:00:00Z',
+    status: 'won',
+    result: {
+      status: 'won',
+      profit: 85,
+      stake: 100,
+      payout: 185,
+    },
+  },
+  {
+    id: 'pred-12',
+    match: getMatchById('match-6'), // Man City vs Chelsea (finished 2-1)
+    predictionType: 'over_under',
+    prediction: 'Over 2.5 Goals',
+    confidence: 70,
+    odds: 1.75,
+    reasoning: 'Both teams have strong attacking capabilities. Expecting an open game with goals.',
+    tags: ['goals', 'attacking-teams'],
+    createdAt: '2025-09-22T08:05:00Z',
+    updatedAt: '2025-09-22T17:00:00Z',
+    status: 'won',
+    result: {
+      status: 'won',
+      profit: 75,
+      stake: 100,
+      payout: 175,
+    },
+  },
+  {
+    id: 'pred-13',
+    match: getMatchById('match-6'), // Man City vs Chelsea (finished 2-1)
+    predictionType: 'btts',
+    prediction: 'Both Teams to Score - Yes',
+    confidence: 68,
+    odds: 1.70,
+    reasoning: 'Both teams have been scoring regularly. Chelsea needs to attack at Etihad.',
+    tags: ['btts', 'scoring-form'],
+    createdAt: '2025-09-22T08:10:00Z',
+    updatedAt: '2025-09-22T17:00:00Z',
+    status: 'won',
+    result: {
+      status: 'won',
+      profit: 70,
+      stake: 100,
+      payout: 170,
+    },
+  },
+  // Live match predictions
+  {
+    id: 'pred-14',
+    match: getMatchById('match-7'), // Liverpool vs Man United (live 1-1)
+    predictionType: '1x2',
+    prediction: 'Home Win',
+    confidence: 73,
+    odds: 1.90,
+    reasoning: 'Liverpool\'s home advantage at Anfield is significant. United\'s away form has been inconsistent this season.',
+    tags: ['home-advantage', 'anfield'],
+    createdAt: '2025-09-22T15:00:00Z',
+    updatedAt: '2025-09-22T15:00:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'pred-15',
+    match: getMatchById('match-7'), // Liverpool vs Man United (live 1-1)
+    predictionType: 'btts',
+    prediction: 'Both Teams to Score - Yes',
+    confidence: 80,
+    odds: 1.65,
+    reasoning: 'Classic fixture that rarely disappoints. Both teams have quality attackers and this should be an open game.',
+    tags: ['btts', 'classic-fixture'],
+    createdAt: '2025-09-22T15:05:00Z',
+    updatedAt: '2025-09-22T15:05:00Z',
+    status: 'won', // Already scored
+    result: {
+      status: 'won',
+      profit: 65,
+      stake: 100,
+      payout: 165,
+    },
+  },
+];
