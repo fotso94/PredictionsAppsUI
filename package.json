@@ -1,0 +1,12 @@
+{
+  "name": "soccer-predictions-deployment",
+  "version": "1.0.0",
+  "scripts": {
+    "deploy:aws": "bash aws-deploy.sh",
+    "deploy:update": "cd frontend && npm run build && aws s3 sync dist/ s3://your-soccer-predictions-app --delete && aws cloudfront create-invalidation --distribution-id YOUR_DISTRIBUTION_ID --paths '/*'",
+    "deploy:namecheap": "cd frontend && npm run build && echo 'Upload dist/ contents to your cPanel File Manager'"
+  },
+  "devDependencies": {
+    "aws-cli": "^1.32.0"
+  }
+}

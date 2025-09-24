@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PredictionsApp - Homepage Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            400: '#8b5cf6',
+                            500: '#7c3aed',
+                            600: '#6d28d9',
+                            700: '#5b21b6'
+                        },
+                        success: {
+                            400: '#34d399',
+                            500: '#10b981',
+                            600: '#059669'
+                        },
+                        danger: {
+                            400: '#f87171',
+                            500: '#ef4444',
+                            600: '#dc2626'
+                        },
+                        dark: {
+                            300: '#d1d5db',
+                            400: '#9ca3af',
+                            500: '#6b7280',
+                            600: '#4b5563',
+                            700: '#374151',
+                            800: '#1f2937',
+                            900: '#111827'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .gradient-text {
+            background: linear-gradient(135deg, #8b5cf6 0%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <!-- Hero Section -->
+    <section class="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden">
+        <!-- Background Pattern -->
+        <div class="absolute inset-0 opacity-10">
+            <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-primary-600/20 to-success-600/20"></div>
+        </div>
+
+        <!-- Floating Elements -->
+        <div class="absolute top-20 left-10 w-20 h-20 bg-primary-600/20 rounded-full blur-xl animate-pulse-slow"></div>
+        <div class="absolute bottom-20 right-10 w-32 h-32 bg-success-600/20 rounded-full blur-xl animate-pulse-slow"></div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 py-20 lg:py-32">
+            <div class="text-center">
+                <!-- Main Heading -->
+                <div class="mb-8">
+                    <h1 class="text-4xl md:text-6xl lg:text-7xl font-bold mb-6">
+                        <span class="gradient-text">Expert Soccer</span>
+                        <br />
+                        <span class="text-white">Predictions</span>
+                    </h1>
+                    <p class="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
+                        Join thousands of successful bettors with our AI-powered predictions, 
+                        expert analysis, and proven track record of winning picks.
+                    </p>
+                </div>
+
+                <!-- CTA Buttons -->
+                <div class="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+                    <button class="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-4 px-8 rounded-lg text-lg transition-colors duration-200">
+                        🏆 View Today's Predictions
+                    </button>
+                    <button class="border-2 border-primary-600 text-primary-600 hover:bg-primary-600 hover:text-white font-semibold py-4 px-8 rounded-lg text-lg transition-colors duration-200">
+                        Learn More →
+                    </button>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+                    <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6 hover:bg-gray-800/70 transition-all duration-300">
+                        <div class="flex flex-col items-center text-center">
+                            <div class="w-12 h-12 bg-gradient-to-r from-primary-600 to-success-600 rounded-lg flex items-center justify-center mb-4">
+                                🏆
+                            </div>
+                            <div class="text-3xl font-bold text-white mb-2">68.5%</div>
+                            <div class="text-lg font-semibold text-primary-400 mb-2">Win Rate</div>
+                            <div class="text-sm text-gray-400">Average accuracy across all predictions</div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6 hover:bg-gray-800/70 transition-all duration-300">
+                        <div class="flex flex-col items-center text-center">
+                            <div class="w-12 h-12 bg-gradient-to-r from-primary-600 to-success-600 rounded-lg flex items-center justify-center mb-4">
+                                📊
+                            </div>
+                            <div class="text-3xl font-bold text-white mb-2">15K+</div>
+                            <div class="text-lg font-semibold text-primary-400 mb-2">Predictions</div>
+                            <div class="text-sm text-gray-400">Total predictions made this season</div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6 hover:bg-gray-800/70 transition-all duration-300">
+                        <div class="flex flex-col items-center text-center">
+                            <div class="w-12 h-12 bg-gradient-to-r from-primary-600 to-success-600 rounded-lg flex items-center justify-center mb-4">
+                                👥
+                            </div>
+                            <div class="text-3xl font-bold text-white mb-2">12K+</div>
+                            <div class="text-lg font-semibold text-primary-400 mb-2">Active Users</div>
+                            <div class="text-sm text-gray-400">Trusted by thousands of bettors</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Featured Predictions Section -->
+    <section class="py-16 bg-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">
+                    Featured <span class="gradient-text">Predictions</span>
+                </h2>
+                <p class="text-lg text-gray-300 max-w-2xl mx-auto">
+                    Our highest confidence predictions for today's matches. 
+                    Based on advanced analytics and expert analysis.
+                </p>
+            </div>
+
+            <!-- Sample Prediction Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Prediction Card 1 -->
+                <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:shadow-xl transition-all duration-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-medium text-primary-400">1X2</span>
+                        <span class="px-2 py-1 text-xs bg-success-600 text-white rounded-full">PENDING</span>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-6 h-6 bg-red-600 rounded"></div>
+                                <span class="text-white font-medium">Manchester United</span>
+                            </div>
+                            <span class="text-gray-400">vs</span>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-6 h-6 bg-blue-600 rounded"></div>
+                                <span class="text-white font-medium">Chelsea</span>
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-400">Premier League • Today 15:00</div>
+                    </div>
+                    
+                    <div class="bg-gray-700 rounded-lg p-3 mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-300">Prediction:</span>
+                            <span class="text-white font-semibold">Home Win</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-300">Odds:</span>
+                            <span class="text-success-400 font-semibold">2.15</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <span class="px-2 py-1 text-xs bg-success-600/20 text-success-400 border border-success-600/30 rounded">85% High</span>
+                        <button class="text-primary-400 hover:text-primary-300 text-sm font-medium">View Details</button>
+                    </div>
+                </div>
+
+                <!-- Prediction Card 2 -->
+                <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:shadow-xl transition-all duration-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-medium text-primary-400">BTTS</span>
+                        <span class="px-2 py-1 text-xs bg-success-600 text-white rounded-full">PENDING</span>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-6 h-6 bg-white rounded"></div>
+                                <span class="text-white font-medium">Real Madrid</span>
+                            </div>
+                            <span class="text-gray-400">vs</span>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-6 h-6 bg-blue-800 rounded"></div>
+                                <span class="text-white font-medium">Barcelona</span>
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-400">La Liga • Today 20:00</div>
+                    </div>
+                    
+                    <div class="bg-gray-700 rounded-lg p-3 mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-300">Prediction:</span>
+                            <span class="text-white font-semibold">Yes</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-300">Odds:</span>
+                            <span class="text-success-400 font-semibold">1.85</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <span class="px-2 py-1 text-xs bg-success-600/20 text-success-400 border border-success-600/30 rounded">78% High</span>
+                        <button class="text-primary-400 hover:text-primary-300 text-sm font-medium">View Details</button>
+                    </div>
+                </div>
+
+                <!-- Prediction Card 3 -->
+                <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:shadow-xl transition-all duration-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-medium text-primary-400">Over/Under</span>
+                        <span class="px-2 py-1 text-xs bg-success-600 text-white rounded-full">PENDING</span>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-6 h-6 bg-red-800 rounded"></div>
+                                <span class="text-white font-medium">Liverpool</span>
+                            </div>
+                            <span class="text-gray-400">vs</span>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-6 h-6 bg-blue-600 rounded"></div>
+                                <span class="text-white font-medium">Manchester City</span>
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-400">Premier League • Tomorrow 17:30</div>
+                    </div>
+                    
+                    <div class="bg-gray-700 rounded-lg p-3 mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-300">Prediction:</span>
+                            <span class="text-white font-semibold">Over 2.5</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-300">Odds:</span>
+                            <span class="text-success-400 font-semibold">1.95</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <span class="px-2 py-1 text-xs bg-success-600/20 text-success-400 border border-success-600/30 rounded">82% High</span>
+                        <button class="text-primary-400 hover:text-primary-300 text-sm font-medium">View Details</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-12">
+                <button class="border-2 border-primary-600 text-primary-600 hover:bg-primary-600 hover:text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200">
+                    View All Predictions →
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Statistics Section -->
+    <section class="py-16 bg-gray-900">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">
+                    Our <span class="gradient-text">Track Record</span>
+                </h2>
+                <p class="text-lg text-gray-300 max-w-2xl mx-auto">
+                    Transparent statistics that showcase our commitment to accuracy and profitability.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 text-center">
+                    <div class="w-16 h-16 bg-gradient-to-r from-primary-600 to-success-600 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                        🏆
+                    </div>
+                    <div class="text-3xl font-bold text-white mb-2">68.5%</div>
+                    <div class="text-lg font-semibold text-primary-400 mb-2">Overall Accuracy</div>
+                    <div class="text-sm text-gray-400 mb-3">Win rate across all predictions</div>
+                    <div class="text-sm font-medium text-success-400">↗ +2.3%</div>
+                </div>
+
+                <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 text-center">
+                    <div class="w-16 h-16 bg-gradient-to-r from-primary-600 to-success-600 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                        💰
+                    </div>
+                    <div class="text-3xl font-bold text-white mb-2">$15,420</div>
+                    <div class="text-lg font-semibold text-primary-400 mb-2">Total Profit</div>
+                    <div class="text-sm text-gray-400 mb-3">Generated for our users</div>
+                    <div class="text-sm font-medium text-success-400">↗ +$2,850</div>
+                </div>
+
+                <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 text-center">
+                    <div class="w-16 h-16 bg-gradient-to-r from-primary-600 to-success-600 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                        📈
+                    </div>
+                    <div class="text-3xl font-bold text-white mb-2">18.2%</div>
+                    <div class="text-lg font-semibold text-primary-400 mb-2">ROI</div>
+                    <div class="text-sm text-gray-400 mb-3">Return on investment</div>
+                    <div class="text-sm font-medium text-success-400">↗ +1.5%</div>
+                </div>
+
+                <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 text-center">
+                    <div class="w-16 h-16 bg-gradient-to-r from-primary-600 to-success-600 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                        👥
+                    </div>
+                    <div class="text-3xl font-bold text-white mb-2">12,450</div>
+                    <div class="text-lg font-semibold text-primary-400 mb-2">Active Users</div>
+                    <div class="text-sm text-gray-400 mb-3">Trusted community members</div>
+                    <div class="text-sm font-medium text-success-400">↗ +450</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // Simple animation on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('animate-fade-in');
+                }
+            });
+        }, observerOptions);
+
+        // Observe all cards
+        document.querySelectorAll('.bg-gray-800').forEach(card => {
+            observer.observe(card);
+        });
+    </script>
+</body>
+</html>

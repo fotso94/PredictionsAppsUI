@@ -1,0 +1,357 @@
+🎯 Backend Integration Task List
+Phase 1: Project Structure & Environment Setup
+Task 1.1: Create Backend Directory Structure
+Create backend/ directory in project root
+Create backend/src/ with subdirectories:
+controllers/
+models/
+routes/
+middleware/
+services/
+utils/
+Create backend/database/ with subdirectories:
+migrations/
+seeds/
+Create backend/tests/ directory
+Create backend/uploads/ directory for file storage
+Task 1.2: Initialize Backend Package
+Create backend/package.json with all required dependencies
+Install Node.js dependencies (Express, PostgreSQL, Redis, etc.)
+Create backend/.env file with all environment variables
+Create backend/.gitignore file
+Create backend/README.md with setup instructions
+Task 1.3: Database Setup
+Create docker-compose.yml in project root
+Configure PostgreSQL container with proper settings
+Configure Redis container for caching
+Configure Adminer for database management
+Create database initialization script
+Set up Docker networks and volumes
+Task 1.4: Frontend Environment Configuration
+Update frontend/.env with backend API URL
+Add development environment variables
+Configure CORS settings for local development
+Phase 2: Database Schema & Models
+Task 2.1: Database Migration System
+Create knexfile.js configuration
+Create migration for users table
+Create migration for teams table
+Create migration for leagues table
+Create migration for matches table
+Create migration for predictions table
+Create migration for user_subscriptions table
+Create migration for user_preferences table
+Create migration for user_stats table
+Create migration for notifications table
+Task 2.2: Database Seed Data
+Create seed file for leagues (Premier League, Champions League, etc.)
+Create seed file for teams with logos and stats
+Create seed file for admin users
+Create seed file for sample matches
+Create seed file for sample predictions
+Create seed file for user preferences
+Create seed file for user statistics
+Task 2.3: Database Models
+Create User model with validation
+Create Team model with relationships
+Create League model with relationships
+Create Match model with complex relationships
+Create Prediction model with validation
+Create Subscription model
+Create Notification model
+Phase 3: Backend API Development
+Task 3.1: Core Backend Setup
+Create main app.js with Express configuration
+Set up middleware (CORS, helmet, morgan, etc.)
+Configure error handling middleware
+Set up request validation middleware
+Configure rate limiting
+Set up file upload handling
+Task 3.2: Authentication System
+Create JWT utility functions
+Create password hashing utilities
+Create authentication middleware
+Create role-based authorization middleware
+Create session management
+Task 3.3: API Routes - Authentication
+Create POST /api/auth/register endpoint
+Create POST /api/auth/login endpoint
+Create POST /api/auth/logout endpoint
+Create GET /api/auth/me endpoint
+Create POST /api/auth/refresh endpoint
+Create POST /api/auth/forgot-password endpoint
+Create POST /api/auth/reset-password endpoint
+Task 3.4: API Routes - Users
+Create GET /api/users/profile endpoint
+Create PUT /api/users/profile endpoint
+Create GET /api/users/stats endpoint
+Create PUT /api/users/preferences endpoint
+Create POST /api/users/avatar endpoint (file upload)
+Create GET /api/users/subscription endpoint
+Create PUT /api/users/subscription endpoint
+Task 3.5: API Routes - Matches
+Create GET /api/matches endpoint with filtering
+Create GET /api/matches/today endpoint
+Create GET /api/matches/tomorrow endpoint
+Create GET /api/matches/:id endpoint
+Create GET /api/matches/:id/predictions endpoint
+Create GET /api/matches/live endpoint
+Task 3.6: API Routes - Predictions
+Create GET /api/predictions endpoint with pagination
+Create POST /api/predictions endpoint
+Create GET /api/predictions/:id endpoint
+Create PUT /api/predictions/:id endpoint
+Create DELETE /api/predictions/:id endpoint
+Create GET /api/predictions/user/:userId endpoint
+Task 3.7: API Routes - Teams & Leagues
+Create GET /api/teams endpoint
+Create GET /api/teams/:id endpoint
+Create GET /api/teams/:id/matches endpoint
+Create GET /api/leagues endpoint
+Create GET /api/leagues/:id endpoint
+Create GET /api/leagues/:id/standings endpoint
+Task 3.8: API Routes - Admin
+Create GET /api/admin/users endpoint
+Create PUT /api/admin/users/:id endpoint
+Create GET /api/admin/stats endpoint
+Create GET /api/admin/reports endpoint
+Create admin-only middleware protection
+Phase 4: Frontend Service Layer
+Task 4.1: API Client Setup
+Create frontend/src/services/api.ts base API client
+Configure Axios interceptors for authentication
+Set up request/response error handling
+Configure timeout and retry logic
+Add request/response logging for development
+Task 4.2: Authentication Services
+Create frontend/src/services/authService.ts
+Implement login function
+Implement register function
+Implement logout function
+Implement token refresh function
+Implement password reset functions
+Task 4.3: Data Services
+Create frontend/src/services/userService.ts
+Create frontend/src/services/matchService.ts
+Create frontend/src/services/predictionService.ts
+Create frontend/src/services/teamService.ts
+Create frontend/src/services/leagueService.ts
+Task 4.4: React Query Hooks
+Create frontend/src/hooks/useAuth.ts
+Create frontend/src/hooks/useUser.ts
+Create frontend/src/hooks/useMatches.ts
+Create frontend/src/hooks/usePredictions.ts
+Create frontend/src/hooks/useTeams.ts
+Create frontend/src/hooks/useLeagues.ts
+Phase 5: Frontend Integration
+Task 5.1: Authentication Context
+Create frontend/src/contexts/AuthContext.tsx
+Implement authentication state management
+Add login/logout functionality
+Add user session persistence
+Add protected route wrapper
+Task 5.2: Update Authentication Pages
+Update LoginPage.tsx to use real API
+Update RegisterPage.tsx to use real API
+Add form validation and error handling
+Add loading states
+Add success/error notifications
+Task 5.3: Update Data-Driven Pages
+Update HomePage.tsx to use real match data
+Update TodayPredictionsPage.tsx to use real API
+Update TomorrowPredictionsPage.tsx to use real API
+Update MatchDetailPage.tsx to use real API
+Update DashboardPage.tsx to use real user data
+Update LeaguesPage.tsx to use real league data
+Task 5.4: Update Components
+Update MatchCard.tsx to handle real data structure
+Update PredictionCard.tsx to handle real predictions
+Update UserStats.tsx to use real statistics
+Update navigation to show user-specific data
+Add loading spinners to all data components
+Task 5.5: Error Handling & Loading States
+Create LoadingSpinner.tsx component
+Create ErrorMessage.tsx component
+Create EmptyState.tsx component
+Add error boundaries to main sections
+Implement retry mechanisms for failed requests
+Phase 6: Development Workflow
+Task 6.1: Development Scripts
+Create root-level package.json with dev scripts
+Install concurrently for running multiple services
+Create npm run dev script to run both frontend and backend
+Create database management scripts
+Create testing scripts
+Task 6.2: Environment Management
+Create development environment configuration
+Set up environment variable validation
+Create environment-specific configurations
+Add environment switching capabilities
+Task 6.3: Development Tools
+Set up API documentation (Swagger/OpenAPI)
+Configure development logging
+Set up database inspection tools
+Create development data reset scripts
+Phase 7: Testing & Validation
+Task 7.1: Backend Testing
+Create unit tests for authentication
+Create unit tests for API endpoints
+Create integration tests for database operations
+Create tests for middleware functions
+Set up test database configuration
+Task 7.2: Frontend Testing
+Create tests for API service functions
+Create tests for React hooks
+Create tests for authentication flow
+Create component integration tests
+Set up mock API for testing
+Task 7.3: End-to-End Testing
+Test complete user registration flow
+Test complete login/logout flow
+Test data fetching and display
+Test error handling scenarios
+Test responsive design with real data
+Phase 8: Manual Configuration Tasks
+Task 8.1: Manual Environment Setup
+MANUAL: Install Docker Desktop on Windows
+MANUAL: Configure Docker to start on system boot
+MANUAL: Set up development environment variables
+MANUAL: Configure local hosts file if needed
+MANUAL: Set up SSL certificates for HTTPS (optional)
+Task 8.2: Manual Database Configuration
+MANUAL: Start Docker containers for first time
+MANUAL: Verify database connections
+MANUAL: Run initial migrations
+MANUAL: Run seed data scripts
+MANUAL: Test database admin interface access
+Task 8.3: Manual Testing & Verification
+MANUAL: Test all API endpoints with Postman/Insomnia
+MANUAL: Verify frontend can connect to backend
+MANUAL: Test user registration and login flows
+MANUAL: Verify data displays correctly in frontend
+MANUAL: Test error scenarios and edge cases
+Task 8.4: Manual Documentation
+MANUAL: Document API endpoints and usage
+MANUAL: Create development setup guide
+MANUAL: Document environment variables
+MANUAL: Create troubleshooting guide
+MANUAL: Update project README with backend info
+
+
+INFO 
+
+
+// Enhanced subscription types needed currt profile
+export type SubscriptionType = 
+  | 'free'        // Limited access
+  | 'basic'       // Basic predictions
+  | 'premium'     // Full predictions + some analytics
+  | 'pro'         // Everything + priority support
+
+
+
+ Analytics Expert Profile interface ExpertPermissions {
+  // Content Creation
+  createPredictions: boolean;         // true
+  publishAnalysis: boolean;           // true
+  createInsights: boolean;            // true
+  
+  // Advanced Analytics
+  accessRawData: boolean;             // true
+  customAnalytics: boolean;           // true
+  aiModelAccess: boolean;             // true
+  
+  // Expert Tools
+  predictionModeling: boolean;        // true
+  backtesting: boolean;               // true
+  performanceTracking: boolean;       // true
+  
+  // Revenue Sharing
+  earningsFromPredictions: boolean;   // true
+  tipsterProfile: boolean;            // true
+}
+
+
+interface ExpertProfile {
+  // Professional Info
+  expertId: string;
+  displayName: string;
+  bio: string;
+  specialties: string[];              // ['Premier League', 'Over/Under', etc.]
+  verified: boolean;
+  
+  // Performance Metrics
+  expertStats: {
+    totalPredictions: number;
+    accuracy: number;
+    roi: number;                      // Return on Investment
+    followers: number;
+    rating: number;                   // 1-5 stars
+  };
+  
+  // Revenue
+  earnings: {
+    totalEarnings: number;
+    monthlyEarnings: number;
+    commissionRate: number;           // % of subscription revenue
+  };
+}
+
+Administrator Profile..Target: System administrators with full control
+
+interface AdminPermissions {
+  // User Management
+  manageUsers: boolean;               // true
+  manageSubscriptions: boolean;       // true
+  manageExperts: boolean;             // true
+  
+  // Content Management
+  moderatePredictions: boolean;       // true
+  manageContent: boolean;             // true
+  systemConfiguration: boolean;      // true
+  
+  // Analytics & Reporting
+  systemAnalytics: boolean;           // true
+  financialReports: boolean;          // true
+  userBehaviorAnalytics: boolean;     // true
+  
+  // System Control
+  databaseAccess: boolean;            // true
+  apiManagement: boolean;             // true
+  deploymentControl: boolean;         // true
+}
+
+Admin Dashboard Features: 
+
+interface AdminDashboard {
+  // User Management
+  userStats: {
+    totalUsers: number;
+    activeSubscribers: number;
+    churnRate: number;
+    newSignups: number;
+  };
+  
+  // Financial Overview
+  revenue: {
+    monthlyRevenue: number;
+    subscriptionRevenue: number;
+    expertCommissions: number;
+    profitMargin: number;
+  };
+  
+  // System Health
+  systemMetrics: {
+    apiResponseTime: number;
+    uptime: number;
+    errorRate: number;
+    databasePerformance: number;
+  };
+  
+  // Content Moderation
+  pendingReviews: {
+    predictions: number;
+    expertApplications: number;
+    userReports: number;
+  };
+}
