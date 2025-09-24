@@ -32,7 +32,14 @@ const LeagueDetailPage: React.FC = () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
             <div className="flex items-center space-x-4 mb-4">
-              <img src={league.logo} alt={league.name} className="h-16 w-16" />
+              <img
+                src={league.logo}
+                alt={league.name}
+                className="h-16 w-16"
+                onError={(e) => {
+                  e.currentTarget.src = '/leagues/default.svg'
+                }}
+              />
               <div>
                 <h1 className="text-3xl font-bold text-white">{league.name}</h1>
                 <p className="text-secondary-400">{league.country} • {league.season}</p>

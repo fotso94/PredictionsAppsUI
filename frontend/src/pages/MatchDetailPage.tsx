@@ -40,13 +40,27 @@ const MatchDetailPage: React.FC = () => {
               <div className="text-center">
                 <div className="flex items-center justify-center space-x-8 mb-6">
                   <div className="text-center">
-                    <img src={match.homeTeam.logo} alt={match.homeTeam.name} className="h-16 w-16 mx-auto mb-2" />
+                    <img
+                      src={match.homeTeam.logo}
+                      alt={match.homeTeam.name}
+                      className="h-16 w-16 mx-auto mb-2"
+                      onError={(e) => {
+                        e.currentTarget.src = '/teams/default.svg'
+                      }}
+                    />
                     <h2 className="text-xl font-bold text-white">{match.homeTeam.name}</h2>
                     <p className="text-secondary-400">Home</p>
                   </div>
                   <div className="text-2xl font-bold text-secondary-400">VS</div>
                   <div className="text-center">
-                    <img src={match.awayTeam.logo} alt={match.awayTeam.name} className="h-16 w-16 mx-auto mb-2" />
+                    <img
+                      src={match.awayTeam.logo}
+                      alt={match.awayTeam.name}
+                      className="h-16 w-16 mx-auto mb-2"
+                      onError={(e) => {
+                        e.currentTarget.src = '/teams/default.svg'
+                      }}
+                    />
                     <h2 className="text-xl font-bold text-white">{match.awayTeam.name}</h2>
                     <p className="text-secondary-400">Away</p>
                   </div>

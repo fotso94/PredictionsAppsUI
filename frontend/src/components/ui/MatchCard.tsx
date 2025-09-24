@@ -57,7 +57,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
                 alt={match.league.name}
                 className="h-4 w-4"
                 onError={(e) => {
-                  e.currentTarget.src = '/leagues/default.png'
+                  e.currentTarget.src = '/leagues/default.svg'
                 }}
               />
               <span className="text-xs text-secondary-400">{match.league.name}</span>
@@ -81,7 +81,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
                 alt={match.homeTeam.name}
                 className="h-8 w-8"
                 onError={(e) => {
-                  e.currentTarget.src = '/teams/default.png'
+                  e.currentTarget.src = '/teams/default.svg'
                 }}
               />
               <div>
@@ -106,7 +106,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
                 alt={match.awayTeam.name}
                 className="h-8 w-8"
                 onError={(e) => {
-                  e.currentTarget.src = '/teams/default.png'
+                  e.currentTarget.src = '/teams/default.svg'
                 }}
               />
             </div>

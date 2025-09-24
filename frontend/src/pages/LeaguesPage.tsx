@@ -25,7 +25,14 @@ const LeaguesPage: React.FC = () => {
                 <Card hover>
                   <Card.Body>
                     <div className="flex items-center space-x-4">
-                      <img src={league.logo} alt={league.name} className="h-12 w-12" />
+                      <img
+                        src={league.logo}
+                        alt={league.name}
+                        className="h-12 w-12"
+                        onError={(e) => {
+                          e.currentTarget.src = '/leagues/default.svg'
+                        }}
+                      />
                       <div>
                         <h3 className="text-lg font-semibold text-white">{league.name}</h3>
                         <p className="text-secondary-400">{league.country}</p>
