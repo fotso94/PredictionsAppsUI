@@ -12,6 +12,8 @@ import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import DashboardPage from '@/pages/DashboardPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import APITestPage from '@/pages/APITestPage'
+import DebugAPIPage from '@/pages/DebugAPIPage'
 
 function App() {
   return (
@@ -32,12 +34,14 @@ function App() {
           <Route path="leagues" element={<LeaguesPage />} />
           <Route path="league/:id" element={<LeagueDetailPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="api-test" element={<APITestPage />} />
+          <Route path="debug-api" element={<DebugAPIPage />} />
         </Route>
-        
+
         {/* Auth routes without layout */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        
+
         {/* 404 page */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

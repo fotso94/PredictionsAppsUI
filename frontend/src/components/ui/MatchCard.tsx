@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarIcon, ClockIcon, MapPinIcon } from '@heroicons/react/24/outline'
+import { StarIcon } from '@heroicons/react/24/solid'
 import { Match } from '@/types'
 import Card from './Card'
 import { ConfidenceBadge } from './Badge'
@@ -45,6 +46,9 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
     return 'Away Win'
   }
 
+  // Check if this match has real API predictions (not default)
+  const hasRealPredictions = match.predictions.analysis !== 'Prediction data will be available closer to match time.'
+
   return (
     <Card hover className="overflow-hidden">
       <Card.Body className="p-0">
@@ -52,8 +56,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
         <div className="px-4 py-2 bg-dark-800 border-b border-dark-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <img 
-                src={match.league.logo} 
+              <img
+                src={match.league.logo}
                 alt={match.league.name}
                 className="h-4 w-4"
                 onError={(e) => {
@@ -61,6 +65,12 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
                 }}
               />
               <span className="text-xs text-secondary-400">{match.league.name}</span>
+              {hasRealPredictions && (
+                <StarIcon
+                  className="h-4 w-4 text-yellow-400 animate-pulse"
+                  title="AI Prediction - Real data from API-Football"
+                />
+              )}
             </div>
             <div className="flex items-center space-x-2 text-xs text-secondary-400">
               <CalendarIcon className="h-3 w-3" />

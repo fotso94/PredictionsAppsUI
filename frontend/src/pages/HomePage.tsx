@@ -1,51 +1,77 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { 
-  ChartBarIcon, 
-  TrophyIcon, 
-  UsersIcon, 
+import {
+  ChartBarIcon,
+  TrophyIcon,
+  UsersIcon,
   ArrowTrendingUpIcon,
   ArrowRightIcon,
   FireIcon
 } from '@heroicons/react/24/outline'
-import { mockFeaturedMatches, mockStats, mockTodayMatches } from '@/data/mockData'
+import { Match } from '@/types'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import MatchCard from '@/components/ui/MatchCard'
 import { motion } from 'framer-motion'
+import { footballDataService } from '@/services/football-data.service'
 
 const HomePage: React.FC = () => {
+  const [todayMatches, setTodayMatches] = useState<Match[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchTodayMatches() {
+      try {
+        setLoading(true)
+        const matches = await footballDataService.getTodayFixtures()
+        setTodayMatches(matches)
+      } catch (error) {
+        console.error('Error fetching today\'s matches:', error)
+        setTodayMatches([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTodayMatches()
+  }, [])
+
   const stats = [
     {
       name: 'Total Predictions',
-      value: mockStats.totalPredictions.toLocaleString(),
+      value: '15,234',
       icon: ChartBarIcon,
       change: '+12%',
       changeType: 'increase' as const,
     },
     {
       name: 'Accuracy Rate',
-      value: `${mockStats.accuracy}%`,
+      value: '78.5%',
       icon: TrophyIcon,
       change: '+2.1%',
       changeType: 'increase' as const,
     },
     {
       name: 'Active Users',
-      value: mockStats.activeUsers.toLocaleString(),
+      value: '8,429',
       icon: UsersIcon,
       change: '+18%',
       changeType: 'increase' as const,
     },
     {
       name: 'Success Rate',
-      value: `${mockStats.successRate}%`,
+      value: '82.3%',
       icon: ArrowTrendingUpIcon,
       change: '+5.2%',
       changeType: 'increase' as const,
     },
   ]
+
+  // Get featured matches (high confidence predictions)
+  const featuredMatches = todayMatches
+    .filter(m => m.predictions.outcome.confidence === 'high' || m.predictions.outcome.confidence === 'very-high')
+    .slice(0, 3)
 
   return (
     <>
@@ -144,18 +170,36 @@ const HomePage: React.FC = () => {
                 </Button>
               </div>
 
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                {mockFeaturedMatches.map((match, index) => (
-                  <motion.div
-                    key={match.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.1 * index }}
-                  >
-                    <MatchCard match={match} />
-                  </motion.div>
-                ))}
-              </div>
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+                  <div className="text-secondary-400">Loading featured predictions...</div>
+                </div>
+              ) : featuredMatches.length > 0 ? (
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                  {featuredMatches.map((match, index) => (
+                    <motion.div
+                      key={match.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.1 * index }}
+                    >
+                      <MatchCard match={match} />
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <Card.Body>
+                    <div className="text-center py-12">
+                      <p className="text-secondary-400">No featured predictions available at the moment.</p>
+                      <Button className="mt-4" asChild>
+                        <Link to="/predictions/today">View All Predictions</Link>
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
+              )}
             </motion.div>
           </div>
         </section>
@@ -180,18 +224,36 @@ const HomePage: React.FC = () => {
                 </Button>
               </div>
 
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {mockTodayMatches.slice(0, 6).map((match, index) => (
-                  <motion.div
-                    key={match.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.1 * index }}
-                  >
-                    <MatchCard match={match} />
-                  </motion.div>
-                ))}
-              </div>
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+                  <div className="text-secondary-400">Loading today's matches...</div>
+                </div>
+              ) : todayMatches.length > 0 ? (
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                  {todayMatches.slice(0, 6).map((match, index) => (
+                    <motion.div
+                      key={match.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.1 * index }}
+                    >
+                      <MatchCard match={match} />
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <Card.Body>
+                    <div className="text-center py-12">
+                      <p className="text-secondary-400">No matches scheduled for today.</p>
+                      <Button className="mt-4" asChild>
+                        <Link to="/predictions/tomorrow">View Tomorrow's Matches</Link>
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
+              )}
             </motion.div>
           </div>
         </section>
