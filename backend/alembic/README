@@ -1,0 +1,45 @@
+Generic single-database configuration for Alembic migrations.
+
+## Usage
+
+### Create a new migration
+```bash
+alembic revision --autogenerate -m "Description of changes"
+```
+
+### Apply migrations
+```bash
+alembic upgrade head
+```
+
+### Rollback migrations
+```bash
+alembic downgrade -1  # Rollback one migration
+alembic downgrade base  # Rollback all migrations
+```
+
+### View migration history
+```bash
+alembic history
+alembic current
+```
+
+## Multi-Schema Support
+
+This project uses a multi-schema PostgreSQL database:
+- users
+- predictions
+- ml_models
+- analytics
+- audit
+
+When creating migrations, ensure you specify the schema in table definitions:
+```python
+op.create_table(
+    'users',
+    sa.Column('id', sa.UUID(), nullable=False),
+    # ... other columns
+    schema='users'
+)
+```
+
