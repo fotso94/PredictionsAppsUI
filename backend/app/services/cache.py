@@ -298,6 +298,30 @@ match_data_cache = CacheService(get_match_data_redis(), prefix="match")
 rate_limit_cache = CacheService(get_rate_limit_redis(), prefix="ratelimit")
 
 
+class UserCacheService:
+    """User-specific cache operations"""
+
+    def __init__(self):
+        self.cache = sessions_cache
+
+    def delete_user_cache(self, user_id: str) -> int:
+        """Delete all cache entries for a user"""
+        pattern = f"user:{user_id}:*"
+        return self.cache.delete_pattern(pattern)
+
+    def get_user_profile(self, user_id: str):
+        """Get cached user profile"""
+        return self.cache.get(f"user:{user_id}:profile")
+
+    def set_user_profile(self, user_id: str, profile_data: dict, ttl: int = 300):
+        """Cache user profile"""
+        return self.cache.set(f"user:{user_id}:profile", profile_data, ttl=ttl)
+
+
+# Global instance
+cache_service = UserCacheService()
+
+
 def cached(
     cache_service: CacheService,
     key_prefix: str = "",

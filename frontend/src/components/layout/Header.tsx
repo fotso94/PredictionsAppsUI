@@ -139,6 +139,48 @@ const Header: React.FC = () => {
                       )}
                     </Menu.Item>
 
+                    <Menu.Item>
+                      {({ active }) => (
+                        <Link
+                          to="/profile"
+                          className={clsx(
+                            active ? 'bg-dark-700' : '',
+                            'block px-4 py-2 text-sm text-white'
+                          )}
+                        >
+                          Profile Settings
+                        </Link>
+                      )}
+                    </Menu.Item>
+
+                    <Menu.Item>
+                      {({ active }) => (
+                        <Link
+                          to="/password-change"
+                          className={clsx(
+                            active ? 'bg-dark-700' : '',
+                            'block px-4 py-2 text-sm text-white'
+                          )}
+                        >
+                          Change Password
+                        </Link>
+                      )}
+                    </Menu.Item>
+
+                    <Menu.Item>
+                      {({ active }) => (
+                        <Link
+                          to="/subscription"
+                          className={clsx(
+                            active ? 'bg-dark-700' : '',
+                            'block px-4 py-2 text-sm text-white'
+                          )}
+                        >
+                          Subscription
+                        </Link>
+                      )}
+                    </Menu.Item>
+
                     <div className="border-t border-dark-700 my-1"></div>
 
                     <Menu.Item>

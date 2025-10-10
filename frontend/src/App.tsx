@@ -12,6 +12,9 @@ import LeagueDetailPage from '@/pages/LeagueDetailPage'
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import DashboardPage from '@/pages/DashboardPage'
+import ProfilePage from '@/pages/ProfilePage'
+import PasswordChangePage from '@/pages/PasswordChangePage'
+import SubscriptionPage from '@/pages/SubscriptionPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import APITestPage from '@/pages/APITestPage'
 import DebugAPIPage from '@/pages/DebugAPIPage'
@@ -42,6 +45,30 @@ function App() {
             element={
               <ProtectedRoute>
                 <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="password-change"
+            element={
+              <ProtectedRoute>
+                <PasswordChangePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="subscription"
+            element={
+              <ProtectedRoute>
+                <SubscriptionPage />
               </ProtectedRoute>
             }
           />
