@@ -1,16 +1,18 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { 
-  Bars3Icon, 
-  XMarkIcon, 
+import {
+  Bars3Icon,
+  XMarkIcon,
   MagnifyingGlassIcon,
   UserCircleIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline'
 import { Menu, Transition } from '@headlessui/react'
 import { Fragment } from 'react'
 import clsx from 'clsx'
 import { NavItem } from '@/types'
+import { useAuth } from '@/contexts/AuthContext'
 
 const navigation: NavItem[] = [
   { name: 'Home', href: '/' },
@@ -23,12 +25,21 @@ const navigation: NavItem[] = [
 const Header: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
+  const { isAuthenticated, user, logout } = useAuth()
 
   const isActive = (href: string) => {
     if (href === '/') {
       return location.pathname === '/'
     }
     return location.pathname.startsWith(href)
+  }
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } catch (error) {
+      console.error('Logout failed:', error)
+    }
   }
 
   return (
@@ -80,66 +91,89 @@ const Header: React.FC = () => {
             </div>
 
             {/* User Menu */}
-            <Menu as="div" className="relative">
-              <div>
-                <Menu.Button className="flex items-center space-x-2 rounded-lg bg-dark-800 px-3 py-2 text-sm font-medium text-white hover:bg-dark-700 transition-colors">
-                  <UserCircleIcon className="h-6 w-6" />
-                  <span className="hidden sm:block">Account</span>
-                  <ChevronDownIcon className="h-4 w-4" />
-                </Menu.Button>
+            {isAuthenticated ? (
+              <Menu as="div" className="relative">
+                <div>
+                  <Menu.Button className="flex items-center space-x-2 rounded-lg bg-dark-800 px-3 py-2 text-sm font-medium text-white hover:bg-dark-700 transition-colors">
+                    <UserCircleIcon className="h-6 w-6" />
+                    <span className="hidden sm:block">
+                      {user?.first_name || user?.email}
+                    </span>
+                    <ChevronDownIcon className="h-4 w-4" />
+                  </Menu.Button>
+                </div>
+                <Transition
+                  as={Fragment}
+                  enter="transition ease-out duration-100"
+                  enterFrom="transform opacity-0 scale-95"
+                  enterTo="transform opacity-100 scale-100"
+                  leave="transition ease-in duration-75"
+                  leaveFrom="transform opacity-100 scale-100"
+                  leaveTo="transform opacity-0 scale-95"
+                >
+                  <Menu.Items className="absolute right-0 z-10 mt-2 w-56 origin-top-right rounded-lg bg-dark-800 py-1 shadow-lg ring-1 ring-dark-700 focus:outline-none">
+                    {/* User Info */}
+                    <div className="px-4 py-3 border-b border-dark-700">
+                      <p className="text-sm font-medium text-white">
+                        {user?.first_name} {user?.last_name}
+                      </p>
+                      <p className="text-xs text-secondary-400 truncate">
+                        {user?.email}
+                      </p>
+                      <p className="text-xs text-primary-400 mt-1">
+                        {user?.user_type}
+                      </p>
+                    </div>
+
+                    <Menu.Item>
+                      {({ active }) => (
+                        <Link
+                          to="/dashboard"
+                          className={clsx(
+                            active ? 'bg-dark-700' : '',
+                            'block px-4 py-2 text-sm text-white'
+                          )}
+                        >
+                          Dashboard
+                        </Link>
+                      )}
+                    </Menu.Item>
+
+                    <div className="border-t border-dark-700 my-1"></div>
+
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          onClick={handleLogout}
+                          className={clsx(
+                            active ? 'bg-dark-700' : '',
+                            'w-full text-left px-4 py-2 text-sm text-white flex items-center space-x-2'
+                          )}
+                        >
+                          <ArrowRightOnRectangleIcon className="h-5 w-5" />
+                          <span>Sign Out</span>
+                        </button>
+                      )}
+                    </Menu.Item>
+                  </Menu.Items>
+                </Transition>
+              </Menu>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Link
+                  to="/login"
+                  className="px-4 py-2 text-sm font-medium text-white hover:text-primary-300 transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/register"
+                  className="px-4 py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  Sign Up
+                </Link>
               </div>
-              <Transition
-                as={Fragment}
-                enter="transition ease-out duration-100"
-                enterFrom="transform opacity-0 scale-95"
-                enterTo="transform opacity-100 scale-100"
-                leave="transition ease-in duration-75"
-                leaveFrom="transform opacity-100 scale-100"
-                leaveTo="transform opacity-0 scale-95"
-              >
-                <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-dark-800 py-1 shadow-lg ring-1 ring-dark-700 focus:outline-none">
-                  <Menu.Item>
-                    {({ active }) => (
-                      <Link
-                        to="/dashboard"
-                        className={clsx(
-                          active ? 'bg-dark-700' : '',
-                          'block px-4 py-2 text-sm text-white'
-                        )}
-                      >
-                        Dashboard
-                      </Link>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <Link
-                        to="/login"
-                        className={clsx(
-                          active ? 'bg-dark-700' : '',
-                          'block px-4 py-2 text-sm text-white'
-                        )}
-                      >
-                        Sign In
-                      </Link>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <Link
-                        to="/register"
-                        className={clsx(
-                          active ? 'bg-dark-700' : '',
-                          'block px-4 py-2 text-sm text-white'
-                        )}
-                      >
-                        Sign Up
-                      </Link>
-                    )}
-                  </Menu.Item>
-                </Menu.Items>
-              </Transition>
-            </Menu>
+            )}
 
             {/* Mobile menu button */}
             <div className="md:hidden">

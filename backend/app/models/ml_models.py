@@ -113,7 +113,7 @@ class MLModel(Base, UUIDMixin, TimestampMixin):
     performance_metrics = relationship("MLModelPerformance", back_populates="model", cascade="all, delete-orphan")
     predictions = relationship("MLPrediction", back_populates="model", cascade="all, delete-orphan")
     deployments = relationship("MLModelDeployment", back_populates="model", cascade="all, delete-orphan")
-    ab_tests = relationship("MLABTest", back_populates="model_a")
+    ab_tests = relationship("MLABTest", foreign_keys="[MLABTest.model_a_id]", back_populates="model_a")
 
 
 class MLModelVersion(Base, UUIDMixin, TimestampMixin):

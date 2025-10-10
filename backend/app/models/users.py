@@ -105,14 +105,14 @@ class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     language = Column(String(10), default="en")
     
     # Relationships
-    expert_profile = relationship("ExpertProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    admin_profile = relationship("AdminProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    expert_profile = relationship("ExpertProfile", back_populates="user", uselist=False, cascade="all, delete-orphan", foreign_keys="[ExpertProfile.user_id]")
+    admin_profile = relationship("AdminProfile", back_populates="user", uselist=False, cascade="all, delete-orphan", foreign_keys="[AdminProfile.user_id]")
     preferences = relationship("UserPreference", back_populates="user", uselist=False, cascade="all, delete-orphan")
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
-    activity_logs = relationship("UserActivityLog", back_populates="user", cascade="all, delete-orphan")
+    activity_logs = relationship("app.models.users.UserActivityLog", back_populates="user", cascade="all, delete-orphan")
     subscriptions = relationship("UserSubscription", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("UserNotification", back_populates="user", cascade="all, delete-orphan")
-    user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
+    user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan", foreign_keys="[UserRole.user_id]")
     
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, type={self.user_type})>"
@@ -155,7 +155,7 @@ class ExpertProfile(Base, UUIDMixin, TimestampMixin):
     performance_data = Column(JSONB, comment="Detailed performance metrics")
     
     # Relationships
-    user = relationship("User", back_populates="expert_profile")
+    user = relationship("User", back_populates="expert_profile", foreign_keys=[user_id])
     specialties = relationship("ExpertSpecialty", back_populates="expert_profile", cascade="all, delete-orphan")
     performance_metrics = relationship("ExpertPerformanceMetric", back_populates="expert_profile", cascade="all, delete-orphan")
 
@@ -188,7 +188,7 @@ class AdminProfile(Base, UUIDMixin, TimestampMixin):
     total_actions_count = Column(Integer, nullable=False, default=0)
     
     # Relationships
-    user = relationship("User", back_populates="admin_profile")
+    user = relationship("User", back_populates="admin_profile", foreign_keys=[user_id])
     permissions = relationship("AdminPermission", back_populates="admin_profile", cascade="all, delete-orphan")
     activity_logs = relationship("AdminActivityLog", back_populates="admin_profile", cascade="all, delete-orphan")
 
@@ -523,7 +523,7 @@ class UserRole(Base, UUIDMixin, TimestampMixin):
     expires_at = Column(DateTime)
 
     # Relationships
-    user = relationship("User", back_populates="user_roles")
+    user = relationship("User", back_populates="user_roles", foreign_keys=[user_id])
     role = relationship("Role", back_populates="user_roles")
 
 
