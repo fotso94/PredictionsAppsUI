@@ -1,22 +1,41 @@
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
+import { useAuth } from '@/contexts/AuthContext'
 
 const LoginPage: React.FC = () => {
+  const { login, isAuthenticated, isLoading } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     rememberMe: false,
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Redirect if already authenticated
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle login logic here
-    console.log('Login attempt:', formData)
+
+    if (isSubmitting) return
+
+    try {
+      setIsSubmitting(true)
+      await login(formData.email, formData.password)
+      // Navigation is handled by AuthContext
+    } catch (error) {
+      // Error is handled by AuthContext (toast notification)
+      console.error('Login failed:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -119,8 +138,13 @@ const LoginPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <Button type="submit" className="w-full" size="lg">
-                    Sign in
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    size="lg"
+                    disabled={isSubmitting || isLoading}
+                  >
+                    {isSubmitting || isLoading ? 'Signing in...' : 'Sign in'}
                   </Button>
                 </div>
               </form>

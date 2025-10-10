@@ -1,11 +1,14 @@
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
+import { useAuth } from '@/contexts/AuthContext'
+import toast from 'react-hot-toast'
 
 const RegisterPage: React.FC = () => {
+  const { register, isAuthenticated, isLoading } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formData, setFormData] = useState({
@@ -17,11 +20,51 @@ const RegisterPage: React.FC = () => {
     confirmPassword: '',
     agreeToTerms: false,
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Redirect if already authenticated
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle registration logic here
-    console.log('Registration attempt:', formData)
+
+    if (isSubmitting) return
+
+    // Validate passwords match
+    if (formData.password !== formData.confirmPassword) {
+      toast.error('Passwords do not match')
+      return
+    }
+
+    // Validate terms agreement
+    if (!formData.agreeToTerms) {
+      toast.error('Please agree to the terms and conditions')
+      return
+    }
+
+    // Validate password strength (minimum 8 characters)
+    if (formData.password.length < 8) {
+      toast.error('Password must be at least 8 characters long')
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+      await register({
+        email: formData.email,
+        password: formData.password,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+      })
+      // Navigation is handled by AuthContext
+    } catch (error) {
+      // Error is handled by AuthContext (toast notification)
+      console.error('Registration failed:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -201,8 +244,13 @@ const RegisterPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <Button type="submit" className="w-full" size="lg">
-                    Create account
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    size="lg"
+                    disabled={isSubmitting || isLoading}
+                  >
+                    {isSubmitting || isLoading ? 'Creating account...' : 'Create account'}
                   </Button>
                 </div>
               </form>

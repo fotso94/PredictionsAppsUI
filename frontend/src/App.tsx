@@ -2,6 +2,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import Layout from '@/components/layout/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import HomePage from '@/pages/HomePage'
 import TodayPredictionsPage from '@/pages/TodayPredictionsPage'
 import TomorrowPredictionsPage from '@/pages/TomorrowPredictionsPage'
@@ -23,6 +24,7 @@ function App() {
       
       <Routes>
         <Route path="/" element={<Layout />}>
+          {/* Public routes */}
           <Route index element={<HomePage />} />
           <Route path="predictions">
             <Route path="today" element={<TodayPredictionsPage />} />
@@ -31,7 +33,16 @@ function App() {
           <Route path="match/:id" element={<MatchDetailPage />} />
           <Route path="leagues" element={<LeaguesPage />} />
           <Route path="league/:id" element={<LeagueDetailPage />} />
-          <Route path="dashboard" element={<DashboardPage />} />
+
+          {/* Protected routes - require authentication */}
+          <Route
+            path="dashboard"
+            element={
+              <ProtectedRoute>
+                <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
         </Route>
         
         {/* Auth routes without layout */}
