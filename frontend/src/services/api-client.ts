@@ -20,8 +20,14 @@ const apiClient: AxiosInstance = axios.create({
   },
 });
 
+// Token update callback type
+type TokenUpdateCallback = (accessToken: string, refreshToken: string) => void;
+
 // Token management utilities
 export const tokenManager = {
+  // Callback to notify when tokens are updated (used by AuthContext)
+  onTokensUpdated: null as TokenUpdateCallback | null,
+
   getAccessToken: (): string | null => {
     return localStorage.getItem(TOKEN_STORAGE_KEYS.ACCESS_TOKEN);
   },
@@ -33,6 +39,11 @@ export const tokenManager = {
   setTokens: (accessToken: string, refreshToken: string): void => {
     localStorage.setItem(TOKEN_STORAGE_KEYS.ACCESS_TOKEN, accessToken);
     localStorage.setItem(TOKEN_STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+
+    // Notify listeners that tokens were updated
+    if (tokenManager.onTokensUpdated) {
+      tokenManager.onTokensUpdated(accessToken, refreshToken);
+    }
   },
 
   clearTokens: (): void => {
@@ -121,7 +132,10 @@ apiClient.interceptors.response.use(
       if (!refreshToken) {
         // No refresh token, clear tokens and redirect to login
         tokenManager.clearTokens();
-        window.location.href = '/login';
+        // Only redirect if not already on login page
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
         return Promise.reject(error);
       }
 
@@ -151,7 +165,10 @@ apiClient.interceptors.response.use(
         // Refresh failed, clear tokens and redirect to login
         processQueue(refreshError as AxiosError, null);
         tokenManager.clearTokens();
-        window.location.href = '/login';
+        // Only redirect if not already on login page
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
