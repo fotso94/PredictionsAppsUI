@@ -8,6 +8,7 @@ from typing import Any, Union, Optional, Dict
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 import uuid
+import secrets
 
 from app.core.config import settings
 
@@ -172,6 +173,43 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """Hash a password"""
     return pwd_context.hash(password)
+
+
+def generate_reset_token() -> str:
+    """
+    Generate a cryptographically secure password reset token
+
+    Returns:
+        A URL-safe random token string (43 characters)
+    """
+    return secrets.token_urlsafe(32)
+
+
+def hash_reset_token(token: str) -> str:
+    """
+    Hash a reset token for secure storage in database
+
+    Args:
+        token: Plain reset token
+
+    Returns:
+        Hashed token
+    """
+    return pwd_context.hash(token)
+
+
+def verify_reset_token(plain_token: str, hashed_token: str) -> bool:
+    """
+    Verify a reset token against its hash
+
+    Args:
+        plain_token: Plain reset token from URL
+        hashed_token: Hashed token from database
+
+    Returns:
+        True if token matches, False otherwise
+    """
+    return pwd_context.verify(plain_token, hashed_token)
 
 
 # Security Headers Middleware Configuration

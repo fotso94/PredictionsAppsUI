@@ -12,6 +12,11 @@ import type {
   BackendUserInfo,
   ChangePasswordRequest,
   ChangePasswordResponse,
+  ForgotPasswordRequest,
+  ForgotPasswordResponse,
+  ResetPasswordRequest,
+  ResetPasswordResponse,
+  VerifyResetTokenResponse,
 } from '@/types/auth';
 
 const AUTH_BASE_URL = '/api/v1/auth';
@@ -123,7 +128,49 @@ export const authService = {
       `${AUTH_BASE_URL}/change-password`,
       passwordData
     );
-    
+
+    return response.data;
+  },
+
+  /**
+   * Request password reset
+   */
+  forgotPassword: async (
+    email: string
+  ): Promise<ForgotPasswordResponse> => {
+    const response = await apiClient.post<ForgotPasswordResponse>(
+      `${AUTH_BASE_URL}/forgot-password`,
+      { email } as ForgotPasswordRequest
+    );
+
+    return response.data;
+  },
+
+  /**
+   * Verify password reset token
+   */
+  verifyResetToken: async (
+    token: string
+  ): Promise<VerifyResetTokenResponse> => {
+    const response = await apiClient.get<VerifyResetTokenResponse>(
+      `${AUTH_BASE_URL}/verify-reset-token/${token}`
+    );
+
+    return response.data;
+  },
+
+  /**
+   * Reset password with token
+   */
+  resetPassword: async (
+    token: string,
+    newPassword: string
+  ): Promise<ResetPasswordResponse> => {
+    const response = await apiClient.post<ResetPasswordResponse>(
+      `${AUTH_BASE_URL}/reset-password`,
+      { token, new_password: newPassword } as ResetPasswordRequest
+    );
+
     return response.data;
   },
 

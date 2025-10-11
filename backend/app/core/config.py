@@ -111,14 +111,35 @@ class Settings(BaseSettings):
     REDIS_DB_MATCH_DATA: int = 4  # Real-time match data
     REDIS_DB_RATE_LIMIT: int = 5  # API rate limiting
     
-    # Email (for future use)
+    # Email Configuration
+    # Email Provider: smtp, sendgrid, ses
+    EMAIL_PROVIDER: str = "smtp"
+    EMAIL_ENABLED: bool = True
+
+    # SMTP Configuration
     SMTP_TLS: bool = True
-    SMTP_PORT: Optional[int] = None
+    SMTP_PORT: int = 587
     SMTP_HOST: Optional[str] = None
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
+
+    # Email Sender Information
     EMAILS_FROM_EMAIL: Optional[str] = None
-    EMAILS_FROM_NAME: Optional[str] = None
+    EMAILS_FROM_NAME: str = "Soccer Predictions Platform"
+
+    # SendGrid Configuration (for future use)
+    SENDGRID_API_KEY: Optional[str] = None
+
+    # AWS SES Configuration (for future use)
+    AWS_SES_REGION: Optional[str] = None
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+
+    # Email Templates
+    EMAIL_TEMPLATES_DIR: str = "app/templates/emails"
+
+    # Frontend URL (for email links)
+    FRONTEND_URL: str = "http://localhost:3000"
     
     # External APIs
     API_FOOTBALL_KEY: Optional[str] = None

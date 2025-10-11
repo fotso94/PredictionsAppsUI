@@ -54,11 +54,14 @@ const RegisterPage: React.FC = () => {
       setIsSubmitting(true)
       await register({
         email: formData.email,
+        username: formData.username, // Send user-provided username
         password: formData.password,
         first_name: formData.firstName,
         last_name: formData.lastName,
+        role: 'regular', // Default role for new users
       })
       // Navigation is handled by AuthContext
+      toast.success('Account created successfully! Welcome email sent to your inbox.')
     } catch (error) {
       // Error is handled by AuthContext (toast notification)
       console.error('Registration failed:', error)

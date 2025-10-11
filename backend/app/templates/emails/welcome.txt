@@ -1,0 +1,61 @@
+⚽ {{ platform_name }}
+================================================================================
+
+Welcome, {{ user_name }}! 🎉
+
+Thank you for joining {{ platform_name }}! We're thrilled to have you as part 
+of our community of soccer enthusiasts.
+
+Your account has been successfully created, and you're now ready to access 
+expert predictions, track match results, and stay ahead of the game.
+
+
+WHAT YOU CAN DO:
+--------------------------------------------------------------------------------
+
+⚽ Access Expert Predictions
+   Get data-driven insights for upcoming matches
+
+⚽ Track Performance
+   Monitor prediction accuracy and historical results
+
+⚽ Manage Your Profile
+   Customize preferences and subscription settings
+
+⚽ Real-Time Updates
+   Stay informed with live match data and notifications
+
+
+GET STARTED:
+--------------------------------------------------------------------------------
+
+Visit your dashboard: {{ dashboard_url }}
+
+Quick Links:
+- View Today's Predictions: {{ dashboard_url }}
+- Complete Your Profile: {{ frontend_url }}/profile
+- Explore Subscription Plans: {{ frontend_url }}/subscription
+
+
+NEED HELP?
+--------------------------------------------------------------------------------
+
+If you have any questions or need assistance, our support team is here to help.
+Just reply to this email or contact us at {{ support_email }}.
+
+
+Happy predicting! 🎯
+
+Best regards,
+The {{ platform_name }} Team
+
+
+================================================================================
+© {{ year }} {{ platform_name }}. All rights reserved.
+
+Privacy Policy: {{ frontend_url }}/privacy
+Terms of Service: {{ frontend_url }}/terms
+
+You're receiving this email because you created an account on {{ platform_name }}.
+================================================================================
+

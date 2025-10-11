@@ -131,9 +131,9 @@ const LoginPage: React.FC = () => {
                   </div>
 
                   <div className="text-sm">
-                    <a href="#" className="text-primary-400 hover:text-primary-300">
+                    <Link to="/forgot-password" className="text-primary-400 hover:text-primary-300">
                       Forgot your password?
-                    </a>
+                    </Link>
                   </div>
                 </div>
 
