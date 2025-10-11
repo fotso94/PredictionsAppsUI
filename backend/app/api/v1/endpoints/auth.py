@@ -4,8 +4,9 @@ Login, logout, token refresh, and user registration
 """
 
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
+import logging
 
 from app.core.config import settings
 from app.core.security import (
@@ -14,6 +15,9 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     verify_refresh_token,
+    generate_reset_token,
+    hash_reset_token,
+    verify_reset_token as verify_reset_token_hash,
 )
 from app.core.deps import (
     get_db,
@@ -36,8 +40,15 @@ from app.schemas.auth import (
     RegisterResponse,
     PasswordChangeRequest,
     PasswordChangeResponse,
+    PasswordResetRequest,
+    PasswordResetResponse,
+    PasswordResetConfirmRequest,
+    PasswordResetConfirmResponse,
     UserInfo,
 )
+from app.services.email_service import email_service
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
@@ -238,12 +249,13 @@ async def logout(
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     register_data: RegisterRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """
     User registration endpoint
-    
-    Creates new user account
+
+    Creates new user account and sends welcome email
     """
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == register_data.email).first()
@@ -264,9 +276,12 @@ async def register(
     # Create new user
     from app.models.users import UserType, AccountStatus
 
+    # Use provided username or generate from email
+    username = register_data.username if register_data.username else register_data.email.split('@')[0]
+
     new_user = User(
         email=register_data.email,
-        username=register_data.email.split('@')[0],  # Generate username from email
+        username=username,
         password_hash=get_password_hash(register_data.password),
         first_name=register_data.first_name,
         last_name=register_data.last_name,
@@ -311,6 +326,14 @@ async def register(
         updated_at=new_user.updated_at
     )
 
+    # Send welcome email asynchronously (non-blocking)
+    background_tasks.add_task(
+        send_welcome_email_task,
+        to_email=new_user.email,
+        user_name=full_name,
+        user_id=str(new_user.id)
+    )
+
     return RegisterResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -318,6 +341,27 @@ async def register(
         user=user_info,
         message="Registration successful! You are now logged in."
     )
+
+
+async def send_welcome_email_task(to_email: str, user_name: str, user_id: str):
+    """
+    Background task to send welcome email
+
+    This runs asynchronously and doesn't block the registration response
+    """
+    try:
+        success = await email_service.send_welcome_email(
+            to_email=to_email,
+            user_name=user_name,
+            user_id=user_id
+        )
+        if success:
+            logger.info(f"Welcome email sent successfully to {to_email}")
+        else:
+            logger.warning(f"Failed to send welcome email to {to_email}")
+    except Exception as e:
+        # Log error but don't fail registration
+        logger.error(f"Error sending welcome email to {to_email}: {str(e)}", exc_info=True)
 
 
 @router.get("/me", response_model=UserInfo)
@@ -370,4 +414,138 @@ async def change_password(
     revoke_user_refresh_tokens(user_id=str(current_user.id))
 
     return PasswordChangeResponse(message="Password successfully changed")
+
+
+@router.post("/forgot-password", response_model=PasswordResetResponse)
+async def forgot_password(
+    reset_data: PasswordResetRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """
+    Request password reset
+
+    Sends a password reset email with a secure token to the user's email address.
+    For security, always returns success even if email doesn't exist.
+    """
+    # Find user by email
+    user = db.query(User).filter(User.email == reset_data.email).first()
+
+    # For security, always return success message even if user doesn't exist
+    # This prevents email enumeration attacks
+    if user is None:
+        logger.info(f"Password reset requested for non-existent email: {reset_data.email}")
+        return PasswordResetResponse(message="If that email address is in our system, we have sent a password reset link to it.")
+
+    # Generate secure reset token
+    reset_token = generate_reset_token()
+
+    # Hash token for storage
+    token_hash = hash_reset_token(reset_token)
+
+    # Store hashed token and expiration in database
+    user.password_reset_token = token_hash
+    user.password_reset_expires_at = datetime.utcnow() + timedelta(hours=1)
+    user.updated_at = datetime.utcnow()
+    db.commit()
+
+    # Get user's full name
+    full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+
+    # Send password reset email asynchronously
+    background_tasks.add_task(
+        email_service.send_password_reset_email,
+        to_email=user.email,
+        user_name=full_name,
+        reset_token=reset_token  # Send plain token in email
+    )
+
+    logger.info(f"Password reset requested for user: {user.email}")
+
+    return PasswordResetResponse(message="If that email address is in our system, we have sent a password reset link to it.")
+
+
+@router.get("/verify-reset-token/{token}")
+async def verify_reset_token(
+    token: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Verify if a password reset token is valid and not expired
+
+    Returns 200 if valid, 400 if invalid/expired
+    """
+    # Find user with a non-expired reset token
+    users = db.query(User).filter(
+        User.password_reset_token.isnot(None),
+        User.password_reset_expires_at > datetime.utcnow()
+    ).all()
+
+    # Check if any user has a matching token
+    for user in users:
+        if verify_reset_token_hash(token, user.password_reset_token):
+            return {"valid": True, "message": "Token is valid"}
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid or expired reset token"
+    )
+
+
+@router.post("/reset-password", response_model=PasswordResetConfirmResponse)
+async def reset_password(
+    reset_data: PasswordResetConfirmRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """
+    Reset password using reset token
+
+    Validates the token, updates the password, and revokes all user sessions
+    """
+    # Find user with a non-expired reset token
+    users = db.query(User).filter(
+        User.password_reset_token.isnot(None),
+        User.password_reset_expires_at > datetime.utcnow()
+    ).all()
+
+    # Check if any user has a matching token
+    user = None
+    for u in users:
+        if verify_reset_token_hash(reset_data.token, u.password_reset_token):
+            user = u
+            break
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
+
+    # Update password
+    user.password_hash = get_password_hash(reset_data.new_password)
+
+    # Clear reset token (one-time use)
+    user.password_reset_token = None
+    user.password_reset_expires_at = None
+
+    user.updated_at = datetime.utcnow()
+    db.commit()
+
+    # Revoke all refresh tokens for security (log out all devices)
+    revoke_user_refresh_tokens(user_id=str(user.id))
+
+    # Get user's full name
+    full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+
+    # Send confirmation email asynchronously
+    background_tasks.add_task(
+        email_service.send_password_reset_confirmation_email,
+        to_email=user.email,
+        user_name=full_name
+    )
+
+    logger.info(f"Password reset successful for user: {user.email}")
+
+    return PasswordResetConfirmResponse(message="Password successfully reset")
 

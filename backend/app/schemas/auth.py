@@ -35,6 +35,7 @@ class LoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     """User registration request schema"""
     email: EmailStr = Field(..., description="User email address")
+    username: Optional[str] = Field(None, min_length=3, max_length=50, description="Username (auto-generated from email if not provided)")
     password: str = Field(..., min_length=8, description="User password")
     first_name: str = Field(..., min_length=1, max_length=100, description="User first name")
     last_name: str = Field(..., min_length=1, max_length=100, description="User last name")

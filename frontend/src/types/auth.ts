@@ -68,9 +68,11 @@ export interface LoginResponse {
 
 export interface RegisterRequest {
   email: string;
+  username?: string; // Optional, auto-generated from email if not provided
   password: string;
   first_name: string;
   last_name: string;
+  role?: string; // Optional, defaults to 'regular' on backend
 }
 
 export interface RegisterResponse {
@@ -109,6 +111,28 @@ export interface ChangePasswordRequest {
 }
 
 export interface ChangePasswordResponse {
+  message: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
+export interface VerifyResetTokenResponse {
+  valid: boolean;
   message: string;
 }
 
