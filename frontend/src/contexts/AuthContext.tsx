@@ -39,9 +39,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   useEffect(() => {
     const initializeAuth = async () => {
+      console.log('[AuthContext] Initializing authentication...');
       try {
         // Check if tokens exist in localStorage
         if (tokenManager.hasTokens()) {
+          console.log('[AuthContext] Found tokens in localStorage');
           const accessToken = tokenManager.getAccessToken();
           const refreshToken = tokenManager.getRefreshToken();
 
@@ -53,23 +55,58 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             });
 
             // Fetch current user data
-            const response = await authService.getCurrentUser();
-            const frontendUser = mapBackendUserToFrontend(response.user);
-            setUser(frontendUser);
+            // If access token is expired, the interceptor will automatically refresh it
+            try {
+              console.log('[AuthContext] Fetching current user data...');
+              const response = await authService.getCurrentUser();
+              const frontendUser = mapBackendUserToFrontend(response.user);
+              setUser(frontendUser);
+              console.log('[AuthContext] User authenticated:', frontendUser.email);
+            } catch (userError) {
+              // If fetching user fails even after token refresh, clear auth
+              console.error('[AuthContext] Failed to fetch user data:', userError);
+              tokenManager.clearTokens();
+              setTokens(null);
+              setUser(null);
+            }
           }
+        } else {
+          console.log('[AuthContext] No tokens found in localStorage');
         }
       } catch (err) {
-        console.error('Failed to initialize auth:', err);
+        console.error('[AuthContext] Failed to initialize auth:', err);
         // Clear invalid tokens
         tokenManager.clearTokens();
         setTokens(null);
         setUser(null);
       } finally {
         setIsLoading(false);
+        console.log('[AuthContext] Initialization complete');
       }
     };
 
     initializeAuth();
+  }, []);
+
+  /**
+   * Subscribe to token updates from api-client
+   * This keeps the context in sync when tokens are refreshed automatically
+   */
+  useEffect(() => {
+    // Set up callback to update tokens in context when they're refreshed
+    tokenManager.onTokensUpdated = (accessToken: string, refreshToken: string) => {
+      console.log('[AuthContext] Tokens updated from api-client');
+      setTokens({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        token_type: 'bearer',
+      });
+    };
+
+    // Cleanup
+    return () => {
+      tokenManager.onTokensUpdated = null;
+    };
   }, []);
 
   /**
@@ -246,7 +283,7 @@ const getRedirectPath = (userType: string): string => {
     case 'ADMIN':
       return '/dashboard'; // Admin dashboard
     case 'EXPERT':
-      return '/dashboard'; // Expert dashboard
+      return '/expert/dashboard'; // Expert dashboard
     case 'REGULAR':
     default:
       return '/'; // Home page for regular users

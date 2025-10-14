@@ -14,7 +14,17 @@ import RegisterPage from '@/pages/RegisterPage'
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
 import ResetPasswordPage from '@/pages/ResetPasswordPage'
 import DashboardPage from '@/pages/DashboardPage'
+import ProfilePage from '@/pages/ProfilePage'
+import PasswordChangePage from '@/pages/PasswordChangePage'
+import SubscriptionPage from '@/pages/SubscriptionPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import APITestPage from '@/pages/APITestPage'
+import DebugAPIPage from '@/pages/DebugAPIPage'
+import ExpertDashboardPage from '@/pages/ExpertDashboardPage'
+import ExpertCreatePredictionPage from '@/pages/ExpertCreatePredictionPage'
+import ExpertReviewQueuePage from '@/pages/ExpertReviewQueuePage'
+import ExpertMyPredictionsPage from '@/pages/ExpertMyPredictionsPage'
+import ExpertMatchSelectionPage from '@/pages/ExpertMatchSelectionPage'
 
 function App() {
   return (
@@ -45,8 +55,92 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="password-change"
+            element={
+              <ProtectedRoute>
+                <PasswordChangePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="subscription"
+            element={
+              <ProtectedRoute>
+                <SubscriptionPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Expert routes - protected for expert users only */}
+          <Route
+            path="expert/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['EXPERT', 'ADMIN']}>
+                <ExpertDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="expert/match-selection"
+            element={
+              <ProtectedRoute allowedRoles={['EXPERT', 'ADMIN']}>
+                <ExpertMatchSelectionPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="expert/predictions/create"
+            element={
+              <ProtectedRoute allowedRoles={['EXPERT', 'ADMIN']}>
+                <ExpertCreatePredictionPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="expert/predictions/review-queue"
+            element={
+              <ProtectedRoute allowedRoles={['EXPERT', 'ADMIN']}>
+                <ExpertReviewQueuePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="expert/predictions/my-predictions"
+            element={
+              <ProtectedRoute allowedRoles={['EXPERT', 'ADMIN']}>
+                <ExpertMyPredictionsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Debug routes - protected for development */}
+          <Route
+            path="api-test"
+            element={
+              <ProtectedRoute>
+                <APITestPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="debug-api"
+            element={
+              <ProtectedRoute>
+                <DebugAPIPage />
+              </ProtectedRoute>
+            }
+          />
         </Route>
-        
+
         {/* Auth routes without layout */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

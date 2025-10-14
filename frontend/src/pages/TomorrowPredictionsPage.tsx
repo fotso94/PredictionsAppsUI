@@ -1,18 +1,59 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { FunnelIcon, CalendarDaysIcon } from '@heroicons/react/24/outline'
-import { mockTomorrowMatches, mockLeagues } from '@/data/mockData'
-import { BettingMarket, ConfidenceLevel } from '@/types'
+import { BettingMarket, ConfidenceLevel, Match, League } from '@/types'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import MatchCard from '@/components/ui/MatchCard'
 import { Badge } from '@/components/ui/Badge'
 import { motion } from 'framer-motion'
+import { footballDataService } from '@/services/football-data.service'
 
 const TomorrowPredictionsPage: React.FC = () => {
+  // API Data State
+  const [matches, setMatches] = useState<Match[]>([])
+  const [leagues, setLeagues] = useState<League[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [usingMockData, setUsingMockData] = useState(false)
+
+  // Filter State
   const [selectedLeagues, setSelectedLeagues] = useState<string[]>([])
   const [selectedMarkets, setSelectedMarkets] = useState<BettingMarket[]>([])
   const [selectedConfidence, setSelectedConfidence] = useState<ConfidenceLevel[]>([])
+
+  // Fetch data on component mount
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true)
+        setError(null)
+        console.log('Fetching tomorrow\'s fixtures from API-Football...')
+
+        const [matchesData, leaguesData] = await Promise.all([
+          footballDataService.getTomorrowFixtures(),
+          footballDataService.getTopLeagues()
+        ])
+
+        console.log('Tomorrow\'s matches received:', matchesData.length, 'matches')
+        console.log('Leagues received:', leaguesData.length, 'leagues')
+
+        setMatches(matchesData)
+        setLeagues(leaguesData)
+        setUsingMockData(false)
+      } catch (err) {
+        console.error('Error fetching tomorrow\'s fixtures:', err)
+        setError(err instanceof Error ? err.message : 'Failed to fetch data from API-Football')
+        setMatches([])
+        setLeagues([])
+        setUsingMockData(false)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   const markets: { value: BettingMarket; label: string }[] = [
     { value: '1x2', label: '1X2' },
@@ -28,7 +69,7 @@ const TomorrowPredictionsPage: React.FC = () => {
     { value: 'very-high', label: 'Very High' },
   ]
 
-  const filteredMatches = mockTomorrowMatches.filter(match => {
+  const filteredMatches = matches.filter(match => {
     if (selectedLeagues.length > 0 && !selectedLeagues.includes(match.league.id)) {
       return false
     }
@@ -110,6 +151,9 @@ const TomorrowPredictionsPage: React.FC = () => {
               <Badge variant="success">
                 {filteredMatches.filter(m => m.predictions.outcome.confidence === 'high' || m.predictions.outcome.confidence === 'very-high').length} high confidence
               </Badge>
+              {usingMockData && (
+                <Badge variant="warning">⚠️ Using Mock Data</Badge>
+              )}
             </div>
           </motion.div>
 
@@ -143,7 +187,7 @@ const TomorrowPredictionsPage: React.FC = () => {
                   <div>
                     <h4 className="text-sm font-medium text-white mb-3">Leagues</h4>
                     <div className="space-y-2">
-                      {mockLeagues.map(league => (
+                      {leagues.map(league => (
                         <label key={league.id} className="flex items-center">
                           <input
                             type="checkbox"
@@ -151,7 +195,7 @@ const TomorrowPredictionsPage: React.FC = () => {
                             onChange={() => toggleLeague(league.id)}
                             className="rounded border-dark-600 bg-dark-800 text-primary-600 focus:ring-primary-500"
                           />
-                          <span className="ml-2 text-sm text-secondary-300">{league.shortName}</span>
+                          <span className="ml-2 text-sm text-secondary-300">{league.name}</span>
                         </label>
                       ))}
                     </div>
@@ -198,15 +242,44 @@ const TomorrowPredictionsPage: React.FC = () => {
 
             {/* Matches Grid */}
             <div className="lg:col-span-3">
-              {filteredMatches.length === 0 ? (
+              {/* Loading State */}
+              {loading ? (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.6 }}
                   className="text-center py-12"
                 >
-                  <div className="text-secondary-400 mb-4">No matches found with current filters</div>
-                  <Button onClick={clearFilters}>Clear Filters</Button>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+                  <div className="text-secondary-400">Loading tomorrow's matches...</div>
+                </motion.div>
+              ) : error && !usingMockData ? (
+                /* Error State */
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.6 }}
+                  className="text-center py-12"
+                >
+                  <div className="text-red-400 mb-4">❌ {error}</div>
+                  <Button onClick={() => window.location.reload()}>Retry</Button>
+                </motion.div>
+              ) : filteredMatches.length === 0 ? (
+                /* No Matches State */
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.6 }}
+                  className="text-center py-12"
+                >
+                  <div className="text-secondary-400 mb-4">
+                    {matches.length === 0
+                      ? 'No matches scheduled for tomorrow'
+                      : 'No matches found with current filters'}
+                  </div>
+                  {selectedLeagues.length > 0 || selectedConfidence.length > 0 ? (
+                    <Button onClick={clearFilters}>Clear Filters</Button>
+                  ) : null}
                 </motion.div>
               ) : (
                 <motion.div

@@ -148,6 +148,11 @@ export interface MatchPredictions {
   };
   analysis: string;
   keyFactors: string[];
+  // Metadata for prediction source
+  source?: 'expert' | 'api-football' | 'default';
+  source_type?: string;
+  confidence_score?: number;
+  priority_level?: number;
 }
 
 export interface HeadToHead {

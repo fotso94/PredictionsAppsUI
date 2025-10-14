@@ -9,6 +9,7 @@ import type {
   LogoutRequest,
   LogoutResponse,
   UserInfoResponse,
+  BackendUserInfo,
   ChangePasswordRequest,
   ChangePasswordResponse,
   ForgotPasswordRequest,
@@ -108,11 +109,13 @@ export const authService = {
    * Get current user information
    */
   getCurrentUser: async (): Promise<UserInfoResponse> => {
-    const response = await apiClient.get<UserInfoResponse>(
+    const response = await apiClient.get<BackendUserInfo>(
       `${AUTH_BASE_URL}/me`
     );
-    
-    return response.data;
+
+    // The /auth/me endpoint returns UserInfo directly, not wrapped in {user: ...}
+    // So we need to wrap it to match the UserInfoResponse interface
+    return { user: response.data };
   },
 
   /**

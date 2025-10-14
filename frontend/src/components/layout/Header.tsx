@@ -72,6 +72,22 @@ const Header: React.FC = () => {
                 {item.name}
               </Link>
             ))}
+
+            {/* Expert Dashboard - Only visible to EXPERT and ADMIN users */}
+            {(user?.user_type === 'EXPERT' || user?.user_type === 'ADMIN') && (
+              <Link
+                to="/expert/dashboard"
+                className={clsx(
+                  'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-1',
+                  isActive('/expert/dashboard')
+                    ? 'bg-purple-900 text-purple-300'
+                    : 'text-purple-400 hover:text-purple-300 hover:bg-purple-900/50'
+                )}
+              >
+                <span>⚡</span>
+                <span>Expert</span>
+              </Link>
+            )}
           </div>
 
           {/* Search and User Menu */}
@@ -135,6 +151,68 @@ const Header: React.FC = () => {
                           )}
                         >
                           Dashboard
+                        </Link>
+                      )}
+                    </Menu.Item>
+
+                    {/* Expert Dashboard - Only visible to EXPERT and ADMIN users */}
+                    {(user?.user_type === 'EXPERT' || user?.user_type === 'ADMIN') && (
+                      <Menu.Item>
+                        {({ active }) => (
+                          <Link
+                            to="/expert/dashboard"
+                            className={clsx(
+                              active ? 'bg-dark-700' : '',
+                              'block px-4 py-2 text-sm text-white'
+                            )}
+                          >
+                            <div className="flex items-center space-x-2">
+                              <span>⚡</span>
+                              <span>Expert Dashboard</span>
+                            </div>
+                          </Link>
+                        )}
+                      </Menu.Item>
+                    )}
+
+                    <Menu.Item>
+                      {({ active }) => (
+                        <Link
+                          to="/profile"
+                          className={clsx(
+                            active ? 'bg-dark-700' : '',
+                            'block px-4 py-2 text-sm text-white'
+                          )}
+                        >
+                          Profile Settings
+                        </Link>
+                      )}
+                    </Menu.Item>
+
+                    <Menu.Item>
+                      {({ active }) => (
+                        <Link
+                          to="/password-change"
+                          className={clsx(
+                            active ? 'bg-dark-700' : '',
+                            'block px-4 py-2 text-sm text-white'
+                          )}
+                        >
+                          Change Password
+                        </Link>
+                      )}
+                    </Menu.Item>
+
+                    <Menu.Item>
+                      {({ active }) => (
+                        <Link
+                          to="/subscription"
+                          className={clsx(
+                            active ? 'bg-dark-700' : '',
+                            'block px-4 py-2 text-sm text-white'
+                          )}
+                        >
+                          Subscription
                         </Link>
                       )}
                     </Menu.Item>
@@ -212,6 +290,23 @@ const Header: React.FC = () => {
                   {item.name}
                 </Link>
               ))}
+
+              {/* Expert Dashboard - Only visible to EXPERT and ADMIN users */}
+              {(user?.user_type === 'EXPERT' || user?.user_type === 'ADMIN') && (
+                <Link
+                  to="/expert/dashboard"
+                  className={clsx(
+                    'block rounded-lg px-3 py-2 text-base font-medium transition-colors flex items-center space-x-2',
+                    isActive('/expert/dashboard')
+                      ? 'bg-purple-900 text-purple-300'
+                      : 'text-purple-400 hover:bg-purple-900/50 hover:text-purple-300'
+                  )}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span>⚡</span>
+                  <span>Expert Dashboard</span>
+                </Link>
+              )}
             </div>
           </div>
         )}
