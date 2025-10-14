@@ -279,9 +279,26 @@ export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions 
 
   // Determine confidence based on prediction strength
   const maxPercent = Math.max(homePercent, drawPercent, awayPercent);
-  const confidence = maxPercent > 60 ? 'very-high' : 
-                    maxPercent > 50 ? 'high' : 
+  const confidence = maxPercent > 60 ? 'very-high' :
+                    maxPercent > 50 ? 'high' :
                     maxPercent > 40 ? 'medium' : 'low';
+
+  // Extract source metadata
+  const source = (apiPrediction as any).source || 'api-football';
+  const source_type = (apiPrediction as any).source_type;
+  const confidence_score = (apiPrediction as any).confidence_score;
+  const priority_level = (apiPrediction as any).priority_level;
+
+  // Debug log for source metadata
+  if (source === 'expert') {
+    console.log('📊 mapPredictions - Expert prediction detected:', {
+      source,
+      source_type,
+      confidence_score,
+      priority_level,
+      advice: apiPrediction.predictions.advice,
+    });
+  }
 
   return {
     outcome: {
@@ -314,6 +331,11 @@ export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions 
       `Attack strength: Home ${apiPrediction.comparison.att.home}% vs Away ${apiPrediction.comparison.att.away}%`,
       `Defense strength: Home ${apiPrediction.comparison.def.home}% vs Away ${apiPrediction.comparison.def.away}%`,
     ],
+    // Preserve source metadata
+    source,
+    source_type,
+    confidence_score,
+    priority_level,
   };
 }
 

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarIcon, ClockIcon, MapPinIcon } from '@heroicons/react/24/outline'
+import { CalendarIcon, ClockIcon, MapPinIcon, UserIcon } from '@heroicons/react/24/outline'
 import { StarIcon } from '@heroicons/react/24/solid'
 import { Match } from '@/types'
 import Card from './Card'
@@ -49,6 +49,20 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
   // Check if this match has real API predictions (not default)
   const hasRealPredictions = match.predictions.analysis !== 'Prediction data will be available closer to match time.'
 
+  // Check if this is an expert prediction (from backend)
+  const isExpertPrediction = match.predictions.source === 'expert'
+
+  // Debug logging for icon selection
+  if (hasRealPredictions || isExpertPrediction) {
+    console.log(`🔍 MatchCard Icon Logic for ${match.homeTeam.name} vs ${match.awayTeam.name}:`, {
+      source: match.predictions.source,
+      isExpertPrediction,
+      hasRealPredictions,
+      willShow: isExpertPrediction ? '👤 Expert Icon' : hasRealPredictions ? '⭐ AI Icon' : 'No Icon',
+      analysis: match.predictions.analysis?.substring(0, 50),
+    });
+  }
+
   return (
     <Card hover className="overflow-hidden">
       <Card.Body className="p-0">
@@ -65,12 +79,17 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
                 }}
               />
               <span className="text-xs text-secondary-400">{match.league.name}</span>
-              {hasRealPredictions && (
+              {isExpertPrediction ? (
+                <UserIcon
+                  className="h-4 w-4 text-blue-400 animate-pulse"
+                  title="Expert Prediction - Human Analysis"
+                />
+              ) : hasRealPredictions ? (
                 <StarIcon
                   className="h-4 w-4 text-yellow-400 animate-pulse"
                   title="AI Prediction - Real data from API-Football"
                 />
-              )}
+              ) : null}
             </div>
             <div className="flex items-center space-x-2 text-xs text-secondary-400">
               <CalendarIcon className="h-3 w-3" />

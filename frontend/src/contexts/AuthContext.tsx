@@ -283,7 +283,7 @@ const getRedirectPath = (userType: string): string => {
     case 'ADMIN':
       return '/dashboard'; // Admin dashboard
     case 'EXPERT':
-      return '/dashboard'; // Expert dashboard
+      return '/expert/dashboard'; // Expert dashboard
     case 'REGULAR':
     default:
       return '/'; // Home page for regular users

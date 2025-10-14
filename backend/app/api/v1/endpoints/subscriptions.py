@@ -1,285 +1,232 @@
 """
-Subscription Endpoints for Public API
-Endpoints for managing user subscriptions
+Subscription Management Endpoints
+Handles subscription tier management and upgrades/downgrades
 """
 
-from datetime import datetime, timedelta
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
+from datetime import datetime, timedelta
 
-from app.core.deps import get_db, get_current_active_user
-from app.models.users import User, UserSubscription, SubscriptionTier
-from app.schemas.subscriptions import (
-    SubscriptionResponse,
-    SubscriptionTierResponse,
-    SubscriptionUpdateRequest,
-    SubscriptionUpdateResponse,
-)
+from app.db.session import get_db
+from app.core.deps import get_current_user
+from app.models.users import User
 
 router = APIRouter()
 
 
-# Subscription tier definitions
+# Mock subscription data (to be replaced with real database queries later)
 SUBSCRIPTION_TIERS = {
     "free": {
+        "tier": "free",
         "name": "Free",
+        "description": "Basic predictions for casual users",
         "price": 0.00,
         "currency": "USD",
-        "billing_period": "monthly",
+        "billing_period": "month",
         "features": {
-            "daily_predictions": 3,
-            "markets": ["1X2"],
+            "daily_predictions": 5,
+            "markets": ["1X2", "Over/Under"],
             "history_days": 7,
             "confidence_visible": False,
             "expert_predictions": False,
             "advanced_analytics": False,
             "api_access": False,
-            "priority_support": False
+            "priority_support": False,
         },
-        "description": "Basic access to predictions"
+        "is_popular": False,
+        "savings_percentage": 0,
     },
     "basic": {
+        "tier": "basic",
         "name": "Basic",
+        "description": "Enhanced predictions for regular users",
         "price": 9.99,
         "currency": "USD",
-        "billing_period": "monthly",
+        "billing_period": "month",
         "features": {
-            "daily_predictions": 10,
-            "markets": ["1X2", "BTTS", "O/U"],
+            "daily_predictions": 20,
+            "markets": ["1X2", "Over/Under", "BTTS"],
             "history_days": 30,
             "confidence_visible": True,
             "expert_predictions": False,
             "advanced_analytics": False,
             "api_access": False,
-            "priority_support": False
+            "priority_support": False,
         },
-        "description": "Enhanced prediction access with more markets"
+        "is_popular": True,
+        "savings_percentage": 0,
     },
     "premium": {
+        "tier": "premium",
         "name": "Premium",
+        "description": "Professional predictions with expert insights",
         "price": 29.99,
         "currency": "USD",
-        "billing_period": "monthly",
+        "billing_period": "month",
         "features": {
-            "daily_predictions": None,  # Unlimited
-            "markets": ["1X2", "BTTS", "O/U", "Correct Score", "HT/FT", "Asian Handicap"],
+            "daily_predictions": 100,
+            "markets": ["1X2", "Over/Under", "BTTS", "Correct Score", "HT/FT"],
             "history_days": 90,
             "confidence_visible": True,
             "expert_predictions": True,
             "advanced_analytics": True,
             "api_access": False,
-            "priority_support": True
+            "priority_support": True,
         },
-        "description": "Full access to all predictions and expert insights"
+        "is_popular": False,
+        "savings_percentage": 25,
     },
     "pro": {
+        "tier": "pro",
         "name": "Pro",
+        "description": "Complete access with API for professionals",
         "price": 99.99,
         "currency": "USD",
-        "billing_period": "monthly",
+        "billing_period": "month",
         "features": {
             "daily_predictions": None,  # Unlimited
-            "markets": ["1X2", "BTTS", "O/U", "Correct Score", "HT/FT", "Asian Handicap"],
+            "markets": ["1X2", "Over/Under", "BTTS", "Correct Score", "HT/FT", "Asian Handicap"],
             "history_days": None,  # Unlimited
             "confidence_visible": True,
             "expert_predictions": True,
             "advanced_analytics": True,
             "api_access": True,
-            "priority_support": True
+            "priority_support": True,
         },
-        "description": "Professional tier with API access and unlimited history"
-    }
+        "is_popular": False,
+        "savings_percentage": 40,
+    },
 }
 
 
-@router.get("/me", response_model=SubscriptionResponse)
+@router.get("/me")
 async def get_current_subscription(
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
-    Get current user's subscription details
-    
-    **Permission**: Any authenticated user
-    
-    Returns current subscription tier, usage statistics, and feature availability.
+    Get current user's subscription information
     """
-    # Get user's subscription
-    subscription = db.query(UserSubscription).filter(
-        UserSubscription.user_id == current_user.id,
-        UserSubscription.status == "active"
-    ).first()
+    # For now, return a mock subscription based on user type
+    # In production, this would query the subscriptions table
     
-    # Default to free tier if no subscription
-    tier = subscription.tier if subscription else "free"
-    tier_info = SUBSCRIPTION_TIERS.get(tier, SUBSCRIPTION_TIERS["free"])
+    # Default to free tier
+    tier = "free"
     
-    # Get usage statistics from Redis
-    from app.services.subscription_tier import subscription_checker
-    daily_used = await subscription_checker.get_daily_count(current_user)
-    daily_limit = tier_info["features"]["daily_predictions"]
+    # Map user types to subscription tiers (temporary logic)
+    if hasattr(current_user, 'user_type'):
+        if current_user.user_type == "admin":
+            tier = "pro"
+        elif current_user.user_type == "expert":
+            tier = "premium"
+        elif current_user.user_type == "regular":
+            tier = "basic"
     
-    # Calculate usage percentage
-    usage_percentage = (daily_used / daily_limit * 100) if daily_limit else 0
+    tier_info = SUBSCRIPTION_TIERS[tier]
     
-    return SubscriptionResponse(
-        subscription_id=str(subscription.id) if subscription else None,
-        user_id=str(current_user.id),
-        tier=tier,
-        tier_name=tier_info["name"],
-        status=subscription.status.value if subscription else "active",
-        price=tier_info["price"],
-        currency=tier_info["currency"],
-        billing_period=tier_info["billing_period"],
-        features=tier_info["features"],
-        usage={
-            "daily_predictions_used": daily_used,
-            "daily_predictions_limit": daily_limit,
-            "daily_predictions_remaining": daily_limit - daily_used if daily_limit else None,
-            "usage_percentage": round(usage_percentage, 2)
+    return {
+        "subscription_id": f"sub_{current_user.id}",
+        "user_id": str(current_user.id),
+        "tier": tier,
+        "tier_name": tier_info["name"],
+        "status": "active",
+        "price": tier_info["price"],
+        "currency": tier_info["currency"],
+        "billing_period": tier_info["billing_period"],
+        "features": tier_info["features"],
+        "starts_at": current_user.created_at.isoformat(),
+        "ends_at": None,  # No end date for active subscriptions
+        "usage": {
+            "predictions_today": 0,  # Would be queried from database
+            "predictions_limit": tier_info["features"]["daily_predictions"],
+            "predictions_remaining": tier_info["features"]["daily_predictions"] if tier_info["features"]["daily_predictions"] else None,
         },
-        started_at=subscription.starts_at if subscription else current_user.created_at,
-        expires_at=subscription.expires_at if subscription else None,
-        auto_renew=False,  # Not in model, would need to add
-        next_billing_date=None  # Not in model, would need to calculate
-    )
+    }
 
 
-@router.put("/me", response_model=SubscriptionUpdateResponse)
-async def update_subscription(
-    update_data: SubscriptionUpdateRequest,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+@router.get("/tiers")
+async def get_subscription_tiers(
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Update user's subscription (upgrade/downgrade)
-    
-    **Permission**: Any authenticated user
-    
-    Allows users to change their subscription tier.
-    """
-    # Validate new tier
-    if update_data.new_tier not in SUBSCRIPTION_TIERS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid subscription tier. Must be one of: {', '.join(SUBSCRIPTION_TIERS.keys())}"
-        )
-    
-    # Get current subscription
-    subscription = db.query(UserSubscription).filter(
-        UserSubscription.user_id == current_user.id,
-        UserSubscription.status == "active"
-    ).first()
-    
-    current_tier = subscription.tier if subscription else "free"
-    
-    # Check if already on this tier
-    if current_tier == update_data.new_tier:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"You are already on the {update_data.new_tier} tier"
-        )
-    
-    # Determine if upgrade or downgrade
-    tier_order = ["free", "basic", "premium", "pro"]
-    is_upgrade = tier_order.index(update_data.new_tier) > tier_order.index(current_tier)
-    
-    # Process payment (placeholder - integrate with payment provider)
-    # In production, this would call Stripe/PayPal API
-    payment_successful = True  # Placeholder
-    
-    if not payment_successful:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Payment processing failed"
-        )
-    
-    # Update or create subscription
-    if subscription:
-        # Update existing subscription
-        from app.models.users import SubscriptionTier, SubscriptionStatus
-        subscription.tier = SubscriptionTier(update_data.new_tier)
-        subscription.updated_at = datetime.utcnow()
-
-        if is_upgrade:
-            # Immediate activation for upgrades
-            subscription.status = SubscriptionStatus.ACTIVE
-        else:
-            # Downgrade at end of billing period - would need additional fields
-            subscription.status = SubscriptionStatus.ACTIVE
-    else:
-        # Create new subscription
-        from app.models.users import SubscriptionTier, SubscriptionStatus
-        new_tier_info = SUBSCRIPTION_TIERS[update_data.new_tier]
-
-        subscription = UserSubscription(
-            user_id=current_user.id,
-            tier=SubscriptionTier(update_data.new_tier),
-            status=SubscriptionStatus.ACTIVE,
-            starts_at=datetime.utcnow(),
-            expires_at=datetime.utcnow() + timedelta(days=30),  # 30 days from now
-            price_amount=new_tier_info["price"],
-            currency=new_tier_info["currency"],
-            billing_cycle=new_tier_info["billing_period"],
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-        db.add(subscription)
-    
-    db.commit()
-    db.refresh(subscription)
-    
-    # Get new tier info
-    new_tier_info = SUBSCRIPTION_TIERS[update_data.new_tier]
-    
-    return SubscriptionUpdateResponse(
-        message=f"Successfully {'upgraded' if is_upgrade else 'downgraded'} to {new_tier_info['name']} tier",
-        subscription_id=str(subscription.id),
-        previous_tier=current_tier,
-        new_tier=update_data.new_tier,
-        effective_date=datetime.utcnow() if is_upgrade else subscription.expires_at,
-        is_upgrade=is_upgrade,
-        price=new_tier_info["price"],
-        currency=new_tier_info["currency"],
-        next_billing_date=subscription.expires_at  # Use expires_at as next billing
-    )
-
-
-@router.get("/tiers", response_model=List[SubscriptionTierResponse])
-async def list_subscription_tiers(
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    List all available subscription tiers
-    
-    **Permission**: Any authenticated user
-    
-    Returns information about all subscription tiers including features and pricing.
+    Get all available subscription tiers
     """
     # Get current user's tier
-    from app.models.users import UserSubscription
-    from app.core.deps import get_db
+    current_tier = "free"
+    if hasattr(current_user, 'user_type'):
+        if current_user.user_type == "admin":
+            current_tier = "pro"
+        elif current_user.user_type == "expert":
+            current_tier = "premium"
+        elif current_user.user_type == "regular":
+            current_tier = "basic"
     
-    # Get current tier
-    current_tier = "free"  # Default
-    
-    # Build response
+    # Build response with all tiers
     tiers = []
     for tier_key, tier_data in SUBSCRIPTION_TIERS.items():
-        tier_response = SubscriptionTierResponse(
-            tier=tier_key,
-            name=tier_data["name"],
-            description=tier_data["description"],
-            price=tier_data["price"],
-            currency=tier_data["currency"],
-            billing_period=tier_data["billing_period"],
-            features=tier_data["features"],
-            is_current=tier_key == current_tier,
-            is_popular=tier_key == "premium",  # Mark premium as popular
-            savings_percentage=0 if tier_key == "free" else None  # Could calculate annual savings
-        )
-        tiers.append(tier_response)
+        tiers.append({
+            **tier_data,
+            "is_current": tier_key == current_tier,
+        })
     
     return tiers
+
+
+@router.put("/me")
+async def update_subscription(
+    new_tier: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Update user's subscription tier (upgrade/downgrade)
+    """
+    # Validate tier
+    if new_tier not in SUBSCRIPTION_TIERS:
+        raise HTTPException(status_code=400, detail="Invalid subscription tier")
+    
+    # Get current tier
+    current_tier = "free"
+    if hasattr(current_user, 'user_type'):
+        if current_user.user_type == "admin":
+            current_tier = "pro"
+        elif current_user.user_type == "expert":
+            current_tier = "premium"
+        elif current_user.user_type == "regular":
+            current_tier = "basic"
+    
+    if new_tier == current_tier:
+        raise HTTPException(status_code=400, detail="You are already on this tier")
+    
+    # In production, this would:
+    # 1. Create a new subscription record
+    # 2. Process payment if upgrading
+    # 3. Update user's subscription_id
+    # 4. Send confirmation email
+    
+    # For now, just return success message
+    tier_info = SUBSCRIPTION_TIERS[new_tier]
+    
+    return {
+        "subscription": {
+            "subscription_id": f"sub_{current_user.id}",
+            "user_id": str(current_user.id),
+            "tier": new_tier,
+            "tier_name": tier_info["name"],
+            "status": "active",
+            "price": tier_info["price"],
+            "currency": tier_info["currency"],
+            "billing_period": tier_info["billing_period"],
+            "features": tier_info["features"],
+            "starts_at": datetime.utcnow().isoformat(),
+            "ends_at": None,
+            "usage": {
+                "predictions_today": 0,
+                "predictions_limit": tier_info["features"]["daily_predictions"],
+                "predictions_remaining": tier_info["features"]["daily_predictions"] if tier_info["features"]["daily_predictions"] else None,
+            },
+        },
+        "message": f"Successfully {'upgraded' if SUBSCRIPTION_TIERS[new_tier]['price'] > SUBSCRIPTION_TIERS[current_tier]['price'] else 'downgraded'} to {tier_info['name']} plan",
+    }
 

@@ -24,6 +24,9 @@ class PredictionSource(str, enum.Enum):
     EXPERT_OVERRIDE = "expert_override"
     EXPERT_MANUAL = "expert_manual"
     ADMIN_MANUAL = "admin_manual"
+    LLM_GENERATED = "llm_generated"
+    API_FOOTBALL_BASELINE = "api_football_baseline"
+    DEFAULT_RANDOMIZED = "default_randomized"
 
 
 class PredictionStatus(str, enum.Enum):
@@ -78,8 +81,11 @@ class Prediction(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         Index('idx_predictions_status', 'status'),
         Index('idx_predictions_published_at', 'published_at'),
         Index('idx_predictions_created_at', 'created_at'),
+        Index('idx_predictions_superseded_by', 'superseded_by'),
+        Index('idx_predictions_match_priority_published', 'match_id', 'priority_level', 'published_at'),
         CheckConstraint('home_win_prob + draw_prob + away_win_prob = 1.0', name='ck_predictions_prob_sum'),
         CheckConstraint('confidence_score >= 0 AND confidence_score <= 1', name='ck_predictions_confidence'),
+        CheckConstraint('priority_level >= 0 AND priority_level <= 100', name='ck_predictions_priority_level_range'),
         {'schema': 'predictions', 'comment': 'Core predictions'}
     )
     
@@ -107,7 +113,11 @@ class Prediction(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     approved_by = uuid_fk('users.users.id', nullable=True, comment="Admin who approved")
     approved_at = Column(DateTime)
     published_at = Column(DateTime)
-    
+
+    # Multi-Source Priority System
+    priority_level = Column(Integer, nullable=False, comment="Priority level (0-100): Expert=100, LLM=50, API-Football=25, Randomized=0")
+    superseded_by = uuid_fk('predictions.predictions.id', nullable=True, comment="ID of prediction that supersedes this one")
+
     # Metadata
     prediction_metadata = Column(JSONB, comment="Additional prediction metadata")
     

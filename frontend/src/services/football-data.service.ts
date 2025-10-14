@@ -7,6 +7,7 @@
 
 import { Team, League, Match, LeagueStanding } from '@/types';
 import apiFootballService from './api-football.service';
+import publicPredictionService, { PublicPrediction } from './public-prediction.service';
 import {
   mapLeague,
   mapTeam,
@@ -242,8 +243,112 @@ class FootballDataService {
   }
 
   /**
+   * Fetch expert predictions from backend for multiple fixtures
+   * Returns a map of fixture ID to expert prediction
+   */
+  private async fetchExpertPredictionsBatch(fixtureIds: number[]): Promise<Map<number, PublicPrediction>> {
+    const expertPredictions = new Map<number, PublicPrediction>();
+
+    try {
+      // Convert fixture IDs to strings
+      const fixtureIdStrings = fixtureIds.map(id => String(id));
+
+      // Fetch expert predictions in batch
+      const predictions = await publicPredictionService.getPublishedPredictionsBatch(fixtureIdStrings);
+
+      // Convert back to number keys for consistency
+      predictions.forEach((prediction, matchId) => {
+        expertPredictions.set(Number(matchId), prediction);
+      });
+
+      console.log(`Fetched ${expertPredictions.size} expert predictions from backend`);
+    } catch (error) {
+      console.error('Error fetching expert predictions:', error);
+      // Return empty map on error - will fall back to API-Football predictions
+    }
+
+    return expertPredictions;
+  }
+
+  /**
+   * Merge expert predictions with API-Football predictions
+   * Expert predictions take priority over API-Football predictions
+   */
+  private mergePredictions(
+    _fixtureId: number,
+    apiFootballPrediction: any | null,
+    expertPrediction: PublicPrediction | null
+  ): any {
+    // If expert prediction exists, use it (highest priority)
+    if (expertPrediction) {
+      const winner = this.getWinnerFromProbs(
+        expertPrediction.home_win_prob,
+        expertPrediction.draw_prob,
+        expertPrediction.away_win_prob
+      );
+
+      // Return in API-Football prediction format for compatibility with mapPredictions
+      return {
+        predictions: {
+          winner: winner,
+          win_or_draw: true,
+          under_over: null,
+          goals: { home: null, away: null },
+          advice: expertPrediction.reasoning || 'Expert prediction',
+          percent: {
+            home: `${Math.round(expertPrediction.home_win_prob * 100)}%`,
+            draw: `${Math.round(expertPrediction.draw_prob * 100)}%`,
+            away: `${Math.round(expertPrediction.away_win_prob * 100)}%`,
+          },
+        },
+        comparison: {
+          form: { home: '50%', away: '50%' },
+          att: { home: '50%', away: '50%' },
+          def: { home: '50%', away: '50%' },
+          poisson_distribution: { home: '50%', away: '50%' },
+          h2h: { home: '50%', away: '50%' },
+          goals: { home: '50%', away: '50%' },
+          total: { home: '50%', away: '50%' },
+        },
+        // Add metadata to indicate this is an expert prediction
+        source: 'expert',
+        source_type: expertPrediction.source,
+        confidence_score: expertPrediction.confidence_score,
+        priority_level: expertPrediction.priority_level,
+      };
+    }
+
+    // Fall back to API-Football prediction
+    if (apiFootballPrediction) {
+      return {
+        ...apiFootballPrediction,
+        source: 'api-football',
+      };
+    }
+
+    // No prediction available
+    return null;
+  }
+
+  /**
+   * Get winner from probabilities
+   */
+  private getWinnerFromProbs(homeProb: number, drawProb: number, awayProb: number): { id: number; name: string; comment: string } | null {
+    const max = Math.max(homeProb, drawProb, awayProb);
+
+    if (max === homeProb) {
+      return { id: 1, name: 'Home', comment: 'Home team favored' };
+    } else if (max === awayProb) {
+      return { id: 2, name: 'Away', comment: 'Away team favored' };
+    } else {
+      return { id: 3, name: 'Draw', comment: 'Draw expected' };
+    }
+  }
+
+  /**
    * Get fixtures for a specific date
    * Optimized to avoid excessive API calls
+   * Integrates expert predictions from backend with API-Football predictions
    */
   async getFixturesByDate(date: string): Promise<Match[]> {
     const cacheKey = `fixtures-${date}`;
@@ -260,13 +365,21 @@ class FootballDataService {
 
       console.log(`Found ${response.response.length} fixtures`);
 
+      // Get all fixture IDs
+      const allFixtureIds = response.response.map(f => f.fixture.id);
+
       // Separate upcoming and past fixtures
       const now = new Date();
       const upcomingFixtures = response.response.filter(f => new Date(f.fixture.date) > now);
-
-      // Fetch predictions only for upcoming fixtures (limit to first 5 to reduce API calls)
       const upcomingIds = upcomingFixtures.slice(0, 5).map(f => f.fixture.id);
-      const predictions = await this.fetchPredictionsBatch(upcomingIds);
+
+      // Fetch both expert predictions and API-Football predictions in parallel
+      const [expertPredictions, apiFootballPredictions] = await Promise.all([
+        this.fetchExpertPredictionsBatch(allFixtureIds),
+        this.fetchPredictionsBatch(upcomingIds),
+      ]);
+
+      console.log(`Fetched ${expertPredictions.size} expert predictions and ${apiFootballPredictions.size} API-Football predictions`);
 
       // Map all fixtures to matches
       const matches = response.response.map((fixture) => {
@@ -276,8 +389,21 @@ class FootballDataService {
         const awayTeam = this.createBasicTeam(fixture.teams.away);
         const league = this.createBasicLeague(fixture.league);
 
-        // Get prediction if available
-        const prediction = predictions.get(fixture.fixture.id) || null;
+        // Get expert prediction and API-Football prediction
+        const expertPrediction = expertPredictions.get(fixture.fixture.id) || null;
+        const apiFootballPrediction = apiFootballPredictions.get(fixture.fixture.id) || null;
+
+        // Merge predictions (expert takes priority)
+        const prediction = this.mergePredictions(fixture.fixture.id, apiFootballPrediction, expertPrediction);
+
+        // Debug log for expert predictions
+        if (expertPrediction) {
+          console.log(`🎯 Expert prediction for fixture ${fixture.fixture.id}:`, {
+            source: prediction?.source,
+            home: fixture.teams.home.name,
+            away: fixture.teams.away.name,
+          });
+        }
 
         return mapFixture(fixture, homeTeam, awayTeam, league, prediction);
       });
@@ -287,7 +413,7 @@ class FootballDataService {
         timestamp: Date.now(),
       });
 
-      console.log(`Cached ${matches.length} matches (${predictions.size} with predictions) for ${date}`);
+      console.log(`Cached ${matches.length} matches (${expertPredictions.size} expert + ${apiFootballPredictions.size} API-Football predictions) for ${date}`);
       return matches;
     } catch (error) {
       console.error('Error fetching fixtures:', error);
@@ -316,6 +442,7 @@ class FootballDataService {
   /**
    * Get fixtures for a specific league
    * Optimized to avoid excessive API calls
+   * Integrates expert predictions from backend with API-Football predictions
    */
   async getFixturesByLeague(
     leagueId: number,
@@ -337,13 +464,21 @@ class FootballDataService {
       // Limit to 20 fixtures
       const limitedFixtures = response.response.slice(0, 20);
 
+      // Get all fixture IDs
+      const allFixtureIds = limitedFixtures.map(f => f.fixture.id);
+
       // Separate upcoming and past fixtures
       const now = new Date();
       const upcomingFixtures = limitedFixtures.filter(f => new Date(f.fixture.date) > now);
-
-      // Fetch predictions only for upcoming fixtures (limit to first 5)
       const upcomingIds = upcomingFixtures.slice(0, 5).map(f => f.fixture.id);
-      const predictions = await this.fetchPredictionsBatch(upcomingIds);
+
+      // Fetch both expert predictions and API-Football predictions in parallel
+      const [expertPredictions, apiFootballPredictions] = await Promise.all([
+        this.fetchExpertPredictionsBatch(allFixtureIds),
+        this.fetchPredictionsBatch(upcomingIds),
+      ]);
+
+      console.log(`Fetched ${expertPredictions.size} expert predictions and ${apiFootballPredictions.size} API-Football predictions for league ${leagueId}`);
 
       // Map all fixtures to matches
       const matches = limitedFixtures.map((fixture) => {
@@ -353,13 +488,17 @@ class FootballDataService {
         const awayTeam = this.createBasicTeam(fixture.teams.away);
         const league = this.createBasicLeague(fixture.league);
 
-        // Get prediction if available
-        const prediction = predictions.get(fixture.fixture.id) || null;
+        // Get expert prediction and API-Football prediction
+        const expertPrediction = expertPredictions.get(fixture.fixture.id) || null;
+        const apiFootballPrediction = apiFootballPredictions.get(fixture.fixture.id) || null;
+
+        // Merge predictions (expert takes priority)
+        const prediction = this.mergePredictions(fixture.fixture.id, apiFootballPrediction, expertPrediction);
 
         return mapFixture(fixture, homeTeam, awayTeam, league, prediction);
       });
 
-      console.log(`Mapped ${matches.length} matches (${predictions.size} with predictions) for league ${leagueId}`);
+      console.log(`Mapped ${matches.length} matches (${expertPredictions.size} expert + ${apiFootballPredictions.size} API-Football predictions) for league ${leagueId}`);
       return matches;
     } catch (error) {
       console.error('Error fetching league fixtures:', error);
