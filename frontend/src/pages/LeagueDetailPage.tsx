@@ -9,7 +9,9 @@ import MatchCard from '@/components/ui/MatchCard'
 import { footballDataService } from '@/services/football-data.service'
 
 const LeagueDetailPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>()
+  // Support both route patterns: /league/:id and /leagues/:leagueId
+  const { id, leagueId } = useParams<{ id?: string; leagueId?: string }>()
+  const leagueIdParam = id || leagueId
 
   const [league, setLeague] = useState<League | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
@@ -21,16 +23,17 @@ const LeagueDetailPage: React.FC = () => {
 
   useEffect(() => {
     async function fetchLeagueData() {
-      if (!id) return
+      if (!leagueIdParam) return
 
       try {
         setLoading(true)
         setError(null)
-        console.log('Fetching league details from API-Football for ID:', id)
+        console.log('Fetching league details from API-Football for ID:', leagueIdParam)
 
         // First, get all leagues to find the current one
         const allLeagues = await footballDataService.getTopLeagues()
-        const foundLeague = allLeagues.find(l => l.id === id)
+        // Convert string ID to number for comparison
+        const foundLeague = allLeagues.find(l => l.id === leagueIdParam || l.id === parseInt(leagueIdParam))
 
         if (!foundLeague) {
           setError('League not found')
@@ -42,7 +45,7 @@ const LeagueDetailPage: React.FC = () => {
 
         // Fetch teams, standings, and fixtures in parallel
         console.log('Fetching teams, standings, and fixtures for league:', foundLeague.name)
-        const leagueIdNum = parseInt(id)
+        const leagueIdNum = parseInt(leagueIdParam)
         const [teamsData, standingsData, matchesData] = await Promise.all([
           footballDataService.getTeamsByLeague(leagueIdNum),
           footballDataService.getStandings(leagueIdNum),
@@ -79,7 +82,7 @@ const LeagueDetailPage: React.FC = () => {
     }
 
     fetchLeagueData()
-  }, [id])
+  }, [leagueIdParam])
 
   if (loading) {
     return (

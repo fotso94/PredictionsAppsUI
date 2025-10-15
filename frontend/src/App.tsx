@@ -9,6 +9,7 @@ import TomorrowPredictionsPage from '@/pages/TomorrowPredictionsPage'
 import MatchDetailPage from '@/pages/MatchDetailPage'
 import LeaguesPage from '@/pages/LeaguesPage'
 import LeagueDetailPage from '@/pages/LeagueDetailPage'
+import TeamDetailPage from '@/pages/TeamDetailPage'
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
@@ -45,6 +46,8 @@ function App() {
           <Route path="match/:id" element={<MatchDetailPage />} />
           <Route path="leagues" element={<LeaguesPage />} />
           <Route path="league/:id" element={<LeagueDetailPage />} />
+          <Route path="leagues/:leagueId" element={<LeagueDetailPage />} />
+          <Route path="teams/:teamId" element={<TeamDetailPage />} />
 
           {/* Protected routes - require authentication */}
           <Route
