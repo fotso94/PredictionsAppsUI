@@ -1,0 +1,30 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Node / frontend build
+node_modules/
+frontend/dist/
+frontend/dist-ssr/
+
+# Python / backend
+__pycache__/
+*.py[cod]
+backend/venv/
+.venv/
+backend/htmlcov/
+backend/.coverage
+backend/.pytest_cache/
+.mypy_cache/
+
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Logs and local tooling output
+*.log
+.trunk/
