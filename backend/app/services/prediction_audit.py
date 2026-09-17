@@ -178,6 +178,39 @@ class PredictionAuditService:
             }
         )
     
+    def log_prediction_status_toggled(
+        self,
+        prediction: Prediction,
+        user: Optional[User] = None
+    ) -> AuditLog:
+        """
+        Log a publish/unpublish toggle (PUBLISHED <-> ARCHIVED).
+
+        Args:
+            prediction: Prediction after the toggle
+            user: User who toggled the status
+
+        Returns:
+            Created audit log entry
+        """
+        status_value = prediction.status.value if hasattr(prediction.status, "value") else str(prediction.status)
+        is_published = status_value == "published"
+        return self._create_audit_log(
+            action=AuditAction.PUBLISH if is_published else AuditAction.ARCHIVE,
+            user=user,
+            resource_type="prediction",
+            resource_id=str(prediction.id),
+            severity=AuditSeverity.INFO,
+            description=f"Prediction {prediction.id} {'published' if is_published else 'unpublished (archived)'}",
+            metadata={
+                "match_id": str(prediction.match_id),
+                "source": prediction.source.value,
+                "created_by": str(prediction.created_by),
+                "new_status": status_value,
+                "toggled_at": datetime.utcnow().isoformat(),
+            }
+        )
+
     def log_prediction_rejected(
         self,
         prediction: Prediction,
@@ -329,7 +362,7 @@ class PredictionAuditService:
             resource_id=resource_id,
             severity=severity,
             action_description=description,
-            metadata=metadata or {},
+            audit_metadata=metadata or {},
             ip_address=None,  # TODO: Get from request context
             user_agent=None,  # TODO: Get from request context
         )

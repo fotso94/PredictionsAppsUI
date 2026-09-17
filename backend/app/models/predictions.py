@@ -86,6 +86,11 @@ class Prediction(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         CheckConstraint('home_win_prob + draw_prob + away_win_prob = 1.0', name='ck_predictions_prob_sum'),
         CheckConstraint('confidence_score >= 0 AND confidence_score <= 1', name='ck_predictions_confidence'),
         CheckConstraint('priority_level >= 0 AND priority_level <= 100', name='ck_predictions_priority_level_range'),
+        CheckConstraint('btts_yes_prob IS NULL OR (btts_yes_prob >= 0 AND btts_yes_prob <= 1)', name='ck_predictions_btts_yes_prob_range'),
+        CheckConstraint('btts_no_prob IS NULL OR (btts_no_prob >= 0 AND btts_no_prob <= 1)', name='ck_predictions_btts_no_prob_range'),
+        CheckConstraint('btts_confidence IS NULL OR (btts_confidence >= 0 AND btts_confidence <= 1)', name='ck_predictions_btts_confidence_range'),
+        CheckConstraint('total_goals_confidence IS NULL OR (total_goals_confidence >= 0 AND total_goals_confidence <= 1)', name='ck_predictions_total_goals_confidence_range'),
+        CheckConstraint('(btts_yes_prob IS NULL AND btts_no_prob IS NULL) OR (btts_yes_prob + btts_no_prob BETWEEN 0.99 AND 1.01)', name='ck_predictions_btts_prob_sum'),
         {'schema': 'predictions', 'comment': 'Core predictions'}
     )
     
@@ -98,11 +103,23 @@ class Prediction(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     ml_prediction_id = uuid_fk('ml_models.ml_predictions.id', nullable=True, comment="Original ML prediction")
     expert_profile_id = uuid_fk('users.expert_profiles.id', nullable=True, comment="Expert who created/modified")
     
-    # Probabilities (must sum to 1.0)
+    # Match Outcome Probabilities (must sum to 1.0)
     home_win_prob = Column(DECIMAL(5, 4), nullable=False, comment="Home win probability")
     draw_prob = Column(DECIMAL(5, 4), nullable=False, comment="Draw probability")
     away_win_prob = Column(DECIMAL(5, 4), nullable=False, comment="Away win probability")
-    
+
+    # Both Teams to Score (BTTS) Probabilities (optional, must sum to 1.0 if provided)
+    btts_yes_prob = Column(DECIMAL(5, 4), nullable=True, comment="Probability both teams score (0-1)")
+    btts_no_prob = Column(DECIMAL(5, 4), nullable=True, comment="Probability at least one team does not score (0-1)")
+    btts_confidence = Column(DECIMAL(5, 4), nullable=True, comment="Confidence score for BTTS prediction (0-1)")
+
+    # Total Goals Probabilities (optional)
+    total_goals_over_25_prob = Column(DECIMAL(5, 4), nullable=True, comment="Probability of over 2.5 goals (0-1)")
+    total_goals_under_25_prob = Column(DECIMAL(5, 4), nullable=True, comment="Probability of under 2.5 goals (0-1)")
+    total_goals_over_35_prob = Column(DECIMAL(5, 4), nullable=True, comment="Probability of over 3.5 goals (0-1)")
+    total_goals_under_35_prob = Column(DECIMAL(5, 4), nullable=True, comment="Probability of under 3.5 goals (0-1)")
+    total_goals_confidence = Column(DECIMAL(5, 4), nullable=True, comment="Confidence score for total goals prediction (0-1)")
+
     # Confidence & Reasoning
     confidence_score = Column(DECIMAL(5, 4), nullable=False, comment="Confidence score 0-1")
     reasoning = Column(Text, comment="Prediction reasoning/explanation")

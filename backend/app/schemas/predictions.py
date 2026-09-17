@@ -103,49 +103,114 @@ class FeedbackListResponse(BaseModel):
 class ExpertPredictionCreate(BaseModel):
     """Schema for creating manual expert predictions"""
     match_id: str = Field(..., description="Match ID")
+
+    # Match Outcome (1X2) - Required
     home_win_prob: float = Field(..., ge=0.0, le=1.0, description="Home win probability (0-1)")
     draw_prob: float = Field(..., ge=0.0, le=1.0, description="Draw probability (0-1)")
     away_win_prob: float = Field(..., ge=0.0, le=1.0, description="Away win probability (0-1)")
     confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score (0-1)")
+
+    # Both Teams to Score (BTTS) - Optional
+    btts_yes_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability both teams score (0-1)")
+    btts_no_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability at least one team does not score (0-1)")
+    btts_confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score for BTTS prediction (0-1)")
+
+    # Total Goals - Optional
+    total_goals_over_25_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of over 2.5 goals (0-1)")
+    total_goals_under_25_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of under 2.5 goals (0-1)")
+    total_goals_over_35_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of over 3.5 goals (0-1)")
+    total_goals_under_35_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of under 3.5 goals (0-1)")
+    total_goals_confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score for total goals prediction (0-1)")
+
+    # Reasoning & Metadata
     reasoning: Optional[str] = Field(None, max_length=2000, description="Expert reasoning")
     key_factors: Optional[Dict[str, Any]] = Field(None, description="Key factors influencing prediction")
 
     @validator('away_win_prob')
     def probabilities_sum_to_one(cls, v, values):
-        """Validate that probabilities sum to 1.0"""
+        """Validate that match outcome probabilities sum to 1.0"""
         if 'home_win_prob' in values and 'draw_prob' in values:
             total = values['home_win_prob'] + values['draw_prob'] + v
             if not (0.99 <= total <= 1.01):
-                raise ValueError('Probabilities must sum to 1.0')
+                raise ValueError('Match outcome probabilities must sum to 1.0')
+        return v
+
+    @validator('btts_no_prob')
+    def btts_probabilities_sum_to_one(cls, v, values):
+        """Validate that BTTS probabilities sum to 1.0 if both are provided"""
+        if v is not None and 'btts_yes_prob' in values and values['btts_yes_prob'] is not None:
+            total = values['btts_yes_prob'] + v
+            if not (0.99 <= total <= 1.01):
+                raise ValueError('BTTS probabilities must sum to 1.0 when both are provided')
         return v
 
 
 class ExpertPredictionOverride(BaseModel):
     """Schema for overriding existing predictions"""
     prediction_id: str = Field(..., description="ID of prediction to override")
+
+    # Match Outcome (1X2) - Required
     home_win_prob: float = Field(..., ge=0.0, le=1.0, description="Home win probability (0-1)")
     draw_prob: float = Field(..., ge=0.0, le=1.0, description="Draw probability (0-1)")
     away_win_prob: float = Field(..., ge=0.0, le=1.0, description="Away win probability (0-1)")
     confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score (0-1)")
+
+    # Both Teams to Score (BTTS) - Optional
+    btts_yes_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability both teams score (0-1)")
+    btts_no_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability at least one team does not score (0-1)")
+    btts_confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score for BTTS prediction (0-1)")
+
+    # Total Goals - Optional
+    total_goals_over_25_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of over 2.5 goals (0-1)")
+    total_goals_under_25_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of under 2.5 goals (0-1)")
+    total_goals_over_35_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of over 3.5 goals (0-1)")
+    total_goals_under_35_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of under 3.5 goals (0-1)")
+    total_goals_confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score for total goals prediction (0-1)")
+
+    # Reasoning & Metadata
     reasoning: str = Field(..., min_length=10, max_length=2000, description="Reason for override")
     key_factors: Optional[Dict[str, Any]] = Field(None, description="Key factors influencing override")
 
     @validator('away_win_prob')
     def probabilities_sum_to_one(cls, v, values):
-        """Validate that probabilities sum to 1.0"""
+        """Validate that match outcome probabilities sum to 1.0"""
         if 'home_win_prob' in values and 'draw_prob' in values:
             total = values['home_win_prob'] + values['draw_prob'] + v
             if not (0.99 <= total <= 1.01):
-                raise ValueError('Probabilities must sum to 1.0')
+                raise ValueError('Match outcome probabilities must sum to 1.0')
+        return v
+
+    @validator('btts_no_prob')
+    def btts_probabilities_sum_to_one(cls, v, values):
+        """Validate that BTTS probabilities sum to 1.0 if both are provided"""
+        if v is not None and 'btts_yes_prob' in values and values['btts_yes_prob'] is not None:
+            total = values['btts_yes_prob'] + v
+            if not (0.99 <= total <= 1.01):
+                raise ValueError('BTTS probabilities must sum to 1.0 when both are provided')
         return v
 
 
 class ExpertPredictionUpdate(BaseModel):
     """Schema for updating existing predictions"""
+    # Match Outcome (1X2) - Required
     home_win_prob: float = Field(..., ge=0.0, le=1.0, description="Home win probability (0-1)")
     draw_prob: float = Field(..., ge=0.0, le=1.0, description="Draw probability (0-1)")
     away_win_prob: float = Field(..., ge=0.0, le=1.0, description="Away win probability (0-1)")
     confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score (0-1)")
+
+    # Both Teams to Score (BTTS) - Optional
+    btts_yes_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability both teams score (0-1)")
+    btts_no_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability at least one team does not score (0-1)")
+    btts_confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score for BTTS prediction (0-1)")
+
+    # Total Goals - Optional
+    total_goals_over_25_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of over 2.5 goals (0-1)")
+    total_goals_under_25_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of under 2.5 goals (0-1)")
+    total_goals_over_35_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of over 3.5 goals (0-1)")
+    total_goals_under_35_prob: Optional[float] = Field(None, ge=0.0, le=1.0, description="Probability of under 3.5 goals (0-1)")
+    total_goals_confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score for total goals prediction (0-1)")
+
+    # Reasoning & Metadata
     reasoning: Optional[str] = Field(None, max_length=2000, description="Expert reasoning")
     key_factors: Optional[Dict[str, Any]] = Field(None, description="Key factors influencing prediction")
 
@@ -156,6 +221,15 @@ class ExpertPredictionUpdate(BaseModel):
             total = values['home_win_prob'] + values['draw_prob'] + v
             if not (0.99 <= total <= 1.01):
                 raise ValueError('Probabilities must sum to 1.0')
+        return v
+
+    @validator('btts_no_prob')
+    def btts_probabilities_sum_to_one(cls, v, values):
+        """Validate that BTTS probabilities sum to 1.0 if both are provided"""
+        if v is not None and 'btts_yes_prob' in values and values['btts_yes_prob'] is not None:
+            total = values['btts_yes_prob'] + v
+            if not (0.99 <= total <= 1.01):
+                raise ValueError('BTTS probabilities must sum to 1.0 when both are provided')
         return v
 
 
@@ -177,10 +251,26 @@ class PublicPredictionResponse(BaseModel):
     external_match_id: Optional[str] = None
     source: str
     priority_level: int
+
+    # Match Outcome (1X2)
     home_win_prob: float
     draw_prob: float
     away_win_prob: float
     confidence_score: Optional[float] = None
+
+    # Both Teams to Score (BTTS) - Optional
+    btts_yes_prob: Optional[float] = None
+    btts_no_prob: Optional[float] = None
+    btts_confidence: Optional[float] = None
+
+    # Total Goals - Optional
+    total_goals_over_25_prob: Optional[float] = None
+    total_goals_under_25_prob: Optional[float] = None
+    total_goals_over_35_prob: Optional[float] = None
+    total_goals_under_35_prob: Optional[float] = None
+    total_goals_confidence: Optional[float] = None
+
+    # Reasoning & Metadata
     reasoning: Optional[str] = None
     published_at: Optional[str] = None
     match_details: Dict[str, Any]  # Using Dict to avoid circular dependency
@@ -202,12 +292,30 @@ class ExpertPredictionResponse(BaseModel):
     match_id: str
     source: str
     priority_level: int
+
+    # Match Outcome (1X2)
     home_win_prob: float
     draw_prob: float
     away_win_prob: float
     confidence_score: float
+
+    # Both Teams to Score (BTTS) - Optional
+    btts_yes_prob: Optional[float] = None
+    btts_no_prob: Optional[float] = None
+    btts_confidence: Optional[float] = None
+
+    # Total Goals - Optional
+    total_goals_over_25_prob: Optional[float] = None
+    total_goals_under_25_prob: Optional[float] = None
+    total_goals_over_35_prob: Optional[float] = None
+    total_goals_under_35_prob: Optional[float] = None
+    total_goals_confidence: Optional[float] = None
+
+    # Reasoning & Metadata
     reasoning: Optional[str] = None
     key_factors: Optional[Dict[str, Any]] = None
+
+    # Status & Timestamps
     status: str
     created_by: str
     created_at: datetime
@@ -228,9 +336,15 @@ class ExpertPredictionResponse(BaseModel):
             return v
         return str(v)
 
-    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score', pre=True)
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+               'btts_yes_prob', 'btts_no_prob', 'btts_confidence',
+               'total_goals_over_25_prob', 'total_goals_under_25_prob',
+               'total_goals_over_35_prob', 'total_goals_under_35_prob',
+               'total_goals_confidence', pre=True)
     def convert_decimal_to_float(cls, v):
-        """Convert Decimal to float"""
+        """Convert Decimal to float for JSON serialization"""
+        if v is None:
+            return v
         if isinstance(v, Decimal):
             return float(v)
         return v

@@ -15,6 +15,11 @@ from app.schemas.predictions import PublicPredictionResponse
 router = APIRouter()
 
 
+def _optional_float(value):
+    """Convert an optional Decimal/number column value to float for JSON responses."""
+    return float(value) if value is not None else None
+
+
 @router.get("/published", response_model=List[PublicPredictionResponse])
 async def get_published_predictions(
     match_id: Optional[str] = Query(None, description="Match UUID"),
@@ -137,6 +142,14 @@ async def get_published_predictions(
             "away_win_prob": float(prediction.away_win_prob),
             "confidence_score": float(prediction.confidence_score) if prediction.confidence_score else None,
             "reasoning": prediction.reasoning,
+            "btts_yes_prob": _optional_float(prediction.btts_yes_prob),
+            "btts_no_prob": _optional_float(prediction.btts_no_prob),
+            "btts_confidence": _optional_float(prediction.btts_confidence),
+            "total_goals_over_25_prob": _optional_float(prediction.total_goals_over_25_prob),
+            "total_goals_under_25_prob": _optional_float(prediction.total_goals_under_25_prob),
+            "total_goals_over_35_prob": _optional_float(prediction.total_goals_over_35_prob),
+            "total_goals_under_35_prob": _optional_float(prediction.total_goals_under_35_prob),
+            "total_goals_confidence": _optional_float(prediction.total_goals_confidence),
             "published_at": prediction.published_at.isoformat() if prediction.published_at else None,
             "match_details": {
                 "home_team_name": home_team.name if home_team else "Unknown",
@@ -210,6 +223,14 @@ async def get_published_prediction_by_match(
         "away_win_prob": float(prediction.away_win_prob),
         "confidence_score": float(prediction.confidence_score) if prediction.confidence_score else None,
         "reasoning": prediction.reasoning,
+        "btts_yes_prob": _optional_float(prediction.btts_yes_prob),
+        "btts_no_prob": _optional_float(prediction.btts_no_prob),
+        "btts_confidence": _optional_float(prediction.btts_confidence),
+        "total_goals_over_25_prob": _optional_float(prediction.total_goals_over_25_prob),
+        "total_goals_under_25_prob": _optional_float(prediction.total_goals_under_25_prob),
+        "total_goals_over_35_prob": _optional_float(prediction.total_goals_over_35_prob),
+        "total_goals_under_35_prob": _optional_float(prediction.total_goals_under_35_prob),
+        "total_goals_confidence": _optional_float(prediction.total_goals_confidence),
         "published_at": prediction.published_at.isoformat() if prediction.published_at else None,
         "match_details": {
             "home_team_name": home_team.name if home_team else "Unknown",

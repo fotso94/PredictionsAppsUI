@@ -92,10 +92,22 @@ class ExpertPredictionService:
             source=PredictionSource.EXPERT_MANUAL,
             priority_level=100,  # Expert predictions have highest priority
             created_by=expert_user.id,
+            # Match Outcome (1X2)
             home_win_prob=Decimal(str(data.home_win_prob)),
             draw_prob=Decimal(str(data.draw_prob)),
             away_win_prob=Decimal(str(data.away_win_prob)),
             confidence_score=Decimal(str(data.confidence_score)) if data.confidence_score else Decimal("0.0"),
+            # Both Teams to Score (BTTS) - Optional
+            btts_yes_prob=Decimal(str(data.btts_yes_prob)) if data.btts_yes_prob is not None else None,
+            btts_no_prob=Decimal(str(data.btts_no_prob)) if data.btts_no_prob is not None else None,
+            btts_confidence=Decimal(str(data.btts_confidence)) if data.btts_confidence is not None else None,
+            # Total Goals - Optional
+            total_goals_over_25_prob=Decimal(str(data.total_goals_over_25_prob)) if data.total_goals_over_25_prob is not None else None,
+            total_goals_under_25_prob=Decimal(str(data.total_goals_under_25_prob)) if data.total_goals_under_25_prob is not None else None,
+            total_goals_over_35_prob=Decimal(str(data.total_goals_over_35_prob)) if data.total_goals_over_35_prob is not None else None,
+            total_goals_under_35_prob=Decimal(str(data.total_goals_under_35_prob)) if data.total_goals_under_35_prob is not None else None,
+            total_goals_confidence=Decimal(str(data.total_goals_confidence)) if data.total_goals_confidence is not None else None,
+            # Reasoning & Metadata
             reasoning=data.reasoning,
             status=PredictionStatus.PENDING,  # Requires approval
             prediction_metadata={
@@ -153,10 +165,22 @@ class ExpertPredictionService:
             source=PredictionSource.EXPERT_OVERRIDE,
             priority_level=100,  # Expert overrides have highest priority
             created_by=expert_user.id,
+            # Match Outcome (1X2)
             home_win_prob=Decimal(str(data.home_win_prob)),
             draw_prob=Decimal(str(data.draw_prob)),
             away_win_prob=Decimal(str(data.away_win_prob)),
             confidence_score=Decimal(str(data.confidence_score)) if data.confidence_score else Decimal("0.0"),
+            # Both Teams to Score (BTTS) - Optional
+            btts_yes_prob=Decimal(str(data.btts_yes_prob)) if data.btts_yes_prob is not None else None,
+            btts_no_prob=Decimal(str(data.btts_no_prob)) if data.btts_no_prob is not None else None,
+            btts_confidence=Decimal(str(data.btts_confidence)) if data.btts_confidence is not None else None,
+            # Total Goals - Optional
+            total_goals_over_25_prob=Decimal(str(data.total_goals_over_25_prob)) if data.total_goals_over_25_prob is not None else None,
+            total_goals_under_25_prob=Decimal(str(data.total_goals_under_25_prob)) if data.total_goals_under_25_prob is not None else None,
+            total_goals_over_35_prob=Decimal(str(data.total_goals_over_35_prob)) if data.total_goals_over_35_prob is not None else None,
+            total_goals_under_35_prob=Decimal(str(data.total_goals_under_35_prob)) if data.total_goals_under_35_prob is not None else None,
+            total_goals_confidence=Decimal(str(data.total_goals_confidence)) if data.total_goals_confidence is not None else None,
+            # Reasoning & Metadata
             reasoning=data.reasoning,
             status=PredictionStatus.PENDING,  # Requires approval
             prediction_metadata={
@@ -436,13 +460,33 @@ class ExpertPredictionService:
         if prediction.status not in [PredictionStatus.PENDING]:
             raise ValueError(f"Cannot edit prediction with status {prediction.status}. Only PENDING predictions can be edited.")
 
-        # Update fields
+        # Update Match Outcome fields
         prediction.home_win_prob = Decimal(str(data.home_win_prob))
         prediction.draw_prob = Decimal(str(data.draw_prob))
         prediction.away_win_prob = Decimal(str(data.away_win_prob))
 
         if data.confidence_score is not None:
             prediction.confidence_score = Decimal(str(data.confidence_score))
+
+        # Update BTTS fields
+        if data.btts_yes_prob is not None:
+            prediction.btts_yes_prob = Decimal(str(data.btts_yes_prob))
+        if data.btts_no_prob is not None:
+            prediction.btts_no_prob = Decimal(str(data.btts_no_prob))
+        if data.btts_confidence is not None:
+            prediction.btts_confidence = Decimal(str(data.btts_confidence))
+
+        # Update Total Goals fields
+        if data.total_goals_over_25_prob is not None:
+            prediction.total_goals_over_25_prob = Decimal(str(data.total_goals_over_25_prob))
+        if data.total_goals_under_25_prob is not None:
+            prediction.total_goals_under_25_prob = Decimal(str(data.total_goals_under_25_prob))
+        if data.total_goals_over_35_prob is not None:
+            prediction.total_goals_over_35_prob = Decimal(str(data.total_goals_over_35_prob))
+        if data.total_goals_under_35_prob is not None:
+            prediction.total_goals_under_35_prob = Decimal(str(data.total_goals_under_35_prob))
+        if data.total_goals_confidence is not None:
+            prediction.total_goals_confidence = Decimal(str(data.total_goals_confidence))
 
         if data.reasoning is not None:
             prediction.reasoning = data.reasoning
@@ -470,7 +514,7 @@ class ExpertPredictionService:
         expert_user: User
     ) -> None:
         """
-        Delete a prediction (Expert can only delete their own pending predictions).
+        Delete a prediction (Expert can delete their own PENDING, REJECTED, or PUBLISHED predictions).
 
         Args:
             prediction_id: Prediction ID
@@ -490,9 +534,9 @@ class ExpertPredictionService:
         if prediction.created_by != expert_user.id:
             raise ValueError("You can only delete your own predictions")
 
-        # Check if prediction is deletable (only PENDING predictions can be deleted)
-        if prediction.status not in [PredictionStatus.PENDING]:
-            raise ValueError(f"Cannot delete prediction with status {prediction.status}. Only PENDING predictions can be deleted.")
+        # Check if prediction is deletable (PENDING, REJECTED, PUBLISHED, or ARCHIVED predictions can be deleted)
+        if prediction.status not in [PredictionStatus.PENDING, PredictionStatus.REJECTED, PredictionStatus.PUBLISHED, PredictionStatus.ARCHIVED]:
+            raise ValueError(f"Cannot delete prediction with status {prediction.status}. Only PENDING, REJECTED, PUBLISHED, or ARCHIVED predictions can be deleted.")
 
         match_id = str(prediction.match_id)
 
@@ -505,6 +549,61 @@ class ExpertPredictionService:
 
         # Invalidate cache
         self._invalidate_match_cache(match_id)
+
+    def toggle_publish_status(
+        self,
+        prediction_id: str,
+        expert_user: User
+    ) -> Prediction:
+        """
+        Toggle the publication status of a prediction between PUBLISHED and ARCHIVED.
+
+        Args:
+            prediction_id: Prediction ID
+            expert_user: Expert user toggling the status
+
+        Returns:
+            Updated prediction
+
+        Raises:
+            ValueError: If prediction not found, not owned by user, or not in a toggleable state
+        """
+        prediction = self.db.query(Prediction).filter(
+            Prediction.id == uuid.UUID(prediction_id)
+        ).first()
+
+        if not prediction:
+            raise ValueError(f"Prediction {prediction_id} not found")
+
+        # Check ownership
+        if prediction.created_by != expert_user.id:
+            raise ValueError("You can only toggle publish status for your own predictions")
+
+        # Check if prediction is in a toggleable state (only PUBLISHED or ARCHIVED can be toggled)
+        if prediction.status not in [PredictionStatus.PUBLISHED, PredictionStatus.ARCHIVED]:
+            raise ValueError(f"Cannot toggle publish status for prediction with status {prediction.status}. Only PUBLISHED or ARCHIVED predictions can be toggled.")
+
+        match_id = str(prediction.match_id)
+
+        # Toggle status
+        if prediction.status == PredictionStatus.PUBLISHED:
+            prediction.status = PredictionStatus.ARCHIVED
+            prediction.published_at = None
+            logger.info(f"Unpublished prediction {prediction_id} by expert {expert_user.id}")
+        else:  # ARCHIVED
+            prediction.status = PredictionStatus.PUBLISHED
+            prediction.published_at = datetime.utcnow()
+            logger.info(f"Published prediction {prediction_id} by expert {expert_user.id}")
+
+        prediction.updated_at = datetime.utcnow()
+
+        self.db.commit()
+        self.db.refresh(prediction)
+
+        # Invalidate cache
+        self._invalidate_match_cache(match_id)
+
+        return prediction
 
     def enrich_prediction_with_details(self, prediction: Prediction) -> Dict[str, Any]:
         """
@@ -560,10 +659,22 @@ class ExpertPredictionService:
             'match_id': str(prediction.match_id),
             'source': prediction.source.value if hasattr(prediction.source, 'value') else prediction.source,
             'priority_level': prediction.priority_level,
+            # Match Outcome (1X2)
             'home_win_prob': float(prediction.home_win_prob),
             'draw_prob': float(prediction.draw_prob),
             'away_win_prob': float(prediction.away_win_prob),
             'confidence_score': float(prediction.confidence_score),
+            # Both Teams to Score (BTTS) - Optional
+            'btts_yes_prob': float(prediction.btts_yes_prob) if prediction.btts_yes_prob is not None else None,
+            'btts_no_prob': float(prediction.btts_no_prob) if prediction.btts_no_prob is not None else None,
+            'btts_confidence': float(prediction.btts_confidence) if prediction.btts_confidence is not None else None,
+            # Total Goals - Optional
+            'total_goals_over_25_prob': float(prediction.total_goals_over_25_prob) if prediction.total_goals_over_25_prob is not None else None,
+            'total_goals_under_25_prob': float(prediction.total_goals_under_25_prob) if prediction.total_goals_under_25_prob is not None else None,
+            'total_goals_over_35_prob': float(prediction.total_goals_over_35_prob) if prediction.total_goals_over_35_prob is not None else None,
+            'total_goals_under_35_prob': float(prediction.total_goals_under_35_prob) if prediction.total_goals_under_35_prob is not None else None,
+            'total_goals_confidence': float(prediction.total_goals_confidence) if prediction.total_goals_confidence is not None else None,
+            # Reasoning & Metadata
             'reasoning': prediction.reasoning,
             'key_factors': prediction.key_factors,
             'status': prediction.status.value if hasattr(prediction.status, 'value') else prediction.status,

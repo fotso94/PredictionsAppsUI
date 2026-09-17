@@ -6,6 +6,7 @@ Expert-specific API endpoints for prediction management
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import (
     get_db,
@@ -442,6 +443,12 @@ async def update_prediction(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Prediction violates a database constraint (probabilities must be within 0-1 and BTTS yes/no must sum to 1.0)"
+        )
 
 
 @router.delete("/predictions/{prediction_id}")
@@ -455,8 +462,7 @@ async def delete_prediction(
 
     **Permission**: Expert or Admin (can only delete own predictions)
 
-    Allows experts to delete their own PENDING predictions.
-    Once a prediction is APPROVED or PUBLISHED, it cannot be deleted.
+    Allows experts to delete their own PENDING, REJECTED, PUBLISHED, or ARCHIVED predictions.
 
     **Returns**: Success message
     """
@@ -506,6 +512,50 @@ async def delete_prediction(
             "message": "Prediction deleted successfully",
             "prediction_id": prediction_id
         }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/predictions/{prediction_id}/toggle-publish", response_model=ExpertPredictionResponse)
+async def toggle_publish_status(
+    prediction_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_expert_user)
+):
+    """
+    Toggle the publication status of a prediction
+
+    **Permission**: Expert or Admin (can only toggle own predictions)
+
+    Toggles between PUBLISHED and ARCHIVED status.
+    - If PUBLISHED: Changes to ARCHIVED (unpublishes the prediction)
+    - If ARCHIVED: Changes to PUBLISHED (publishes the prediction)
+
+    **Returns**: Updated prediction
+    """
+    expert_service = ExpertPredictionService(db)
+    audit_service = PredictionAuditService(db)
+
+    try:
+        # Toggle publish status
+        prediction = expert_service.toggle_publish_status(prediction_id, current_user)
+
+        # Log audit trail
+        try:
+            audit_service.log_prediction_status_toggled(prediction=prediction, user=current_user)
+        except Exception as audit_error:
+            # Log error but don't fail the request
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to log audit trail for prediction status toggle: {audit_error}")
+
+        # Enrich prediction with match and user details
+        enriched_prediction = expert_service.enrich_prediction_with_details(prediction)
+
+        return enriched_prediction
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
