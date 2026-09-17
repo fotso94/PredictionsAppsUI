@@ -243,7 +243,7 @@ The application implements a sophisticated three-tier service architecture for A
 #### **Authentication Configuration:**
 ```typescript
 // API Key (API-Sports Direct)
-const API_KEY = '38164887e0ce0b93419671e273fe64c0'
+const API_KEY = '<API_FOOTBALL_KEY_REDACTED>'
 
 // Header Configuration
 headers: {

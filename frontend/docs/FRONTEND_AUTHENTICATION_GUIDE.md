@@ -38,7 +38,7 @@ This document describes the complete frontend authentication system integrated w
 const handleRegister = async () => {
   await register({
     email: 'user@example.com',
-    password: 'password123',
+    password: <PASSWORD_REDACTED>
     first_name: 'John',
     last_name: 'Doe'
   });

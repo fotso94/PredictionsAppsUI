@@ -173,7 +173,7 @@ EMAIL_ENABLED=true
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_TLS=true
-SMTP_USER=your-email@gmail.com
+SMTP_USER=<email-redacted>
 SMTP_PASSWORD=your-app-specific-password
 EMAILS_FROM_EMAIL=noreply@soccerpredictions.com
 EMAILS_FROM_NAME=Soccer Predictions Platform
@@ -316,9 +316,9 @@ EMAIL_ENABLED=true
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_TLS=true
-SMTP_USER=your-email@gmail.com
+SMTP_USER=<email-redacted>
 SMTP_PASSWORD=your-16-char-app-password
-EMAILS_FROM_EMAIL=your-email@gmail.com
+EMAILS_FROM_EMAIL=<email-redacted>
 FRONTEND_URL=http://localhost:3000
 ```
 
@@ -341,7 +341,7 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
-    "password": "password123",
+    "password": "<PASSWORD_REDACTED>",
     "first_name": "Test",
     "last_name": "User",
     "role": "regular"

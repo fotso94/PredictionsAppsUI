@@ -1,0 +1,299 @@
+Search League
+Type:  Limit: 
+Example: Static / Live
+Search for any sports league using a text string.
+/api/v2/json/search/league/english_premier_league
+
+Search Team
+Type:  Limit: 
+Example: Static / Live
+Search for any sports team using a text string.
+/api/v2/json/search/team/manchester_united
+
+Search Player
+Type:  Limit: 
+Example: Static / Live
+Search for any sports person using a text string.
+/api/v2/json/search/player/harry_kane
+
+Search Event
+Type:  Limit: 
+Example: Static / Live
+Search for any sports event using a text string.
+/api/v2/json/search/event/fifa_world_cup_2022-12-18_argentina_vs_france
+
+Search Venue
+Type:  Limit: 
+Example: Static / Live
+Search for any sports venue using a text string.
+/api/v2/json/search/venue/wembley
+
+
+seperator bar
+
+
+ v2 API Lookup
+Lookup League
+Type:  Limit: 
+Example: Static / Live
+Lookup for any league using its unique ID {idLeague}.
+/api/v2/json/lookup/league/4328
+
+Lookup Team
+Type:  Limit: 
+Example: Static / Live
+Lookup for any team using its unique ID {idTeam}.
+/api/v2/json/lookup/team/133597
+
+Lookup Team Equipment
+Type:  Limit: 
+Example: Static / Live
+Lookup for any team equipment artwork using its unique ID {idTeam}.
+/api/v2/json/lookup/team_equipment/133597
+
+Lookup Player
+Type:  Limit: 
+Example: Static / Live
+Lookup for any player using their unique ID {idPlayer}.
+/api/v2/json/lookup/player/34172575
+
+Lookup Player Contracts
+Type:  Limit: 
+Example: Static / Live
+Lookup for any player contracts using their unique ID {idPlayer}.
+/api/v2/json/lookup/player_contracts/34146304
+
+Lookup Player Results
+Type:  Limit: 
+Example: Static / Live
+Lookup for any player results using their unique ID {idPlayer}.
+/api/v2/json/lookup/player_results/34160573
+
+Lookup Player Honours
+Type:  Limit: 
+Example: Static / Live
+Lookup for any player honours using their unique ID {idPlayer}.
+/api/v2/json/lookup/player_honours/34146304
+
+Lookup Player Milestones
+Type:  Limit: 
+Example: Static / Live
+Lookup for any player milestone using their unique ID {idPlayer}.
+/api/v2/json/lookup/player_milestones/34146304
+
+Lookup Player Former Teams
+Type:  Limit: 
+Example: Static / Live
+Lookup for any player former teams using their unique ID {idPlayer}.
+/api/v2/json/lookup/player_teams/34146304
+
+Lookup Event
+Type:  Limit: 
+Example: Static / Live
+Lookup for any sports event using its unique ID {idLeague}.
+/api/v2/json/lookup/event/441613
+
+Lookup Event Lineup
+Type:  Limit: 
+Example: Static / Live
+Lookup for any sports event player lineup using its unique ID {idEvent}.
+/api/v2/json/lookup/event_lineup/1937584
+
+Lookup Event Results
+Type:  Limit: 
+Example: Static / Live
+Lookup for any sports event player results using the unique ID {idEvent}.
+/api/v2/json/lookup/event_results/652890
+
+Lookup Event Statistics
+Type:  Limit: 
+Example: Static / Live
+Lookup for any sports event statistics using the unique ID {idEvent}.
+/api/v2/json/lookup/event_stats/1937584
+
+Lookup Event Timeline
+Type:  Limit: 
+Example: Static / Live
+Lookup for any sports event timeline using the unique ID {idEvent}.
+/api/v2/json/lookup/event_timeline/1937584
+
+Lookup Event TV Schedule
+Type:  Limit: 
+Example: Static / Live
+Lookup for any sports event TV schedule using the unique ID {idEvent}.
+/api/v2/json/lookup/event_tv/584911
+
+Lookup Event Youtube Highlights
+Type:  Limit: 
+Example: Static / Live
+Lookup for any sports event YouTube highlights using the unique ID {idEvent}.
+/api/v2/json/lookup/event_highlights/2044892
+
+Lookup Venue
+Type:  Limit: 
+Example: Static / Live
+Lookup for any sports Venue using the unique ID {idVenue}.
+/api/v2/json/lookup/venue/15910
+
+
+seperator bar
+
+
+ v2 API List
+List League Teams
+Type:  Limit: 
+Example: Static / Live
+List all teams in a paritcular league by its unique ID {idLeague}.
+/api/v2/json/list/teams/4328
+
+List League Seasons
+Type:  Limit: 
+Example: Static / Live
+List all seasons available for a league using its unique ID {idLeague}.
+/api/v2/json/list/seasons/4328
+
+List League Season Posters
+Type:  Limit: 
+Example: Static / Live
+List for all season posters for a leagues unique ID {idLeague}.
+/api/v2/json/list/seasonposters/4328
+
+List Team Players
+Type:  Limit: 
+Example: Static / Live
+Lookup for all the players for a team using its unique ID {idTeam}.
+/api/v2/json/list/players/133604
+
+
+seperator bar
+
+
+ v2 API Filter
+Filter TV Events by Date
+Type:  Limit: 
+Example: Static / Live
+Filter All TV Events on a specific date {dateEvent}.
+/api/v2/json/filter/tv/day/2024-06-22
+
+Filter TV Events by Country
+Type:  Limit: 
+Example: Static / Live
+Filter TV Events by the channels country {strCountry}.
+/api/v2/json/filter/tv/country/united_kingdom
+
+Filter TV Events by Sport
+Type:  Limit: 
+Example: Static / Live
+Filter upcoming TV Events by sport {strSport}.
+/api/v2/json/filter/tv/sport/motorsport
+
+Filter TV Events by Channel
+Type:  Limit: 
+Example: Static / Live
+Filter upcoming TV Events by Channel Name {strChannel}.
+/api/v2/json/filter/tv/channel/sky_sports_main_event
+
+Filter TV Events by Channel ID
+Type:  Limit: 
+Example: Static / Live
+Filter upcoming TV Events by Channel ID {idChannel}.
+/api/v2/json/filter/tv/channelid/3834
+
+
+seperator bar
+
+
+ v2 API All
+All Countries
+Type:  Limit: 
+Example: Static / Live
+Show all the countries supported.
+/api/v2/json/all/countries
+
+All Sports
+Type:  Limit: 
+Example: Static / Live
+Show all the sports supported.
+/api/v2/json/all/sports
+
+All Leagues
+Type:  Limit: 
+Example: Static / Live
+Show all the leagues supported.
+/api/v2/json/all/leagues
+
+
+seperator bar
+
+
+ v2 API Schedule
+Next 10 Events in League
+Type:  Limit: 
+Example: Static / Live
+List the next 5 events in a league using its unique ID {idLeague}
+/api/v2/json/schedule/next/league/4328
+
+Previous 10 Events in League
+Type:  Limit: 
+Example: Static / Live
+List the previous 5 events in a league using its unique ID {idLeague}
+/api/v2/json/schedule/previous/league/4328
+
+Next 10 Events in Team
+Type:  Limit: 
+Example: Static / Live
+List the next 5 events for a team using its unique ID {idTeam}
+/api/v2/json/schedule/next/team/133612
+
+Previous 10 Events in Team
+Type:  Limit: 
+Example: Static / Live
+List the previous 5 events for a team using its unique ID {idTeam}
+/api/v2/json/schedule/previous/team/133612
+
+Next 10 Events in Venue
+Type:  Limit: 
+Example: Static / Live
+List the next 5 events for a venue using its unique ID {idVenue}
+/api/v2/json/schedule/next/venue/24413
+
+Previous 10 Events in Venue
+Type:  Limit: 
+Example: Static / Live
+List the previous 5 events for a venue using its unique ID {idVenue}
+/api/v2/json/schedule/previous/venue/24413
+
+Full Team Season Schedule
+Type:  Limit: 
+Example: Static / Live
+List the full seasons schedule for a team using its unique ID {idTeam}
+/api/v2/json/schedule/full/team/133612
+
+Full League Season Schedule
+Type:  Limit: 
+Example: Static / Live
+List the full seasons schedule for a league using its unique ID {idLeague}
+/api/v2/json/schedule/league/4328/2023-2024
+
+
+seperator bar
+
+
+ v2 API Livescores
+Livescore Sport
+Type:  Limit: 
+Example: Static / Live
+Show the current Livescores for a particular sport {strSport}
+/api/v2/json/livescore/soccer
+
+Livescore League
+Type:  Limit: 
+Example: Static / Live
+Show the current Livescores for a particular league by its unique ID {idLeague}
+/api/v2/json/livescore/4399
+
+Livescore All
+Type:  Limit: 
+Example: Static / Live
+Show the current Livescores for all sports.
+/api/v2/json/livescore/all

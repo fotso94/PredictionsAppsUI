@@ -281,7 +281,7 @@ REDIS_DB_SESSIONS=0
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "password123"}'
+  -d '{"email": "user@example.com", "password": "<PASSWORD_REDACTED>"}'
 ```
 
 ### 2. Access Protected Endpoint

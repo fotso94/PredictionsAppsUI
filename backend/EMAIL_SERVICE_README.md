@@ -42,9 +42,9 @@ EMAIL_ENABLED=true
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_TLS=true
-SMTP_USER=your-email@gmail.com
+SMTP_USER=<email-redacted>
 SMTP_PASSWORD=your-16-char-app-password
-EMAILS_FROM_EMAIL=your-email@gmail.com
+EMAILS_FROM_EMAIL=<email-redacted>
 EMAILS_FROM_NAME=Soccer Predictions Platform
 FRONTEND_URL=http://localhost:3000
 ```
@@ -100,7 +100,7 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
-    "password": "password123",
+    "password": "<PASSWORD_REDACTED>",
     "first_name": "Test",
     "last_name": "User",
     "role": "regular"
@@ -218,7 +218,7 @@ success = await email_service.send_email(
 | `SMTP_HOST` | SMTP server hostname | `smtp.gmail.com` |
 | `SMTP_PORT` | SMTP server port | `587` |
 | `SMTP_TLS` | Use TLS encryption | `true` |
-| `SMTP_USER` | SMTP username | `user@gmail.com` |
+| `SMTP_USER` | SMTP username | `<email-redacted>` |
 | `SMTP_PASSWORD` | SMTP password | `app-password` |
 | `EMAILS_FROM_EMAIL` | Sender email address | `noreply@example.com` |
 | `EMAILS_FROM_NAME` | Sender name | `Platform Name` |
@@ -303,7 +303,7 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
-    "password": "password123",
+    "password": "<PASSWORD_REDACTED>",
     "first_name": "Test",
     "last_name": "User",
     "role": "regular"
@@ -337,7 +337,7 @@ For issues or questions:
 - Check backend logs
 - Review test results
 - See full documentation
-- Contact: s92fotso@gmail.com
+- Contact: <email-redacted>
 
 ## Summary
 

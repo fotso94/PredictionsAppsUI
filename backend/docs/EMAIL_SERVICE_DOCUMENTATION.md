@@ -56,7 +56,7 @@ EMAIL_ENABLED=true                     # Enable/disable email sending
 SMTP_HOST=smtp.gmail.com              # SMTP server hostname
 SMTP_PORT=587                         # SMTP server port (587 for TLS, 465 for SSL)
 SMTP_TLS=true                         # Use TLS encryption
-SMTP_USER=your-email@gmail.com        # SMTP username
+SMTP_USER=<email-redacted>        # SMTP username
 SMTP_PASSWORD=your-app-password       # SMTP password or app-specific password
 EMAILS_FROM_EMAIL=noreply@yourplatform.com  # Sender email address
 EMAILS_FROM_NAME=Soccer Predictions Platform  # Sender name
@@ -89,9 +89,9 @@ AWS_SECRET_ACCESS_KEY=your-secret-key
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_TLS=true
-SMTP_USER=your-email@gmail.com
+SMTP_USER=<email-redacted>
 SMTP_PASSWORD=your-16-char-app-password
-EMAILS_FROM_EMAIL=your-email@gmail.com
+EMAILS_FROM_EMAIL=<email-redacted>
 ```
 
 #### SMTP (Mailtrap - Development)
@@ -422,5 +422,5 @@ async def forgot_password(
 For issues or questions:
 - Check backend logs: `backend/logs/`
 - Review test results: `pytest tests/test_email_service.py -v`
-- Contact: s92fotso@gmail.com
+- Contact: <email-redacted>
 
