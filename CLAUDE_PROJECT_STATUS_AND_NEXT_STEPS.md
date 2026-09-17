@@ -1,0 +1,658 @@
+# PredictionsAppsUI — Project Status and Next Steps (Takeover Assessment)
+
+**Prepared by:** Claude (Fable 5.1) acting as Principal Architect / Senior Full-Stack / AWS Cloud Architect / DevOps / Technical Reviewer
+**Assessment date:** 2026-09-17
+**Mode:** strict read-only. No application code, documentation, dependency, Git, or AWS state was changed. This file is the only project file created.
+**Report location note:** the brief referenced `~/Documents/PredictionsAppsUI/`; that path does not exist. The repository lives at `~/Documents/DevProjects/PredictionsAppsUI/`, so the report was written there.
+
+### How to read the labels
+
+| Label | Meaning |
+|---|---|
+| **VERIFIED** | Confirmed first-hand (file read, command output, HTTP probe, AWS API). |
+| **PARTIALLY VERIFIED** | Core of the claim confirmed; some part could not be checked. |
+| **NOT VALIDATED** | Could not be checked in read-only mode (needs a running DB/Redis, external account, or owner knowledge). |
+| **CONTRADICTED** | Evidence disagrees with the claim. |
+| **NOT IMPLEMENTED** | Documented/planned but no code or resource exists. |
+
+Source tags: `[DOC]` documentation-derived · `[CODE]` code-derived · `[GITHUB]` GitHub-derived · `[AWS]` AWS-derived · `[INFERENCE]` my technical inference · `[RECOMMENDATION]` my recommendation.
+
+Secrets policy: every key, password, token, or personal e-mail found is referenced by **file and line only**; no value is reproduced here.
+
+---
+
+## 1. Executive summary
+
+**Where the project stands.** PredictionsAppsUI is a soccer-predictions web platform: a React 18 / Vite / TypeScript frontend and a FastAPI / SQLAlchemy 2 / PostgreSQL 15 (5 schemas, 66 tables) / Redis 7 backend, with three user profiles (regular, expert, admin), JWT auth, an expert manual-prediction workflow, and API-Football as the live fixtures source. AugmentCode worked on it from 2025-09-22 to about 2025-10-16 in a single burst; nothing has changed since. The work is substantial and the technical direction is sound, but the project is **not in a releasable or reproducible state** today.
+
+**What is actually deployed.** The only cloud footprint is two public S3 static-website buckets in `us-east-1` (`soccer-predictions-app-7787` serving a frontend build from 2025-10-07, and `predictions-app-778778324` serving a one-page API-Football widget test). Both are live over HTTP only. No CloudFront, Route 53, RDS, ElastiCache, ECS, Lambda, or IaC exists for this project, so **the backend has never been deployed anywhere** [AWS, VERIFIED]. The deployed frontend predates authentication and the expert features and calls API-Football directly from the browser with an embedded key.
+
+**Most urgent findings (all VERIFIED).**
+1. **Leaked credentials in a public GitHub repo.** An API-Football Pro key is committed in `frontend/vite.config.ts` and `frontend/src/services/api-football.service.ts` (since commit `e07b2b2`, 2025-10-08), appears in a tracked doc, in the built bundle and source map, and in the live S3 site. A TheSportsDB premium key, an SMTP password (`backend/test_smtp_connection.py`), a test expert password (`backend/create_expert_user.py`), and a dev DB URL (`backend/alembic.ini`) are also committed. These must be rotated before any other work.
+2. **The frontend does not build.** `tsc --noEmit` reports 10 errors (7 already at HEAD, 3 from uncommitted work) and `npm run lint` aborts on a broken ESLint config, so `npm run build` fails.
+3. **Backend security defects.** Self-registration accepts `role="admin"`; "revoke all sessions" on password change/reset does not actually invalidate refresh tokens; `SECRET_KEY` defaults to a per-process random value while the production Dockerfile runs 4 workers.
+4. **Broken or stubbed backend paths.** Expert override always fails (wrong ORM kwargs), audit metadata is silently dropped, the public `date` filter crashes, and 10 of 54 API routes are stubs (ML baseline, admin audit/config/approve, subscriptions are mock data).
+5. **Uncommitted, undocumented-in-git work.** 16 modified tracked files (+1,183/−106) and 68 untracked paths, including the only Alembic migration for the BTTS/Total-Goals feature. Committing the modified files without the migration would ship model columns with no schema change.
+6. **Local dev environment is not reproducible on this machine.** The Docker Compose file's relative bind-mounts resolve to `docker/docker/...` (empty dirs, and `redis.conf` becomes a directory), the backend service is commented out, the Python venv is 3.9.6 while the project requires 3.11, and no project containers or volumes currently exist.
+
+**Recommendation in one line.** Keep the architecture and the bulk of the code; spend the first phase on rotation of secrets, restoring a green build/test baseline, and committing the WIP correctly, then finish the MVP feature gaps, and only then deploy with a lean AWS footprint (S3+CloudFront, one container service, small RDS/Redis) rather than the documented $1,050–2,100/month design.
+
+---
+
+## 2. Main project goal and supporting document references
+
+**Documented goal** [DOC, VERIFIED against `COMPREHENSIVE_REQUIREMENTS_DOCUMENT.md` v1.0, 2025-10-09, §1]:
+
+> "The Soccer Predictions Platform is a sophisticated web application that provides AI-powered soccer match predictions through a hybrid system combining machine learning algorithms with expert human analysis. The platform serves three distinct user profiles with varying levels of access and capabilities, ensuring prediction quality through a multi-layered validation process."
+
+Primary goals as written: accurate data-driven predictions; ML baseline plus expert judgment; a scalable subscription-based revenue model; a trusted brand. In scope for Phase 1: multi-profile users (Regular/Expert/Admin), hybrid engine (ML → expert override → admin approval), external match-data APIs (API-Football primary, TheSportsDB fallback), subscription tiers (Free/Basic/Premium/Pro), audit trail, React + FastAPI, "Local development environment and AWS cloud deployment". Explicitly out of scope for Phase 1: mobile apps, live betting, social features, i18n, payment processing, chat.
+
+**Intended final outcome** [DOC]: a production deployment on AWS (S3+CloudFront frontend, ECS Fargate backend, RDS PostgreSQL Multi-AZ, ElastiCache Redis, Route 53, ALB) per `AWS_PRODUCTION_DEPLOYMENT_PLAN.md` (2025-09-24) and `REQUIREMENTS_SUMMARY.md` (16-week roadmap ending in production deployment), with success metrics of 99.9% uptime, <500 ms API responses, 70%+ prediction accuracy, and 10k users in six months.
+
+**Supporting documents (authoritative for intent):**
+- `COMPREHENSIVE_REQUIREMENTS_DOCUMENT.md` — requirements v1.0 (untracked).
+- `REQUIREMENTS_SUMMARY.md` — quick reference and roadmap (untracked; roadmap checkboxes stale).
+- `USER_ROLES_AND_PERMISSIONS_MATRIX.md` — RBAC and tier matrix (untracked).
+- `LOCAL_DEVELOPMENT_ARCHITECTURE_PLAN.md` — local architecture (tracked, 2025-09-24).
+- `AWS_PRODUCTION_DEPLOYMENT_PLAN.md` — target cloud architecture (tracked, 2025-09-24; plan only, never executed).
+- Concept origin: `🎯 Backend Integration Task List.txt` (2025-09-24, Node/Express plan superseded the same night by the FastAPI plan).
+
+I did not find any document that replaces or narrows this goal; the goal statement is taken as-is.
+
+---
+
+## 3. Documentation inventory and authoritative files
+
+**Counts** [CODE, VERIFIED]: 107 Markdown files (46,018 lines) plus 2 root `.txt` files. Root level: 52 `.md` + 2 `.txt`, of which only 3 `.md` are git-tracked. Sub-directories: 55 files (`api/` 5, `backend/` 3 + `backend/docs/` 10 + `backend/alembic/README`, `docker/` 10, `docs/` 8 + `docs/database/` 16, `frontend/` 3); all tracked except the five newest (`docs/BTTS_TOTAL_GOALS_*` ×4 and `docs/EXPERT_PREDICTION_FORM_GUIDE.md`, mtime 2025-10-16).
+
+**Quality caveats** [DOC, VERIFIED by the inventory]: most root docs are per-session status notes; ten docs dated 2025-10-03 carry a wrong "2025-01-03 / January 2025" stamp; `api/IMPLEMENTATION_SUMMARY.md` says "2024-01-08". File mtimes and git dates are the reliable timeline. Four mutually inconsistent database table inventories exist across `docs/database/*`, `docker/postgres/README.md`, and `backend/docs/DATABASE_MODELS_IMPLEMENTATION.md`; **only the implemented models and migrations are ground truth**.
+
+**Authoritative for current state (use these first):**
+
+| File | Why |
+|---|---|
+| `backend/docs/KAN-26_IMPLEMENTATION_SUMMARY.md` (2025-10-13) | Latest backend feature status (expert API, aggregator, priority migration). |
+| `docs/BTTS_TOTAL_GOALS_DISPLAY_FIX_SUMMARY.md` + `docs/BTTS_TOTAL_GOALS_IMPLEMENTATION.md` (2025-10-16, untracked) | Describe the uncommitted working-tree changes. |
+| `EXPERT_MATCH_SELECTION_IMPROVEMENTS.md` (2025-10-13, untracked) | Last frontend feature snapshot ("4 of 5 done"). |
+| `FINAL_API_CONFIGURATION.md` (2025-10-07, untracked) | Operative external-API decision: API-Football direct via `x-apisports-key`, Vite dev proxy, production proxy deferred. |
+| `DEPLOYMENT_SUMMARY.md` (2025-10-07, untracked) | The only AWS deployment record (S3 static site). |
+| `backend/docs/DATABASE_MODELS_IMPLEMENTATION.md`, `backend/docs/JWT_AUTHENTICATION_IMPLEMENTATION.md`, `docs/ROLE_BASED_PERMISSIONS.md`, `docs/REDIS_CACHING_LAYER.md`, `backend/EMAIL_SERVICE_IMPLEMENTATION_SUMMARY.md`, `frontend/docs/FRONTEND_AUTHENTICATION_GUIDE.md` | Subsystem designs as implemented (Oct 8–11). |
+| `docker/README.md`, `docker/DATA_PERSISTENCE_*.md`, `docker/TROUBLESHOOTING.md`, `docker/redis/README.md` | Local infra runbooks (Adminer port is 8081 in compose; several docs still say 8080). |
+| `KAN-28_IMPLEMENTATION_SUMMARY.md`, `FORGOT_PASSWORD_IMPLEMENTATION_SUMMARY.md`, `JIRA_UPDATE_SUMMARY.md`, `READY_FOR_TESTING.md`, `TEST_SESSION_PERSISTENCE.md`, `EXPERT_DASHBOARD_FIXES_SUMMARY.md` | Narrow but current status notes. |
+
+**Latest decision on paper but NOT IMPLEMENTED:** `backend/docs/KAN-26_BRIEF_SUMMARY.md` and `KAN-26_STORAGE_AND_TRACKING_RECOMMENDATIONS.md` (v2.0, "store only Expert and LLM predictions, cache API-Football in Redis") — the implementation followed the v1.0 "store all" schema; the v2.0 checklist has 9 unchecked items.
+
+**Superseded / historical (do not act on):** all 2025-10-02/03 API-Football-free-tier docs; all TheSportsDB docs and `v2apt.txt`; Sportradar/StatPal/alternative-API research; RapidAPI-era `CORS_FIX_SUMMARY.md` and `API_AUTHENTICATION_VERIFICATION.md`; `api/*.md` (pre-auth scaffold era); `backend/README.md`; `frontend/README.md` and `frontend/test-checklist.md` (mock-data era; claim a passing build that no longer passes); `docs/database/*` ER diagrams and summaries (design drafts); `KAN-26_EXECUTIVE_SUMMARY.md`, `KAN-26_MULTI_SOURCE_..._ANALYSIS.md`, `KAN-26_STORAGE_STRATEGY_ANALYSIS.md` (design references); `FRONTEND_ARCHITECTURE_ANALYSIS.md` (tracked; accurate for the data layer but calls the app "production-ready" and lists auth/backend as future).
+
+**Secrets inside documentation** [DOC, VERIFIED by pattern search; values not reproduced]: API-Football key in `FRONTEND_ARCHITECTURE_ANALYSIS.md` (tracked, pushed) and in `API_AUTHENTICATION_VERIFICATION.md`, `API_FOOTBALL_MIGRATION_SUMMARY.md`, `API_INTEGRATION_GUIDE.md`, `API_INTEGRATION_SUMMARY.md`, `CORS_FIX_SUMMARY.md`, `FINAL_API_CONFIGURATION.md`; TheSportsDB premium key in four `THESPORTSDB_*.md`; Sportradar and StatPal trial keys in `SPORTRADAR_TEST_GUIDE.md` / `STATPAL_TEST_SUMMARY.md`; test-user e-mails and passwords in `EXPERT_USER_TESTING_SUMMARY.md`, `EXPERT_DASHBOARD_FIXES_SUMMARY.md`, `SESSION_PERSISTENCE_FIX.md`, `TEST_SESSION_PERSISTENCE.md`; personal e-mail addresses in several email/expert docs; default DB password in eleven tracked docker/api docs.
+
+---
+
+## 4. Current application architecture
+
+**As implemented** [CODE, VERIFIED]:
+
+```
+Browser (React SPA, Vite build, base './')
+ ├─ calls API-Football v3 DIRECTLY (browser → https://v3.football.api-sports.io, key embedded)
+ │    dev: Vite proxy /api/football injects the key; prod: direct call from the bundle
+ ├─ calls backend at VITE_API_BASE_URL (default http://localhost:8000) under /api/v1/*
+ │    auth, users, subscriptions (mock), expert/*, predictions/published*
+ └─ mock data for MatchDetailPage and DashboardPage
+
+FastAPI (backend/app, uvicorn :8000)
+ ├─ middleware: CORS (localhost origins), TrustedHost (prod only), GZip, security headers
+ ├─ routers under /api/v1: health, auth, predictions (public), users, expert, admin, subscriptions
+ │    (matches/leagues/teams routers commented out — no backend fixtures API)
+ ├─ services: expert_prediction, prediction_audit, prediction_cache, cache, session_cache (orphan),
+ │    prediction_aggregator (orphan), subscription_tier (orphan), email_service (SMTP), api_football (fixture lookup)
+ ├─ PostgreSQL 15 via SQLAlchemy 2 (sync) — schemas users/predictions/ml_models/analytics/audit, 66 tables
+ └─ Redis 7 (sync redis-py) — DB0 sessions/refresh tokens/blacklist, DB1 predictions cache, DB2-5 allocated
+
+Local infra: docker/docker-compose.yml → postgres:15-alpine, redis:7-alpine, adminer (8081); backend service commented out
+```
+
+**Divergences from the documented architecture** [INFERENCE from CODE vs DOC]:
+- The documented "hybrid ML baseline → expert override → admin approval" pipeline exists only as data-model and enum scaffolding. There is no ML engine (ML baseline endpoint returns hard-coded numbers), experts approve their own predictions, and admin approval is a no-op stub.
+- The documented "backend proxies external APIs, caches in Redis" flow is not built; the browser talks to API-Football directly.
+- The documented microservice split (public/expert/admin/ML worker on ECS) is not built; the backend is one monolith and has never been containerised beyond a Dockerfile that has never been run in the cloud.
+- Subscriptions are derived from `user_type`, not from the `user_subscriptions` table; no payments.
+
+---
+
+## 5. Technology stack
+
+| Layer | Declared | Actually installed / used | Notes |
+|---|---|---|---|
+| Frontend | React ^18.2, TypeScript ^5.2, Vite ^4.5, Tailwind ^3.3, react-router-dom ^6.8, axios ^1.6, react-query ^3.39, framer-motion, heroicons, headlessui, react-hot-toast, react-helmet-async, recharts, date-fns | react 18.3.1, TS 5.9.2, vite 4.5.14, router 6.30.1, axios 1.12.2 (node_modules installed 2025-10-02) | `recharts`, `react-intersection-observer` unused; react-query only provides a provider (no `useQuery`). No test framework. [CODE, VERIFIED] |
+| Backend | Python ^3.11, FastAPI 0.104.1, uvicorn 0.24, pydantic 2.5, SQLAlchemy 2.0.23, alembic 1.12.1, psycopg2-binary, redis 5.0.1, python-jose, passlib/bcrypt, httpx, jinja2, aiosmtplib | venv is **Python 3.9.6** with the pinned packages | `requirements.txt` and `pyproject.toml` drift (jinja2/aiosmtplib missing from pyproject; `requests` used by root scripts but declared nowhere). [CODE, VERIFIED] |
+| Data | PostgreSQL 15 (5 schemas, 66 tables, 3 Alembic migrations), Redis 7 (16 DBs, 6 allocated) | docker-compose images postgres:15-alpine, redis:7-alpine, adminer | No containers/volumes/images present on this machine now. [CODE/VERIFIED] |
+| External data | API-Football v3 Pro (primary), TheSportsDB (dead code fallback) | API-Football called from browser; backend uses it only to look up a fixture when an expert creates a prediction | [CODE, VERIFIED] |
+| Email | SMTP via aiosmtplib (Mailtrap Live configured locally), SendGrid/SES stubs | | [CODE, VERIFIED] |
+| Tooling | Trunk (`.trunk/trunk.yaml`: markdownlint, prettier, checkov, trufflehog, git-diff-check), ESLint 8, black/flake8/mypy/isort declared | ESLint config broken; no CI | [CODE, VERIFIED] |
+| Toolchain on this Mac | Node 24.8.0, npm 11.6.0, Python 3.13.12 (system), Docker 29.0.1, no `psql` | | [VERIFIED] |
+
+---
+
+## 6. Features already implemented
+
+Each item is **VERIFIED** by reading code and, where noted, by executing something safe.
+
+**Backend (54 API routes + docs; app imports cleanly and registers 58 routes)** [CODE, VERIFIED by importing `app.main` with the project venv]:
+- Auth: register, login, refresh (rotation + jti blacklist), logout, `/me`, change password, forgot/verify/reset password with hashed one-time tokens and e-mails (`backend/app/api/v1/endpoints/auth.py`).
+- Users: get/update profile, change password, preferences, permission listing; admin list/role change/soft-delete.
+- Expert manual-prediction lifecycle: create (auto-creates Match/Team/League from API-Football or placeholders), review queue, my-predictions, approve → published, reject, edit pending, soft delete, toggle publish/archive (the last is uncommitted).
+- Public read API: `GET /api/v1/predictions/published` and `/published/by-match/{external_match_id}` with priority ordering.
+- Admin basics: dashboard counts, pending experts, verify/reject expert, suspended users list/suspend.
+- Static RBAC (27 permissions, 3 roles, verified-expert gate) and dependency chain.
+- Data layer: 66 SQLAlchemy models across 5 schemas; Alembic chain `9b3c8646a52d → 2a4f8c9d1e3b → eb2ef2cf6caf` is linear with one head (the last revision is untracked).
+- Redis cache services, health endpoints (basic/detailed/database/redis), JSON logging, security headers, CORS, gzip, multi-stage Dockerfile.
+- SMTP e-mail with a working welcome template; password-reset templates fall back to inline bodies (see §18).
+- Unit tests: 93 pure-unit tests pass (run during this assessment, see §17).
+
+**Frontend** [CODE, VERIFIED]:
+- Routing for 23 pages; auth context with localStorage tokens, 401 auto-refresh, role-based `ProtectedRoute`; login/register/forgot/reset/change-password pages.
+- Profile and subscription pages wired to the backend.
+- Expert pages: dashboard (metrics, recent predictions, publish/unpublish/delete), match selection (API-Football fixtures, search, manual id), create prediction (1X2 + optional BTTS/Over-Under, uncommitted), my-predictions (filter, paging, inline edit, delete), review queue (approve/reject, paging).
+- Public pages: Home, Today, Tomorrow, Leagues, League detail (standings/teams/fixtures), Team detail (partial), header search (API-Football).
+- Three-tier API-Football service layer with 5-minute in-memory cache and expert-prediction merging; source badges; live status/score utilities (uncommitted).
+- Design system (Tailwind dark theme), Helmet titles on most public pages.
+
+**Infrastructure / ops** [CODE, VERIFIED]:
+- Docker Compose for Postgres/Redis/Adminer with tuned configs, init SQL (schemas, extensions), backup/restore scripts, a baseline schema-only dump.
+- Frontend deployed once to S3 (`soccer-predictions-app-7787`) on 2025-10-07/08 [AWS, VERIFIED]; the object set is byte-identical to the local `frontend/dist`.
+
+---
+
+## 7. Features partially implemented
+
+| Feature | State | Evidence |
+|---|---|---|
+| BTTS / Total Goals markets (uncommitted, 2025-10-16) | Model ↔ migration ↔ schemas ↔ service ↔ expert endpoints consistent; **missing** from public endpoints' hand-built dicts, aggregator, and audit; no sum validation on the update path or on over/under pairs; `toggle-publish` audit calls a non-existent `log_action`; 3 new TS errors; no tests | `backend/app/api/v1/endpoints/predictions.py:129-149,202-222`; `backend/app/api/v1/endpoints/expert.py:541`; `git diff` |
+| Expert override | Endpoint + schema + audit exist, but the service constructs `PredictionOverride` with kwargs that are not columns → always HTTP 400 | `backend/app/services/expert_prediction.py:200-207` vs `backend/app/models/predictions.py:149-185` [VERIFIED] |
+| Expert analytics | Counts and average confidence only; `accuracy_rate=None`, league breakdown `{}`, trend `[]` | `expert.py:568-640` |
+| Admin | Dashboard counts real; audit-logs, system-config, approve-prediction are stubs; expert reject does not persist reason | `admin.py:204-254` |
+| Audit trail | Rows written to `audit.audit_log`, but `metadata=` kwarg never reaches the `audit_metadata` column; no read endpoint | `prediction_audit.py:322-340` vs `models/audit.py:106` [VERIFIED] |
+| Session revocation | `revoke_user_refresh_tokens` deletes stored keys but `/refresh` only checks the blacklist → revocation on password change/reset is ineffective | `backend/app/core/deps.py:233-243,280-298` [VERIFIED] |
+| External data on the backend | `api_football.py` used only for fixture lookup; aggregator's API-Football branch is a TODO; matches/leagues/teams routers commented out | `backend/app/api/v1/api.py:25-28` |
+| Public prediction display | Real API-Football predictions for the first 5 fixtures per page; every other fixture, all odds, H2H and team stats are randomized or zero placeholders shown without indication; BTTS/O-U defaults fabricated when no expert data | `frontend/src/services/api-mapper.service.ts:133-274,332-352` |
+| Match detail page | Mock-only; shows "Match Not Found" for every real fixture | `frontend/src/pages/MatchDetailPage.tsx:1-26` [VERIFIED] |
+| User dashboard | Fully mock ("John Doe") | `frontend/src/pages/DashboardPage.tsx` |
+| Subscriptions | Static tier catalogue; tier derived from `user_type`; `PUT /subscriptions/me` persists nothing; three conflicting tier tables in code | `subscriptions.py:19-100,103-208`; `subscription_tier.py`; `prediction_aggregator.py:53-74` |
+| Email | SMTP works; password-reset templates requested with a wrong relative path → inline fallback always used; SendGrid/SES stubs return False | `email_service.py:32-40,348-352,410-414` [VERIFIED] |
+| Test suite | 121 test functions; 93 pure-unit pass; 17 need live Redis; 3 need live Postgres; 8 endpoint tests cannot pass as written (patched symbols already bound; wrong `get_db` overridden) | §17 |
+| Local Docker environment | Compose validates, but relative bind-mounts resolve to `docker/docker/...` (empty; `redis.conf` created as a directory on 2025-10-08) and the backend service is commented out | `docker compose config` [VERIFIED] |
+| Frontend tooling | strict TS + ESLint configured, but `tsc` fails (10 errors) and ESLint aborts on `extends: "@typescript-eslint/recommended"` (missing `plugin:` prefix) | `frontend/.eslintrc.cjs:6` [VERIFIED] |
+| Hosting readiness | `base: './'` in `vite.config.ts` makes deep links load `./assets/...` relative to the route → blank page on any non-root URL on S3; S3 returns 404 status for SPA routes; HTTP only | Probed `/league/assets/index-48183f90.js` → HTML 404 [VERIFIED] |
+
+---
+
+## 8. Features not implemented
+
+All **NOT IMPLEMENTED** [CODE vs DOC]:
+- ML baseline engine and any model training/inference (`/expert/ml-baseline` returns constants; ML tables unused).
+- Prediction settlement, results ingestion, accuracy computation, expert performance tracking (`prediction_results`, analytics tables never written).
+- Admin approval workflow as specified (high-stakes flag, admin approve/reject with notes, notifications).
+- Backend fixtures/leagues/teams API and Redis-cached API-Football proxy (FR-DATA-001/002).
+- Rate limiting, email verification enforcement, MFA, OAuth, "remember me".
+- Payments/Stripe, subscription persistence, tier enforcement middleware (KAN-139).
+- LLM prediction source (enum value only), multi-source comparison view (Pro tier).
+- Notifications, audit read API, GDPR export, data retention jobs, KAN-26 v2.0 storage strategy and `prediction_source_views` tracking.
+- Admin UI in the frontend (admins land on the mock dashboard); generic predictions API used by the dead `prediction.service.ts` (`/predictions/today`, `/{id}`, `/{id}/feedback` do not exist in the backend) [VERIFIED].
+- CI/CD (no `.github/` directory, no workflows on GitHub), IaC (no Terraform/CDK/CloudFormation), `.dockerignore`, backend container deployment, CloudFront/TLS/domain, monitoring, alarms, secrets management in AWS.
+- Automated frontend tests of any kind; backend integration tests that actually run.
+- PWA/service worker (claimed by the old `main` README), SEO assets (missing favicon/OG image, placeholder domain).
+
+---
+
+## 9. Local repository status
+
+[CODE/GIT, VERIFIED on 2026-09-17]
+
+| Item | Value |
+|---|---|
+| Path | `/Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI` |
+| Current branch | `progress` |
+| HEAD | `918eabd49474ee01fde3b9bb8beef32d0b4fc77d` — "Fix league search navigation bug…" (2025-10-14 21:29 -0400, author "Stephan Money") |
+| Local branches | `main` fdd40cb (2025-09-22) · `dev` b32cd9e (2025-09-22, local only, differs from `origin/dev`) · `progress` 918eabd · `progress-v1` 54cb0ad (2025-10-14) |
+| Remote | `origin` = `https://github.com/fotso94/PredictionsAppsUI.git` |
+| Remote-tracking refs | `origin/main` fdd40cb, `origin/dev` a5a283f, `origin/prod` 1b12b20, `origin/progress` 918eabd, `origin/progress-v1` 54cb0ad; `origin/HEAD → origin/main` |
+| Tags / stash | none / none |
+| Tracked files | 252 (on `progress`) |
+| Root `.gitignore` | **absent** on `progress` (deleted relative to `main`); only `backend/.gitignore` and `frontend/.gitignore` exist, which is why 50+ root files show as untracked |
+| Working tree | 16 modified tracked files (+1,183 / −106): 4 backend (`expert.py`, `models/predictions.py`, `schemas/predictions.py`, `services/expert_prediction.py`) and 12 frontend (expert pages, MatchCard, HomePage, TodayPredictionsPage, four services, `types/expert.ts`) |
+| Untracked | 68 paths: 51 root `.md`, 2 `.txt`, `index.html`, `test.html`, `diagram.html`, `diagram2.html` (identical), `serve-test.py`, `.DS_Store`, `backend/alembic/versions/eb2ef2cf6caf_add_btts_and_total_goals_prediction_.py`, `frontend/src/utils/` (`matchFilters.ts`), `docs/BTTS_TOTAL_GOALS_*.md` ×4, `docs/EXPERT_PREDICTION_FORM_GUIDE.md`, 4 screenshots dated 2025-10-15 |
+| Ignored build artefacts present | `frontend/dist` (2025-10-07 build), `frontend/node_modules`, `backend/venv` (Python 3.9.6), `backend/htmlcov` + `.coverage` + `.pytest_cache` (2025-10-13), `backend/.env`, `frontend/.env` |
+| Reflog | shows cherry-picks between `progress` and `progress-v1` on Oct 9–14; no rebases or resets of `progress` itself |
+| Commit history on `progress` | 18 commits from 2025-09-22 to 2025-10-14 (14 ahead of `main`, 0 behind) |
+
+**Branch relationships** [VERIFIED]: `progress` is `main` + 14 commits. `progress-v1` diverges from `progress` at c65c86b and carries 3 cherry-picked equivalents (c772eae, 4a8ad97, 54cb0ad) of `progress` commits; `progress` is 70 files / +12,989 ahead of it. `origin/dev` is an **orphan** ("feat: Fresh start – copy all changes from progress branch", 2025-09-24) with 10,457 files of which 10,345 are committed `node_modules`; it is the only place holding the PowerShell AWS deployment scripts (`aws-deploy.sh`, `deploy-aws.ps1`, `setup-cloudfront.ps1`, `update-app.ps1`, `aws-setup-guide.md`, `deployment-info.txt`). `origin/prod` is a single README-only commit. `main` (the GitHub default branch) is the original Create-React-App prototype layout (`src/`, `public/`, root `package.json` with react-scripts) and does not contain `backend/`, `frontend/`, or `docker/` at all.
+
+---
+
+## 10. GitHub repository status
+
+[GITHUB, VERIFIED via `gh` API on 2026-09-17; authenticated as `fotso94` with repo/workflow scopes]
+
+| Item | Value |
+|---|---|
+| Repository | `fotso94/PredictionsAppsUI`, **public**, created 2025-09-22, description "UI for a predictions's website that predict the outcome of soccer games." |
+| Default branch | `main` (fdd40cb, 2025-09-22) — the obsolete CRA prototype |
+| Last push | 2025-10-15T01:29:48Z (progress branch) |
+| Branches | `dev` a5a283f · `main` fdd40cb · `prod` 1b12b20 · `progress` 918eabd · `progress-v1` 54cb0ad; none protected |
+| Compare `main...progress` | ahead 14, behind 0 |
+| Pull requests | 0 (open or closed) |
+| Issues | 0 |
+| Releases / tags | 0 / 0 |
+| Actions workflows / runs | 0 / 0 |
+| Environments / deployments | 0 / 0 |
+| GitHub Pages | not configured |
+| Secret scanning alerts | empty list (cannot distinguish "none" from "feature not enabled" with current scopes) — NOT VALIDATED |
+| Dependabot / code scanning | disabled / no analysis |
+| Size / languages (default branch) | 41,871 KB; TypeScript 100,498, JavaScript 9,115, HTML 6,643, CSS 1,611 (this reflects `main`, not the real app) |
+| Wiki / license | wiki enabled (unused); no license file |
+
+**Documentation available only on GitHub**: `origin/dev` holds `aws-setup-guide.md` and `deployment-info.txt` (records bucket `soccer-predictions-app-7787`, us-east-1, deployed 2025-09-22 23:07 from a Windows machine). `origin/prod` README is a two-line placeholder. Nothing else exists on GitHub that is not local.
+
+---
+
+## 11. Local-versus-GitHub comparison
+
+- **Heads match for every branch that exists on both sides** (`progress`, `progress-v1`, `main`): `git ls-remote` SHAs equal local SHAs. There is **no unpushed committed work**. [VERIFIED]
+- **Local `dev` (b32cd9e) ≠ `origin/dev` (a5a283f)**; they share no history with each other beyond the root. The local `dev` is a stale September branch; the remote one is the orphan deployment-scripts branch. [VERIFIED]
+- **`origin/prod` has no local branch.** [VERIFIED]
+- **Unpushed, uncommitted work exists only locally**: the 16 modified files and 68 untracked paths (§9), including the BTTS migration and the newest docs. If this machine were lost, the BTTS/Total-Goals feature and 51 root documents would be lost. [VERIFIED]
+- **GitHub visitors see the wrong project**: the default branch `main` shows a CRA prototype README claiming "89.9% accuracy" and PWA support; the real application is on `progress`. [VERIFIED, CONTRADICTED claim in `main` README]
+- **Files on GitHub not present locally**: everything under `origin/dev` (deployment scripts, committed `node_modules`) and `origin/prod`. [VERIFIED]
+- **Secrets are on GitHub**: `frontend/vite.config.ts`, `frontend/src/services/api-football.service.ts`, `frontend/src/services/thesportsdb.service.ts`, `FRONTEND_ARCHITECTURE_ANALYSIS.md`, `backend/create_expert_user.py`, `backend/update_expert_password.py`, `backend/test_smtp_connection.py`, `backend/alembic.ini`, `frontend/test-login.html` are all tracked on `progress`/`progress-v1` and public. [VERIFIED]
+
+---
+
+## 12. Branch, commit, tag, PR, issue, release, and Actions status
+
+**Commit timeline on `progress`** [GIT, VERIFIED]:
+
+| Date | Commit | Subject |
+|---|---|---|
+| 2025-09-22 | 553770c, 1b12b20, c7d38df, fdd40cb | Initial README, prod branch, CRA prototype, README merge (`main`) |
+| 2025-09-22 | 915bdeb, 11baa49 | Vite frontend app, server/testing tools |
+| 2025-09-24 | c65c86b, cc95ca8, 28f7105 | Logo fix; local + AWS architecture plans; frontend architecture analysis |
+| 2025-10-08 | e07b2b2, b4857e2, 53e16c8 | API-Football integration + **key committed**; docs; DB migration system + Docker + backup infra (KAN-16..21, KAN-30) |
+| 2025-10-09 | 9cfc8de | KAN-28 Redis caching, JWT auth (KAN-23/107-111), RBAC (KAN-24), frontend auth |
+| 2025-10-10 | e52e152, 26c64c5 | KAN-25 public API, subscriptions, profile pages; session persistence |
+| 2025-10-11 | 736ab2d | KAN-144 forgot/reset password |
+| 2025-10-14 | d221f6f | KAN-26 expert API + multi-source priority (commit body claims "14/17 tasks, 82%") |
+| 2025-10-14 | 918eabd | League search navigation fix + search dropdown + screenshots |
+
+Claims in commit messages checked: d221f6f says routes `/expert/create-prediction`, `/expert/review-queue`, `/admin/approve-predictions` were created — the actual routes are `/expert/predictions/create`, `/expert/predictions/review-queue`, and **no admin route exists** [CONTRADICTED by `frontend/src/App.tsx`]. It claims "96% coverage, 35/35 tests" for the aggregator/permissions unit tests — consistent with the 2025-10-13 coverage report (aggregator 96%) [PARTIALLY VERIFIED].
+
+**Tags:** none. **Releases:** none. **PRs:** none (all work pushed directly to branches). **Issues:** none (tracking happened in Jira `aztechsolutions.atlassian.net`, keys KAN-15…KAN-161 referenced in docs; Jira access NOT VALIDATED). **Actions:** no workflows ever existed; the `.github/` directory is absent. **Branch protection:** none.
+
+---
+
+## 13. AWS account, regions, and project-resource inventory
+
+[AWS, VERIFIED via `aws --profile me` on 2026-09-17; read-only calls only]
+
+| Item | Value |
+|---|---|
+| Account | `845667439863` (no account alias) |
+| Caller identity | IAM user `superadmin` (`arn:aws:iam::845667439863:user/superadmin`) — attached `AdministratorAccess`, `Billing`, `AWSBillingConductorFullAccess`; **two active long-lived access keys** (created 2025-09-23 and 2025-10-08, matching the two deployment dates) |
+| Profile `me` region | **not configured** (`aws configure get region --profile me` returns nothing); every command needs `--region`. Other profiles in `~/.aws/config` default to us-east-1 |
+| Enabled regions scanned | all 17 default regions (us-east-1/2, us-west-1/2, ca-central-1, eu-west-1/2/3, eu-central-1, eu-north-1, ap-south-1, ap-northeast-1/2/3, ap-southeast-1/2, sa-east-1) plus global services |
+| Services enumerated per region | CloudFormation, EC2 (instances/VPC/EIP/NAT/EBS/AMI/snapshots/SG/key pairs), ELB/ELBv2, ECS, ECR, Lambda, RDS (instances/clusters/snapshots), ElastiCache (+serverless), DynamoDB, API Gateway v1/v2, Amplify, App Runner, Elastic Beanstalk, Lightsail, ACM, Cognito, SES/SESv2, Secrets Manager, SSM Parameters, CloudWatch logs/alarms, EventBridge, SQS, SNS, CodePipeline/CodeBuild/CodeDeploy/CodeCommit, EFS, Step Functions, OpenSearch, Backup vaults, Resource Groups Tagging API; global: S3, CloudFront, Route 53 (zones + registrar), IAM (roles/users/policies/OIDC), Cost Explorer, Budgets, CloudTrail lookup |
+
+**Project resources found (the complete list):**
+
+| Resource | Details | Purpose | State |
+|---|---|---|---|
+| S3 bucket `soccer-predictions-app-7787` | us-east-1, created 2025-09-23T03:07:41Z; static website hosting (index/error = `index.html`); bucket policy `s3:GetObject` to `*`; Public Access Block all `false`; SSE-S3 (AES256); versioning off; no tags; 17 objects, last modified 2025-10-08T03:48Z (`index.html`, `assets/index-48183f90.js` 520,595 B, `.js.map` 2.1 MB, `.css`, 6 league SVGs, 7 team SVGs) | Frontend static site (first deployed 2025-09-22 from Windows; re-synced 2025-10-07/08) | **Live**: `http://soccer-predictions-app-7787.s3-website-us-east-1.amazonaws.com/` → HTTP 200, title "Soccer Predictions – Professional Football Analytics"; HTTPS times out (no CloudFront) |
+| S3 bucket `predictions-app-778778324` | us-east-1, created 2025-10-08T00:27:22Z; same website/public config; 1 object `index.html` (7,317 B) byte-identical to the repo's root `index.html` ("API-Football Widget Test") | Throw-away widget test page | **Live**: HTTP 200 |
+
+**Everything else in the account is unrelated to this project** [AWS, VERIFIED by name/tag/date]: `vprofile` CI/CD lab assets in us-east-1 (2 non-default VPCs `dev-vpc`/`prod-vpc`, 6 security groups, 3 key pairs, 8 AMIs, 9 EBS snapshots, tags "Java Home Cloud"), a `Vprofile-vpc` in us-east-2, the `zaynetechsolutions.com` website (S3 bucket, CloudFront `E3FVWV7K0JHWVZ`, Route 53 zone, ACM cert), `stephanefotso-portfolio` / `stephanefotso.zaynetechsolutions.com` buckets, `gha-static-website-237` / `gha-terraform-jhc-237` buckets (May 2026), IAM role `github-oidc` (created 2026-05-13, trusts `repo:fotso94/*` via the GitHub OIDC provider and carries **AdministratorAccess**), IAM user `aws_creds_user` (S3FullAccess), EKS service-linked roles (May 2026). No CloudFormation stacks anywhere. No CloudWatch log groups, alarms, Secrets Manager secrets, or SSM parameters for this project.
+
+**Cost** [AWS Cost Explorer, VERIFIED]: account-wide spend is $1.5–2.5/month (Oct 2025 → Sep 2026), almost entirely "EC2 – Other" (EBS snapshots from the vprofile lab) and one Route 53 zone; S3 for this project is ≈$0.01/month; a one-off $11.20 in May 2026 came from EKS/ELB/VPC experiments. A cost budget "My Monthly Cost Budget" of $15 exists. CloudTrail shows no events on either project bucket in the last 90 days.
+
+---
+
+## 14. Current cloud deployment state
+
+- **Frontend:** the S3 site is the Vite build of 2025-10-07 (assets hash `index-48183f90`), identical to local `frontend/dist`. It predates authentication (commit 9cfc8de, 2025-10-09), the public API integration, and all expert features: the deployed bundle contains **zero** `/api/v1/` references and no `localhost:8000`, but does contain one API-Football key and one `v3.football.api-sports.io` reference [VERIFIED by fetching the bundle]. Deep links fail (relative asset paths + 404 fallback) and there is no HTTPS.
+- **Backend / database / cache:** **never deployed**. No container image was ever pushed (no ECR repositories), no RDS or ElastiCache instance exists, no compute of any kind is attached to this project. [AWS, VERIFIED]
+- **DNS / TLS:** no hosted zone, certificate, or CloudFront distribution for this project. The `setup-cloudfront.ps1` script on `origin/dev` was never run (CloudFront list contains only the unrelated Zayne Tech distribution). [AWS, VERIFIED; doc claim "Consider CloudFront" → NOT IMPLEMENTED]
+- **CI/CD-related resources:** the `github-oidc` role could be used by a future GitHub Actions workflow, but it currently grants AdministratorAccess to any repository under `fotso94/*` [AWS, VERIFIED] — over-privileged and not project-specific.
+- **Deployment mechanism used so far:** manual `aws s3 sync` from a developer machine (PowerShell scripts on `origin/dev`; `DEPLOYMENT_SUMMARY.md`), using the `superadmin` long-lived keys. [DOC + AWS, PARTIALLY VERIFIED — the scripts and timestamps are consistent; the exact commands run are not logged]
+
+---
+
+## 15. Repository-to-AWS deployment mapping
+
+| Repository artefact | AWS resource | Status |
+|---|---|---|
+| `frontend/dist` (built 2025-10-07 from commit ≈e07b2b2) | `s3://soccer-predictions-app-7787` | VERIFIED identical (index.html byte-equal; same asset hashes and sizes) |
+| Root `index.html` (API-Football widget test) | `s3://predictions-app-778778324/index.html` | VERIFIED identical |
+| `origin/dev:deployment-info.txt` (bucket name, region, date 2025-09-22) | bucket creation time 2025-09-23T03:07Z UTC | VERIFIED consistent |
+| `DEPLOYMENT_SUMMARY.md` / `FRONTEND_ARCHITECTURE_ANALYSIS.md §8.4` ("17 files, 2.6 MiB, cache-control set") | 17 objects; total ≈2.7 MB | PARTIALLY VERIFIED (object count and size match; per-object Cache-Control headers not inspected) |
+| `AWS_PRODUCTION_DEPLOYMENT_PLAN.md` (ECS Fargate, RDS, ElastiCache, ALB, Route 53, CloudFront, 5 named buckets, us-west-2 DR) | nothing | NOT IMPLEMENTED |
+| `backend/Dockerfile` | no ECR repo, no ECS/App Runner service | NOT IMPLEMENTED |
+| `backend/app/core/config.py` AWS SES settings, `email_service.py` SES stub | no SES identities | NOT IMPLEMENTED |
+| `docker/docker-compose.yml` | local only | n/a |
+| `origin/dev:setup-cloudfront.ps1` | no distribution | NOT IMPLEMENTED |
+| `.github/` workflows | none (repo) / `github-oidc` role (AWS, generic) | NOT IMPLEMENTED |
+
+**Resources in AWS not represented in the repository:** `predictions-app-778778324` bucket (only implied by the root `index.html`), and the account-level `github-oidc` role/provider. **Resources referenced by code/docs but missing from AWS:** all of the production plan; the five planned bucket names; SES.
+
+---
+
+## 16. Local/GitHub/AWS consistency findings
+
+1. **Source of truth is `progress` + the local working tree**, not the GitHub default branch. GitHub `main` is a different, obsolete codebase. [VERIFIED]
+2. **Deployed frontend ≠ current frontend.** The S3 site is ~10 commits and all uncommitted work behind, and would not build today anyway. [VERIFIED]
+3. **Docs claim "production-ready / live"** (`FRONTEND_ARCHITECTURE_ANALYSIS.md`, `ARCHITECTURE_UPDATE_SUMMARY.md`, `frontend/README.md`); reality: a static demo that fabricates most predictions, exposes a paid API key, has no backend, and cannot deep-link. [CONTRADICTED]
+4. **Docs claim the local DB "migration applied successfully"** for BTTS (2025-10-16); no Postgres container, volume, or image exists on this machine now, so the local database state described in the docs is gone or lives elsewhere. [NOT VALIDATED]
+5. **Docker Compose was run on this machine on 2025-10-08** (Docker auto-created `docker/docker/postgres/{init,conf}` and a `docker/docker/redis/redis.conf` directory), which means Redis started **without** the project's `redis.conf` and Postgres **without** the init SQL during those runs (schemas were still created by `alembic/env.py`). [VERIFIED by directory timestamps + `docker compose config`]
+6. **Profile `me` has no region**, yet every doc/script assumes `us-east-1`. [VERIFIED]
+7. **Two S3 buckets are publicly readable with Public Access Block disabled**; one of them serves the leaked key to anyone. [VERIFIED]
+8. **The `superadmin` user with admin+billing rights and two long-lived keys is the deployment identity.** No project-scoped IAM role exists. [VERIFIED]
+9. **Jira is the real backlog** (≈80 KAN keys referenced), but no GitHub issues/PRs exist and Jira state could not be read. [NOT VALIDATED]
+10. **`origin/dev` carries 10,345 committed `node_modules` files** (41 MB repo), which will keep bloating clones until the branch is deleted or rewritten. [VERIFIED]
+
+---
+
+## 17. Test and build status with evidence
+
+**Backend — executed during this assessment** (safe subset: no DB/Redis, no cache/coverage/bytecode written; verified `git status` unchanged afterwards):
+
+```
+venv/bin/python -m pytest -p no:cacheprovider -o addopts="" -q \
+  tests/test_auth.py tests/test_permissions.py tests/core/test_expert_permissions.py \
+  tests/services/test_prediction_aggregator.py tests/test_email_service.py
+→ 93 passed in 1.62s
+```
+[VERIFIED]
+
+**Backend — not executed (require live services):** `tests/test_cache_services.py` (17 tests, real Redis), `tests/test_health.py` (3 tests, real Postgres via app startup), `tests/api/test_expert_endpoints.py` (8 tests; cannot pass as written because `@patch` targets dependencies FastAPI already bound, and `conftest.py` overrides `app.db.session.get_db` while `auth/users/expert/admin` import `get_db` from `app.core.deps`) [VERIFIED by reading `tests/conftest.py:13,55` and endpoint imports]. Total test functions: 121.
+
+**Last recorded run** [VERIFIED from artefacts]: `.pytest_cache/v/cache/nodeids` (2025-10-13) lists 110 tests from 6 files (health and endpoint tests were not collected); `htmlcov/index.html` "created at 2025-10-13 01:18 -0400", **TOTAL 64%** (models ≈100%, request handlers 21–36%). This predates commit d221f6f and the BTTS work, so it is stale.
+
+**Backend — static checks** [VERIFIED]: all 72 `.py` files parse (AST check); `import app.main` succeeds under the 3.9.6 venv and registers 58 routes; one Pydantic warning (`convert_decimal_to_float` overrides an existing validator — the second definition is dead code, introduced by the uncommitted schema changes).
+
+**Frontend** [VERIFIED by running the tools; nothing written]:
+- `tsc --noEmit`: **10 errors** (`Header.tsx:6`, `MatchCard.tsx:9`*, `ExpertCreatePredictionPage.tsx:12`, `ExpertMatchSelectionPage.tsx:12`* and `:75`*, `ExpertMyPredictionsPage.tsx:9`, `LeagueDetailPage.tsx:36` string/number comparison, `ProfilePage.tsx:9`, `expert-prediction.service.ts:12`, `search.service.ts:42` wrong argument type). `*` = introduced by uncommitted changes; the other 7 exist at HEAD, so **the last commit does not build either**. `npm run build` (= `tsc && vite build`) therefore fails.
+- `eslint`: aborts with "couldn't find the config `@typescript-eslint/recommended`" (`.eslintrc.cjs:6` needs `plugin:@typescript-eslint/recommended`). With the config corrected, a subagent run reported 9 errors / 53 warnings.
+- No frontend unit or E2E tests exist; `frontend/test-checklist.md`'s "[x] build passes" is CONTRADICTED.
+
+**Build artefacts:** `frontend/dist` (2025-10-07) is the only successful build evidence and matches the S3 deployment. `serve.js` cannot run (CommonJS `require` under `"type": "module"`) [VERIFIED by inspection].
+
+**Docker:** `docker compose -f docker/docker-compose.yml config --quiet` validates (warns that `version` is obsolete) but resolves bind mounts to `docker/docker/...` [VERIFIED].
+
+---
+
+## 18. Issues, bugs, inconsistencies, and technical debt
+
+### P0 — security and hard failures (all VERIFIED)
+1. **Leaked secrets in a public repo and live site:** API-Football key (`frontend/vite.config.ts:31`, `frontend/src/services/api-football.service.ts:16`, `FRONTEND_ARCHITECTURE_ANALYSIS.md`, `frontend/dist`, S3); TheSportsDB premium key (`frontend/src/services/thesportsdb.service.ts:15-16`, `backend/app/core/config.py:146` default, `backend/.env.example`); SMTP password (`backend/test_smtp_connection.py:17`); expert test password (`backend/create_expert_user.py:152`, `backend/update_expert_password.py:48`); dev DB URL with password (`backend/alembic.ini:61`); test credentials (`frontend/test-login.html:22-23`). All present in git history since 2025-10-08/14.
+2. **Privilege escalation:** `POST /api/v1/auth/register` accepts `role` ∈ {regular, expert, admin} from the client (`backend/app/api/v1/endpoints/auth.py:268-288`).
+3. **Session revocation is a no-op** (`backend/app/core/deps.py:233-243, 280-298`).
+4. **Per-process random `SECRET_KEY` default** (`config.py:26`) + `--workers 4` in the production Dockerfile → cross-worker token failures unless the env var is set.
+5. **Expert override endpoint always fails** (`expert_prediction.py:200-207` passes non-existent columns to `PredictionOverride`).
+6. **Audit metadata silently dropped** (`prediction_audit.py:332` uses `metadata=`; column is `audit_metadata`); `toggle-publish` calls non-existent `audit_service.log_action` (`expert.py:541`), swallowed.
+7. **Placeholder-match replacement hard-deletes attached predictions** via `cascade="all, delete-orphan"` (`expert_prediction.py:995`; `models/predictions.py:402`) [PARTIALLY VERIFIED — read by the audit subagent, not re-executed].
+8. **Public S3 buckets with Public Access Block disabled**; site serves the key; no TLS.
+
+### P1 — functional bugs (VERIFIED unless noted)
+9. Public `GET /predictions/published?date=` crashes (`db.func.date`, `predictions.py:91`).
+10. `status` query param shadows `fastapi.status` → 500 on invalid filter (`expert.py:253,281`).
+11. Password-reset e-mail templates never render (wrong relative path, `email_service.py:348-352,410-414`); fallback bodies used.
+12. BTTS/Total-Goals fields omitted from public endpoints (`predictions.py:129-149,202-222`), aggregator, audit; no validation on update path or over/under pairs → DB CHECK violations surface as HTTP 500.
+13. Frontend: `getPredictionSourceInfo` upper-cases the source while the lookup keys are lowercase → every badge shows "Randomized" (`frontend/src/types/expert.ts:236-300`); `MatchDetailPage` mock-only; dead links to `/expert/predictions/:id`; `search.service.ts:42` compile error; `TeamDetailPage` hardcodes Premier League 2024; queued requests retried with stale tokens (`api-client.ts:114-125`); `PasswordChangePage` navigates to login without clearing tokens; UTC/local date mixing; `prediction.service.ts` targets five endpoints that do not exist and is imported nowhere.
+14. `key_factors` never returned (`expert_prediction.py:114,187,496` vs `679`); experts approve their own predictions; admin approve is a stub; API-registered experts never get an `ExpertProfile` so they can never be verified; O(n) bcrypt scan for reset tokens; registration sets `ACTIVE` with no email verification.
+15. Backup script writes `pg_dump` stderr into the SQL file (`docker/scripts/backup-database.sh`, `2>&1` into the dump): the committed baseline dump contains 1,113 `pg_dump:` lines interleaved with SQL, so `restore-database.sh` will emit errors on every such line. [VERIFIED]
+16. Docker Compose bind-mount paths (§16 item 5); backend service commented out; Adminer port documented as 8080 in several docs but mapped to 8081.
+17. Test harness defects (§17).
+
+### P2 — technical debt
+- Three parallel external-data layers in the frontend (API-Football active; TheSportsDB ≈1,005 dead lines; mock data), three `generateMockOdds` copies, near-duplicate Today/Tomorrow pages, 135 `console.*` calls, unused deps, `base: './'`.
+- Backend duplicates: two `get_db`; `session_cache.py` vs `deps.py` token stores with different key prefixes; three conflicting subscription-tier tables (BASIC missing in one); three priority tables (aggregator, model docstring, migration backfill) that disagree; static RBAC vs unused DB RBAC tables; unused tables (`prediction_audit`, `password_reset_tokens`, `user_sessions`, all ML/analytics tables); Docker-init enum types differ from SQLAlchemy enums; enum types physically created in schema `users` due to `search_path`.
+- Sync SQLAlchemy/redis/httpx inside `async def` handlers; N+1 enrichment loops; `KEYS` scans; per-call Redis clients for non-default DBs; cache invalidation is a log statement; deprecated `@app.on_event`, pydantic v1 validators, `datetime.utcnow()`.
+- Python 3.9 venv vs 3.11 requirement; `requirements.txt` vs `pyproject.toml` drift; no `.dockerignore`; no root `.gitignore`; credential-bearing helper scripts at `backend/` root; 50+ untracked status docs with keys inside; `origin/dev` with committed `node_modules`.
+- Documentation drift: four incompatible table inventories; Swagger path `/api/docs` (KAN-26 docs) vs actual `/api/v1/docs`; register payload described three different ways; Redis key patterns documented three different ways; commit messages naming routes that do not exist.
+
+---
+
+## 19. Current blockers and dependencies
+
+| Blocker | Type | Owner action needed |
+|---|---|---|
+| Leaked API-Football / TheSportsDB / SMTP / test credentials | Security | Rotate at the providers; decide on history rewrite vs. rotation-only (§25) |
+| Frontend build broken (10 TS errors, ESLint config) | Engineering | None; fixable in code |
+| Uncommitted BTTS work incl. untracked migration | Process | Decide whether to commit as-is (with fixes) or split; needs a working Postgres to test `alembic upgrade` |
+| No reproducible local environment (compose paths, backend service, Python 3.11, test DB) | Engineering | None; fixable in code/config |
+| No CI | Engineering | Enable GitHub Actions; optionally scope the `github-oidc` role |
+| API-Football subscription status / quota (Pro plan claimed) | External | Owner confirms plan and provides a fresh key via env/Secrets Manager |
+| Email provider for non-local use (Mailtrap Live currently) | External | Owner chooses SES/SendGrid/Mailtrap and provides credentials |
+| Jira backlog state (KAN-25 "In Progress", KAN-144 "In Review", KAN-26 82%) | Process | Owner grants read access or exports the board |
+| AWS budget/target architecture (documented $1,050–2,100/month vs. lean) | Decision | §25 |
+| Database owner decisions (KAN-26 storage v1 vs v2; admin approval enforcement) | Product | §25 |
+
+---
+
+## 20. What should not be redone
+
+Keep and build on (all VERIFIED working or structurally sound):
+- The **five-schema data model and Alembic chain** (66 tables, linear migrations). Do not regenerate; add migrations.
+- **JWT auth core** (login/refresh rotation/logout/password reset) and the **static RBAC** module; fix the listed bugs rather than replacing.
+- **Expert manual-prediction service and endpoints**, the **public published-predictions endpoints**, and the frontend expert pages (dashboard, match selection, create, my-predictions, review queue).
+- **Frontend auth context, API client, protected routes, profile/subscription pages, design system**, and the three-tier API-Football service layer (move the key server-side; keep the mapping/caching code).
+- **Docker Compose stack, Postgres/Redis configs, backup/restore scripts** (fix paths and the stderr redirect).
+- **Email service** (SMTP + Jinja templates) — fix the template path, keep the design.
+- **Unit tests** (93 passing) and the test layout; fix the fixtures rather than rewriting.
+- **Requirements, RBAC matrix, and architecture plans** as the product baseline; only their status sections are stale.
+- The **S3 bucket** `soccer-predictions-app-7787` can be reused for the frontend once fronted by CloudFront (rename optional).
+
+Do **not** invest further in: the TheSportsDB layer, `prediction.service.ts`, `subscription_tier.py` and `session_cache.py` (orphaned duplicates), the `origin/dev` and `progress-v1` branches, the PowerShell deploy scripts, the root-level session-summary docs, or the documented four-service ECS microservice split (premature).
+
+---
+
+## 21. Remaining work in priority order
+
+1. **Rotate and remove secrets** (API-Football, TheSportsDB, SMTP, test users); move all keys to env/Secrets Manager; scrub docs; add root `.gitignore`; decide on history rewrite.
+2. **Restore a green baseline**: fix 10 TS errors and the ESLint config; fix `conftest.py` `get_db` override and endpoint-test patching; add a Python 3.11 venv; fix compose bind-mount paths and enable the backend service; create the test database; commit the BTTS migration together with the model changes.
+3. **Fix P0 backend defects**: registration role escalation; refresh-token revocation; `SECRET_KEY` requirement in non-dev; override kwargs; audit metadata; `log_action`; cascade delete on placeholder replacement.
+4. **CI**: GitHub Actions running `tsc`, ESLint, `vite build`, `pytest` (unit + integration with service containers), Trunk/trufflehog secret scan; make `progress` (or a new `develop`) the default branch and protect it.
+5. **Close the external-data gap**: backend `matches/leagues/teams` proxy endpoints with Redis caching and the API-Football key server-side; switch the frontend to them; delete the dead TheSportsDB layer; stop showing randomized predictions as if real (label or hide).
+6. **Finish the prediction workflow**: BTTS/O-U in public endpoints and aggregator; real `MatchDetailPage`; admin approval (or an explicit decision that experts self-publish); expert onboarding creates `ExpertProfile`; audit read endpoint; fix P1 bugs.
+7. **Subscriptions**: persist tier in `user_subscriptions`, one tier table, enforcement middleware (payments still out of scope).
+8. **Deploy an MVP on AWS** (lean footprint, §24): CloudFront + S3 (with `base: '/'`), one backend container service, RDS PostgreSQL, ElastiCache Redis, Secrets Manager, CloudWatch, IaC, OIDC deploy role scoped to this repo; domain + TLS.
+9. **Post-MVP**: settlement/accuracy pipeline, ML baseline, LLM source, analytics, notifications, e-mail verification, rate limiting, payments.
+
+---
+
+## 22. Recommended next implementation steps
+
+[RECOMMENDATION]
+
+1. **Immediately (before any coding):** rotate the API-Football key at api-sports.io, the TheSportsDB key, the SMTP token at Mailtrap, and change the test users' passwords. Consider putting `soccer-predictions-app-7787` behind Block Public Access (or emptying it) until a key-free build is deployed; delete `predictions-app-778778324` (test page).
+2. **Branch hygiene:** create `develop` from `progress`; commit the WIP in two commits (backend BTTS incl. migration; frontend BTTS + filters) after fixing the 3 new TS errors; add a root `.gitignore` (`.DS_Store`, `*.html` test pages, screenshots, local docs or move docs into `docs/archive/`); open a PR `develop → main` to replace the CRA prototype; delete `progress-v1`, `prod`, and the orphan `dev` after confirming nothing else lives there (keep a tag of `origin/dev` if the PowerShell scripts matter).
+3. **Green build:** fix `frontend/.eslintrc.cjs` (`plugin:@typescript-eslint/recommended`), the 7 pre-existing TS errors, `vite.config.ts` (`base: '/'`, remove the hardcoded key, read it from `process.env` for the dev proxy only), and delete `frontend/src/services/prediction.service.ts` and the TheSportsDB files.
+4. **Local env:** change `docker/docker-compose.yml` bind mounts to `./postgres/...` / `./redis/redis.conf` (or move the file to the repo root), uncomment the backend service, recreate `backend/venv` with Python 3.11, create `soccer_predictions_test`, fix `conftest.py` to override `app.core.deps.get_db` too, and get all 121 tests running in CI with Postgres/Redis service containers.
+5. **Security fixes in the backend** (items 2–7 of §18) with regression tests; make `SECRET_KEY` mandatory when `ENVIRONMENT != development`.
+6. **Then** proceed to §21 items 5–8.
+
+---
+
+## 23. Proposed phased continuation plan
+
+| Phase | Scope | Exit criteria | Effort [INFERENCE] |
+|---|---|---|---|
+| **0 — Secure & stabilise** | Secret rotation/scrub, root `.gitignore`, WIP committed, TS/ESLint fixed, P0 backend fixes, CI skeleton, branch cleanup | `npm run build` and `pytest` (unit) green in GitHub Actions; no secrets in tree; `develop` is default & protected | 3–5 engineer-days |
+| **1 — Reproducible dev & tests** | Compose fix + backend service, Python 3.11, test DB, integration tests runnable, coverage baseline, `.dockerignore`, docs triage (archive superseded, fix ports/paths) | `docker compose up` gives a working stack from scratch; all 121+ tests pass in CI | 3–5 days |
+| **2 — MVP feature completion** | Backend fixtures proxy + cache (key server-side), BTTS in public API/aggregator, real match detail, admin approval or explicit self-publish policy, expert onboarding, subscription persistence, SES/SendGrid provider, remove/label fabricated predictions, fix P1 bugs | Regular user can browse real fixtures and real published predictions end-to-end; expert flow works incl. override; no fake data shown as real | 2–3 weeks |
+| **3 — Cloud MVP deployment** | IaC (Terraform or CDK), CloudFront+S3, backend container (App Runner or ECS Fargate single service), RDS PostgreSQL (single-AZ to start), ElastiCache (or Redis on the same task initially), Secrets Manager, CloudWatch logs/alarms, OIDC-scoped deploy role, domain + ACM TLS, migrations job | Public HTTPS URL serving the current build against a live backend; deploy from GitHub Actions; rollback documented | 1–2 weeks |
+| **4 — Post-MVP** | Settlement/accuracy, ML baseline, LLM source, analytics dashboards, notifications, e-mail verification, rate limiting, payments, DR/backups per plan | Per requirements §4.2/4.5 | ongoing |
+
+---
+
+## 24. Risks, estimated effort, and likely AWS costs
+
+**Risks**
+- **Credential abuse** until rotation (paid API quota drain, SMTP abuse). Likelihood high (public repo, live site). [VERIFIED exposure]
+- **Data loss of uncommitted work** if this machine fails. [VERIFIED]
+- **Hidden runtime bugs**: only 21–36% handler coverage and no integration tests have run since 2025-10-13; several endpoints have never been exercised (override, date filter). Expect more defects when integration tests are enabled. [INFERENCE]
+- **External dependency**: the product currently depends on API-Football Pro quotas and CORS behaviour from the browser; a server-side proxy is required for production. [INFERENCE from `api-football.service.ts:13-16`]
+- **Scope creep**: the documented architecture (four ECS services, Multi-AZ RDS, DR region, ML workers) is far ahead of the product's maturity; building it now would burn budget without users. [INFERENCE]
+- **Process**: no PRs, no reviews, no CI, docs written faster than code; keeping the "session summary" habit will keep drift growing. [INFERENCE]
+
+**Effort (order of magnitude, one senior full-stack engineer)**: Phase 0 ≈ 1 week; Phase 1 ≈ 1 week; Phase 2 ≈ 2–3 weeks; Phase 3 ≈ 1–2 weeks → **≈6–8 weeks to a deployed MVP**, before ML/settlement work.
+
+**Likely AWS costs** [INFERENCE, us-east-1 on-demand, no free tier — the account is past its first year]:
+
+| Option | Components | Estimate |
+|---|---|---|
+| Today | 2 S3 website buckets | ≈ $0.01–0.05 / month |
+| **Lean MVP (recommended)** | S3 + CloudFront (≈$1–5); App Runner 1 vCPU/2 GB with min 1 instance (≈$25–50) **or** ECS Fargate 0.5 vCPU/1 GB (≈$15) + ALB (≈$18); RDS `db.t4g.micro` single-AZ 20 GB (≈$13–16); ElastiCache `cache.t4g.micro` (≈$12) or skip initially; Secrets Manager (≈$1–2); CloudWatch (≈$2–5); Route 53 zone ($0.50) | **≈ $60–110 / month** |
+| Documented plan | ECS Fargate ×4 services, RDS `db.r6g.xlarge` Multi-AZ + replicas, ElastiCache Multi-AZ, NAT gateways, DR in us-west-2 | $1,050–2,100 / month (plan's own figure); not justified now |
+
+Other costs: API-Football Pro (≈$25–50/month per its pricing docs), e-mail provider, domain registration.
+
+---
+
+## 25. Decisions that genuinely require owner input
+
+1. **Secret rotation and history**: rotate the API-Football, TheSportsDB, Mailtrap SMTP, and test-user credentials now (only the owner can). Then choose: (a) rotation only, leaving history as-is (keys become useless), or (b) rewrite history / recreate the repo to remove them (destructive, breaks clones).
+2. **Take down or keep the live S3 sites** while they still expose the old key (`soccer-predictions-app-7787`) and the widget test (`predictions-app-778778324`).
+3. **Branch strategy**: make the real app the default branch (merge `progress` → `main` via PR, or rename); delete `progress-v1`, `prod`, and the orphan `dev`.
+4. **Which uncommitted work to keep**: commit the BTTS/Total-Goals feature (recommended, after fixes) or park it; whether the 51 root docs should be committed (after scrubbing), archived under `docs/archive/`, or dropped.
+5. **Product rule for approval**: keep "experts publish their own predictions" (current behaviour) or enforce admin approval as the requirements state.
+6. **KAN-26 storage strategy**: v1 "store all sources" (implemented) vs v2 "store only expert/LLM, cache API-Football" (documented).
+7. **Fake predictions**: continue showing randomized predictions/odds for fixtures without real data (current), label them clearly, or hide them.
+8. **Deployment target and budget**: lean MVP (~$60–110/month) vs the documented architecture; App Runner vs ECS Fargate; single region `us-east-1` (matches existing buckets).
+9. **Domain name and TLS** (none exists; docs mention Namecheap).
+10. **External providers**: confirm the API-Football plan/quota; choose SES vs SendGrid vs Mailtrap for production e-mail.
+11. **IAM**: create a project-scoped deploy role (scope the existing `github-oidc` trust to `repo:fotso94/PredictionsAppsUI:*` and least-privilege policies) and retire one of the two `superadmin` access keys.
+12. **Jira**: provide access or an export so KAN ticket states can be reconciled with code.
+13. **Python 3.11** as the local runtime (recreate venv) — trivial but changes the developer setup.
+
+---
+
+## 26. Commands and evidence used during the assessment
+
+All commands were read-only. Representative list (full outputs were reviewed during the session):
+
+```bash
+# Local git
+git branch -a; git rev-parse HEAD; git log --oneline -30; git status --porcelain
+git remote -v; git tag -l; git stash list; git for-each-ref refs/heads refs/remotes
+git log main..progress --oneline; git merge-base main progress; git diff --stat main progress
+git diff --stat; git ls-files | wc -l; git ls-files '*.md'; git reflog -n 25
+git show origin/dev:aws-deploy.sh (and deploy-aws.ps1, setup-cloudfront.ps1, update-app.ps1, deployment-info.txt, aws-setup-guide.md)
+git ls-tree -r --name-only origin/dev | grep -c node_modules
+git grep -nIE '<secret patterns>' progress -- . ':!*.md'   # locations only
+git log -S'x-apisports-key' -- frontend/vite.config.ts
+
+# GitHub (read-only)
+git ls-remote origin; gh auth status; gh repo view fotso94/PredictionsAppsUI --json ...
+gh pr list --state all; gh issue list --state all; gh release list; gh api repos/.../tags
+gh api repos/.../actions/workflows; gh api repos/.../actions/runs; gh api repos/.../environments
+gh api repos/.../deployments; gh api repos/.../branches; gh api repos/.../branches/main/protection
+gh api repos/.../compare/main...progress; gh api repos/.../secret-scanning/alerts; gh api repos/.../pages
+
+# AWS (profile me, read-only)
+aws sts get-caller-identity --profile me; aws configure get region --profile me
+aws ec2 describe-regions; per-region describe/list calls for ~45 services (script saved in the session scratchpad)
+aws s3api list-buckets / get-bucket-website / get-bucket-policy / get-public-access-block / get-bucket-encryption / list-objects-v2
+aws cloudfront list-distributions; aws route53 list-hosted-zones; aws acm list-certificates
+aws iam list-roles/list-users/get-role github-oidc/list-attached-*-policies/list-access-keys
+aws ce get-cost-and-usage (by SERVICE and REGION, Oct 2025 – Sep 2026); aws budgets describe-budgets
+aws cloudtrail lookup-events --lookup-attributes AttributeKey=ResourceName,AttributeValue=<bucket>
+curl http://soccer-predictions-app-7787.s3-website-us-east-1.amazonaws.com/ (+ deep routes, asset paths, bundle)
+
+# Local validation (no writes to the project)
+docker ps -a; docker volume ls; docker images; lsof -nP -iTCP -sTCP:LISTEN
+docker compose -f docker/docker-compose.yml config --quiet
+python3 -c "ast.parse(...)" over backend/**/*.py
+PYTHONDONTWRITEBYTECODE=1 venv/bin/python -c "import app.main"   # 58 routes
+venv/bin/python -m pytest -p no:cacheprovider -o addopts="" -q <5 pure-unit files>   # 93 passed
+./node_modules/.bin/tsc --noEmit -p tsconfig.json   # 10 errors
+./node_modules/.bin/eslint --ext ts,tsx src/App.tsx  # config error
+gzip -dc docs/database/soccer_predictions_20251008_224941.sql.gz | grep -c '^pg_dump:'   # 1113
+```
+
+Subagents (read-only) produced the full inventories of the 109 documentation files, the backend code audit, and the frontend code audit; their highest-impact claims were re-verified by me against the source before inclusion.
+
+---
+
+## 27. START HERE — for the next implementation session
+
+**Preconditions (owner):** rotate the four credential sets (§25 item 1); confirm the branch strategy (§25 item 3); answer items 5–8 of §25 or accept the defaults below.
+
+**Defaults I will assume if not told otherwise:** keep expert self-publish for now; keep the v1 "store all" storage; label fabricated predictions instead of hiding them; lean MVP on `us-east-1` with App Runner + RDS `t4g.micro` + CloudFront.
+
+**Session 1 checklist (Phase 0):**
+1. `git switch -c develop progress`; add root `.gitignore`; move root status docs to `docs/archive/` (or delete) after scrubbing keys.
+2. Remove hard-coded keys from `frontend/vite.config.ts`, `frontend/src/services/api-football.service.ts`, `frontend/src/services/thesportsdb.service.ts` (delete file), `backend/app/core/config.py:146`, `backend/alembic.ini:61`, `backend/test_smtp_connection.py`, `backend/create_expert_user.py`, `backend/update_expert_password.py`, `frontend/test-login.html`; read from env.
+3. Fix `frontend/.eslintrc.cjs` and the 10 `tsc` errors; set `base: '/'`; delete `frontend/src/services/prediction.service.ts`.
+4. Commit the BTTS work **with** `backend/alembic/versions/eb2ef2cf6caf_*.py`.
+5. Backend P0 fixes: reject non-`regular` roles in register; blacklist on revoke (or check the stored-token map in `/refresh`); require `SECRET_KEY` outside development; fix `PredictionOverride` construction; `audit_metadata=`; replace `log_action`; guard the cascade delete.
+6. Add `.github/workflows/ci.yml` (frontend build + backend unit tests); push; open PR `develop → main`.
+
+**Files to read first:** `backend/app/api/v1/api.py`, `backend/app/api/v1/endpoints/expert.py`, `backend/app/services/expert_prediction.py`, `backend/app/core/{config,deps,security}.py`, `frontend/src/App.tsx`, `frontend/src/services/{api-client,football-data.service,api-mapper.service}.ts`, `docker/docker-compose.yml`, `backend/tests/conftest.py`, and the three authoritative status docs in §3.
+
+**Local run (after Phase 1 fixes):** `docker compose -f docker/docker-compose.yml up -d` → `cd backend && alembic upgrade head && uvicorn app.main:app --reload` → `cd frontend && npm run dev`. Until then, expect the compose paths and Python version issues described in §16.
+
+---
+
+## Final recommendation
+
+**Where it stands.** A well-scoped product with a solid data model, a working auth/RBAC core, an expert prediction workflow, and a modern frontend, frozen since mid-October 2025 with unmerged, uncommitted, and unbuildable work, leaked credentials, and no backend deployment. The only cloud asset is a stale static demo on S3.
+
+**Is the technical direction sound?** Yes. React/Vite + FastAPI + PostgreSQL multi-schema + Redis on AWS is appropriate and should be kept. What is not sound is the gap between documentation and reality (docs describe a production-ready hybrid ML platform; code is an MVP scaffold with fabricated predictions), the browser-side use of a paid API key, the absence of CI, and the premature four-service cloud design.
+
+**Highest-priority next task.** Rotate the leaked credentials and get the tree to a green, committed, CI-verified baseline (Phase 0). Nothing else should start before that.
+
+**Exact order of remaining work.** Phase 0 (secure/stabilise) → Phase 1 (reproducible dev + tests) → Phase 2 (MVP features: server-side data proxy, real match detail, BTTS in public API, approval policy, subscriptions) → Phase 3 (lean AWS deployment with IaC and OIDC deploys) → Phase 4 (settlement, ML, analytics, payments).
+
+**States to reconcile before implementation resumes.**
+- *Local:* commit or park the 16 modified + 68 untracked paths (migration included); add a root `.gitignore`; recreate the venv on Python 3.11; fix compose paths.
+- *GitHub:* make the real app the default branch; delete `progress-v1`, `prod`, orphan `dev`; enable branch protection, Actions, secret scanning/Dependabot; remove tracked secrets.
+- *AWS:* rotate keys; scope or replace the `github-oidc` role and retire one `superadmin` key; either block public access on / empty `soccer-predictions-app-7787` until a key-free build ships, and delete `predictions-app-778778324`; set a default region for profile `me` (`us-east-1`) or always pass `--region`.
+
+---
+
+## Addendum A — Implementation phase 1 (2026-09-17, authorized by the owner)
+
+Owner authorized two items from §25: **item 4** (commit the BTTS/Total-Goals work after fixes; scrub, archive or drop the root docs) and **item 3** (make `progress` the real `main`, retire `progress-v1`, `prod` and the orphan `dev`). Everything below was executed and verified; paths in §3, §9–§12 and §16 above describe the state *before* this addendum.
+
+### A.1 Commits (all on `progress`, now also `main`)
+
+| Commit | Content |
+|---|---|
+| `6a79723` chore(repo): add root .gitignore | OS/editor files, `node_modules`, `frontend/dist`, `backend/venv`, coverage/pytest caches, `.env*`, `.trunk/`. |
+| `aa319fb` docs: scrub secrets and archive 2025-10 session notes | 48 root session notes + 2 txt → `docs/archive/session-notes-2025-10/`; 4 throw-away test pages → `docs/archive/legacy-test-pages/` (`diagram2.html` dropped as a byte-identical duplicate); requirements docs → `docs/requirements/`; `docs/archive/README.md` added. Redacted in 28 files: API-Football key ×21, TheSportsDB key ×20, Sportradar and StatPal trial keys, expert test password ×3, 14 password values, 33 personal e-mail addresses. |
+| `c604737` feat(backend): add BTTS and Total Goals prediction markets | The uncommitted backend change set **including** migration `eb2ef2cf6caf`, plus fixes: public endpoints now return the eight market fields; `ExpertPredictionUpdate` gets the BTTS-sum validator and the update endpoint maps `IntegrityError` to 400; duplicate `convert_decimal_to_float` validator removed; `toggle-publish` audits through a new `log_prediction_status_toggled`; audit metadata now persists into `audit_metadata`; model declares the migration's five check constraints. |
+| `1943c52` feat(frontend): BTTS and Total Goals markets, live-match filters | The uncommitted frontend change set + `utils/matchFilters.ts`, with the three unused-symbol errors it introduced removed. |
+| `b5f8a0f` fix(frontend): make type-check, lint and build pass | ESLint config (`plugin:` prefix), seven pre-existing `tsc` errors, `getTeams()` optional league/season, unused proxy arg. |
+| `5212e59` docs: BTTS/Total Goals implementation notes, expert form guide, screenshots | Five feature docs and three screenshots (the 15 MB duplicate screenshot was deliberately left untracked). |
+
+### A.2 Verification evidence
+
+- `tsc --noEmit`: 0 errors (was 10). ESLint: 0 errors, 53 warnings (`npm run lint` still fails because the script uses `--max-warnings 0`). `npm run build`: succeeds (bundle `index-b56d48dd.js`, 649 KB).
+- Backend: 72 files parse; `import app.main` succeeds with warnings-as-errors (58 routes); 93 pure-unit tests pass.
+- Alembic: `upgrade head` → `downgrade -1` → `upgrade head` round-trip succeeded on a fresh `postgres:15-alpine` **with the project init script mounted**; the eight columns and five constraints appear and disappear as expected. Temporary container removed.
+- Post-scrub scan: the key values remain only in application code (`frontend/vite.config.ts`, `frontend/src/services/api-football.service.ts`, `frontend/src/services/thesportsdb.service.ts`, `backend/app/core/config.py`, `backend/.env.example`), in `backend/create_expert_user.py` / `update_expert_password.py`, and in the git-ignored `backend/.env`. **Rotation (item 1) is still required.**
+
+### A.3 Branch and tag changes on GitHub
+
+- `main` fast-forwarded from `fdd40cb` (CRA prototype) to `5212e59`; it is the default branch and now shows the real application. `progress` points at the same commit and is redundant; delete it once nobody depends on it.
+- Deleted branches: `progress-v1`, `prod`, `dev` (remote) and `progress-v1`, `dev` (local). Nothing was lost: annotated tags `archive/main-cra-prototype-2025-09-22`, `archive/progress-v1-2025-10-14`, `archive/dev-orphan-deploy-scripts-2025-09-24` (holds the PowerShell S3/CloudFront scripts) and `archive/dev-local-2025-09-22` were pushed first. `prod`'s only commit is already part of `main`'s history.
+- Local checkout switched to `main`. Working tree clean except the untracked 15 MB screenshot.
+
+### A.4 New findings and follow-ups discovered during this phase
+
+1. **Migration portability defect (pre-existing, not fixed):** `add_multi_source_prediction_priority.py` hard-codes `ALTER TYPE users.predictionsource`. On a bare PostgreSQL (no `docker/postgres/init/01-init-database.sql`), the enum types are created in `public` and the chain fails at revision `2a4f8c9d1e3b`. Fix in Phase 1 by resolving the enum's schema dynamically (or creating enums with an explicit schema) so CI can run migrations without the init script.
+2. The repository root now has no `README.md` (the old one belonged to the CRA prototype). Add a short README pointing to `docs/requirements/`, this report and the run instructions.
+3. `screenshots/screenshots_expert-match-selection-filtered_2025-10-15T19-37-28-037Z.png` (15 MB) is untracked; delete or shrink it.
+4. Over/Under 2.5 and 3.5 pairs are still not validated for complementarity (documented behaviour: "no strict sum validation"); decide whether to enforce it.
+5. Remaining P0/P1 items from §18 are untouched (registration role escalation, session revocation, `SECRET_KEY` default, expert override kwargs, `db.func.date`, `status` shadowing, email template path, source-badge case bug, mock match detail page).
+
+*End of report.*
