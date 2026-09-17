@@ -33,7 +33,7 @@ const LeagueDetailPage: React.FC = () => {
         // First, get all leagues to find the current one
         const allLeagues = await footballDataService.getTopLeagues()
         // Convert string ID to number for comparison
-        const foundLeague = allLeagues.find(l => l.id === leagueIdParam || l.id === parseInt(leagueIdParam))
+        const foundLeague = allLeagues.find(l => String(l.id) === String(leagueIdParam))
 
         if (!foundLeague) {
           setError('League not found')

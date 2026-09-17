@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   Bars3Icon,
   XMarkIcon,
-  MagnifyingGlassIcon,
   UserCircleIcon,
   ChevronDownIcon,
   ArrowRightOnRectangleIcon

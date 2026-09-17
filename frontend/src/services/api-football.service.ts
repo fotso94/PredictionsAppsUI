@@ -429,8 +429,8 @@ class APIFootballService {
    * Get teams by league and season
    */
   async getTeams(params: {
-    league: number;
-    season: number;
+    league?: number;
+    season?: number;
     id?: number;
     name?: string;
     country?: string;

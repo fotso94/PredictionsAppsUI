@@ -26,7 +26,7 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/football/, ''),
         configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+          proxy.on('proxyReq', (proxyReq, _req, _res) => {
             // Add API key header
             proxyReq.setHeader('x-apisports-key', '38164887e0ce0b93419671e273fe64c0');
             // Remove other headers

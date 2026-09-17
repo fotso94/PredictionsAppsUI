@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { useAuth } from '@/contexts/AuthContext';
 import { userService, type UserProfile, type UpdateProfileRequest } from '@/services/user.service';
 import Card from '@/components/ui/Card';
 import toast from 'react-hot-toast';
 
 const ProfilePage: React.FC = () => {
-  const { user } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
