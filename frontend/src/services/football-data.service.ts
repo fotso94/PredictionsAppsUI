@@ -315,6 +315,15 @@ class FootballDataService {
         source_type: expertPrediction.source,
         confidence_score: expertPrediction.confidence_score,
         priority_level: expertPrediction.priority_level,
+        // Add BTTS and Total Goals data from expert prediction
+        btts_yes_prob: expertPrediction.btts_yes_prob,
+        btts_no_prob: expertPrediction.btts_no_prob,
+        btts_confidence: expertPrediction.btts_confidence,
+        total_goals_over_25_prob: expertPrediction.total_goals_over_25_prob,
+        total_goals_under_25_prob: expertPrediction.total_goals_under_25_prob,
+        total_goals_over_35_prob: expertPrediction.total_goals_over_35_prob,
+        total_goals_under_35_prob: expertPrediction.total_goals_under_35_prob,
+        total_goals_confidence: expertPrediction.total_goals_confidence,
       };
     }
 

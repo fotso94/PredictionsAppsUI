@@ -15,6 +15,7 @@ import Button from '@/components/ui/Button'
 import MatchCard from '@/components/ui/MatchCard'
 import { motion } from 'framer-motion'
 import { footballDataService } from '@/services/football-data.service'
+import { filterLiveAndScheduledMatches, filterLiveAndUpcomingMatches } from '@/utils/matchFilters'
 
 const HomePage: React.FC = () => {
   const [todayMatches, setTodayMatches] = useState<Match[]>([])
@@ -68,8 +69,8 @@ const HomePage: React.FC = () => {
     },
   ]
 
-  // Get featured matches (high confidence predictions)
-  const featuredMatches = todayMatches
+  // Get featured matches (high confidence predictions, live and upcoming only)
+  const featuredMatches = filterLiveAndUpcomingMatches(todayMatches, true)
     .filter(m => m.predictions.outcome.confidence === 'high' || m.predictions.outcome.confidence === 'very-high')
     .slice(0, 3)
 
@@ -229,9 +230,9 @@ const HomePage: React.FC = () => {
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
                   <div className="text-secondary-400">Loading today's matches...</div>
                 </div>
-              ) : todayMatches.length > 0 ? (
+              ) : filterLiveAndScheduledMatches(todayMatches).length > 0 ? (
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                  {todayMatches.slice(0, 6).map((match, index) => (
+                  {filterLiveAndScheduledMatches(todayMatches).slice(0, 6).map((match, index) => (
                     <motion.div
                       key={match.id}
                       initial={{ opacity: 0, y: 20 }}

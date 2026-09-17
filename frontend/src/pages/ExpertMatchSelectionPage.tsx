@@ -7,6 +7,11 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { footballDataService } from '../services/football-data.service';
 import { Match } from '../types';
+import {
+  filterLiveAndScheduledMatches,
+  getMatchStatusText,
+  getMatchStatusBadgeClasses
+} from '@/utils/matchFilters';
 
 const ExpertMatchSelectionPage: React.FC = () => {
   const navigate = useNavigate();
@@ -46,12 +51,16 @@ const ExpertMatchSelectionPage: React.FC = () => {
     navigate(`/expert/predictions/create?matchId=${matchId}`);
   };
 
-  // Filter matches based on search query
+  // Filter matches based on search query and status
   const filterMatches = (matches: Match[]) => {
-    if (!searchQuery.trim()) return matches;
+    // First, filter out finished matches (only show live and scheduled)
+    const filtered = filterLiveAndScheduledMatches(matches);
+
+    // Then apply search query filter
+    if (!searchQuery.trim()) return filtered;
 
     const query = searchQuery.toLowerCase();
-    return matches.filter(match =>
+    return filtered.filter(match =>
       match.homeTeam.name.toLowerCase().includes(query) ||
       match.awayTeam.name.toLowerCase().includes(query)
     );
@@ -60,30 +69,30 @@ const ExpertMatchSelectionPage: React.FC = () => {
   const filteredTodayMatches = filterMatches(todayMatches);
   const filteredTomorrowMatches = filterMatches(tomorrowMatches);
 
-  const renderMatchCard = (match: Match) => (
-    <div
-      key={match.id}
-      className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-    >
-      {/* Match Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center space-x-2">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-            {match.league.name}
-          </span>
-          <span className="text-xs text-gray-400">•</span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {match.date} {match.time}
+  const renderMatchCard = (match: Match) => {
+    const statusText = getMatchStatusText(match);
+    const statusClasses = getMatchStatusBadgeClasses(match);
+
+    return (
+      <div
+        key={match.id}
+        className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+      >
+        {/* Match Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              {match.league.name}
+            </span>
+            <span className="text-xs text-gray-400">•</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {match.date} {match.time}
+            </span>
+          </div>
+          <span className={statusClasses}>
+            {statusText}
           </span>
         </div>
-        <span className={`text-xs px-2 py-1 rounded ${
-          match.status === 'live'
-            ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-            : 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
-        }`}>
-          {match.status}
-        </span>
-      </div>
 
       {/* Teams */}
       <div className="grid grid-cols-3 gap-4 items-center mb-4">
@@ -148,8 +157,9 @@ const ExpertMatchSelectionPage: React.FC = () => {
       >
         Create Prediction for This Match
       </button>
-    </div>
-  );
+      </div>
+    );
+  };
 
   if (loading) {
     return (

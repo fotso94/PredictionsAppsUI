@@ -9,7 +9,6 @@ import {
   ExpertPredictionOverrideRequest,
   ExpertPredictionUpdateRequest,
   ExpertPredictionResponse,
-  ReviewQueueItem,
   ExpertPerformanceMetrics,
 } from '../types/expert';
 
@@ -239,6 +238,19 @@ export const expertPredictionService = {
   deletePrediction: async (predictionId: string): Promise<{ message: string; prediction_id: string }> => {
     const response = await apiClient.delete(
       `${EXPERT_BASE_URL}/predictions/${predictionId}`
+    );
+    return response.data;
+  },
+
+  /**
+   * Toggle publish status of a prediction
+   *
+   * @param predictionId - Prediction ID
+   * @returns Updated prediction
+   */
+  togglePublishStatus: async (predictionId: string): Promise<ExpertPredictionResponse> => {
+    const response = await apiClient.post<ExpertPredictionResponse>(
+      `${EXPERT_BASE_URL}/predictions/${predictionId}/toggle-publish`
     );
     return response.data;
   },

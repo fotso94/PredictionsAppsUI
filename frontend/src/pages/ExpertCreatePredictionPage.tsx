@@ -4,26 +4,38 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import expertPredictionService from '../services/expert-prediction.service';
 import {
   ExpertPredictionCreateRequest,
   validateProbabilities,
-  validateProbabilityRange,
 } from '../types/expert';
 
 const ExpertCreatePredictionPage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const [formData, setFormData] = useState<ExpertPredictionCreateRequest>({
     match_id: '',
+    // Match Outcome (1X2)
     home_win_prob: 0.33,
     draw_prob: 0.33,
     away_win_prob: 0.34,
     confidence_score: 0.75,
+    // Both Teams to Score (BTTS) - Optional
+    btts_yes_prob: undefined,
+    btts_no_prob: undefined,
+    btts_confidence: undefined,
+    // Total Goals - Optional
+    total_goals_over_25_prob: undefined,
+    total_goals_under_25_prob: undefined,
+    total_goals_over_35_prob: undefined,
+    total_goals_under_35_prob: undefined,
+    total_goals_confidence: undefined,
+    // Reasoning & Metadata
     reasoning: '',
     key_factors: {},
   });
@@ -57,17 +69,34 @@ const ExpertCreatePredictionPage: React.FC = () => {
       setLoading(true);
       await expertPredictionService.createManualPrediction(formData);
       setSuccess(true);
-      
+
       // Reset form
       setFormData({
         match_id: '',
+        // Match Outcome (1X2)
         home_win_prob: 0.33,
         draw_prob: 0.33,
         away_win_prob: 0.34,
         confidence_score: 0.75,
+        // Both Teams to Score (BTTS) - Optional
+        btts_yes_prob: undefined,
+        btts_no_prob: undefined,
+        btts_confidence: undefined,
+        // Total Goals - Optional
+        total_goals_over_25_prob: undefined,
+        total_goals_under_25_prob: undefined,
+        total_goals_over_35_prob: undefined,
+        total_goals_under_35_prob: undefined,
+        total_goals_confidence: undefined,
+        // Reasoning & Metadata
         reasoning: '',
         key_factors: {},
       });
+
+      // Redirect to Expert Dashboard after 1.5 seconds to show success message
+      setTimeout(() => {
+        navigate('/expert/dashboard');
+      }, 1500);
     } catch (err: any) {
       console.error('Failed to create prediction:', err);
       setError(err.response?.data?.detail || 'Failed to create prediction');
@@ -221,6 +250,193 @@ const ExpertCreatePredictionPage: React.FC = () => {
             <p className="text-xs text-gray-500 mt-1">
               {((formData.confidence_score || 0) * 100).toFixed(0)}% confidence
             </p>
+          </div>
+
+          {/* Both Teams to Score (BTTS) - Optional */}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Both Teams to Score (BTTS) - Optional
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {/* BTTS Yes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Yes (Both Score)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={formData.btts_yes_prob ?? ''}
+                  onChange={(e) => setFormData({ ...formData, btts_yes_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="0.50"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.btts_yes_prob ? (formData.btts_yes_prob * 100).toFixed(1) + '%' : '-'}
+                </p>
+              </div>
+
+              {/* BTTS No */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  No (At Least One Won't Score)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={formData.btts_no_prob ?? ''}
+                  onChange={(e) => setFormData({ ...formData, btts_no_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="0.50"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.btts_no_prob ? (formData.btts_no_prob * 100).toFixed(1) + '%' : '-'}
+                </p>
+              </div>
+            </div>
+
+            {formData.btts_yes_prob !== undefined && formData.btts_no_prob !== undefined && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Total: {((formData.btts_yes_prob + formData.btts_no_prob) * 100).toFixed(1)}%
+                {Math.abs((formData.btts_yes_prob + formData.btts_no_prob) - 1.0) > 0.01 && (
+                  <span className="text-red-600 ml-2">⚠️ Must sum to 100%</span>
+                )}
+              </p>
+            )}
+
+            {/* BTTS Confidence */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                BTTS Confidence (0-1)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                value={formData.btts_confidence ?? ''}
+                onChange={(e) => setFormData({ ...formData, btts_confidence: e.target.value ? parseFloat(e.target.value) : undefined })}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="0.75"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {formData.btts_confidence ? (formData.btts_confidence * 100).toFixed(0) + '% confidence' : '-'}
+              </p>
+            </div>
+          </div>
+
+          {/* Total Goals - Optional */}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Total Goals (Over/Under) - Optional
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {/* Over 2.5 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Over 2.5 Goals
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={formData.total_goals_over_25_prob ?? ''}
+                  onChange={(e) => setFormData({ ...formData, total_goals_over_25_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="0.50"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.total_goals_over_25_prob ? (formData.total_goals_over_25_prob * 100).toFixed(1) + '%' : '-'}
+                </p>
+              </div>
+
+              {/* Under 2.5 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Under 2.5 Goals
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={formData.total_goals_under_25_prob ?? ''}
+                  onChange={(e) => setFormData({ ...formData, total_goals_under_25_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="0.50"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.total_goals_under_25_prob ? (formData.total_goals_under_25_prob * 100).toFixed(1) + '%' : '-'}
+                </p>
+              </div>
+
+              {/* Over 3.5 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Over 3.5 Goals
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={formData.total_goals_over_35_prob ?? ''}
+                  onChange={(e) => setFormData({ ...formData, total_goals_over_35_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="0.30"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.total_goals_over_35_prob ? (formData.total_goals_over_35_prob * 100).toFixed(1) + '%' : '-'}
+                </p>
+              </div>
+
+              {/* Under 3.5 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Under 3.5 Goals
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={formData.total_goals_under_35_prob ?? ''}
+                  onChange={(e) => setFormData({ ...formData, total_goals_under_35_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="0.70"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.total_goals_under_35_prob ? (formData.total_goals_under_35_prob * 100).toFixed(1) + '%' : '-'}
+                </p>
+              </div>
+            </div>
+
+            {/* Total Goals Confidence */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Total Goals Confidence (0-1)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                value={formData.total_goals_confidence ?? ''}
+                onChange={(e) => setFormData({ ...formData, total_goals_confidence: e.target.value ? parseFloat(e.target.value) : undefined })}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="0.75"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {formData.total_goals_confidence ? (formData.total_goals_confidence * 100).toFixed(0) + '% confidence' : '-'}
+              </p>
+            </div>
           </div>
 
           {/* Reasoning */}

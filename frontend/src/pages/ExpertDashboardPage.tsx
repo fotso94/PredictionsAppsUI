@@ -25,6 +25,7 @@ const ExpertDashboardPage: React.FC = () => {
   const [metrics, setMetrics] = useState<ExpertPerformanceMetrics | null>(null);
   const [recentPredictions, setRecentPredictions] = useState<ExpertPredictionResponse[]>([]);
   const [reviewQueue, setReviewQueue] = useState<ExpertPredictionResponse[]>([]);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -48,6 +49,40 @@ const ExpertDashboardPage: React.FC = () => {
       setError(err.response?.data?.detail || 'Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTogglePublish = async (predictionId: string) => {
+    try {
+      setProcessingId(predictionId);
+      setError(null);
+      await expertPredictionService.togglePublishStatus(predictionId);
+      // Reload dashboard data
+      await loadDashboardData();
+    } catch (err: any) {
+      console.error('Failed to toggle publish status:', err);
+      setError(err.response?.data?.detail || 'Failed to toggle publish status');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDelete = async (predictionId: string) => {
+    if (!confirm('Are you sure you want to delete this prediction? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setProcessingId(predictionId);
+      setError(null);
+      await expertPredictionService.deletePrediction(predictionId);
+      // Reload dashboard data
+      await loadDashboardData();
+    } catch (err: any) {
+      console.error('Failed to delete prediction:', err);
+      setError(err.response?.data?.detail || 'Failed to delete prediction');
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -254,34 +289,157 @@ const ExpertDashboardPage: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-3 gap-4 mb-3">
-                    <div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">Home Win</p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {(prediction.home_win_prob * 100).toFixed(1)}%
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">Draw</p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {(prediction.draw_prob * 100).toFixed(1)}%
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">Away Win</p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {(prediction.away_win_prob * 100).toFixed(1)}%
-                      </p>
+                  {/* Match Outcome (1X2) */}
+                  <div className="mb-3">
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Match Outcome</p>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Home Win</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {(prediction.home_win_prob * 100).toFixed(1)}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Draw</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {(prediction.draw_prob * 100).toFixed(1)}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Away Win</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {(prediction.away_win_prob * 100).toFixed(1)}%
+                        </p>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Both Teams to Score (BTTS) - Optional */}
+                  {prediction.btts_yes_prob !== null && prediction.btts_yes_prob !== undefined && (
+                    <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Both Teams to Score (BTTS)
+                        {prediction.btts_confidence && (
+                          <span className="ml-2 text-blue-600 dark:text-blue-400">
+                            {(prediction.btts_confidence * 100).toFixed(0)}% confidence
+                          </span>
+                        )}
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400">Yes</p>
+                          <p className="text-base font-semibold text-gray-900 dark:text-white">
+                            {(prediction.btts_yes_prob * 100).toFixed(1)}%
+                          </p>
+                        </div>
+                        {prediction.btts_no_prob !== null && prediction.btts_no_prob !== undefined && (
+                          <div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">No</p>
+                            <p className="text-base font-semibold text-gray-900 dark:text-white">
+                              {(prediction.btts_no_prob * 100).toFixed(1)}%
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Total Goals - Optional */}
+                  {((prediction.total_goals_over_25_prob !== null && prediction.total_goals_over_25_prob !== undefined) ||
+                    (prediction.total_goals_under_25_prob !== null && prediction.total_goals_under_25_prob !== undefined) ||
+                    (prediction.total_goals_over_35_prob !== null && prediction.total_goals_over_35_prob !== undefined) ||
+                    (prediction.total_goals_under_35_prob !== null && prediction.total_goals_under_35_prob !== undefined)) && (
+                    <div className="mb-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Total Goals
+                        {prediction.total_goals_confidence && (
+                          <span className="ml-2 text-green-600 dark:text-green-400">
+                            {(prediction.total_goals_confidence * 100).toFixed(0)}% confidence
+                          </span>
+                        )}
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        {prediction.total_goals_over_25_prob !== null && prediction.total_goals_over_25_prob !== undefined && (
+                          <div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Over 2.5</p>
+                            <p className="text-base font-semibold text-gray-900 dark:text-white">
+                              {(prediction.total_goals_over_25_prob * 100).toFixed(1)}%
+                            </p>
+                          </div>
+                        )}
+                        {prediction.total_goals_under_25_prob !== null && prediction.total_goals_under_25_prob !== undefined && (
+                          <div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Under 2.5</p>
+                            <p className="text-base font-semibold text-gray-900 dark:text-white">
+                              {(prediction.total_goals_under_25_prob * 100).toFixed(1)}%
+                            </p>
+                          </div>
+                        )}
+                        {prediction.total_goals_over_35_prob !== null && prediction.total_goals_over_35_prob !== undefined && (
+                          <div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Over 3.5</p>
+                            <p className="text-base font-semibold text-gray-900 dark:text-white">
+                              {(prediction.total_goals_over_35_prob * 100).toFixed(1)}%
+                            </p>
+                          </div>
+                        )}
+                        {prediction.total_goals_under_35_prob !== null && prediction.total_goals_under_35_prob !== undefined && (
+                          <div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Under 3.5</p>
+                            <p className="text-base font-semibold text-gray-900 dark:text-white">
+                              {(prediction.total_goals_under_35_prob * 100).toFixed(1)}%
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reasoning */}
                   {prediction.reasoning && (
                     <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                       {prediction.reasoning}
                     </p>
                   )}
-                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                    Created {new Date(prediction.created_at).toLocaleDateString()}
-                  </p>
+                  <div className="flex items-center justify-between mt-3">
+                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                      Created {new Date(prediction.created_at).toLocaleDateString()}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {/* Toggle Publish/Unpublish Button */}
+                      {(prediction.status.toLowerCase() === 'published' || prediction.status.toLowerCase() === 'archived') && (
+                        <button
+                          onClick={() => handleTogglePublish(prediction.id)}
+                          disabled={processingId === prediction.id}
+                          className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                            prediction.status.toLowerCase() === 'published'
+                              ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900 dark:text-yellow-200'
+                              : 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-200'
+                          } ${processingId === prediction.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {processingId === prediction.id ? (
+                            'Processing...'
+                          ) : prediction.status.toLowerCase() === 'published' ? (
+                            'Unpublish'
+                          ) : (
+                            'Publish'
+                          )}
+                        </button>
+                      )}
+                      {/* Delete Button */}
+                      {(prediction.status.toLowerCase() === 'rejected' || prediction.status.toLowerCase() === 'published' || prediction.status.toLowerCase() === 'archived') && (
+                        <button
+                          onClick={() => handleDelete(prediction.id)}
+                          disabled={processingId === prediction.id}
+                          className={`px-3 py-1 text-xs font-medium rounded-md bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-200 transition-colors ${
+                            processingId === prediction.id ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          {processingId === prediction.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

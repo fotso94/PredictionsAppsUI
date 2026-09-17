@@ -6,6 +6,7 @@ import { Match } from '@/types'
 import Card from './Card'
 import { ConfidenceBadge } from './Badge'
 import { format } from 'date-fns'
+import { isMatchLive, getMatchStatusText, getMatchStatusBadgeClasses } from '@/utils/matchFilters'
 
 interface MatchCardProps {
   match: Match
@@ -91,11 +92,18 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
                 />
               ) : null}
             </div>
-            <div className="flex items-center space-x-2 text-xs text-secondary-400">
-              <CalendarIcon className="h-3 w-3" />
-              <span>{formatDate(match.date)}</span>
-              <ClockIcon className="h-3 w-3" />
-              <span>{formatTime(match.time)}</span>
+            <div className="flex items-center space-x-2">
+              {isMatchLive(match) && (
+                <span className={getMatchStatusBadgeClasses(match)}>
+                  {getMatchStatusText(match)}
+                </span>
+              )}
+              <div className="flex items-center space-x-2 text-xs text-secondary-400">
+                <CalendarIcon className="h-3 w-3" />
+                <span>{formatDate(match.date)}</span>
+                <ClockIcon className="h-3 w-3" />
+                <span>{formatTime(match.time)}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -119,9 +127,20 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
               </div>
             </div>
 
-            {/* VS */}
+            {/* VS or Live Score */}
             <div className="px-4">
-              <div className="text-secondary-400 text-sm font-medium">VS</div>
+              {isMatchLive(match) && match.result ? (
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-500">
+                    {match.result.homeScore} - {match.result.awayScore}
+                  </div>
+                  {match.status === 'halftime' && (
+                    <div className="text-xs text-secondary-400 mt-1">HT</div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-secondary-400 text-sm font-medium">VS</div>
+              )}
             </div>
 
             {/* Away Team */}

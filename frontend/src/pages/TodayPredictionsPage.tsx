@@ -8,6 +8,7 @@ import MatchCard from '@/components/ui/MatchCard'
 import { Badge } from '@/components/ui/Badge'
 import { motion } from 'framer-motion'
 import { footballDataService } from '@/services/football-data.service'
+import { filterLiveAndScheduledMatches } from '@/utils/matchFilters'
 
 const TodayPredictionsPage: React.FC = () => {
   // API Data State
@@ -70,20 +71,21 @@ const TodayPredictionsPage: React.FC = () => {
     { value: 'very-high', label: 'Very High' },
   ]
 
-  const filteredMatches = matches.filter(match => {
+  // Filter matches: first remove finished matches, then apply user filters
+  const filteredMatches = filterLiveAndScheduledMatches(matches).filter(match => {
     if (selectedLeagues.length > 0 && !selectedLeagues.includes(match.league.id)) {
       return false
     }
-    
+
     if (selectedConfidence.length > 0) {
-      const hasMatchingConfidence = 
+      const hasMatchingConfidence =
         selectedConfidence.includes(match.predictions.outcome.confidence) ||
         selectedConfidence.includes(match.predictions.bothTeamsToScore.confidence) ||
         selectedConfidence.includes(match.predictions.totalGoals.confidence)
-      
+
       if (!hasMatchingConfidence) return false
     }
-    
+
     return true
   })
 

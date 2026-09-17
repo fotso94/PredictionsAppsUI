@@ -33,10 +33,26 @@ export enum PredictionStatus {
  */
 export interface ExpertPredictionCreateRequest {
   match_id: string;
+
+  // Match Outcome (1X2) - Required
   home_win_prob: number; // 0-1
   draw_prob: number; // 0-1
   away_win_prob: number; // 0-1
   confidence_score?: number; // 0-1
+
+  // Both Teams to Score (BTTS) - Optional
+  btts_yes_prob?: number; // 0-1
+  btts_no_prob?: number; // 0-1
+  btts_confidence?: number; // 0-1
+
+  // Total Goals - Optional
+  total_goals_over_25_prob?: number; // 0-1
+  total_goals_under_25_prob?: number; // 0-1
+  total_goals_over_35_prob?: number; // 0-1
+  total_goals_under_35_prob?: number; // 0-1
+  total_goals_confidence?: number; // 0-1
+
+  // Reasoning & Metadata
   reasoning?: string;
   key_factors?: Record<string, any>;
 }
@@ -46,10 +62,26 @@ export interface ExpertPredictionCreateRequest {
  */
 export interface ExpertPredictionOverrideRequest {
   prediction_id: string;
+
+  // Match Outcome (1X2) - Required
   home_win_prob: number; // 0-1
   draw_prob: number; // 0-1
   away_win_prob: number; // 0-1
   confidence_score?: number; // 0-1
+
+  // Both Teams to Score (BTTS) - Optional
+  btts_yes_prob?: number; // 0-1
+  btts_no_prob?: number; // 0-1
+  btts_confidence?: number; // 0-1
+
+  // Total Goals - Optional
+  total_goals_over_25_prob?: number; // 0-1
+  total_goals_under_25_prob?: number; // 0-1
+  total_goals_over_35_prob?: number; // 0-1
+  total_goals_under_35_prob?: number; // 0-1
+  total_goals_confidence?: number; // 0-1
+
+  // Reasoning & Metadata
   reasoning: string; // Required, min 10 chars
   key_factors?: Record<string, any>;
 }
@@ -58,10 +90,25 @@ export interface ExpertPredictionOverrideRequest {
  * Request: Update existing prediction
  */
 export interface ExpertPredictionUpdateRequest {
+  // Match Outcome (1X2) - Required
   home_win_prob: number; // 0-1
   draw_prob: number; // 0-1
   away_win_prob: number; // 0-1
   confidence_score?: number; // 0-1
+
+  // Both Teams to Score (BTTS) - Optional
+  btts_yes_prob?: number; // 0-1
+  btts_no_prob?: number; // 0-1
+  btts_confidence?: number; // 0-1
+
+  // Total Goals - Optional
+  total_goals_over_25_prob?: number; // 0-1
+  total_goals_under_25_prob?: number; // 0-1
+  total_goals_over_35_prob?: number; // 0-1
+  total_goals_under_35_prob?: number; // 0-1
+  total_goals_confidence?: number; // 0-1
+
+  // Reasoning & Metadata
   reasoning?: string;
   key_factors?: Record<string, any>;
 }
@@ -96,12 +143,30 @@ export interface ExpertPredictionResponse {
   match_id: string;
   source: PredictionSource;
   priority_level: number;
+
+  // Match Outcome (1X2)
   home_win_prob: number;
   draw_prob: number;
   away_win_prob: number;
   confidence_score: number;
+
+  // Both Teams to Score (BTTS) - Optional
+  btts_yes_prob?: number | null;
+  btts_no_prob?: number | null;
+  btts_confidence?: number | null;
+
+  // Total Goals - Optional
+  total_goals_over_25_prob?: number | null;
+  total_goals_under_25_prob?: number | null;
+  total_goals_over_35_prob?: number | null;
+  total_goals_under_35_prob?: number | null;
+  total_goals_confidence?: number | null;
+
+  // Reasoning & Metadata
   reasoning: string | null;
   key_factors: Record<string, any> | null;
+
+  // Status & Timestamps
   status: PredictionStatus;
   created_by: string;
   created_at: string;

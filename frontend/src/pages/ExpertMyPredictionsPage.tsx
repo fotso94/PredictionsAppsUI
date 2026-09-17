@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import expertPredictionService from '../services/expert-prediction.service';
-import { ExpertPredictionResponse, PredictionStatus, ExpertPredictionUpdateRequest } from '../types/expert';
+import { ExpertPredictionResponse, ExpertPredictionUpdateRequest } from '../types/expert';
 import {
   PredictionSourceBadge,
   PredictionStatusBadge,
@@ -49,10 +49,22 @@ const ExpertMyPredictionsPage: React.FC = () => {
   const handleEdit = (prediction: ExpertPredictionResponse) => {
     setEditingId(prediction.id);
     setEditForm({
+      // Match Outcome (1X2)
       home_win_prob: prediction.home_win_prob,
       draw_prob: prediction.draw_prob,
       away_win_prob: prediction.away_win_prob,
       confidence_score: prediction.confidence_score,
+      // Both Teams to Score (BTTS) - Optional
+      btts_yes_prob: prediction.btts_yes_prob ?? undefined,
+      btts_no_prob: prediction.btts_no_prob ?? undefined,
+      btts_confidence: prediction.btts_confidence ?? undefined,
+      // Total Goals - Optional
+      total_goals_over_25_prob: prediction.total_goals_over_25_prob ?? undefined,
+      total_goals_under_25_prob: prediction.total_goals_under_25_prob ?? undefined,
+      total_goals_over_35_prob: prediction.total_goals_over_35_prob ?? undefined,
+      total_goals_under_35_prob: prediction.total_goals_under_35_prob ?? undefined,
+      total_goals_confidence: prediction.total_goals_confidence ?? undefined,
+      // Reasoning & Metadata
       reasoning: prediction.reasoning || undefined,
       key_factors: prediction.key_factors || undefined,
     });
@@ -272,10 +284,11 @@ const ExpertMyPredictionsPage: React.FC = () => {
                   {/* Probabilities */}
                   {editingId === prediction.id && editForm ? (
                     <div className="mb-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      {/* Match Outcome (1X2) */}
                       <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                        Edit Probabilities (must sum to 1.0):
+                        Match Outcome (must sum to 1.0):
                       </p>
-                      <div className="grid grid-cols-3 gap-4 mb-3">
+                      <div className="grid grid-cols-3 gap-4 mb-4">
                         <div>
                           <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
                             Home Win
@@ -319,7 +332,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                           />
                         </div>
                       </div>
-                      <div className="mb-3">
+                      <div className="mb-4">
                         <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
                           Confidence Score (0-1)
                         </label>
@@ -333,6 +346,142 @@ const ExpertMyPredictionsPage: React.FC = () => {
                           className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                         />
                       </div>
+
+                      {/* Both Teams to Score (BTTS) - Optional */}
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        Both Teams to Score (BTTS) - Optional:
+                      </p>
+                      <div className="grid grid-cols-2 gap-4 mb-3">
+                        <div>
+                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
+                            Yes (Both Score)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            value={editForm.btts_yes_prob ?? ''}
+                            onChange={(e) => setEditForm({ ...editForm, btts_yes_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                            placeholder="0.50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
+                            No (At Least One Won't)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            value={editForm.btts_no_prob ?? ''}
+                            onChange={(e) => setEditForm({ ...editForm, btts_no_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                            placeholder="0.50"
+                          />
+                        </div>
+                      </div>
+                      <div className="mb-4">
+                        <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
+                          BTTS Confidence (0-1)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="1"
+                          value={editForm.btts_confidence ?? ''}
+                          onChange={(e) => setEditForm({ ...editForm, btts_confidence: e.target.value ? parseFloat(e.target.value) : undefined })}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                          placeholder="0.75"
+                        />
+                      </div>
+
+                      {/* Total Goals - Optional */}
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        Total Goals (Over/Under) - Optional:
+                      </p>
+                      <div className="grid grid-cols-2 gap-4 mb-3">
+                        <div>
+                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
+                            Over 2.5 Goals
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            value={editForm.total_goals_over_25_prob ?? ''}
+                            onChange={(e) => setEditForm({ ...editForm, total_goals_over_25_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                            placeholder="0.50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
+                            Under 2.5 Goals
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            value={editForm.total_goals_under_25_prob ?? ''}
+                            onChange={(e) => setEditForm({ ...editForm, total_goals_under_25_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                            placeholder="0.50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
+                            Over 3.5 Goals
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            value={editForm.total_goals_over_35_prob ?? ''}
+                            onChange={(e) => setEditForm({ ...editForm, total_goals_over_35_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                            placeholder="0.30"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
+                            Under 3.5 Goals
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            value={editForm.total_goals_under_35_prob ?? ''}
+                            onChange={(e) => setEditForm({ ...editForm, total_goals_under_35_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                            placeholder="0.70"
+                          />
+                        </div>
+                      </div>
+                      <div className="mb-4">
+                        <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
+                          Total Goals Confidence (0-1)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="1"
+                          value={editForm.total_goals_confidence ?? ''}
+                          onChange={(e) => setEditForm({ ...editForm, total_goals_confidence: e.target.value ? parseFloat(e.target.value) : undefined })}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                          placeholder="0.75"
+                        />
+                      </div>
+
+                      {/* Reasoning */}
                       <div>
                         <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
                           Reasoning
@@ -347,26 +496,111 @@ const ExpertMyPredictionsPage: React.FC = () => {
                     </div>
                   ) : (
                     <>
-                      <div className="grid grid-cols-3 gap-4 mb-3">
-                        <div>
-                          <p className="text-xs text-gray-600 dark:text-gray-400">Home Win</p>
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {(prediction.home_win_prob * 100).toFixed(1)}%
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-600 dark:text-gray-400">Draw</p>
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {(prediction.draw_prob * 100).toFixed(1)}%
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-600 dark:text-gray-400">Away Win</p>
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {(prediction.away_win_prob * 100).toFixed(1)}%
-                          </p>
+                      {/* Match Outcome (1X2) */}
+                      <div className="mb-3">
+                        <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Match Outcome</p>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Home Win</p>
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                              {(prediction.home_win_prob * 100).toFixed(1)}%
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Draw</p>
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                              {(prediction.draw_prob * 100).toFixed(1)}%
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Away Win</p>
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                              {(prediction.away_win_prob * 100).toFixed(1)}%
+                            </p>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Both Teams to Score (BTTS) - Optional */}
+                      {prediction.btts_yes_prob !== null && prediction.btts_yes_prob !== undefined && (
+                        <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Both Teams to Score (BTTS)
+                            {prediction.btts_confidence && (
+                              <span className="ml-2 text-blue-600 dark:text-blue-400">
+                                {(prediction.btts_confidence * 100).toFixed(0)}% confidence
+                              </span>
+                            )}
+                          </p>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-xs text-gray-600 dark:text-gray-400">Yes</p>
+                              <p className="text-base font-semibold text-gray-900 dark:text-white">
+                                {(prediction.btts_yes_prob * 100).toFixed(1)}%
+                              </p>
+                            </div>
+                            {prediction.btts_no_prob !== null && prediction.btts_no_prob !== undefined && (
+                              <div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">No</p>
+                                <p className="text-base font-semibold text-gray-900 dark:text-white">
+                                  {(prediction.btts_no_prob * 100).toFixed(1)}%
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Total Goals - Optional */}
+                      {((prediction.total_goals_over_25_prob !== null && prediction.total_goals_over_25_prob !== undefined) ||
+                        (prediction.total_goals_under_25_prob !== null && prediction.total_goals_under_25_prob !== undefined) ||
+                        (prediction.total_goals_over_35_prob !== null && prediction.total_goals_over_35_prob !== undefined) ||
+                        (prediction.total_goals_under_35_prob !== null && prediction.total_goals_under_35_prob !== undefined)) && (
+                        <div className="mb-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Total Goals
+                            {prediction.total_goals_confidence && (
+                              <span className="ml-2 text-green-600 dark:text-green-400">
+                                {(prediction.total_goals_confidence * 100).toFixed(0)}% confidence
+                              </span>
+                            )}
+                          </p>
+                          <div className="grid grid-cols-2 gap-4">
+                            {prediction.total_goals_over_25_prob !== null && prediction.total_goals_over_25_prob !== undefined && (
+                              <div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Over 2.5</p>
+                                <p className="text-base font-semibold text-gray-900 dark:text-white">
+                                  {(prediction.total_goals_over_25_prob * 100).toFixed(1)}%
+                                </p>
+                              </div>
+                            )}
+                            {prediction.total_goals_under_25_prob !== null && prediction.total_goals_under_25_prob !== undefined && (
+                              <div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Under 2.5</p>
+                                <p className="text-base font-semibold text-gray-900 dark:text-white">
+                                  {(prediction.total_goals_under_25_prob * 100).toFixed(1)}%
+                                </p>
+                              </div>
+                            )}
+                            {prediction.total_goals_over_35_prob !== null && prediction.total_goals_over_35_prob !== undefined && (
+                              <div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Over 3.5</p>
+                                <p className="text-base font-semibold text-gray-900 dark:text-white">
+                                  {(prediction.total_goals_over_35_prob * 100).toFixed(1)}%
+                                </p>
+                              </div>
+                            )}
+                            {prediction.total_goals_under_35_prob !== null && prediction.total_goals_under_35_prob !== undefined && (
+                              <div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Under 3.5</p>
+                                <p className="text-base font-semibold text-gray-900 dark:text-white">
+                                  {(prediction.total_goals_under_35_prob * 100).toFixed(1)}%
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Reasoning */}
                       {prediction.reasoning && (

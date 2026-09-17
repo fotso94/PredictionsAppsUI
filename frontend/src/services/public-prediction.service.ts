@@ -13,12 +13,30 @@ export interface PublicPrediction {
   external_match_id: string | null;
   source: string;
   priority_level: number;
+
+  // Match Outcome (1X2)
   home_win_prob: number;
   draw_prob: number;
   away_win_prob: number;
   confidence_score: number | null;
+
+  // Both Teams to Score (BTTS) - Optional
+  btts_yes_prob?: number | null;
+  btts_no_prob?: number | null;
+  btts_confidence?: number | null;
+
+  // Total Goals - Optional
+  total_goals_over_25_prob?: number | null;
+  total_goals_under_25_prob?: number | null;
+  total_goals_over_35_prob?: number | null;
+  total_goals_under_35_prob?: number | null;
+  total_goals_confidence?: number | null;
+
+  // Reasoning & Metadata
   reasoning: string | null;
   published_at: string | null;
+
+  // Match Details
   match_details: {
     home_team_name: string;
     away_team_name: string;

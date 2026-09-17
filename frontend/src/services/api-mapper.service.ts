@@ -289,6 +289,16 @@ export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions 
   const confidence_score = (apiPrediction as any).confidence_score;
   const priority_level = (apiPrediction as any).priority_level;
 
+  // Extract BTTS and Total Goals data from expert predictions
+  const btts_yes_prob = (apiPrediction as any).btts_yes_prob;
+  const btts_no_prob = (apiPrediction as any).btts_no_prob;
+  const btts_confidence = (apiPrediction as any).btts_confidence;
+  const total_goals_over_25_prob = (apiPrediction as any).total_goals_over_25_prob;
+  const total_goals_under_25_prob = (apiPrediction as any).total_goals_under_25_prob;
+  const total_goals_over_35_prob = (apiPrediction as any).total_goals_over_35_prob;
+  const total_goals_under_35_prob = (apiPrediction as any).total_goals_under_35_prob;
+  const total_goals_confidence = (apiPrediction as any).total_goals_confidence;
+
   // Debug log for source metadata
   if (source === 'expert') {
     console.log('📊 mapPredictions - Expert prediction detected:', {
@@ -297,8 +307,49 @@ export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions 
       confidence_score,
       priority_level,
       advice: apiPrediction.predictions.advice,
+      btts_yes_prob,
+      btts_no_prob,
+      total_goals_over_25_prob,
+      total_goals_under_25_prob,
     });
   }
+
+  // Helper function to convert confidence score to confidence level
+  const getConfidenceLevel = (score: number | null | undefined): 'low' | 'medium' | 'high' | 'very-high' => {
+    if (score === null || score === undefined) return 'medium';
+    if (score >= 0.8) return 'very-high';
+    if (score >= 0.65) return 'high';
+    if (score >= 0.5) return 'medium';
+    return 'low';
+  };
+
+  // Use expert BTTS data if available, otherwise use defaults
+  const bothTeamsToScore = (btts_yes_prob !== null && btts_yes_prob !== undefined &&
+                             btts_no_prob !== null && btts_no_prob !== undefined) ? {
+    yes: btts_yes_prob * 100,
+    no: btts_no_prob * 100,
+    confidence: getConfidenceLevel(btts_confidence),
+  } : {
+    yes: 60, // Default
+    no: 40,
+    confidence: 'medium' as const,
+  };
+
+  // Use expert Total Goals data if available, otherwise use defaults
+  const totalGoals = (total_goals_over_25_prob !== null && total_goals_over_25_prob !== undefined &&
+                      total_goals_under_25_prob !== null && total_goals_under_25_prob !== undefined) ? {
+    over25: total_goals_over_25_prob * 100,
+    under25: total_goals_under_25_prob * 100,
+    over35: total_goals_over_35_prob !== null && total_goals_over_35_prob !== undefined ? total_goals_over_35_prob * 100 : 40,
+    under35: total_goals_under_35_prob !== null && total_goals_under_35_prob !== undefined ? total_goals_under_35_prob * 100 : 60,
+    confidence: getConfidenceLevel(total_goals_confidence),
+  } : {
+    over25: 65,
+    under25: 35,
+    over35: 40,
+    under35: 60,
+    confidence: 'high' as const,
+  };
 
   return {
     outcome: {
@@ -307,18 +358,8 @@ export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions 
       awayWin: awayPercent,
       confidence,
     },
-    bothTeamsToScore: {
-      yes: 60, // Default, can be enhanced with more API data
-      no: 40,
-      confidence: 'medium',
-    },
-    totalGoals: {
-      over25: 65,
-      under25: 35,
-      over35: 40,
-      under35: 60,
-      confidence: 'high',
-    },
+    bothTeamsToScore,
+    totalGoals,
     correctScore: {
       mostLikely: `${apiPrediction.predictions.goals.home}-${apiPrediction.predictions.goals.away}`,
       probability: maxPercent,
