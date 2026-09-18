@@ -1,34 +1,54 @@
 import React from 'react'
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline'
-import { MatchPredictions } from '@/types'
+import { ForecastAnomaly, MatchPredictions } from '@/types'
 import { providerLabel } from '@/utils/predictionLabels'
 
 /**
- * Consistency problems the backend found in the provider payload, shown verbatim.
+ * What the backend observed about the provider payload, shown verbatim.
  *
- * A forecast that failed a sum check is still shown — it is what the provider published — but it
- * must not be presented as authoritative, and the numbers are never "corrected" to make it pass.
+ * Two different things, kept apart so a sound forecast is not made to look suspect:
+ *  - a `warning` means the numbers themselves do not hold together (outcomes that do not sum to
+ *    100%, a market published as all zeroes). The forecast is still shown, because it is what the
+ *    provider published, but it must not read as authoritative and is never "corrected" to pass.
+ *  - a `note` is bookkeeping, such as a 0% scoreline left out of the list. It says nothing about
+ *    whether the forecast is trustworthy, so it is a quiet footnote rather than a caution.
  */
-export const ForecastAnomalies: React.FC<{ anomalies?: string[] | null; className?: string }> = ({
+export const ForecastAnomalies: React.FC<{ anomalies?: ForecastAnomaly[] | null; className?: string }> = ({
   anomalies,
   className = '',
 }) => {
   if (!anomalies || anomalies.length === 0) return null
+  const warnings = anomalies.filter(a => a.severity === 'warning')
+  const notes = anomalies.filter(a => a.severity !== 'warning')
+
   return (
-    <div
-      className={`flex items-start space-x-2 rounded-lg border border-orange-700/60 bg-orange-900/20 px-3 py-2 text-sm text-orange-200 ${className}`}
-      role="status"
-      data-testid="forecast-anomalies"
-    >
-      <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
-      <div>
-        <p className="font-medium">
-          This forecast did not pass our consistency checks. It is shown exactly as the provider published it.
-        </p>
-        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-orange-300/90">
-          {anomalies.map(note => <li key={note}>{note}</li>)}
+    <div className={className}>
+      {warnings.length > 0 && (
+        <div
+          className="flex items-start space-x-2 rounded-lg border border-orange-700/60 bg-orange-900/20 px-3 py-2 text-sm text-orange-200"
+          role="status"
+          data-testid="forecast-anomalies"
+        >
+          <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
+          <div>
+            <p className="font-medium">
+              These numbers do not add up as they should. The forecast is shown exactly as the provider
+              published it, and nothing has been adjusted to make it fit.
+            </p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-orange-300/90">
+              {warnings.map(a => <li key={a.code + a.message}>{a.message}</li>)}
+            </ul>
+          </div>
+        </div>
+      )}
+      {notes.length > 0 && (
+        <ul
+          className={`space-y-0.5 text-xs text-secondary-500 ${warnings.length > 0 ? 'mt-2' : ''}`}
+          data-testid="forecast-notes"
+        >
+          {notes.map(a => <li key={a.code + a.message}>{a.message}</li>)}
         </ul>
-      </div>
+      )}
     </div>
   )
 }

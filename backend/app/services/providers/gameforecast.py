@@ -82,6 +82,16 @@ def to_probability(value: Any) -> Optional[float]:
     return _to_probability(value, PROBABILITY_SCALE)
 
 
+def _warn(anomalies: List[Dict[str, str]], code: str, message: str) -> None:
+    """A reason to doubt the numbers themselves."""
+    anomalies.append({"severity": "warning", "code": code, "message": message})
+
+
+def _note(anomalies: List[Dict[str, str]], code: str, message: str) -> None:
+    """Something worth recording that does not undermine the forecast."""
+    anomalies.append({"severity": "note", "code": code, "message": message})
+
+
 def _check_sum(anomalies: List[str], label: str,
                fields: Sequence[Tuple[str, Optional[float]]], expected: int) -> None:
     """Report a market whose probabilities do not add up - or say plainly that it is partial.
@@ -96,11 +106,11 @@ def _check_sum(anomalies: List[str], label: str,
     if len(present) < expected:
         missing = [name for name, value in fields if value is None]
         noun = "probability" if len(missing) == 1 else "probabilities"
-        anomalies.append(f"{label} incomplete: {', '.join(missing)} {noun} not supplied")
+        _note(anomalies, "market_incomplete", f"{label} incomplete: {', '.join(missing)} {noun} not supplied")
         return
     total = sum(value for _, value in present)
     if abs(total - 1.0) > SUM_TOLERANCE:
-        anomalies.append(f"{label} probabilities sum to {round(total * 100, 1)}%")
+        _warn(anomalies, "sum_out_of_tolerance", f"{label} probabilities sum to {round(total * 100, 1)}%")
 
 
 def _all_zero(anomalies: List[str], label: str, values: Sequence[Optional[float]]) -> bool:
@@ -112,7 +122,7 @@ def _all_zero(anomalies: List[str], label: str, values: Sequence[Optional[float]
     present = [v for v in values if v is not None]
     if not present or sum(present) > ZERO_TOLERANCE:
         return False
-    anomalies.append(f"{label} values were all zero; treated as unavailable")
+    _warn(anomalies, "market_all_zero", f"{label} values were all zero; treated as unavailable")
     return True
 
 
@@ -153,16 +163,18 @@ def _parse_exact_scores(exact: Dict[str, Any], anomalies: List[str]):
             continue
         scores[f"{key_match.group(1)}-{key_match.group(2)}"] = probability
     if dropped:
-        anomalies.append(f"{dropped} exact-score entries were unreadable and were dropped")
+        _warn(anomalies, "score_unreadable", f"{dropped} exact-score entries could not be read and were dropped")
     if zeroed:
-        anomalies.append(f"{zeroed} exact-score entries were 0% and were dropped")
+        _note(anomalies, "score_zero_dropped",
+              f"{zeroed} scoreline{'s' if zeroed > 1 else ''} the provider gave a 0% chance "
+              f"{'were' if zeroed > 1 else 'was'} left out")
     if not scores:
         # Nothing survived: the market is unavailable. A remainder bucket on its own is not a
         # scoreline forecast, so it is not carried either.
         return None, None
     total = sum(scores.values()) + (other or 0.0)
     if total > 1.0 + SUM_TOLERANCE:
-        anomalies.append(f"exact-score probabilities sum to {round(total * 100, 1)}%")
+        _warn(anomalies, "score_sum_out_of_tolerance", f"exact-score probabilities sum to {round(total * 100, 1)}%")
     return scores, other
 
 
@@ -184,7 +196,7 @@ def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) ->
     if isinstance(reasoning, dict):
         reasoning = reasoning.get("en") or next(iter(reasoning.values()), None)
 
-    anomalies: List[str] = []
+    anomalies: List[Dict[str, str]] = []
     home_prob, draw_prob, away_prob = (to_probability(result.get(k)) for k in ("home", "draw", "away"))
     btts_yes, btts_no = to_probability(btts.get("yes")), to_probability(btts.get("no"))
     over_25, under_25 = to_probability(totals.get("over_2_5")), to_probability(totals.get("under_2_5"))
@@ -208,8 +220,9 @@ def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) ->
     _check_sum(anomalies, "over/under 3.5",
                (("over", over_35), ("under", under_35)), expected=2)
     exact_scores, exact_other = _parse_exact_scores(exact, anomalies)
-    if anomalies:
-        logger.warning("GameForecastAPI event %s: %s", event.get("id"), "; ".join(anomalies))
+    warnings = [a["message"] for a in anomalies if a["severity"] == "warning"]
+    if warnings:
+        logger.warning("GameForecastAPI event %s: %s", event.get("id"), "; ".join(warnings))
 
     return ProviderForecast(
         provider=PROVIDER_NAME,

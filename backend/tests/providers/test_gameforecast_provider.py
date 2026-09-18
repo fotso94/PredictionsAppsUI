@@ -16,6 +16,14 @@ from app.services.match_cache import MatchCache
 from tests.providers.support import FakeRedis, json_response, make_transport
 
 
+def _message(forecast, fragment):
+    """Severity of the first anomaly whose message contains `fragment`, or None."""
+    for anomaly in forecast.anomalies:
+        if fragment in anomaly["message"]:
+            return anomaly["severity"]
+    return None
+
+
 def event(**overrides):
     base = {
         "id": 501, "league": {"id": 15, "name": "Premier League"}, "status_code": "NS", "round": "5",
@@ -130,10 +138,10 @@ def test_all_zero_market_is_unavailable_not_zero_percent():
     assert markets["match_result"] is False and markets["btts"] is False
     assert markets["over_under_25"] is False and markets["exact_score"] is False
     assert markets["over_under_35"] is True
-    assert "match result values were all zero; treated as unavailable" in f.anomalies
-    assert any("both teams to score values were all zero" in a for a in f.anomalies)
+    assert _message(f, "match result values were all zero; treated as unavailable") == "warning"
+    assert _message(f, "both teams to score values were all zero") == "warning"
     # the zeroed market is reported once, not also as a sum-out-of-tolerance anomaly
-    assert not any("sum to" in a for a in f.anomalies)
+    assert _message(f, "sum to") is None  # a zeroed market is not also reported as a bad sum
 
 
 def test_zero_probability_scorelines_can_never_be_the_most_likely_score():
@@ -144,7 +152,8 @@ def test_zero_probability_scorelines_can_never_be_the_most_likely_score():
     f = parse_event(e)
     assert f.exact_score == {"2-1": 0.07}
     assert max(f.exact_score, key=f.exact_score.get) == "2-1"
-    assert any("0% and were dropped" in a for a in f.anomalies)
+    # dropping a 0% scoreline is bookkeeping, not a reason to doubt the forecast
+    assert _message(f, "0% chance") == "note"
 
 
 def test_partial_market_is_reported_as_incomplete_not_as_a_bad_sum():
@@ -154,16 +163,16 @@ def test_partial_market_is_reported_as_incomplete_not_as_a_bad_sum():
                             "both_teams_score": {"yes": 51}}])
     f = parse_event(e)
     assert (f.home_prob, f.draw_prob, f.away_prob) == (0.58, 0.24, None)
-    assert "match result incomplete: away probability not supplied" in f.anomalies
-    assert "both teams to score incomplete: no probability not supplied" in f.anomalies
-    assert not any("sum to" in a for a in f.anomalies)
+    assert _message(f, "match result incomplete: away probability not supplied") == "note"
+    assert _message(f, "both teams to score incomplete: no probability not supplied") == "note"
+    assert _message(f, "sum to") is None  # a zeroed market is not also reported as a bad sum
 
 
 def test_complete_market_out_of_tolerance_is_still_reported():
     e = event(predictions=[{"run_at": "2026-09-18T06:00:00Z",
                             "match_result": {"home": 58, "draw": 24, "away": 40}}])
     f = parse_event(e)
-    assert any("match result probabilities sum to 122.0%" in a for a in f.anomalies)
+    assert _message(f, "match result probabilities sum to 122.0%") == "warning"
 
 
 def test_market_absent_entirely_produces_no_anomaly():

@@ -11,7 +11,7 @@
  */
 
 import apiClient from './api-client';
-import { ConfidenceLevel, HeadToHead, League, LeagueStanding, Match, MatchPredictions, MatchStatus, Team } from '@/types';
+import { ConfidenceLevel, ForecastAnomaly, HeadToHead, League, LeagueStanding, Match, MatchPredictions, MatchStatus, Team } from '@/types';
 import {
   CoverageSummary, DataSourceMeta, ForecastSyncStatus, MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage,
   localDateString, timezoneOffsetMinutes,
@@ -92,7 +92,7 @@ export interface ApiForecast {
   /** False when model_run_at is null: the generation time is genuinely unknown */
   generated_at_known: boolean;
   /** Consistency problems in the provider payload, reported not corrected */
-  anomalies: string[] | null;
+  anomalies: ForecastAnomaly[] | null;
   state: 'available' | 'stale' | 'kickoff_passed' | 'unavailable';
   state_reason: string | null;
   markets_available: { match_result: boolean; btts: boolean; over_under_25: boolean; over_under_35: boolean; exact_score: boolean };

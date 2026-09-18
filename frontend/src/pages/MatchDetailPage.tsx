@@ -257,7 +257,9 @@ const MatchDetailPage: React.FC = () => {
                 <div className="text-secondary-400">
                   <p>
                     {match.league.id ? <Link to={`/league/${match.league.id}`} className="hover:text-white">{match.league.name}</Link> : match.league.name}
-                    {' '}• {match.date} • {match.time}{match.round ? ` • ${match.round}` : ''}
+                    {/* the provider gives the round as a bare number, which reads as noise without its label */}
+                    {' '}• {match.date} • {match.time}
+                    {match.round ? ` • ${/^\d+$/.test(String(match.round)) ? `Matchday ${match.round}` : match.round}` : ''}
                   </p>
                   <p>{match.venue}</p>
                 </div>

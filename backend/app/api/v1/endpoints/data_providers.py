@@ -47,8 +47,10 @@ async def coverage(db: Session = Depends(get_db)):
                               .join(Match, Match.id == ProviderForecastRecord.match_id)
                               .filter(Match.match_date >= now.replace(tzinfo=None))
                               .count())
+    # deleted_at is a soft delete: an unpublished or removed prediction must not keep being counted
     published = (db.query(Prediction)
-                 .filter(Prediction.status == PredictionStatus.PUBLISHED)
+                 .filter(Prediction.status == PredictionStatus.PUBLISHED,
+                         Prediction.deleted_at.is_(None))
                  .count())
     return {
         "competitions_covered": len(keys),

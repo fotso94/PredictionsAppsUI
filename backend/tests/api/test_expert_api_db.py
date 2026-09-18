@@ -286,3 +286,21 @@ def test_expert_cannot_edit_someone_elses_prediction(db):
             ExpertPredictionUpdate(home_win_prob=0.7, draw_prob=0.2, away_win_prob=0.1),
             other,
         )
+
+
+def test_coverage_does_not_count_a_deleted_prediction_as_published(client, db):
+    """An expert who removes a prediction must not keep being credited with it on the home page.
+
+    Deletion is a soft delete, so a count that only filters on status keeps reporting removed
+    predictions - which is how the home page came to claim 27 published while none were live.
+    """
+    expert, league = _expert(db), _league(db)
+    match = _match(db, league, LATE_KICKOFF, "coverage-count")
+    prediction = _publish(db, match, expert, datetime.utcnow())
+
+    with_prediction = client.get("/api/v1/data-providers/coverage").json()["expert_predictions_published"]
+    prediction.deleted_at = datetime.utcnow()
+    db.flush()
+    after_removal = client.get("/api/v1/data-providers/coverage").json()["expert_predictions_published"]
+
+    assert after_removal == with_prediction - 1

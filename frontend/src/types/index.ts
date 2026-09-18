@@ -153,6 +153,12 @@ export interface MatchOdds {
   };
 }
 
+export interface ForecastAnomaly {
+  severity: 'warning' | 'note';
+  code: string;
+  message: string;
+}
+
 export interface MatchPredictions {
   /**
    * 1X2 probabilities in percent (0-100).
@@ -223,8 +229,9 @@ export interface MatchPredictions {
   /** False when the provider published no model-run time: the UI must say the generation time is unknown. */
   generationTimeKnown?: boolean;
   publishedAt?: string | null;
-  /** Consistency problems found in the provider payload, reported verbatim and never corrected */
-  anomalies?: string[];
+  /** Observations the backend made about the provider payload, reported verbatim and never corrected.
+   *  `warning` is a reason to doubt the numbers; `note` is bookkeeping that does not undermine them. */
+  anomalies?: ForecastAnomaly[];
   /** Provider-reported recommended bets, verbatim */
   recommendedBets?: Record<string, unknown> | null;
   /** How confidently the forecast was linked to this fixture (exact | high) */

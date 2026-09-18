@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   stubBackend, dayPayload, baseMatches, withoutMarkets, withOnePercentFavourite,
-  withoutForecast, watchForProblems,
+  withoutForecast, watchForProblems, withInconsistentNumbers, withHarmlessNote,
 } from '../support/api-stub';
 
 /**
@@ -107,6 +107,36 @@ test.describe('missing markets', () => {
     const text = (await page.locator('body').innerText()).toLowerCase();
     expect(text).toMatch(/no (model )?forecast|unavailable|not available/);
     expect(text).not.toContain('nan');
+  });
+});
+
+test.describe('payload observations', () => {
+  test('numbers that do not add up are flagged, not quietly corrected', async ({ page }) => {
+    const [first, ...rest] = baseMatches();
+    const match = withInconsistentNumbers(first);
+    await stubBackend(page, { day: d => dayPayload(d, [match, ...rest]), matchById: () => match });
+
+    await page.goto(`/match/${match.id}`);
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByTestId('forecast-anomalies').first()).toBeVisible();
+    await expect(page.locator('body')).toContainText('sum to 122.0%');
+    // the published numbers are still shown as they were, not adjusted to fit
+    await expect(page.locator('body')).toContainText('70%');
+  });
+
+  test('a harmless bookkeeping note does not raise a caution', async ({ page }) => {
+    const [first, ...rest] = baseMatches();
+    const match = withHarmlessNote(first);
+    await stubBackend(page, { day: d => dayPayload(d, [match, ...rest]), matchById: () => match });
+
+    await page.goto(`/match/${match.id}`);
+    await page.waitForLoadState('networkidle');
+
+    // dropping a 0% scoreline says nothing about whether the forecast is sound
+    await expect(page.getByTestId('forecast-anomalies')).toHaveCount(0);
+    await expect(page.getByTestId('forecast-notes').first()).toBeVisible();
+    await expect(page.locator('body')).not.toContainText('do not add up');
   });
 });
 

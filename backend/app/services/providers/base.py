@@ -162,7 +162,7 @@ class ProviderForecast:
     fetched_at: Optional[datetime] = None
     #: Consistency problems detected in the provider payload (sums out of tolerance,
     #: values dropped because they were out of bounds). Reported, never silently fixed.
-    anomalies: List[str] = field(default_factory=list)
+    anomalies: List[Dict[str, str]] = field(default_factory=list)
     raw: Dict[str, Any] = field(default_factory=dict)
 
     def has_any_market(self) -> bool:

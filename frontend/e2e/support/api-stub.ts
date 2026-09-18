@@ -45,6 +45,7 @@ export interface ApiForecast extends Json {
   total_goals_under_35_prob: number | null;
   exact_score: Record<string, number> | null;
   exact_score_other_prob: number | null;
+  anomalies?: Array<{ severity: 'warning' | 'note'; code: string; message: string }>;
 }
 
 export interface ApiMatch extends Json {
@@ -162,6 +163,27 @@ export function withoutMarkets(match: ApiMatch, markets: Array<'match_result' | 
       forecast.exact_score_other_prob = null;
     }
   }
+  return copy;
+}
+
+/** A forecast whose numbers do not hold together: the reader must be cautioned. */
+export function withInconsistentNumbers(match: ApiMatch): ApiMatch {
+  const copy = JSON.parse(JSON.stringify(match)) as ApiMatch;
+  copy.forecast!.home_win_prob = 0.7;
+  copy.forecast!.draw_prob = 0.3;
+  copy.forecast!.away_win_prob = 0.22;
+  copy.forecast!.anomalies = [
+    { severity: 'warning', code: 'sum_out_of_tolerance', message: 'match result probabilities sum to 122.0%' },
+  ];
+  return copy;
+}
+
+/** Bookkeeping the backend recorded, which says nothing about whether the forecast is sound. */
+export function withHarmlessNote(match: ApiMatch): ApiMatch {
+  const copy = JSON.parse(JSON.stringify(match)) as ApiMatch;
+  copy.forecast!.anomalies = [
+    { severity: 'note', code: 'score_zero_dropped', message: 'a scoreline the provider gave a 0% chance was left out' },
+  ];
   return copy;
 }
 

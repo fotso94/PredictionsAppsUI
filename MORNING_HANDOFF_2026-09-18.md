@@ -51,7 +51,7 @@ Backend, from `backend/`:
 ./venv/bin/python -m pytest -o addopts="" -p no:cacheprovider -q
 ```
 
-**339 passed, 0 failed.** The baseline was 213 passed with 8 failures that had been red for about
+**340 passed, 0 failed.** The baseline was 213 passed with 8 failures that had been red for about
 eleven months. Run twice to check for flakiness; identical both times.
 
 Frontend, from `frontend/`:
@@ -74,12 +74,12 @@ authentication is untouched and no test was skipped or deleted.
 ## 3. Browser tests
 
 ```bash
-npm run e2e          # everything: 71 tests
-npm run e2e:mocked   # 31 desktop + 31 mobile, deterministic
+npm run e2e          # everything: 75 tests
+npm run e2e:mocked   # 33 desktop + 33 mobile, deterministic
 npm run e2e:live     # 9 against the local backend
 ```
 
-**71 passed, 0 failed.** Artifacts: traces and screenshots on failure in `frontend/e2e/.artifacts/`,
+**75 passed, 0 failed.** Artifacts: traces and screenshots on failure in `frontend/e2e/.artifacts/`,
 HTML report in `frontend/e2e/.report/` (`npm run e2e:report`). Both are git-ignored.
 
 The suite is deliberately split, because mixing the two kinds hides which one proved what:
@@ -88,17 +88,28 @@ The suite is deliberately split, because mixing the two kinds hides which one pr
   `frontend/e2e/fixtures/`. Deterministic, spends nothing, and covers the states that are hard to
   produce on demand: the 1% regression, missing 1X2, BTTS-only, exact-score-only, no forecast at
   all, exhausted quota, expired trial, an empty day, a 503 from the backend, loading states, console
-  errors, failed requests, dead links, broken images, and timezone boundaries for viewers in New
-  York, Auckland, Los Angeles and Lisbon. Every one runs at desktop width and on an iPhone 13.
+  errors, failed requests, dead links, broken images, a payload whose numbers do not add up, a
+  harmless bookkeeping note that must NOT raise a caution, and timezone boundaries for viewers in
+  New York, Auckland, Los Angeles and Lisbon. Every one runs at desktop width and on an iPhone 13.
 - **Live** (`frontend/e2e/live/`) runs against the local backend and the data already in the local
   database. It signs in through the UI, publishes, confirms the prediction is public immediately
   with no approval step, edits it, confirms the edit is public, deletes it, confirms it is gone, and
   asserts that browsing spends no provider request. It creates and removes only its own records,
   marked `[e2e-qa]`, under a dedicated account.
 
-Two real defects were found by these tests rather than by reading code: search was unreachable on a
-phone (the box is hidden below 640px and was not in the mobile menu), and the footer promised
-"accurate match predictions" on every page with a copyright frozen at 2024.
+Five real defects were found by looking at the rendered pages rather than by reading code:
+
+- Search was unreachable on a phone. The box is hidden below 640px and was not in the mobile menu.
+- The footer promised "accurate match predictions" on every page, with a copyright frozen at 2024.
+- A forecast that had merely had a 0% scoreline tidied out of its list was shown under "this forecast
+  did not pass our consistency checks", which made a sound forecast look suspect. Payload
+  observations now carry a severity: a warning means the numbers genuinely do not hold together, a
+  note is bookkeeping and reads as a quiet footnote.
+- The home page claimed 27 expert predictions published while none were live. Deletion is a soft
+  delete and the count only filtered on status, so removed predictions kept being credited.
+- "Featured Predictions" was subtitled as expert predictions while showing model forecasts.
+
+Screenshots of the final state, desktop and mobile, are in `frontend/e2e/screenshots/`.
 
 ---
 

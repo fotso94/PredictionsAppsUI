@@ -205,7 +205,8 @@ const HomePage: React.FC = () => {
                     Featured Predictions
                   </h2>
                   <p className="mt-2 text-secondary-400">
-                    Today&rsquo;s matches where an expert published a high-confidence prediction
+                    Today&rsquo;s matches where the published prediction, expert or model, is rated
+                    high or very high. Each card names its own source.
                   </p>
                 </div>
                 <Button variant="outline" asChild>
