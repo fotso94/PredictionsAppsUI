@@ -1,319 +1,71 @@
 /**
- * Expert Match Selection Page
- * Page for experts to browse available matches and create predictions
+ * Choose the fixture to write about.
+ *
+ * This page used to render two long lists — "Today's Matches" and "Tomorrow's Matches" — of tall
+ * three-column cards. Each card repeated the venue, the round, the internal UUID and the provider's
+ * fixture id, and the three-column team grid did not collapse: a 23-fixture day pushed the page 11
+ * CSS pixels wider than a 390px phone, so the whole thing scrolled sideways.
+ *
+ * It is now one list with filters, and the football context an expert actually chooses on — when it
+ * kicks off, which competition, who is playing, and whether anybody has published on it yet. The
+ * identifiers are gone from the card body; the composer keeps them behind an advanced disclosure
+ * for the rare case where somebody has one to paste.
+ *
+ * Reads are stored-data-only, so filtering and paging between days spends no provider allowance.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { footballDataService } from '../services/football-data.service';
-import { describeError } from '../services/backend-match-data.service';
-import { Match } from '../types';
-import {
-  filterLiveAndScheduledMatches,
-  getMatchStatusText,
-  getMatchStatusBadgeClasses
-} from '@/utils/matchFilters';
-import { onTeamLogoError } from '@/components/ui/imageFallback';
+import React from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { Match } from '@/types'
+import FixturePicker from '@/components/expert/FixturePicker'
 
 const ExpertMatchSelectionPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [todayMatches, setTodayMatches] = useState<Match[]>([]);
-  const [tomorrowMatches, setTomorrowMatches] = useState<Match[]>([]);
-  const [selectedMatchId, setSelectedMatchId] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const navigate = useNavigate()
 
-  useEffect(() => {
-    loadMatches();
-  }, []);
-
-  const loadMatches = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const [today, tomorrow] = await Promise.all([
-        footballDataService.getTodayFixtures(),
-        footballDataService.getTomorrowFixtures(),
-      ]);
-      
-      setTodayMatches(today);
-      setTomorrowMatches(tomorrow);
-    } catch (err) {
-      console.error('Failed to load matches:', err);
-      setError(describeError(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreatePrediction = (matchId: string) => {
-    // Navigate to create prediction page with match ID pre-filled
-    navigate(`/expert/predictions/create?matchId=${matchId}`);
-  };
-
-  // Filter matches based on search query and status
-  const filterMatches = (matches: Match[]) => {
-    // First, filter out finished matches (only show live and scheduled)
-    const filtered = filterLiveAndScheduledMatches(matches);
-
-    // Then apply search query filter
-    if (!searchQuery.trim()) return filtered;
-
-    const query = searchQuery.toLowerCase();
-    return filtered.filter(match =>
-      match.homeTeam.name.toLowerCase().includes(query) ||
-      match.awayTeam.name.toLowerCase().includes(query)
-    );
-  };
-
-  const filteredTodayMatches = filterMatches(todayMatches);
-  const filteredTomorrowMatches = filterMatches(tomorrowMatches);
-
-  const renderMatchCard = (match: Match) => {
-    const statusText = getMatchStatusText(match);
-    const statusClasses = getMatchStatusBadgeClasses(match);
-
-    return (
-      <div
-        key={match.id}
-        className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-      >
-        {/* Match Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center space-x-2">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              {match.league.name}
-            </span>
-            <span className="text-xs text-gray-400">•</span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {match.date} {match.time}
-            </span>
-          </div>
-          <span className={statusClasses}>
-            {statusText}
-          </span>
-        </div>
-
-      {/* Teams */}
-      <div className="grid grid-cols-3 gap-4 items-center mb-4">
-        {/* Home Team */}
-        <div className="text-center">
-          <img
-            src={match.homeTeam.logo}
-            alt={match.homeTeam.name}
-            className="w-12 h-12 mx-auto mb-2"
-            onError={onTeamLogoError}
-          />
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">
-            {match.homeTeam.name}
-          </p>
-        </div>
-
-        {/* VS or Live Score */}
-        <div className="text-center">
-          {match.result && (match.status === 'live' || match.status === 'halftime') ? (
-            <div>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {match.result.homeScore} - {match.result.awayScore}
-              </p>
-              {match.status === 'halftime' && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">HT</p>
-              )}
-            </div>
-          ) : (
-            <p className="text-lg font-bold text-gray-500 dark:text-gray-400">VS</p>
-          )}
-        </div>
-
-        {/* Away Team */}
-        <div className="text-center">
-          <img
-            src={match.awayTeam.logo}
-            alt={match.awayTeam.name}
-            className="w-12 h-12 mx-auto mb-2"
-            onError={onTeamLogoError}
-          />
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">
-            {match.awayTeam.name}
-          </p>
-        </div>
-      </div>
-
-      {/* Match Details */}
-      <div className="mb-4 text-xs text-gray-600 dark:text-gray-400">
-        <p>Venue: {match.venue}</p>
-        {match.round && <p>Round: {match.round}</p>}
-        <p className="mt-2">
-          {match.expertPrediction ? '👤 An expert prediction is already published' : match.providerForecast?.state === 'available' ? '🤖 Model forecast available' : 'No prediction yet'}
-        </p>
-        <p className="font-mono text-xs text-gray-500 mt-2 break-all">ID: {match.id}</p>
-        {match.provider && match.externalId && (
-          <p className="font-mono text-xs text-gray-500 break-all">{match.provider}: {match.externalId.includes(':') ? match.externalId.split(':').slice(1).join(':') : match.externalId}</p>
-        )}
-      </div>
-
-      {/* Action Button */}
-      <button
-        onClick={() => handleCreatePrediction(match.id)}
-        className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-      >
-        Create Prediction for This Match
-      </button>
-      </div>
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading matches...</p>
-        </div>
-      </div>
-    );
+  const openComposer = (match: Match) => {
+    navigate(`/expert/predictions/create?matchId=${encodeURIComponent(match.id)}`)
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <Link
-          to="/expert/dashboard"
-          className="text-blue-600 hover:text-blue-700 mb-4 inline-block"
-        >
-          ← Back to Dashboard
-        </Link>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Select Match for Prediction
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Choose a match from today's or tomorrow's fixtures to create your expert prediction
-        </p>
-      </div>
+    <div className="container mx-auto max-w-4xl px-4 py-8">
+      <Link to="/expert/dashboard" className="focus-ring mb-4 inline-flex items-center gap-1 text-sm text-primary-300 hover:text-primary-200">
+        <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" />
+        Back to dashboard
+      </Link>
 
-      {/* Error Message */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-          ⚠️ {error}
-        </div>
-      )}
+      <h1 className="text-2xl font-bold text-white sm:text-3xl">Choose a match</h1>
+      <p className="mt-1 text-sm text-secondary-300">
+        Pick the fixture you want to publish a view on. Your prediction goes live as soon as you press publish —
+        there is no approval step and nothing to wait for.
+      </p>
 
-      {/* Search Filter */}
-      <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-          🔍 Search Matches by Team Name
-        </h2>
-        <div className="flex gap-4">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Enter team name (e.g., Arsenal, Barcelona, etc.)"
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        {searchQuery && (
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Showing {filteredTodayMatches.length + filteredTomorrowMatches.length} matches for "{searchQuery}"
+      <FixturePicker
+        className="mt-6"
+        onChoose={openComposer}
+        actionLabel="Write a prediction"
+        heading={<>
+          <h2 className="text-sm font-semibold text-white">Fixtures</h2>
+          <p className="mt-1 text-xs text-secondary-400">
+            Filter by day, competition or team. Finished, postponed and cancelled fixtures are left out.
           </p>
-        )}
-      </div>
+        </>}
+      />
 
-      {/* Manual Match ID Input */}
-      <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-          Or Enter Match ID Manually
-        </h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Paste the internal match ID shown on a match card, or a fixture ID from the active data provider
-          (for example a Live Score API fixture id). Legacy API-Football fixture ids are still accepted.
-        </p>
-        <div className="flex gap-4">
-          <input
-            type="text"
-            value={selectedMatchId}
-            onChange={(e) => setSelectedMatchId(e.target.value)}
-            placeholder="Match ID (internal UUID or provider fixture id)"
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
-          />
-          <button
-            onClick={() => selectedMatchId && handleCreatePrediction(selectedMatchId)}
-            disabled={!selectedMatchId}
-            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Create Prediction
-          </button>
-        </div>
-      </div>
-
-      {/* Today's Matches */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-          Today's Matches ({filteredTodayMatches.length})
-        </h2>
-        {filteredTodayMatches.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
-            <p className="text-gray-600 dark:text-gray-400">
-              {searchQuery ? `No matches found for "${searchQuery}"` : 'No matches scheduled for today'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredTodayMatches.map(renderMatchCard)}
-          </div>
-        )}
-      </div>
-
-      {/* Tomorrow's Matches */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-          Tomorrow's Matches ({filteredTomorrowMatches.length})
-        </h2>
-        {filteredTomorrowMatches.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
-            <p className="text-gray-600 dark:text-gray-400">
-              {searchQuery ? `No matches found for "${searchQuery}"` : 'No matches scheduled for tomorrow'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredTomorrowMatches.map(renderMatchCard)}
-          </div>
-        )}
-      </div>
-
-      {/* Help Section */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-200 mb-2">
-          💡 How to Create Predictions
-        </h3>
-        <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800 dark:text-blue-300">
-          <li>Use the search box to filter matches by team name</li>
-          <li>Browse today's or tomorrow's matches below</li>
-          <li>Click "Create Prediction for This Match" on any match card</li>
-          <li>The match ID will be automatically filled in the prediction form</li>
-          <li>Enter your probabilities, confidence score, and reasoning</li>
-          <li>Publish your prediction — it goes live immediately on the public match pages</li>
+      <div className="card mt-6 p-4">
+        <h2 className="text-sm font-semibold text-white">How a prediction reaches readers</h2>
+        <ol className="mt-2 list-inside list-decimal space-y-1 text-xs text-secondary-300">
+          <li>Choose the fixture here.</li>
+          <li>Enter your percentages — type 55 for 55%, not 0.55 — and tick only the markets you want to publish.</li>
+          <li>Preview what readers will see, then publish.</li>
         </ol>
-        <p className="mt-4 text-sm text-blue-700 dark:text-blue-400">
-          <strong>Note:</strong> Expert predictions are shown separately from model forecasts and always take priority.
-          The match list only covers the configured competitions (Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League).
+        <p className="mt-3 text-xs text-secondary-400">
+          Expert predictions are shown separately from model forecasts and are never merged with them. A market you
+          leave out is shown as unavailable rather than as 0%. The fixture list covers the configured competitions only.
         </p>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default ExpertMatchSelectionPage;
-
+export default ExpertMatchSelectionPage

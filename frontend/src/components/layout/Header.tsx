@@ -14,13 +14,26 @@ import { NavItem } from '@/types'
 import { useAuth } from '@/hooks/useAuth'
 import SearchDropdown from './SearchDropdown'
 
+/**
+ * Top-level navigation.
+ *
+ * "Today" and "Tomorrow" used to be two separate entries here. They now resolve to the same
+ * matchday workspace with a different day preselected, and the workspace carries its own date
+ * strip, so a single "Matches" entry says what the section is without spending two of the four
+ * slots a phone has room for on two days of the same list. Both routes still exist and still work;
+ * they are simply not the way the header describes the section any more.
+ */
 const navigation: NavItem[] = [
   { name: 'Home', href: '/' },
-  { name: 'Today', href: '/predictions/today' },
-  { name: 'Tomorrow', href: '/predictions/tomorrow' },
+  { name: 'Matches', href: '/matches' },
   { name: 'Leagues', href: '/leagues' },
   { name: 'Dashboard', href: '/dashboard' },
 ]
+
+/** Other paths a nav entry is the home of, so the highlight follows the reader into them. */
+const ALSO_ACTIVE: Record<string, string[]> = {
+  '/matches': ['/predictions', '/match/'],
+}
 
 const Header: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -31,7 +44,8 @@ const Header: React.FC = () => {
     if (href === '/') {
       return location.pathname === '/'
     }
-    return location.pathname.startsWith(href)
+    if (location.pathname.startsWith(href)) return true
+    return (ALSO_ACTIVE[href] ?? []).some(prefix => location.pathname.startsWith(prefix))
   }
 
   const handleLogout = async () => {

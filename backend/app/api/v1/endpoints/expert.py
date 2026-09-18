@@ -3,6 +3,7 @@ Expert Endpoints
 Expert-specific API endpoints for prediction management
 """
 
+from types import SimpleNamespace
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -412,6 +413,10 @@ async def update_prediction(
     ARCHIVED predictions stay editable as well: an edit keeps the current status and published_at and
     only refreshes updated_at. REJECTED predictions cannot be edited.
 
+    The version an edit replaces is preserved as an append-only revision in
+    `predictions.prediction_audit` and is exposed on the match payload, so a correction never makes
+    the earlier published view disappear - not even a correction made after kickoff.
+
     **Request Body**:
     - home_win_prob: Home win probability (0-1)
     - draw_prob: Draw probability (0-1)
@@ -426,15 +431,28 @@ async def update_prediction(
     audit_service = PredictionAuditService(db)
 
     try:
-        prediction = expert_service.update_prediction(prediction_id, update_data, current_user)
+        prediction, revision = expert_service.update_prediction_with_revision(
+            prediction_id, update_data, current_user)
 
-        # Log audit trail (using override method for updates)
-        # TODO: Add dedicated log_prediction_updated method to audit service
+        # The durable record of the edit is `revision`: an append-only row in
+        # predictions.prediction_audit holding the full previous version and its timestamps.
+        # The operational audit log gets an entry too, and it now carries the values that were
+        # actually replaced. It used to be passed the same (already updated) prediction as both the
+        # original and the override, so it recorded the new probabilities as the old ones - an audit
+        # entry asserting that nothing had changed. `previous` is a read-only view of the preserved
+        # values, deliberately not an ORM object: nothing here may be written back to the database.
+        old = revision.old_values or {}
+        previous = SimpleNamespace(
+            id=prediction.id, match_id=prediction.match_id, source=prediction.source,
+            home_win_prob=old.get("home_win_prob", prediction.home_win_prob),
+            draw_prob=old.get("draw_prob", prediction.draw_prob),
+            away_win_prob=old.get("away_win_prob", prediction.away_win_prob),
+        )
         audit_service.log_prediction_override(
-            original_prediction=prediction,
+            original_prediction=previous,
             override_prediction=prediction,
             user=current_user,
-            reason="Expert updated their own prediction"
+            reason=f"Expert edited their own prediction (previous version preserved as revision {revision.id})"
         )
 
         # Enrich with details

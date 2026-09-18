@@ -1,3 +1,16 @@
+// Modules added alongside this file, re-exported here so `@/types` stays the single entry point.
+// Type-only re-exports: nothing at runtime, and `isolatedModules` stays satisfied.
+// Added, never renamed — every existing export below keeps its name and shape.
+import type { MatchBrief, MatchBriefCompact } from './brief';
+import type { ExpertPredictionRevision } from './revisions';
+
+/** The evidence brief for one match (src/types/brief.ts). */
+export type * from './brief';
+/** Preserved earlier versions of an edited expert prediction (src/types/revisions.ts). */
+export type * from './revisions';
+/** Followed teams/leagues and saved matches (src/types/favourites.ts). */
+export type * from './favourites';
+
 // Core Entity Types
 export interface Team {
   id: string;
@@ -71,6 +84,22 @@ export interface Match {
   externalId?: string | null;
   minute?: string | null;
   lastSyncedAt?: string | null;
+  /**
+   * The compact evidence brief carried on every fixture in a list payload.
+   *
+   * Undefined means the payload predates the brief (or came from the legacy API-Football source),
+   * NOT that the brief is empty — treat it as "not supplied here" and fall back to `predictions`.
+   * See src/types/brief.ts.
+   */
+  briefCompact?: MatchBriefCompact | null;
+  /** The full brief. Only the match-detail endpoint supplies it; undefined in every list. */
+  brief?: MatchBrief | null;
+  /**
+   * Preserved earlier versions of the published expert predictions on this fixture, oldest first.
+   * Only the match-detail endpoint supplies them. An empty array means "never edited"; undefined
+   * means "this payload does not carry the history".
+   */
+  expertPredictionRevisions?: ExpertPredictionRevision[];
 }
 
 /** Availability of a provider forecast; anything but "available" must be shown as such. */

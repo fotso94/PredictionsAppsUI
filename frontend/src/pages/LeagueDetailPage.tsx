@@ -1,15 +1,70 @@
 import React, { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { League, Team, Match, LeagueStanding } from '@/types'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
-import { Badge } from '@/components/ui/Badge'
-import MatchCard from '@/components/ui/MatchCard'
+import EmptyState from '@/components/ui/EmptyState'
+import FixtureRow from '@/components/ui/FixtureRow'
+import FollowButton from '@/components/favourites/FollowButton'
+import useMatchSaving from '@/components/favourites/useMatchSaving'
 import { footballDataService } from '@/services/football-data.service'
-import { describeError } from '@/services/backend-match-data.service'
-import { localDateString } from '@/services/match-data-source'
+import apiClient from '@/services/api-client'
+import { ApiMatch, describeError, mapApiMatch } from '@/services/backend-match-data.service'
+import { configuredDataSource, localDateString } from '@/services/match-data-source'
 import { onTeamLogoError, onLeagueLogoError } from '@/components/ui/imageFallback'
+
+/**
+ * One competition: standings, its teams, and its next fixtures.
+ *
+ * TWO THINGS ARE DELIBERATE HERE.
+ *
+ * 1. THE FIXTURE READ ASKS FOR STORED DATA ONLY.
+ *    `GET /api/v1/leagues/{id}/matches` defaults to `refresh=true`, and the backend then calls the
+ *    fixture provider (`MatchDataService.sync_upcoming`). `footballDataService.getFixturesByLeague()`
+ *    sends no refresh parameter, so every visit to a league page spent provider allowance on a read
+ *    that only needed the rows we already hold. The signature on `MatchDataSource` takes no
+ *    `MatchReadOptions` for this call, and src/services/** belongs to another package, so the read
+ *    is issued here with `refresh=false` until it does. Reported for that owner.
+ *    The legacy browser-side API-Football source keeps its own path unchanged.
+ *
+ * 2. THE TEAM LIST IS DERIVED FROM WHAT WE ALREADY FETCHED.
+ *    `getTeamsByLeague()` falls back to `getFixturesByLeague()` when a competition has no standings,
+ *    which would reintroduce exactly the refreshing read point 1 avoids. The same teams are already
+ *    present in the standings and the fixtures we have in hand, so they are collected from those.
+ *
+ * A partial failure no longer replaces the page. Standings, teams and fixtures degrade
+ * independently; losing one of them is a note above the sections that did load, not an error screen
+ * standing in front of data we actually have.
+ */
+
+/** Minutes east of UTC, the sign the backend's `tz_offset` expects (`-getTimezoneOffset()`). */
+const timezoneOffsetMinutes = (): number => -new Date().getTimezoneOffset()
+
+/** League fixtures without asking the backend to refresh from a provider. See note 1 above. */
+async function storedLeagueFixtures(leagueId: string): Promise<Match[]> {
+  if (configuredDataSource() !== 'backend') {
+    return footballDataService.getFixturesByLeague(leagueId)
+  }
+  const { data } = await apiClient.get<{ matches: ApiMatch[] }>(
+    `/api/v1/leagues/${encodeURIComponent(leagueId)}/matches`,
+    { params: { days_ahead: 14, days_back: 7, refresh: false, tz_offset: timezoneOffsetMinutes() } },
+  )
+  return (data.matches ?? []).map(mapApiMatch)
+}
+
+/** The teams of a competition, taken from the rows already loaded rather than a second request. */
+function teamsFrom(standings: LeagueStanding[], matches: Match[]): Team[] {
+  const teams = new Map<string, Team>()
+  standings.forEach(row => { if (row.team.id) teams.set(row.team.id, row.team) })
+  if (teams.size === 0) {
+    matches.forEach(match => {
+      if (match.homeTeam.id) teams.set(match.homeTeam.id, match.homeTeam)
+      if (match.awayTeam.id) teams.set(match.awayTeam.id, match.awayTeam)
+    })
+  }
+  return Array.from(teams.values()).sort((a, b) => a.name.localeCompare(b.name))
+}
 
 const LeagueDetailPage: React.FC = () => {
   // Support both route patterns: /league/:id and /leagues/:leagueId
@@ -21,74 +76,82 @@ const LeagueDetailPage: React.FC = () => {
   const [matches, setMatches] = useState<Match[]>([])
   const [standings, setStandings] = useState<LeagueStanding[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [usingMockData, setUsingMockData] = useState(false)
+  /** The competition itself could not be loaded: there is no page to show. */
+  const [fatalError, setFatalError] = useState<string | null>(null)
+  /** Some sections are missing. The rest of the page is still real and still shown. */
+  const [partialError, setPartialError] = useState<string | null>(null)
+
+  const saving = useMatchSaving()
 
   useEffect(() => {
+    let cancelled = false
     async function fetchLeagueData() {
       if (!leagueIdParam) return
 
       try {
         setLoading(true)
-        setError(null)
+        setFatalError(null)
+        setPartialError(null)
         const foundLeague = await footballDataService.getLeague(leagueIdParam)
 
+        if (cancelled) return
         if (!foundLeague) {
-          setError('League not found')
+          setFatalError('League not found')
           setLoading(false)
           return
         }
 
         setLeague(foundLeague)
 
-        // Standings, teams and calendar in parallel; each degrades independently
-        const [standingsResult, teamsResult, matchesResult] = await Promise.allSettled([
+        // Standings and calendar in parallel; each degrades independently.
+        const [standingsResult, matchesResult] = await Promise.allSettled([
           footballDataService.getStandings(foundLeague.id),
-          footballDataService.getTeamsByLeague(foundLeague.id),
-          footballDataService.getFixturesByLeague(foundLeague.id),
+          storedLeagueFixtures(foundLeague.id),
         ])
+        if (cancelled) return
+
         const standingsData = standingsResult.status === 'fulfilled' ? standingsResult.value : []
-        const teamsData = teamsResult.status === 'fulfilled' ? teamsResult.value : []
         const matchesData = matchesResult.status === 'fulfilled' ? matchesResult.value : []
-        const failures = [standingsResult, teamsResult, matchesResult].filter(r => r.status === 'rejected')
-        if (failures.length === 3) {
-          throw (failures[0] as PromiseRejectedResult).reason
+        if (standingsResult.status === 'rejected' && matchesResult.status === 'rejected') {
+          throw standingsResult.reason
         }
-        if (failures.length > 0) {
-          setError('Some league data could not be loaded right now.')
+        if (standingsResult.status === 'rejected') {
+          setPartialError('The standings table could not be loaded, so it is not shown.')
+        } else if (matchesResult.status === 'rejected') {
+          setPartialError('The fixture list could not be loaded, so it is not shown.')
         }
 
-        // Upcoming matches first (today onwards), oldest first
+        // Upcoming matches first (today onwards), earliest first
         const today = localDateString(0)
         const upcomingMatches = matchesData
           .filter(match => match.date >= today && match.status !== 'finished')
           .sort((a, b) => (a.kickoffUtc || a.date).localeCompare(b.kickoffUtc || b.date))
 
-        setTeams(teamsData)
         setStandings(standingsData)
         setMatches(upcomingMatches)
-        setUsingMockData(false)
+        setTeams(teamsFrom(standingsData, matchesData))
       } catch (err) {
         console.error('Error fetching league data:', err)
-        setError(describeError(err))
+        if (cancelled) return
+        setFatalError(describeError(err))
         setTeams([])
         setStandings([])
         setMatches([])
-        setUsingMockData(false)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     fetchLeagueData()
+    return () => { cancelled = true }
   }, [leagueIdParam])
 
   if (loading) {
     return (
       <div className="min-h-screen bg-dark-950 py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+          <div className="py-12 text-center">
+            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-primary-500"></div>
             <div className="text-secondary-400">Loading league details...</div>
           </div>
         </div>
@@ -100,10 +163,10 @@ const LeagueDetailPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-dark-950 py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-12">
-            <h1 className="text-2xl font-bold text-white mb-4">League Not Found</h1>
+          <div className="py-12 text-center">
+            <h1 className="mb-4 text-2xl font-bold text-white">League Not Found</h1>
             <p className="text-secondary-400">The requested league could not be found.</p>
-            {error && <p className="text-red-400 mt-2">Error: {error}</p>}
+            {fatalError && <p className="mt-2 text-danger-300">{fatalError}</p>}
           </div>
         </div>
       </div>
@@ -114,59 +177,86 @@ const LeagueDetailPage: React.FC = () => {
     <>
       <Helmet>
         <title>{league.name} - Soccer Predictions</title>
-        <meta name="description" content={`${league.name} predictions, standings, and match analysis for the ${league.season} season.`} />
+        <meta name="description" content={`${league.name} standings, fixtures and published forecasts for the ${league.season} season.`} />
       </Helmet>
 
       <div className="min-h-screen bg-dark-950 py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          {/* League Header */}
-          <div className="mb-8">
-            <div className="flex items-center space-x-4 mb-4">
-              <img
-                src={league.logo}
-                alt={league.name}
-                className="h-16 w-16 object-contain"
-                onError={onLeagueLogoError}
-              />
-              <div>
-                <h1 className="text-3xl font-bold text-white">{league.name}</h1>
-                <p className="text-secondary-400">{league.country}{league.season ? ` • ${league.season}` : ''}</p>
-              </div>
+          {/* League header, with the follow control for the competition itself. */}
+          <div className="mb-8 flex flex-wrap items-center gap-4">
+            <img
+              src={league.logo}
+              alt=""
+              aria-hidden="true"
+              className="h-16 w-16 object-contain"
+              onError={onLeagueLogoError}
+            />
+            <div className="min-w-0 flex-1">
+              <h1 className="text-3xl font-bold text-white">{league.name}</h1>
+              <p className="text-secondary-400">{league.country}{league.season ? ` • ${league.season}` : ''}</p>
             </div>
-            {usingMockData && (
-              <Badge variant="warning">⚠️ Using Mock Data - Limited Information Available</Badge>
-            )}
+            <FollowButton kind="league" id={league.id} name={league.name} showCount />
           </div>
 
-          {/* Error State */}
-          {error && !usingMockData ? (
+          {fatalError ? (
             <Card>
               <Card.Body>
-                <div className="text-center py-12">
-                  <div className="text-red-400 mb-4">❌ {error}</div>
-                  <Button onClick={() => window.location.reload()}>Retry</Button>
-                </div>
-              </Card.Body>
-            </Card>
-          ) : usingMockData ? (
-            /* Mock Data State */
-            <Card>
-              <Card.Body>
-                <div className="text-center py-12">
-                  <h3 className="text-xl font-semibold text-white mb-4">Limited Data Available</h3>
-                  <p className="text-secondary-400">
-                    Detailed league information, standings, and fixtures are not available in mock mode.
-                  </p>
-                  <p className="text-secondary-500 mt-2 text-sm">
-                    Please ensure the API is properly configured to view full league details.
-                  </p>
-                </div>
+                <EmptyState
+                  variant="inline"
+                  tone="failed"
+                  title="This competition could not be loaded."
+                  description={fatalError}
+                  action={<Button onClick={() => window.location.reload()}>Try again</Button>}
+                />
               </Card.Body>
             </Card>
           ) : (
-            /* Real Data Display */
             <div className="space-y-8">
-              {/* Standings Section */}
+              {partialError && (
+                <p role="status" className="rounded-lg border border-dark-700 bg-dark-900/60 px-4 py-3 text-sm text-warning-200">
+                  {partialError}
+                </p>
+              )}
+
+              {/* Fixtures come first: the matches are what the page is for. */}
+              <section aria-labelledby="league-fixtures">
+                <h2 id="league-fixtures" className="mb-4 text-xl font-semibold text-white">
+                  Upcoming matches
+                  {matches.length > 0 && <span className="num ml-2 text-sm font-normal text-secondary-400">{matches.length}</span>}
+                </h2>
+                {matches.length === 0 ? (
+                  <EmptyState
+                    tone="empty"
+                    title="No upcoming fixtures are stored for this competition."
+                    description="Nothing is scheduled in the next two weeks in the data we hold."
+                    data-testid="league-no-fixtures"
+                  />
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-dark-800 bg-dark-900/40">
+                    {matches.map(match => (
+                      <FixtureRow
+                        key={match.id}
+                        match={match}
+                        // Inside a page already headed by the competition, repeating its name on
+                        // every row is noise.
+                        showCompetition={false}
+                        saved={saving.isSaved(match.id)}
+                        savePending={saving.isPending(match.id)}
+                        onToggleSave={(matchId, next) => saving.toggleSave(matchId, next, match)}
+                        signedIn={saving.signedIn}
+                        onRequireSignIn={saving.requireSignIn}
+                      />
+                    ))}
+                  </div>
+                )}
+                {saving.signedIn && saving.failed && (
+                  <p className="mt-2 text-xs text-warning-200">
+                    We could not load your saved matches, so the save control cannot show which of
+                    these you have already saved.
+                  </p>
+                )}
+              </section>
+
               {standings.length > 0 && (
                 <Card>
                   <Card.Header>
@@ -177,41 +267,42 @@ const LeagueDetailPage: React.FC = () => {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-dark-700">
-                            <th className="text-left py-3 px-2 text-secondary-400 font-medium">#</th>
-                            <th className="text-left py-3 px-2 text-secondary-400 font-medium">Team</th>
-                            <th className="text-center py-3 px-2 text-secondary-400 font-medium">P</th>
-                            <th className="text-center py-3 px-2 text-secondary-400 font-medium">W</th>
-                            <th className="text-center py-3 px-2 text-secondary-400 font-medium">D</th>
-                            <th className="text-center py-3 px-2 text-secondary-400 font-medium">L</th>
-                            <th className="text-center py-3 px-2 text-secondary-400 font-medium">GF</th>
-                            <th className="text-center py-3 px-2 text-secondary-400 font-medium">GA</th>
-                            <th className="text-center py-3 px-2 text-secondary-400 font-medium">GD</th>
-                            <th className="text-center py-3 px-2 text-secondary-400 font-medium">Pts</th>
+                            <th className="px-2 py-3 text-left font-medium text-secondary-400">#</th>
+                            <th className="px-2 py-3 text-left font-medium text-secondary-400">Team</th>
+                            <th className="px-2 py-3 text-center font-medium text-secondary-400">P</th>
+                            <th className="px-2 py-3 text-center font-medium text-secondary-400">W</th>
+                            <th className="px-2 py-3 text-center font-medium text-secondary-400">D</th>
+                            <th className="px-2 py-3 text-center font-medium text-secondary-400">L</th>
+                            <th className="px-2 py-3 text-center font-medium text-secondary-400">GF</th>
+                            <th className="px-2 py-3 text-center font-medium text-secondary-400">GA</th>
+                            <th className="px-2 py-3 text-center font-medium text-secondary-400">GD</th>
+                            <th className="px-2 py-3 text-center font-medium text-secondary-400">Pts</th>
                           </tr>
                         </thead>
                         <tbody>
                           {standings.map((standing) => (
-                            <tr key={standing.team.id} className="border-b border-dark-800 hover:bg-dark-800 transition-colors">
-                              <td className="py-3 px-2 text-white font-medium">{standing.position}</td>
-                              <td className="py-3 px-2">
+                            <tr key={standing.team.id} className="border-b border-dark-800 transition-colors hover:bg-dark-800">
+                              <td className="num px-2 py-3 font-medium text-white">{standing.position}</td>
+                              <td className="px-2 py-3">
                                 <div className="flex items-center space-x-2">
                                   <img
                                     src={standing.team.logo}
-                                    alt={standing.team.name}
+                                    alt=""
+                                    aria-hidden="true"
                                     className="h-6 w-6 object-contain"
                                     onError={onTeamLogoError}
                                   />
                                   <span className="text-white">{standing.team.name}</span>
                                 </div>
                               </td>
-                              <td className="text-center py-3 px-2 text-secondary-300">{standing.matchesPlayed}</td>
-                              <td className="text-center py-3 px-2 text-green-400">{standing.wins}</td>
-                              <td className="text-center py-3 px-2 text-yellow-400">{standing.draws}</td>
-                              <td className="text-center py-3 px-2 text-red-400">{standing.losses}</td>
-                              <td className="text-center py-3 px-2 text-secondary-300">{standing.goalsFor}</td>
-                              <td className="text-center py-3 px-2 text-secondary-300">{standing.goalsAgainst}</td>
-                              <td className="text-center py-3 px-2 text-secondary-300">{standing.goalDifference > 0 ? '+' : ''}{standing.goalDifference}</td>
-                              <td className="text-center py-3 px-2 text-white font-bold">{standing.points}</td>
+                              <td className="num px-2 py-3 text-center text-secondary-300">{standing.matchesPlayed}</td>
+                              <td className="num px-2 py-3 text-center text-success-300">{standing.wins}</td>
+                              <td className="num px-2 py-3 text-center text-warning-200">{standing.draws}</td>
+                              <td className="num px-2 py-3 text-center text-danger-300">{standing.losses}</td>
+                              <td className="num px-2 py-3 text-center text-secondary-300">{standing.goalsFor}</td>
+                              <td className="num px-2 py-3 text-center text-secondary-300">{standing.goalsAgainst}</td>
+                              <td className="num px-2 py-3 text-center text-secondary-300">{standing.goalDifference > 0 ? '+' : ''}{standing.goalDifference}</td>
+                              <td className="num px-2 py-3 text-center font-bold text-white">{standing.points}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -221,54 +312,39 @@ const LeagueDetailPage: React.FC = () => {
                 </Card>
               )}
 
-              {/* Teams Section */}
               {teams.length > 0 && (
                 <Card>
                   <Card.Header>
                     <h2 className="text-xl font-semibold text-white">Teams ({teams.length})</h2>
                   </Card.Header>
                   <Card.Body>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       {teams.map(team => (
-                        <div key={team.id} className="flex items-center space-x-3 p-3 rounded-lg bg-dark-800 hover:bg-dark-700 transition-colors">
+                        <li key={team.id} className="flex items-center gap-3 rounded-lg bg-dark-800 px-3 py-2 transition-colors hover:bg-dark-700">
                           <img
                             src={team.logo}
-                            alt={team.name}
-                            className="h-8 w-8 object-contain"
+                            alt=""
+                            aria-hidden="true"
+                            className="h-8 w-8 flex-shrink-0 object-contain"
                             onError={onTeamLogoError}
                           />
-                          <span className="text-sm text-white truncate">{team.name}</span>
-                        </div>
+                          <Link to={`/teams/${team.id}`} className="focus-ring min-w-0 flex-1 truncate rounded text-sm text-white hover:underline">
+                            {team.name}
+                          </Link>
+                          <FollowButton kind="team" id={team.id} name={team.name} variant="icon" size="sm" />
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </Card.Body>
                 </Card>
               )}
 
-              {/* Upcoming Matches Section */}
-              {matches.length > 0 && (
-                <div>
-                  <h2 className="text-xl font-semibold text-white mb-4">Upcoming Matches</h2>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {matches.map(match => (
-                      <MatchCard key={match.id} match={match} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* No Data State */}
-              {teams.length === 0 && matches.length === 0 && (
-                <Card>
-                  <Card.Body>
-                    <div className="text-center py-12">
-                      <h3 className="text-xl font-semibold text-white mb-4">No Data Available</h3>
-                      <p className="text-secondary-400">
-                        No teams or fixtures found for this league at the moment.
-                      </p>
-                    </div>
-                  </Card.Body>
-                </Card>
+              {teams.length === 0 && matches.length === 0 && !partialError && (
+                <EmptyState
+                  tone="empty"
+                  title="No teams or fixtures are stored for this competition."
+                  description="Nothing has been loaded for it yet."
+                />
               )}
             </div>
           )}

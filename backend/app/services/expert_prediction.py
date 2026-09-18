@@ -5,7 +5,7 @@ Handles expert prediction creation, overrides, and management.
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Iterable, List, Optional, Dict, Any, Tuple
 from datetime import datetime
 from decimal import Decimal
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ import uuid
 
 from app.models.predictions import (
     Prediction,
+    PredictionAudit,
     PredictionSource,
     PredictionStatus,
     PredictionOverride,
@@ -22,6 +23,7 @@ from app.models.predictions import (
     League
 )
 from app.models.users import User
+from app.schemas.matches import iso_utc
 from app.schemas.predictions import (
     ExpertPredictionCreate,
     ExpertPredictionOverride,
@@ -30,6 +32,57 @@ from app.schemas.predictions import (
 from app.services.prediction_cache import PredictionCacheService
 
 logger = logging.getLogger(__name__)
+
+#: `action` written on the append-only revision rows in predictions.prediction_audit. Editing a
+#: published prediction rewrites the live row, so without this the version readers saw before the
+#: correction would be gone for good.
+REVISION_ACTION = "updated"
+
+#: The values that make up a published expert view. A revision preserves all of them, so an earlier
+#: version can be read back in full rather than inferred from a diff.
+REVISION_VALUE_FIELDS: Tuple[str, ...] = (
+    "home_win_prob", "draw_prob", "away_win_prob", "confidence_score",
+    "btts_yes_prob", "btts_no_prob", "btts_confidence",
+    "total_goals_over_25_prob", "total_goals_under_25_prob",
+    "total_goals_over_35_prob", "total_goals_under_35_prob", "total_goals_confidence",
+)
+
+
+def _decimal_to_float(value) -> Optional[float]:
+    return float(value) if value is not None else None
+
+
+def prediction_snapshot(prediction: Prediction) -> Dict[str, Any]:
+    """Every published value of one prediction, as JSON, with the times that version carried.
+
+    Stored on both sides of an edit so the earlier version stays retrievable with its own
+    ``published_at`` - "this is what was on screen, and this is when" - rather than only as a
+    description of what changed.
+    """
+    metadata = prediction.prediction_metadata or {}
+    snapshot: Dict[str, Any] = {
+        name: _decimal_to_float(getattr(prediction, name)) for name in REVISION_VALUE_FIELDS}
+    snapshot.update({
+        "reasoning": prediction.reasoning,
+        "key_factors": metadata.get("key_factors"),
+        "status": prediction.status.value if hasattr(prediction.status, "value") else str(prediction.status),
+        "published_at": iso_utc(prediction.published_at),
+        "created_at": iso_utc(prediction.created_at),
+        "updated_at": iso_utc(prediction.updated_at),
+    })
+    return snapshot
+
+
+def _changes_summary(old: Dict[str, Any], new: Dict[str, Any]) -> str:
+    """Human-readable list of what the edit changed. Empty string when nothing of substance did."""
+    changed = []
+    for name in REVISION_VALUE_FIELDS + ("reasoning", "key_factors"):
+        if old.get(name) != new.get(name):
+            if name in ("reasoning", "key_factors"):
+                changed.append(f"{name} changed")
+            else:
+                changed.append(f"{name} {old.get(name)} -> {new.get(name)}")
+    return "; ".join(changed)
 
 
 class ExpertPredictionService:
@@ -217,31 +270,54 @@ class ExpertPredictionService:
         )
         
         self.db.add(override_prediction)
-        
+        # Flush before pointing the original at it: predictions.superseded_by is a foreign key, so
+        # the new row has to exist first. Without this the UPDATE can be emitted ahead of the INSERT
+        # and Postgres rejects it.
+        self.db.flush()
+
         # Mark original prediction as superseded
         original_prediction.superseded_by = override_prediction.id
         
-        # Create override record for audit trail
+        # Create override record for audit trail.
+        #
+        # This block used to pass original_prediction_id, override_prediction_id, overridden_by and
+        # override_metadata, none of which are columns on PredictionOverride. SQLAlchemy raised
+        # TypeError on every call, the endpoint's own except turned it into a 400 "Failed to create
+        # override", and the API test mocks the service, so the endpoint could never have worked and
+        # nothing said so. The kwargs below are the model's actual columns.
+        from app.core.config import settings
+        from app.core.deps import ensure_expert_profile
+
+        profile = ensure_expert_profile(self.db, expert_user, verified=bool(settings.EXPERT_DIRECT_PUBLISH))
+        original_confidence = (Decimal(str(original_prediction.confidence_score))
+                               if original_prediction.confidence_score is not None else None)
+        new_confidence = Decimal(str(data.confidence_score)) if data.confidence_score is not None else Decimal("0")
         override_record = PredictionOverride(
             id=uuid.uuid4(),
-            original_prediction_id=original_prediction.id,
-            override_prediction_id=override_prediction.id,
-            overridden_by=expert_user.id,
+            # the resulting expert prediction; original_prediction is reachable from its
+            # prediction_metadata["original_prediction_id"] and from original.superseded_by
+            prediction_id=override_prediction.id,
+            expert_user_id=expert_user.id,
+            expert_profile_id=profile.id,
+            original_probabilities={
+                "home_win": float(original_prediction.home_win_prob) if original_prediction.home_win_prob is not None else None,
+                "draw": float(original_prediction.draw_prob) if original_prediction.draw_prob is not None else None,
+                "away_win": float(original_prediction.away_win_prob) if original_prediction.away_win_prob is not None else None,
+                "prediction_id": str(original_prediction.id),
+                "source": original_prediction.source.value if hasattr(original_prediction.source, "value") else str(original_prediction.source),
+            },
+            original_confidence=original_confidence,
+            new_probabilities={
+                "home_win": data.home_win_prob,
+                "draw": data.draw_prob,
+                "away_win": data.away_win_prob,
+            },
+            new_confidence=new_confidence,
+            confidence_adjustment=(new_confidence - original_confidence) if original_confidence is not None else None,
             override_reason=data.reasoning,
-            override_metadata={
-                "original_probabilities": {
-                    "home_win": float(original_prediction.home_win_prob),
-                    "draw": float(original_prediction.draw_prob),
-                    "away_win": float(original_prediction.away_win_prob),
-                },
-                "new_probabilities": {
-                    "home_win": data.home_win_prob,
-                    "draw": data.draw_prob,
-                    "away_win": data.away_win_prob,
-                },
-            }
+            key_insights=data.key_factors or None,
         )
-        
+
         self.db.add(override_record)
         self.db.commit()
         self.db.refresh(override_prediction)
@@ -456,11 +532,29 @@ class ExpertPredictionService:
         data: ExpertPredictionUpdate,
         expert_user: User
     ) -> Prediction:
+        """Update one of the expert's own predictions. See `update_prediction_with_revision`."""
+        prediction, _revision = self.update_prediction_with_revision(prediction_id, data, expert_user)
+        return prediction
+
+    def update_prediction_with_revision(
+        self,
+        prediction_id: str,
+        data: ExpertPredictionUpdate,
+        expert_user: User
+    ) -> Tuple[Prediction, PredictionAudit]:
         """
-        Update one of the expert's own predictions.
+        Update one of the expert's own predictions, preserving the version being replaced.
 
         Experts publish directly, so a PUBLISHED (or ARCHIVED) prediction stays editable; the edit
         keeps the current status and published_at and only refreshes updated_at.
+
+        An edit used to overwrite the live row and leave nothing behind: the prediction readers had
+        already seen simply stopped existing, and the endpoint's audit entry recorded the *new*
+        values as both the old and the new ones. A correction must append, not rewrite, so the
+        values being replaced are written first to predictions.prediction_audit - the table that was
+        built for exactly this and had never received a row - and the edit then proceeds. The
+        earlier version stays retrievable with its own timestamp afterwards, including when the edit
+        is made after kickoff.
 
         Args:
             prediction_id: Prediction ID
@@ -468,7 +562,7 @@ class ExpertPredictionService:
             expert_user: Expert user updating the prediction
 
         Returns:
-            Updated prediction
+            (updated prediction, the appended revision holding the previous version)
 
         Raises:
             ValueError: If prediction not found, not owned by user, or not editable
@@ -499,6 +593,9 @@ class ExpertPredictionService:
                 f"Cannot edit prediction with status {prediction.status}. "
                 f"Editable statuses: {', '.join(s.value for s in editable_statuses)}."
             )
+
+        # Captured BEFORE anything is written: once the row is mutated the previous view is gone.
+        previous_values = prediction_snapshot(prediction)
 
         # Update Match Outcome fields
         prediction.home_win_prob = Decimal(str(data.home_win_prob))
@@ -538,17 +635,59 @@ class ExpertPredictionService:
 
         # Only updated_at moves: status and published_at are left exactly as they were, so editing a
         # published prediction does not unpublish it or restamp its publication time.
-        prediction.updated_at = datetime.utcnow()
+        edited_at = datetime.utcnow()
+        prediction.updated_at = edited_at
+
+        new_values = prediction_snapshot(prediction)
+        revision = PredictionAudit(
+            id=uuid.uuid4(),
+            prediction_id=prediction.id,
+            user_id=expert_user.id,
+            action=REVISION_ACTION,
+            action_description=(f"Expert {expert_user.id} edited prediction {prediction.id}; "
+                                f"the version it replaced is preserved here"),
+            old_values=previous_values,
+            new_values=new_values,
+            changes_summary=_changes_summary(previous_values, new_values),
+            # created_at is set explicitly so the revision carries the moment of the edit rather
+            # than whatever the flush order happens to produce.
+            created_at=edited_at,
+            updated_at=edited_at,
+        )
+        # Appended, never updated in place: a second correction adds a second row, so every earlier
+        # published version survives every later edit.
+        self.db.add(revision)
 
         self.db.commit()
         self.db.refresh(prediction)
+        self.db.refresh(revision)
 
-        logger.info(f"Updated prediction {prediction_id} (status {prediction.status}) by expert {expert_user.id}")
+        logger.info(f"Updated prediction {prediction_id} (status {prediction.status}) by expert {expert_user.id}; "
+                    f"previous version preserved as revision {revision.id}")
 
         # Invalidate cache
         self._invalidate_match_cache(str(prediction.match_id))
 
-        return prediction
+        return prediction, revision
+
+    def revisions_for(self, prediction_ids: Iterable) -> Dict[Any, List[PredictionAudit]]:
+        """Preserved earlier versions per prediction, oldest first.
+
+        One query for the whole set, so a payload that lists several predictions does not turn into
+        a query per prediction. Ties on the edit time are broken by id so the order a reader sees
+        never changes between two identical requests.
+        """
+        ids = [pid for pid in prediction_ids if pid is not None]
+        if not ids:
+            return {}
+        rows = self.db.query(PredictionAudit).filter(
+            PredictionAudit.prediction_id.in_(ids),
+            PredictionAudit.action == REVISION_ACTION,
+        ).order_by(PredictionAudit.created_at.asc(), PredictionAudit.id.asc()).all()
+        grouped: Dict[Any, List[PredictionAudit]] = {}
+        for row in rows:
+            grouped.setdefault(row.prediction_id, []).append(row)
+        return grouped
 
     def delete_prediction(
         self,

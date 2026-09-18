@@ -11,9 +11,13 @@
  */
 
 import apiClient from './api-client';
-import { ConfidenceLevel, ForecastAnomaly, HeadToHead, League, LeagueStanding, Match, MatchPredictions, MatchStatus, Team } from '@/types';
 import {
-  CoverageSummary, DataSourceMeta, ForecastSyncStatus, MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage,
+  ConfidenceLevel, ExpertPredictionRevision, ForecastAnomaly, HeadToHead, League, LeagueStanding,
+  Match, MatchBrief, MatchBriefCompact, MatchPredictions, MatchStatus, Team,
+} from '@/types';
+import {
+  CoverageSummary, DataSourceMeta, ForecastSyncStatus, MatchDataSource, MatchListResult, MatchReadOptions,
+  ProviderStatus, SearchResults, TeamPage,
   localDateString, localDayOffsets, timezoneOffsetMinutes,
 } from './match-data-source';
 import { getErrorMessage, getErrorStatus } from '@/utils/errors';
@@ -98,6 +102,15 @@ export interface ApiForecast {
   markets_available: { match_result: boolean; btts: boolean; over_under_25: boolean; over_under_35: boolean; exact_score: boolean };
 }
 
+/**
+ * The compact brief the backend attaches to every fixture in a list payload, and the full brief
+ * the detail endpoint adds. Typed in src/types/brief.ts; carried here verbatim so nothing is lost
+ * between the wire and the UI. Optional because a payload from before the brief landed (or from
+ * the legacy API-Football source) simply does not have one.
+ */
+export type ApiMatchBriefCompact = MatchBriefCompact;
+export type ApiMatchBrief = MatchBrief;
+
 export interface ApiMatch {
   id: string;
   provider: string | null;
@@ -117,6 +130,12 @@ export interface ApiMatch {
   forecast: ApiForecast | null;
   forecast_state: 'available' | 'stale' | 'kickoff_passed' | 'unavailable';
   last_synced_at: string | null;
+  /** Present on every fixture in a list payload; absent on payloads from before the brief landed. */
+  brief_compact?: ApiMatchBriefCompact | null;
+  /** Only the match-detail endpoint supplies the full brief. */
+  brief?: ApiMatchBrief | null;
+  /** Only the match-detail endpoint supplies the preserved earlier versions. */
+  expert_prediction_revisions?: ExpertPredictionRevision[];
   provider_refs?: { provider: string; external_id: string; confidence: string | null; matched_by: string | null }[];
 }
 
@@ -380,6 +399,14 @@ export function mapApiMatch(match: ApiMatch): Match {
     externalId: match.external_id,
     minute: match.minute,
     lastSyncedAt: match.last_synced_at,
+    // Carried through untouched. The brief is already the finished statement — reason codes,
+    // wording, rounded percentages and all — so re-deriving any of it here would be a second
+    // version of the same fact, free to drift from the one the backend stands behind.
+    // `undefined` (payload has no brief) is deliberately NOT turned into null or an empty brief:
+    // "this payload does not carry a brief" is not "this match has nothing to say".
+    briefCompact: match.brief_compact,
+    brief: match.brief,
+    expertPredictionRevisions: match.expert_prediction_revisions,
   };
 }
 
@@ -523,21 +550,33 @@ class BackendMatchDataService implements MatchDataSource {
     });
   }
 
-  async getFixturesByDateWithMeta(date: string): Promise<MatchListResult> {
-    return this.cached(`${CACHE_KEYS.matchesByDate}${date}`, async () => {
+  /**
+   * Fixtures for one calendar day.
+   *
+   * Pass `STORED_ONLY` (or `{ refresh: false }`) for a stored-data-only read: the backend answers
+   * from rows it already holds, makes no provider request and spends no request allowance. A
+   * stored-only response is cached under its own key, so it can never be served to a caller that
+   * did ask for a refresh, nor a refreshed response reused to make a stored-only read look free.
+   */
+  async getFixturesByDateWithMeta(date: string, options?: MatchReadOptions): Promise<MatchListResult> {
+    const refresh = options?.refresh;
+    const key = `${CACHE_KEYS.matchesByDate}${date}${refresh === undefined ? '' : `:refresh=${refresh}`}`;
+    return this.cached(key, async () => {
       // The viewer's calendar day, not the UTC one: a 21:00 kickoff in New York is 01:00 the next
       // day in UTC, and bucketing it by the UTC day would hide tonight's match from Today. Both
       // boundaries are sent because a daylight-saving day is 23 or 25 hours, not 24.
       const offsets = localDayOffsets(date);
       const { data } = await apiClient.get<ApiMatchList>(`${API}/matches`, {
-        params: { date, tz_offset: offsets.start, tz_offset_end: offsets.end },
+        // `refresh` is omitted entirely when the caller did not ask, so the backend's own default
+        // stays in charge and no existing caller's behaviour changes.
+        params: { date, tz_offset: offsets.start, tz_offset_end: offsets.end, ...(refresh === undefined ? {} : { refresh }) },
       });
       return { matches: data.matches.map(mapApiMatch), meta: metaOf(data) };
     });
   }
 
-  async getFixturesByDate(date: string): Promise<Match[]> {
-    return (await this.getFixturesByDateWithMeta(date)).matches;
+  async getFixturesByDate(date: string, options?: MatchReadOptions): Promise<Match[]> {
+    return (await this.getFixturesByDateWithMeta(date, options)).matches;
   }
 
   getTodayFixtures(): Promise<Match[]> {

@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async'
 import Layout from '@/components/layout/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import HomePage from '@/pages/HomePage'
+import MatchesPage from '@/pages/MatchesPage'
 import TodayPredictionsPage from '@/pages/TodayPredictionsPage'
 import TomorrowPredictionsPage from '@/pages/TomorrowPredictionsPage'
 import MatchDetailPage from '@/pages/MatchDetailPage'
@@ -39,6 +40,9 @@ function App() {
         <Route path="/" element={<Layout />}>
           {/* Public routes */}
           <Route index element={<HomePage />} />
+          {/* The matchday workspace. `/matches` takes ?date=; the two older routes name their own
+              day and resolve to the same page, so every existing link and bookmark keeps working. */}
+          <Route path="matches" element={<MatchesPage />} />
           <Route path="predictions">
             <Route path="today" element={<TodayPredictionsPage />} />
             <Route path="tomorrow" element={<TomorrowPredictionsPage />} />

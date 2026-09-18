@@ -4,22 +4,39 @@ import { Helmet } from 'react-helmet-async'
 import { ChartBarIcon, CpuChipIcon, CalendarDaysIcon, TrophyIcon } from '@heroicons/react/24/outline'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import SavedMatchesPanel from '@/components/favourites/SavedMatchesPanel'
+import FollowingPanel from '@/components/favourites/FollowingPanel'
 import { useAuth } from '@/hooks/useAuth'
+import useFavourites from '@/hooks/useFavourites'
 import { footballDataService } from '@/services/football-data.service'
 import { CoverageSummary } from '@/services/match-data-source'
 
 /**
- * Signed-in user's dashboard.
+ * The signed-in user's own page: the matches they saved, and the teams and competitions they follow.
  *
- * It previously rendered a fixed mock profile — 247 predictions, a 73% accuracy rate, a 5-match
- * streak and a list of settled bets — as though it were the reader's own record. None of it was
- * real, and none of it could be: results settlement is not implemented, so nothing has ever been
- * scored. There is therefore no accuracy, streak or profit figure to show, and inventing a
- * replacement number would repeat the original problem. The page says so instead, and shows the
- * only per-user fact this build actually has: who is signed in.
+ * WHAT THIS PAGE USED TO BE, AND WHY IT CHANGED
+ * Before this, it was three paragraphs explaining that results settlement is not implemented and
+ * that no per-user history endpoint exists. Every word of that was true — and it had replaced a
+ * fabricated record (247 predictions, 73% accuracy, a 5-match streak), which was the right thing to
+ * do. But a page of explanation is a changelog, not somewhere to work: there was nothing on it the
+ * reader could do or come back to. Saved matches and followed teams are real per-user facts this
+ * build does hold, so they are the page now, and the honest sentence about settlement stays as the
+ * footnote it always should have been.
+ *
+ * WHAT IS STILL NOT CLAIMED
+ * There is no accuracy, hit rate, return, profit or streak anywhere here, because nothing has ever
+ * been scored against a final result. A saved match is a bookmark, not a bet: no stake, no odds to
+ * accept, no urgency, and no suggestion that anything is certain.
+ *
+ * ONE NOTE ON THE HEADING. The h1 stays "Dashboard": it is the route, the navigation entry and the
+ * anchor e2e/mocked/dashboard-truthfulness.spec.ts uses to prove it is looking at this page rather
+ * than the login form it redirects an anonymous visitor to. "My matches" is the first and largest
+ * section, which is what the page is actually for. Renaming the h1 needs that spec updated by its
+ * owner first — see the note in the package report.
  */
 const DashboardPage: React.FC = () => {
   const { user } = useAuth()
+  const { savedMatches, loaded, failed } = useFavourites()
   const [coverage, setCoverage] = useState<CoverageSummary | null>(null)
   const [coverageLoading, setCoverageLoading] = useState(true)
 
@@ -63,8 +80,8 @@ const DashboardPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>Dashboard - Soccer Predictions</title>
-        <meta name="description" content="Your account dashboard." />
+        <title>My matches - Soccer Predictions</title>
+        <meta name="description" content="The matches you saved and the teams and competitions you follow." />
       </Helmet>
 
       <div className="min-h-screen bg-dark-950 py-8">
@@ -80,26 +97,58 @@ const DashboardPage: React.FC = () => {
             )}
           </div>
 
-          {/* Honest empty state: there is no scored per-user record to show. */}
+          {/* The page proper: this user's own saved fixtures. */}
+          <Card className="mb-8" data-testid="dashboard-my-matches">
+            <Card.Header>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-lg font-semibold text-white">My matches</h2>
+                {/* A count is only reported once a snapshot has really arrived: on a failed load the
+                    buckets are empty because we do not know, not because there is nothing. */}
+                {loaded && !failed && (
+                  <p className="text-xs text-secondary-400">
+                    <span className="num">{savedMatches.counts.total}</span> saved
+                    {savedMatches.counts.live > 0 && (
+                      <> · <span className="num">{savedMatches.counts.live}</span> in play now</>
+                    )}
+                  </p>
+                )}
+              </div>
+            </Card.Header>
+            <Card.Body>
+              <SavedMatchesPanel />
+            </Card.Body>
+          </Card>
+
+          <Card className="mb-8" data-testid="dashboard-following">
+            <Card.Header>
+              <div>
+                <h2 className="text-lg font-semibold text-white">Teams and competitions you follow</h2>
+                <p className="text-xs text-secondary-500">
+                  Following keeps them one tap away; it does not change what any source publishes.
+                </p>
+              </div>
+            </Card.Header>
+            <Card.Body>
+              <FollowingPanel />
+            </Card.Body>
+          </Card>
+
+          {/*
+            The footnote. It used to be the whole page; it is still true, so it stays — short, plain,
+            and out of the way of the part of the page that is actually usable.
+          */}
           <Card className="mb-8" data-testid="dashboard-no-record">
             <Card.Header>
               <h2 className="text-lg font-semibold text-white">Your prediction record</h2>
             </Card.Header>
             <Card.Body className="space-y-3 text-sm text-secondary-300">
               <p>
-                There is nothing to show here yet, and we are not going to make a number up.
+                Predictions on this site are not settled against final results yet, so no accuracy
+                rate, streak or profit figure has ever been calculated — for you or for anyone. Saving
+                a match records that you want to come back to it; it is not a wager and nothing about
+                it is scored.
               </p>
-              <p className="text-secondary-400">
-                Predictions on this site are not settled against final results yet — no accuracy rate,
-                streak, hit rate or profit figure has ever been calculated, for you or for anyone. There is
-                also no per-user prediction history endpoint in this build, so we cannot list predictions
-                you have followed.
-              </p>
-              <p className="text-secondary-400">
-                When results settlement ships, this page will show your measured record and say exactly
-                how it was calculated.
-              </p>
-              <div className="flex flex-wrap gap-3 pt-2">
+              <div className="flex flex-wrap gap-3 pt-1">
                 <Button asChild>
                   <Link to="/predictions/today">Browse today&rsquo;s predictions</Link>
                 </Button>

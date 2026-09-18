@@ -15,6 +15,30 @@
   html {
     scroll-behavior: smooth;
   }
+
+  /*
+   * Motion is decoration here, never information: nothing in this interface is conveyed only by
+   * something moving. So when the viewer has asked their system to reduce motion, animations and
+   * transitions are cut to an imperceptible duration rather than removed outright — a zero-length
+   * animation still fires animationend, so components that wait for it do not hang.
+   *
+   * This covers every CSS animation in the app, the `animate-pulse` on the live badge included.
+   * JavaScript-driven motion has to opt in separately: see src/hooks/useReducedMotion.ts.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
@@ -171,6 +195,91 @@
     @apply bg-dark-900/80 backdrop-blur-sm border border-dark-700/50;
   }
   
+  /* ---------------------------------------------------------------------
+   * Accessibility and density primitives (used by the shared components in
+   * src/components/ui). Added, never replacing anything above.
+   * ------------------------------------------------------------------- */
+
+  /*
+   * Visible keyboard focus. An OUTLINE rather than a ring, so it does not need a background-matching
+   * offset colour and therefore stays visible on the page, on a card and inside a sheet alike.
+   * `outline-offset` lets the element's own background show through, and modern browsers follow the
+   * element's border-radius, so it also looks right on a pill.
+   *
+   * Measured: primary-400 #38bdf8 against the three surfaces it is drawn on —
+   * dark-950 #020617 9.42:1, dark-900 #0f172a 8.33:1, dark-800 #1e293b 6.83:1. WCAG 2.2 asks 3:1
+   * for a focus indicator against adjacent colours; all three clear it with room to spare.
+   *
+   * `:focus-visible`, not `:focus`: a mouse click on a button should not leave a ring behind, but a
+   * keyboard user must always see where they are. Never pair this with a bare `outline: none`.
+   */
+  .focus-ring:focus-visible {
+    outline: 2px solid theme('colors.primary.400');
+    outline-offset: 2px;
+  }
+
+  /* For a control flush against a container edge, where an outward offset would be clipped. */
+  .focus-ring-inset:focus-visible {
+    outline: 2px solid theme('colors.primary.400');
+    outline-offset: -2px;
+  }
+
+  /*
+   * Comfortable touch target: 44x44 CSS px, the size this project aims for.
+   *
+   * To be precise about the standard rather than overstate it: WCAG 2.2 Target Size (Minimum),
+   * success criterion 2.5.8, is 24x24 CSS px at level AA, and it has exceptions (spacing,
+   * equivalent alternatives, inline targets in a sentence, user-agent defaults, essential targets).
+   * The 44x44 figure here is a house choice that comfortably clears that minimum; it is not what
+   * WCAG requires. Level AAA's 2.5.5 Target Size (Enhanced) is the one that asks for 44x44.
+   */
+  .tap-target {
+    @apply inline-flex items-center justify-center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* A full-width row that must be at least as tall as a comfortable target, without forcing width. */
+  .tap-target-row {
+    min-height: 44px;
+  }
+
+  /*
+   * Tabular numerals, so a column of probabilities lines up digit under digit and a row's numbers
+   * do not jitter as they change. Both properties are set: `body` declares `font-feature-settings`,
+   * which would otherwise be the one that wins for the `tnum` feature.
+   */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "rlig" 1, "calt" 1;
+  }
+
+  /*
+   * Bottom sheet, sliding up from the bottom edge on small screens. Neutralised automatically by
+   * the reduced-motion block in the base layer, which is why there is no JavaScript check here.
+   */
+  .sheet-panel {
+    animation: sheetUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .sheet-backdrop {
+    animation: fadeIn 0.18s ease-out;
+  }
+
+  /*
+   * A strip the user swipes sideways (the date picker) with no scrollbar drawn over the content.
+   * Purely cosmetic: the strip still scrolls by wheel, touch, and keyboard, and every day in it is
+   * a real focusable button, so nothing depends on being able to drag a bar.
+   */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Scrollbar Styling */
   .scrollbar-thin {
     scrollbar-width: thin;
@@ -244,4 +353,13 @@
   .text-responsive-3xl {
     @apply text-3xl sm:text-4xl;
   }
+}
+
+/*
+ * Keyframes used by the shared components above. Declared outside @layer so they are emitted
+ * once and stay available whatever order Tailwind writes the layers in.
+ */
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }

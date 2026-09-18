@@ -32,7 +32,9 @@ backend/.pytest_cache/
 # Local database backups (may contain credentials/PII) - never commit
 backups/
 
-# Playwright artifacts
+# Playwright artifacts. Screenshots are regenerable evidence, not source: they were 9 MB after one
+# before/after comparison, and this repository is public.
+frontend/e2e/screenshots/
 frontend/e2e/.artifacts/
 frontend/e2e/.report/
 frontend/test-results/

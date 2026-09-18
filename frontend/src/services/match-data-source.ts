@@ -49,6 +49,25 @@ export interface MatchListResult {
   meta: DataSourceMeta;
 }
 
+/**
+ * How a match read should treat the upstream provider.
+ *
+ * `refresh: false` makes the backend answer from stored rows only: no provider request is made, no
+ * request allowance is spent, and the response still carries everything (fixtures, forecasts,
+ * expert predictions, the brief) — only possibly a little older, which the brief's own `freshness`
+ * block states outright. Use it for anything that reads matches repeatedly (a date strip the user
+ * pages through, a dashboard that polls) rather than burning a request per keystroke.
+ *
+ * Omitting the option sends no `refresh` parameter at all, leaving the backend's own default
+ * (currently `true`) in charge — the behaviour every existing caller already has.
+ */
+export interface MatchReadOptions {
+  refresh?: boolean;
+}
+
+/** Ready-made options for a stored-data-only read. Prefer this over writing `{ refresh: false }`. */
+export const STORED_ONLY: MatchReadOptions = Object.freeze({ refresh: false });
+
 export interface TeamPage {
   team: Team;
   upcoming: Match[];
@@ -141,8 +160,8 @@ export interface MatchDataSource {
   getTeamsByLeague(leagueId: string): Promise<Team[]>;
   getStandings(leagueId: string): Promise<LeagueStanding[]>;
   getFixturesByLeague(leagueId: string): Promise<Match[]>;
-  getFixturesByDate(date: string): Promise<Match[]>;
-  getFixturesByDateWithMeta(date: string): Promise<MatchListResult>;
+  getFixturesByDate(date: string, options?: MatchReadOptions): Promise<Match[]>;
+  getFixturesByDateWithMeta(date: string, options?: MatchReadOptions): Promise<MatchListResult>;
   getTodayFixtures(): Promise<Match[]>;
   getTomorrowFixtures(): Promise<Match[]>;
   getMatch(matchId: string): Promise<Match | null>;

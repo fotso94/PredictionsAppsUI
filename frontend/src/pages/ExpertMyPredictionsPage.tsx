@@ -6,7 +6,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import expertPredictionService from '../services/expert-prediction.service';
-import { ExpertPredictionResponse, ExpertPredictionUpdateRequest } from '../types/expert';
+import { ExpertPredictionResponse } from '../types/expert';
 import {
   PredictionSourceBadge,
   PredictionStatusBadge,
@@ -15,6 +15,22 @@ import {
 import { formatUnitProbability } from '@/components/ui/probability';
 import { hideBrokenImage } from '@/components/ui/imageFallback';
 import { getErrorMessage } from '@/utils/errors';
+import PredictionMarketsEditor from '@/components/expert/PredictionMarketsEditor';
+import {
+  buildUpdateRequest, ComposerValues, composerFromPrediction, publishedMarkets, validateComposer,
+} from '@/components/expert/composer';
+
+/**
+ * Statuses the API lets an expert edit: `update_prediction_with_revision` accepts PENDING,
+ * APPROVED, PUBLISHED and ARCHIVED, and refuses REJECTED.
+ */
+const EDITABLE_STATUSES = ['pending', 'approved', 'published', 'archived'];
+
+/** Statuses the API lets an expert delete: PENDING, REJECTED, PUBLISHED and ARCHIVED. */
+const DELETABLE_STATUSES = ['pending', 'rejected', 'published', 'archived'];
+
+const canEdit = (status: string): boolean => EDITABLE_STATUSES.includes((status || '').toLowerCase());
+const canDelete = (status: string): boolean => DELETABLE_STATUSES.includes((status || '').toLowerCase());
 
 const ExpertMyPredictionsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -25,7 +41,13 @@ const ExpertMyPredictionsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<ExpertPredictionUpdateRequest | null>(null);
+  /**
+   * The prediction being edited, held as PERCENTAGES exactly as the composer holds them, so an
+   * expert correcting a typo types 55 here as well and never has to remember that this one form
+   * wanted 0.55. Null when nothing is being edited.
+   */
+  const [editValues, setEditValues] = useState<ComposerValues | null>(null);
+  const [editShowErrors, setEditShowErrors] = useState(false);
   /** Ids whose full record is expanded in place — there is no separate detail route. */
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
@@ -59,42 +81,36 @@ const ExpertMyPredictionsPage: React.FC = () => {
 
   const handleEdit = (prediction: ExpertPredictionResponse) => {
     setEditingId(prediction.id);
-    setEditForm({
-      // Match Outcome (1X2)
-      home_win_prob: prediction.home_win_prob,
-      draw_prob: prediction.draw_prob,
-      away_win_prob: prediction.away_win_prob,
-      confidence_score: prediction.confidence_score,
-      // Both Teams to Score (BTTS) - Optional
-      btts_yes_prob: prediction.btts_yes_prob ?? undefined,
-      btts_no_prob: prediction.btts_no_prob ?? undefined,
-      btts_confidence: prediction.btts_confidence ?? undefined,
-      // Total Goals - Optional
-      total_goals_over_25_prob: prediction.total_goals_over_25_prob ?? undefined,
-      total_goals_under_25_prob: prediction.total_goals_under_25_prob ?? undefined,
-      total_goals_over_35_prob: prediction.total_goals_over_35_prob ?? undefined,
-      total_goals_under_35_prob: prediction.total_goals_under_35_prob ?? undefined,
-      total_goals_confidence: prediction.total_goals_confidence ?? undefined,
-      // Reasoning & Metadata
-      reasoning: prediction.reasoning || undefined,
-      key_factors: prediction.key_factors || undefined,
-    });
+    // A market the prediction never published reopens unticked and empty — never at zero.
+    setEditValues(composerFromPrediction(prediction));
+    setEditShowErrors(false);
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setEditForm(null);
+    setEditValues(null);
+    setEditShowErrors(false);
   };
 
-  const handleSaveEdit = async (predictionId: string) => {
-    if (!editForm) return;
+  const handleSaveEdit = async (prediction: ExpertPredictionResponse) => {
+    if (!editValues) return;
+
+    // The same complementary-pair rules as the composer, checked here so the expert sees the
+    // problem on the form rather than as a 422 after pressing save.
+    const validation = validateComposer(editValues, prediction.match_id);
+    const request = buildUpdateRequest(editValues);
+    if (!validation.ready || !request) {
+      setEditShowErrors(true);
+      return;
+    }
 
     try {
-      setProcessingId(predictionId);
+      setProcessingId(prediction.id);
       setError(null);
-      await expertPredictionService.updatePrediction(predictionId, editForm);
+      await expertPredictionService.updatePrediction(prediction.id, request);
       setEditingId(null);
-      setEditForm(null);
+      setEditValues(null);
+      setEditShowErrors(false);
       // Reload predictions
       await loadMyPredictions();
     } catch (err) {
@@ -289,217 +305,28 @@ const ExpertMyPredictionsPage: React.FC = () => {
                   </div>
 
                   {/* Probabilities */}
-                  {editingId === prediction.id && editForm ? (
-                    <div className="mb-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      {/* Match Outcome (1X2) */}
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                        Match Outcome (must sum to 1.0):
+                  {editingId === prediction.id && editValues ? (
+                    <div className="mb-3 rounded-lg border border-dark-700 bg-dark-900/60 p-4">
+                      <p className="mb-4 text-sm text-secondary-300">
+                        Percentages, not decimals &mdash; type 55 for 55%. Saving keeps this prediction published and
+                        preserves the version you are replacing, so readers can still see the view you published before.
                       </p>
-                      <div className="grid grid-cols-3 gap-4 mb-4">
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                            Home Win
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            value={editForm.home_win_prob}
-                            onChange={(e) => setEditForm({ ...editForm, home_win_prob: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                            Draw
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            value={editForm.draw_prob}
-                            onChange={(e) => setEditForm({ ...editForm, draw_prob: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                            Away Win
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            value={editForm.away_win_prob}
-                            onChange={(e) => setEditForm({ ...editForm, away_win_prob: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                          />
-                        </div>
-                      </div>
-                      <div className="mb-4">
-                        <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                          Confidence Score (0-1)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="1"
-                          value={editForm.confidence_score ?? ''}
-                          onChange={(e) => setEditForm({ ...editForm, confidence_score: parseFloat(e.target.value) || undefined })}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                        />
-                      </div>
-
-                      {/* Both Teams to Score (BTTS) - Optional */}
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                        Both Teams to Score (BTTS) - Optional:
-                      </p>
-                      <div className="grid grid-cols-2 gap-4 mb-3">
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                            Yes (Both Score)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            value={editForm.btts_yes_prob ?? ''}
-                            onChange={(e) => setEditForm({ ...editForm, btts_yes_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            placeholder="0.50"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                            No (At Least One Won't)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            value={editForm.btts_no_prob ?? ''}
-                            onChange={(e) => setEditForm({ ...editForm, btts_no_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            placeholder="0.50"
-                          />
-                        </div>
-                      </div>
-                      <div className="mb-4">
-                        <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                          BTTS Confidence (0-1)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="1"
-                          value={editForm.btts_confidence ?? ''}
-                          onChange={(e) => setEditForm({ ...editForm, btts_confidence: e.target.value ? parseFloat(e.target.value) : undefined })}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                          placeholder="0.75"
-                        />
-                      </div>
-
-                      {/* Total Goals - Optional */}
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                        Total Goals (Over/Under) - Optional:
-                      </p>
-                      <div className="grid grid-cols-2 gap-4 mb-3">
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                            Over 2.5 Goals
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            value={editForm.total_goals_over_25_prob ?? ''}
-                            onChange={(e) => setEditForm({ ...editForm, total_goals_over_25_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            placeholder="0.50"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                            Under 2.5 Goals
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            value={editForm.total_goals_under_25_prob ?? ''}
-                            onChange={(e) => setEditForm({ ...editForm, total_goals_under_25_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            placeholder="0.50"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                            Over 3.5 Goals
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            value={editForm.total_goals_over_35_prob ?? ''}
-                            onChange={(e) => setEditForm({ ...editForm, total_goals_over_35_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            placeholder="0.30"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                            Under 3.5 Goals
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            value={editForm.total_goals_under_35_prob ?? ''}
-                            onChange={(e) => setEditForm({ ...editForm, total_goals_under_35_prob: e.target.value ? parseFloat(e.target.value) : undefined })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            placeholder="0.70"
-                          />
-                        </div>
-                      </div>
-                      <div className="mb-4">
-                        <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                          Total Goals Confidence (0-1)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="1"
-                          value={editForm.total_goals_confidence ?? ''}
-                          onChange={(e) => setEditForm({ ...editForm, total_goals_confidence: e.target.value ? parseFloat(e.target.value) : undefined })}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                          placeholder="0.75"
-                        />
-                      </div>
-
-                      {/* Reasoning */}
-                      <div>
-                        <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                          Reasoning
-                        </label>
-                        <textarea
-                          value={editForm.reasoning || ''}
-                          onChange={(e) => setEditForm({ ...editForm, reasoning: e.target.value || undefined })}
-                          rows={3}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                        />
-                      </div>
+                      <PredictionMarketsEditor
+                        values={editValues}
+                        onChange={setEditValues}
+                        validation={validateComposer(editValues, prediction.match_id)}
+                        showErrors={editShowErrors}
+                        homeTeam={prediction.match_details?.home_team_name}
+                        awayTeam={prediction.match_details?.away_team_name}
+                        idPrefix={`edit-${prediction.id}`}
+                        lockedMarkets={publishedMarkets(prediction)}
+                        disabled={processingId === prediction.id}
+                      />
+                      {editShowErrors && !validateComposer(editValues, prediction.match_id).ready && (
+                        <p className="mt-4 text-sm text-warning-200" role="status">
+                          Fix the fields marked above, then save.
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -695,7 +522,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                     {editingId === prediction.id ? (
                       <>
                         <button
-                          onClick={() => handleSaveEdit(prediction.id)}
+                          onClick={() => handleSaveEdit(prediction)}
                           disabled={processingId === prediction.id}
                           className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
@@ -718,23 +545,33 @@ const ExpertMyPredictionsPage: React.FC = () => {
                         >
                           {expandedIds.includes(prediction.id) ? 'Hide details' : 'View details'}
                         </button>
-                        {prediction.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => handleEdit(prediction)}
-                              disabled={processingId === prediction.id}
-                              className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(prediction.id)}
-                              disabled={processingId === prediction.id}
-                              className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                              {processingId === prediction.id ? 'Deleting...' : 'Delete'}
-                            </button>
-                          </>
+                        {/*
+                          Both controls used to be gated on `status === 'pending'`. Experts publish
+                          DIRECTLY, so a prediction is created PUBLISHED and never passes through
+                          pending: the effect was that an expert could not edit or delete a single
+                          one of their own predictions from this page. The backend has always
+                          allowed both — it edits PENDING, APPROVED, PUBLISHED and ARCHIVED (not
+                          REJECTED, which is a moderation outcome), and deletes PENDING, REJECTED,
+                          PUBLISHED and ARCHIVED — so the gate here is now the backend's own rule,
+                          compared case-insensitively because the API's casing is not guaranteed.
+                        */}
+                        {canEdit(prediction.status) && (
+                          <button
+                            onClick={() => handleEdit(prediction)}
+                            disabled={processingId === prediction.id}
+                            className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {canDelete(prediction.status) && (
+                          <button
+                            onClick={() => handleDelete(prediction.id)}
+                            disabled={processingId === prediction.id}
+                            className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {processingId === prediction.id ? 'Deleting...' : 'Delete'}
+                          </button>
                         )}
                       </>
                     )}

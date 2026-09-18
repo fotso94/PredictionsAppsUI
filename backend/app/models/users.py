@@ -112,7 +112,8 @@ class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     subscriptions = relationship("UserSubscription", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("UserNotification", back_populates="user", cascade="all, delete-orphan")
     user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan", foreign_keys="[UserRole.user_id]")
-    
+    saved_matches = relationship("SavedMatch", back_populates="user", cascade="all, delete-orphan")
+
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, type={self.user_type})>"
 
@@ -256,6 +257,43 @@ class UserPreference(Base, UUIDMixin, TimestampMixin):
     
     # Relationships
     user = relationship("User", back_populates="preferences")
+
+
+class SavedMatch(Base, UUIDMixin, TimestampMixin):
+    """
+    A fixture a user saved, with that user's own private note.
+
+    Why a table and not another JSONB list in ``user_preferences``: a followed team is a bare id and
+    a JSONB list holds it well, but a saved fixture carries data of its own - when it was saved, and
+    a note - and is read by joining to ``predictions.matches`` and ordering by kickoff. That query is
+    not expressible against a JSONB array without unnesting it on every read, and a per-row
+    UNIQUE(user_id, match_id) gives idempotent saves for free.
+
+    ``note`` is the beginning of the private journal: it belongs to its author alone. No endpoint may
+    return it to another user, and it must never appear in an export or in any aggregate. Every query
+    in ``app/api/v1/endpoints/favourites.py`` is therefore filtered on ``user_id`` before anything
+    else, and nothing else in the codebase reads this column.
+
+    The fixture FK cascades: when a match row goes, the saves pointing at it go with it rather than
+    dangling.
+    """
+    __tablename__ = "saved_matches"
+    __table_args__ = (
+        Index('idx_saved_matches_user_id_created_at', 'user_id', 'created_at'),
+        Index('idx_saved_matches_match_id', 'match_id'),
+        UniqueConstraint('user_id', 'match_id', name='uq_saved_matches_user_match'),
+        {'schema': 'users', 'comment': "Matches a user saved, with that user's own private note"}
+    )
+
+    user_id = uuid_fk('users.users.id', nullable=False, fk_kwargs={'ondelete': 'CASCADE'},
+                      comment="Owner of this save")
+    match_id = uuid_fk('predictions.matches.id', nullable=False, fk_kwargs={'ondelete': 'CASCADE'},
+                       comment="Saved fixture")
+
+    note = Column(Text, comment="The owner's private note; never returned to another user")
+
+    # Relationships
+    user = relationship("User", back_populates="saved_matches")
 
 
 class UserActivityLog(Base, UUIDMixin, TimestampMixin):

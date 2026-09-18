@@ -80,6 +80,38 @@ def serialize_expert_prediction(prediction: Optional[Prediction]) -> Optional[Di
     }
 
 
+def _naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Stored datetimes are naive UTC; an aware one is converted rather than compared across kinds."""
+    if dt is None:
+        return None
+    return dt.astimezone(timezone.utc).replace(tzinfo=None) if dt.tzinfo else dt
+
+
+def serialize_prediction_revision(revision, index: int, kickoff: Optional[datetime] = None) -> Dict[str, Any]:
+    """One preserved earlier version of an expert prediction.
+
+    ``values`` is the published view as it stood before the edit, with the ``published_at`` it
+    carried, so a reader can see what was on screen and when - not merely that something changed.
+    Revisions are append-only, so ``revision`` 1 is always the original and stays readable however
+    many corrections follow, including corrections made after kickoff.
+    """
+    values = revision.old_values or {}
+    recorded, kicked_off = _naive_utc(revision.created_at), _naive_utc(kickoff)
+    return {
+        "id": str(revision.id),
+        "prediction_id": str(revision.prediction_id),
+        "revision": index,
+        # When this version stopped being the published one.
+        "replaced_at": _iso(revision.created_at),
+        "edited_by": str(revision.user_id) if revision.user_id else None,
+        "changes_summary": revision.changes_summary,
+        # None when the kickoff is unknown: a stored False would assert "before kickoff".
+        "edited_after_kickoff": (recorded > kicked_off) if (recorded and kicked_off) else None,
+        "published_at": values.get("published_at"),
+        "values": values,
+    }
+
+
 def serialize_forecast(record: Optional[ProviderForecastRecord], freshness: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if record is None:
         return None

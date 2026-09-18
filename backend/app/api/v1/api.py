@@ -7,7 +7,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     health, auth, users, expert, admin, subscriptions, predictions,
-    matches, leagues, teams, data_providers,
+    matches, leagues, teams, data_providers, favourites,
 )
 
 api_router = APIRouter()
@@ -24,6 +24,9 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(expert.router, prefix="/expert", tags=["expert"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(subscriptions.router, prefix="/subscriptions", tags=["subscriptions"])
+
+# The signed-in user's own favourites and saved matches (stored data only, never a provider call)
+api_router.include_router(favourites.router, prefix="/me", tags=["favourites"])
 
 # Match data (Live Score API primary, retained fallbacks) and provider forecasts (GameForecastAPI)
 api_router.include_router(matches.router, prefix="/matches", tags=["matches"])

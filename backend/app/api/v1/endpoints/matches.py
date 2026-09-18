@@ -17,8 +17,15 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.predictions import Match, Prediction, PredictionStatus
 from app.models.provider_data import ProviderEntityRef
-from app.schemas.matches import serialize_expert_prediction, serialize_forecast, serialize_match
+from app.schemas.matches import (
+    serialize_expert_prediction,
+    serialize_forecast,
+    serialize_match,
+    serialize_prediction_revision,
+)
+from app.services.expert_prediction import ExpertPredictionService
 from app.services.forecast_service import ForecastService
+from app.services.match_brief import build_brief, compact_brief
 from app.services.match_data_service import MatchDataService, SyncMeta
 from app.services.providers.base import ProviderError
 
@@ -115,7 +122,15 @@ def _league_refs(db: Session, league_ids) -> Dict:
     return grouped
 
 
-def build_match_payloads(db: Session, matches: List[Match], service: MatchDataService, forecasts: ForecastService) -> List[Dict[str, Any]]:
+def build_match_payloads(db: Session, matches: List[Match], service: MatchDataService, forecasts: ForecastService,
+                         full_brief: bool = False) -> List[Dict[str, Any]]:
+    """Serialise matches with their forecast, expert prediction and evidence brief.
+
+    The brief is assembled from values this loop already holds, so it costs no database query of its
+    own: every list payload can carry the compact form. ``full_brief`` adds the complete brief and is
+    used by the detail endpoint only, to keep a thirty-match list small rather than because the full
+    brief is more expensive to build.
+    """
     teams = service.registry.team_names(matches)
     leagues = service.registry.leagues_by_id(matches)
     league_refs = _league_refs(db, leagues.keys())
@@ -124,8 +139,14 @@ def build_match_payloads(db: Session, matches: List[Match], service: MatchDataSe
     for match in matches:
         record = forecasts.forecast_for_match(match)
         freshness = forecasts.freshness(record, match)
-        payloads.append(serialize_match(match, teams, leagues, serialize_forecast(record, freshness),
-                                        serialize_expert_prediction(experts.get(match.id)), league_refs))
+        forecast = serialize_forecast(record, freshness)
+        expert = serialize_expert_prediction(experts.get(match.id))
+        payload = serialize_match(match, teams, leagues, forecast, expert, league_refs)
+        brief = build_brief(match=payload, forecast=forecast, freshness=freshness, expert=expert)
+        payload["brief_compact"] = compact_brief(brief)
+        if full_brief:
+            payload["brief"] = brief
+        payloads.append(payload)
     return payloads
 
 
@@ -207,10 +228,19 @@ async def match_detail(match_id: str, db: Session = Depends(get_db)):
     match = service.match_by_id(resolved)
     if match is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
-    payload = build_match_payloads(db, [match], service, forecasts)[0]
+    payload = build_match_payloads(db, [match], service, forecasts, full_brief=True)[0]
     experts = db.query(Prediction).filter(Prediction.match_id == match.id, Prediction.status == PredictionStatus.PUBLISHED,
                                           Prediction.deleted_at.is_(None)).order_by(Prediction.priority_level.desc()).all()
     payload["expert_predictions"] = [serialize_expert_prediction(p) for p in experts]
+    # An expert may correct a published view. The versions that correction replaced are preserved,
+    # so the reader can see that the view changed and when, rather than only the latest numbers.
+    # One query for every prediction on this match, never one per prediction.
+    revisions = ExpertPredictionService(db).revisions_for([p.id for p in experts])
+    payload["expert_prediction_revisions"] = [
+        serialize_prediction_revision(row, index, match.match_date)
+        for prediction in experts
+        for index, row in enumerate(revisions.get(prediction.id, []), start=1)
+    ]
     payload["provider_refs"] = [{"provider": r.provider, "external_id": r.external_id, "confidence": r.match_confidence, "matched_by": r.matched_by}
                                 for r in service.registry.refs_for("match", match.id)]
     return payload

@@ -1,136 +1,42 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { UserIcon, CpuChipIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
-import { Match, MatchPredictions } from '@/types'
+import { Match } from '@/types'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
-import { Badge, ConfidenceBadge } from '@/components/ui/Badge'
+import { Badge } from '@/components/ui/Badge'
 import ForecastProvenance, { ForecastAnomalies } from '@/components/ui/ForecastProvenance'
-import { marketLead, publishedSide, formatPercent, isPublished, UNAVAILABLE_TEXT, PublishedSide } from '@/components/ui/probability'
+import { isPublished } from '@/components/ui/probability'
 import { forecastAvailability } from '@/components/ui/forecastStatus'
 import { onTeamLogoError } from '@/components/ui/imageFallback'
+import EvidenceBrief from '@/components/match-detail/EvidenceBrief'
+import MarketTable from '@/components/match-detail/MarketTable'
+import RevisionHistory from '@/components/match-detail/RevisionHistory'
+import SourcePanel, { AbsentSourceStrip } from '@/components/match-detail/SourcePanel'
+import { confidenceStatement } from '@/components/match-detail/evidence'
 import { footballDataService } from '@/services/football-data.service'
 import { describeError } from '@/services/backend-match-data.service'
 import { ProviderStatus } from '@/services/match-data-source'
 import { providerLabel, betLabels } from '@/utils/predictionLabels'
 import { isMatchLive, isMatchFinished, getMatchStatusText, getMatchStatusBadgeClasses } from '@/utils/matchFilters'
 
-const MarketRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="flex justify-between items-center gap-4">
-    <span className="text-secondary-400">{label}</span>
-    <div className="flex items-center space-x-2 text-right">{children}</div>
-  </div>
-)
-
-const Unavailable: React.FC<{ text?: string }> = ({ text = UNAVAILABLE_TEXT }) => (
-  <span className="text-xs text-secondary-500">{text}</span>
-)
-
-/** "Over 2.5 (Over 58% / Under unavailable)" — every half labelled, none inferred from the other. */
-const TwoWayMarket: React.FC<{ sides: [PublishedSide | null, PublishedSide | null]; lead: { known: PublishedSide[]; leader: PublishedSide | null } }> = ({ sides, lead }) => (
-  <span className="text-white font-medium">
-    {lead.leader ? lead.leader.label : lead.known[0].label}
-    <span className="text-secondary-400 font-normal">
-      {' ('}
-      {sides.map((side, index) => (
-        <React.Fragment key={index}>
-          {index > 0 && ' / '}
-          {side ? `${side.label} ${formatPercent(side.value)}` : UNAVAILABLE_TEXT.toLowerCase()}
-        </React.Fragment>
-      ))}
-      {')'}
-    </span>
-    {!lead.leader && <span className="text-secondary-500 font-normal"> — one side only</span>}
-  </span>
-)
-
-/** One prediction (expert or model) rendered market by market; missing markets are shown as unavailable. */
-const PredictionBlock: React.FC<{ prediction: MatchPredictions }> = ({ prediction }) => {
-  const { bothTeamsToScore, totalGoals, correctScore } = prediction
-  /**
-   * Value-based, NOT flag-based: a prediction with no `markets` object at all used to slip past
-   * `markets?.matchResult === false` and render a 0% / 0% / 0% match result. The market exists only
-   * if the probabilities themselves exist, and an explicit `matchResult: false` also hides it.
-   */
-  const outcome = prediction.outcome && prediction.markets?.matchResult !== false ? prediction.outcome : null
-  const best = outcome ? Math.max(outcome.homeWin, outcome.draw, outcome.awayWin) : null
-  const bestLabel = outcome && best !== null
-    ? (best === outcome.homeWin ? 'Home Win' : best === outcome.draw ? 'Draw' : 'Away Win')
-    : null
-
-  const bttsYes = publishedSide('Yes', bothTeamsToScore?.yes)
-  const bttsNo = publishedSide('No', bothTeamsToScore?.no)
-  const bttsLead = marketLead({ label: 'Yes', value: bothTeamsToScore?.yes }, { label: 'No', value: bothTeamsToScore?.no })
-
-  const over25 = publishedSide('Over 2.5', totalGoals?.over25)
-  const under25 = publishedSide('Under 2.5', totalGoals?.under25)
-  const lead25 = marketLead({ label: 'Over 2.5', value: totalGoals?.over25 }, { label: 'Under 2.5', value: totalGoals?.under25 })
-
-  const over35 = publishedSide('Over 3.5', totalGoals?.over35)
-  const under35 = publishedSide('Under 3.5', totalGoals?.under35)
-  const lead35 = marketLead({ label: 'Over 3.5', value: totalGoals?.over35 }, { label: 'Under 3.5', value: totalGoals?.under35 })
-
-  return (
-    <div className="space-y-4">
-      <MarketRow label="Match Outcome">
-        {outcome && bestLabel !== null && best !== null ? (
-          <>
-            <span className="text-white font-medium">{bestLabel} <span className="text-secondary-400 font-normal">({formatPercent(best)})</span></span>
-            <ConfidenceBadge level={outcome.confidence} basis={prediction.source === 'expert' ? 'published' : 'derived'} />
-          </>
-        ) : <Unavailable />}
-      </MarketRow>
-      {outcome ? (
-        <div className="grid grid-cols-3 gap-2 text-center text-sm">
-          <div className="rounded bg-dark-800 py-2"><div className="text-secondary-400 text-xs">Home</div><div className="text-white">{formatPercent(outcome.homeWin)}</div></div>
-          <div className="rounded bg-dark-800 py-2"><div className="text-secondary-400 text-xs">Draw</div><div className="text-white">{formatPercent(outcome.draw)}</div></div>
-          <div className="rounded bg-dark-800 py-2"><div className="text-secondary-400 text-xs">Away</div><div className="text-white">{formatPercent(outcome.awayWin)}</div></div>
-        </div>
-      ) : (
-        <p className="rounded bg-dark-800 px-3 py-2 text-xs text-secondary-500" data-testid="outcome-unavailable">
-          This source published no match-result (1X2) market for this fixture.
-        </p>
-      )}
-      <MarketRow label="Both Teams to Score">
-        {bothTeamsToScore && bttsLead.known.length > 0 ? (
-          <>
-            <TwoWayMarket sides={[bttsYes, bttsNo]} lead={bttsLead} />
-            <ConfidenceBadge level={bothTeamsToScore.confidence} basis={prediction.source === 'expert' ? 'published' : 'derived'} />
-          </>
-        ) : <Unavailable />}
-      </MarketRow>
-      <MarketRow label="Over/Under 2.5 Goals">
-        {totalGoals && lead25.known.length > 0 ? (
-          <>
-            <TwoWayMarket sides={[over25, under25]} lead={lead25} />
-            <ConfidenceBadge level={totalGoals.confidence} basis={prediction.source === 'expert' ? 'published' : 'derived'} />
-          </>
-        ) : <Unavailable />}
-      </MarketRow>
-      <MarketRow label="Over/Under 3.5 Goals">
-        {totalGoals && lead35.known.length > 0 ? (
-          <TwoWayMarket sides={[over35, under35]} lead={lead35} />
-        ) : <Unavailable />}
-      </MarketRow>
-      <MarketRow label="Most Likely Score">
-        {correctScore ? (
-          <span className="text-white font-medium" data-testid="correct-score">
-            {correctScore.mostLikely} <span className="text-secondary-400 font-normal">({formatPercent(correctScore.probability)})</span>
-            {/*
-              The remainder the provider assigned to every scoreline it did not list. Without it a
-              short list of scorelines reads as near-certainty; it is never folded into the listed ones.
-            */}
-            {isPublished(prediction.exactScoreOther) && (
-              <span className="text-secondary-400 font-normal"> · other scorelines {formatPercent(prediction.exactScoreOther)}</span>
-            )}
-          </span>
-        ) : <Unavailable />}
-      </MarketRow>
-    </div>
-  )
-}
-
+/**
+ * One match, led by the evidence behind it.
+ *
+ * The page answers, in this order: what is known about the fixture, what is missing and why, how
+ * current the model's view is — and only then the numbers themselves, attributed source by source.
+ *
+ * Three rules hold everywhere below:
+ *  - a market a source did not publish is UNAVAILABLE, with the reason the backend gave. It is
+ *    never 0%, never the complement of the other half, never borrowed from the other source;
+ *  - a probability, a published confidence and a measured accuracy are three different things and
+ *    are never allowed to read as one another (nothing here has been scored against a result yet);
+ *  - a paused refresh is not a broken forecast. It is stated once, as its own clause, with the
+ *    operational detail behind a disclosure instead of stacked beside the numbers.
+ *
+ * The fetch is the single-match endpoint, which reads what is stored and never triggers a provider
+ * refresh, so opening this page spends no provider allowance.
+ */
 const MatchDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const [match, setMatch] = useState<Match | null>(null)
@@ -210,10 +116,37 @@ const MatchDetailPage: React.FC = () => {
   const experts = match.expertPredictions && match.expertPredictions.length > 0
     ? match.expertPredictions
     : match.expertPrediction ? [match.expertPrediction] : []
-  const forecast = match.providerForecast
+  const forecast = match.providerForecast ?? null
+  const brief = match.brief ?? null
+  const revisions = match.expertPredictionRevisions ?? []
   const forecastState = forecast?.state || 'unavailable'
   const showScore = (isMatchLive(match) || isMatchFinished(match)) && match.result
   const forecastAvail = forecastAvailability(providerStatus)
+
+  /**
+   * Whether each source stated a confidence of its own. GameForecastAPI publishes none, so its
+   * badges are bands derived from the probability — which the panel says in words, because a
+   * derived band must never be read as a validated accuracy.
+   */
+  const expertConfidencePublished = brief
+    ? brief.reliability.expert.confidence_published
+    : experts.some(expert => isPublished(expert.confidence_score))
+  const modelConfidencePublished = brief
+    ? brief.reliability.model.confidence_published
+    : isPublished(forecast?.confidence_score)
+
+  /**
+   * The layout rule (and the reason the panels are built as a list): a source that published
+   * nothing collapses to one line AFTER the analysis, so the available analysis gets the column —
+   * and, on a phone, is not pushed below an empty box.
+   */
+  const expertPresent = experts.length > 0
+  const modelPresent = forecast !== null
+  const presentPanels = Number(expertPresent) + Number(modelPresent)
+
+  /** The brief's own sentence for a source that has nothing here, when it supplied one. */
+  const absentDetail = (source: 'model' | 'expert', fallback: string): string =>
+    brief?.missing.find(entry => entry.scope === 'source' && entry.source === source)?.detail ?? fallback
 
   return (
     <>
@@ -225,7 +158,7 @@ const MatchDetailPage: React.FC = () => {
       <div className="min-h-screen bg-dark-950 py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Match Header */}
-          <Card className="mb-8">
+          <Card className="mb-6">
             <Card.Body>
               <div className="text-center">
                 <div className="flex items-center justify-center space-x-4 sm:space-x-8 mb-6">
@@ -267,24 +200,36 @@ const MatchDetailPage: React.FC = () => {
             </Card.Body>
           </Card>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Expert predictions */}
-            <Card data-testid="expert-predictions">
-              <Card.Header>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
-                    <UserIcon className="h-5 w-5 text-blue-400" />
-                    <span>Expert Predictions</span>
-                  </h3>
-                  <Badge variant="info">{experts.length} published</Badge>
-                </div>
-              </Card.Header>
-              <Card.Body className="space-y-6">
-                {experts.length === 0 ? (
-                  <p className="text-secondary-400 text-sm">No expert has published a prediction for this match yet.</p>
-                ) : experts.map((expert, index) => (
+          {/*
+            The evidence first: who published anything, which markets they covered, how current it
+            is, and every gap with the reason it exists. One statement about the state of the data,
+            with the operational detail behind a disclosure rather than stacked beside the numbers.
+          */}
+          <EvidenceBrief
+            brief={brief}
+            forecast={forecast}
+            experts={experts}
+            availability={forecastAvail}
+            className="mb-6"
+          />
+
+          <div className={`grid grid-cols-1 gap-6 ${presentPanels > 1 ? 'lg:grid-cols-2' : ''}`}>
+            {expertPresent && (
+              <SourcePanel
+                source="expert"
+                title="Expert Predictions"
+                badge={<Badge variant="info">{experts.length} published</Badge>}
+                confidenceNote={confidenceStatement(brief?.reliability.expert.detail, 'expert', experts[0])}
+                derivedBands={!expertConfidencePublished}
+                testId="expert-predictions"
+                /* A correction appends; the view it replaced stays readable. */
+                footer={revisions.length > 0
+                  ? <RevisionHistory revisions={revisions} className="border-t border-dark-700 pt-4" />
+                  : null}
+              >
+                {experts.map((expert, index) => (
                   <div key={index} className={index > 0 ? 'pt-6 border-t border-dark-700' : ''}>
-                    <PredictionBlock prediction={expert} />
+                    <MarketTable prediction={expert} brief={brief} source="expert" />
                     {expert.analysis && (
                       <p className="mt-4 text-sm text-secondary-300 whitespace-pre-line">{expert.analysis}</p>
                     )}
@@ -294,69 +239,77 @@ const MatchDetailPage: React.FC = () => {
                     </p>
                   </div>
                 ))}
-              </Card.Body>
-            </Card>
+              </SourcePanel>
+            )}
 
-            {/* Provider forecast */}
-            <Card data-testid="provider-forecast">
-              <Card.Header>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
-                    <CpuChipIcon className="h-5 w-5 text-yellow-400" />
-                    <span>Model Forecast</span>
-                  </h3>
-                  {forecast && <Badge variant={forecastState === 'available' ? 'success' : 'warning'}>{providerLabel(forecast.providerName)}</Badge>}
-                </div>
-              </Card.Header>
-              <Card.Body className="space-y-4">
-                {!forecast ? (
-                  <div className="space-y-2" data-testid="forecast-missing">
-                    {/* Paused refresh and absent forecast are different facts; never merge the wording. */}
-                    <p className="text-secondary-400 text-sm">
-                      {forecastAvail?.paused
-                        ? 'No model forecast has been loaded for this match yet, and forecast updates are currently paused.'
-                        : 'No model forecast is available for this match.'}
-                    </p>
-                    {forecastAvail && (
-                      <p className="text-xs text-secondary-500">{forecastAvail.message}</p>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    {forecastAvail?.paused && (
-                      <p className="rounded-lg border border-dark-700 bg-dark-800 px-3 py-2 text-xs text-secondary-400">
-                        {forecastAvail.message}
-                      </p>
-                    )}
-                    <ForecastAnomalies anomalies={forecast.anomalies} />
-                    {forecastState !== 'available' && (
-                      <div className="flex items-start space-x-2 rounded-lg border border-yellow-700/60 bg-yellow-900/20 px-3 py-2 text-sm text-yellow-200">
-                        <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
-                        <span>
-                          {forecastState === 'stale' && 'This forecast is outdated and is shown for reference only.'}
-                          {forecastState === 'kickoff_passed' && 'This forecast was made before kick-off and is shown for reference only.'}
-                          {forecast.stateReason ? ` (${forecast.stateReason})` : ''}
-                        </span>
-                      </div>
-                    )}
-                    <PredictionBlock prediction={forecast} />
-                    {forecast.analysis && (
-                      <p className="text-sm text-secondary-300 whitespace-pre-line">{forecast.analysis}</p>
-                    )}
-                    {betLabels(forecast.recommendedBets).length > 0 && (
-                      <div className="text-xs text-secondary-400">
-                        <span className="text-secondary-300">Model's suggested markets: </span>
-                        {betLabels(forecast.recommendedBets).join(' · ')}
-                      </div>
-                    )}
-                    <ForecastProvenance prediction={forecast} className="border-t border-dark-700 pt-3" />
-                  </>
+            {modelPresent && forecast && (
+              <SourcePanel
+                source="model"
+                title="Model Forecast"
+                badge={
+                  <Badge variant={forecastState === 'available' ? 'success' : 'warning'}>
+                    {providerLabel(forecast.providerName)}
+                    {forecastState === 'stale' ? ' · out of date' : ''}
+                    {forecastState === 'kickoff_passed' ? ' · for reference' : ''}
+                  </Badge>
+                }
+                confidenceNote={confidenceStatement(brief?.reliability.model.detail, 'model', forecast)}
+                derivedBands={!modelConfidencePublished}
+                testId="provider-forecast"
+              >
+                {/*
+                  Payload observations, kept visible and kept apart: a `warning` means the numbers do
+                  not hold together and the reader needs it before reading them; a `note` is
+                  bookkeeping and stays a quiet footnote.
+                */}
+                <ForecastAnomalies anomalies={forecast.anomalies} />
+                <MarketTable prediction={forecast} brief={brief} source="model" />
+                {forecast.analysis && (
+                  <p className="text-sm text-secondary-300 whitespace-pre-line">{forecast.analysis}</p>
                 )}
-              </Card.Body>
-            </Card>
+                {betLabels(forecast.recommendedBets).length > 0 && (
+                  <div className="text-xs text-secondary-400">
+                    <span className="text-secondary-300">Markets the provider flagged in its own payload: </span>
+                    {betLabels(forecast.recommendedBets).join(' · ')}
+                    <span className="block text-secondary-500">
+                      Listed as the provider published them. Nothing on this page is advice to place a bet.
+                    </span>
+                  </div>
+                )}
+                {/* The three provider times, never collapsed into one "generated at". */}
+                <ForecastProvenance prediction={forecast} className="border-t border-dark-700 pt-3" />
+              </SourcePanel>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+          {/*
+            Absence, stated but not given a column of its own.
+
+            Only alongside analysis that IS here: when neither source published anything there is no
+            column to protect, and the evidence panel above has already said what is missing and why.
+            Repeating it twice more would be noise, not candour.
+          */}
+          {presentPanels === 1 && (
+            <div className="mt-4 space-y-3">
+              {!expertPresent && (
+                <AbsentSourceStrip
+                  source="expert"
+                  detail={absentDetail('expert', 'No expert has published a prediction for this fixture.')}
+                  note="Experts publish directly, so one appears here as soon as it is published."
+                  testId="expert-missing"
+                />
+              )}
+              {!modelPresent && (
+                <AbsentSourceStrip
+                  source="model"
+                  detail={absentDetail('model', 'No model forecast has been retrieved for this fixture.')}
+                  testId="forecast-missing"
+                />
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
             {/* Odds */}
             <Card>
               <Card.Header>
