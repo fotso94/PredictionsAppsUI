@@ -15,15 +15,23 @@ from app.models.users import User
 from app.services.forecast_service import ForecastService
 from app.services.match_data_service import MatchDataService
 from app.services.providers import competitions as comps
+from app.services.sync_scheduler import scheduler_status
 from app.core.config import settings
 
 router = APIRouter()
 
 
-@router.get("/status", summary="Active data/prediction providers, budgets and last errors")
+@router.get("/status", summary="Active data/prediction providers, budgets, scheduler state and last errors")
 async def provider_status(db: Session = Depends(get_db)):
+    """What the providers are doing and when each kind of data was last refreshed.
+
+    The `scheduler` block is what lets a page say "last updated ..." honestly. A task that has never
+    run reports `never_run: true` with null timestamps rather than borrowing another task's time, and
+    a task that is skipping because the daily allowance is spent says so in `last_skip_reason`.
+    """
     data = MatchDataService(db).provider_status()
     data["forecasts"] = ForecastService(db).status()
+    data["scheduler"] = scheduler_status()
     data["checked_at"] = datetime.now(timezone.utc).isoformat()
     return data
 

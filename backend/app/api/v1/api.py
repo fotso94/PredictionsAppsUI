@@ -7,7 +7,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     health, auth, users, expert, admin, subscriptions, predictions,
-    matches, leagues, teams, data_providers, favourites,
+    matches, leagues, teams, data_providers, favourites, performance,
 )
 
 api_router = APIRouter()
@@ -33,4 +33,7 @@ api_router.include_router(matches.router, prefix="/matches", tags=["matches"])
 api_router.include_router(leagues.router, prefix="/leagues", tags=["leagues"])
 api_router.include_router(teams.router, prefix="/teams", tags=["teams"])
 api_router.include_router(data_providers.router, prefix="/data-providers", tags=["data-providers"])
+
+# Measured performance: figures counted from settled results, never estimated (stored data only)
+api_router.include_router(performance.router, prefix="/performance", tags=["performance"])
 

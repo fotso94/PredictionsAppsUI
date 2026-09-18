@@ -181,6 +181,41 @@ class Settings(BaseSettings):
     # Forecasts older than this (since the provider generated them) are reported as stale, never as current
     FORECAST_MAX_AGE_HOURS: int = 72
 
+    # ------------------------------------------------------------------
+    # Background synchronisation (app/services/sync_scheduler.py)
+    # ------------------------------------------------------------------
+    # Without this the app only refreshes when somebody happens to load a page with refresh on, so
+    # "last updated" is whatever the last visitor paid for. The scheduler makes that explicit.
+    # One line in .env turns the whole thing off:  SYNC_SCHEDULER_ENABLED=false
+    SYNC_SCHEDULER_ENABLED: bool = True
+    # Comma-separated subset of "fixtures,live,results,forecasts"; empty disables every task.
+    # One line in .env disables a single task, e.g. SYNC_SCHEDULER_TASKS=fixtures,results
+    SYNC_SCHEDULER_TASKS: str = "fixtures,live,results,forecasts"
+    # How often the loop wakes up and asks each task whether it is due. Costs nothing by itself.
+    SYNC_SCHEDULER_TICK_SECONDS: int = 60
+    # Grace period after startup before the first tick. Development restarts the backend constantly;
+    # without this every restart would pay for a full pass. Task due-times also survive a restart
+    # (they live in Redis), so the delay is a second line of defence, not the only one.
+    SYNC_SCHEDULER_STARTUP_DELAY_SECONDS: int = 120
+    # Requests held back from the scheduler so interactive page loads always have allowance left.
+    # Capped at a tenth of the plan, so it can never freeze out a very small allowance.
+    SYNC_SCHEDULER_BUDGET_RESERVE: int = 50
+
+    # Fixture calendar: hours, not minutes. 6 competitions x 3 days = ~18 Live Score requests a pass,
+    # ~72/day at this interval against a 1,200/day budget.
+    SYNC_FIXTURES_INTERVAL_SECONDS: int = 6 * 3600
+    SYNC_FIXTURES_DAYS_AHEAD: int = 3  # today and the next two days
+    # Live scores: one request a poll (matches/live.json), and only while a covered match is actually
+    # in its live window. Matches the 60 s live cache TTL closely enough not to re-serve the same copy.
+    SYNC_LIVE_INTERVAL_SECONDS: int = 120
+    # Results: only days that still have an unsettled match cost anything, so this is cheap on a quiet
+    # day and bounded at 6 competitions x 2 days a pass on a busy one.
+    SYNC_RESULTS_INTERVAL_SECONDS: int = 1800
+    SYNC_RESULTS_LOOKBACK_DAYS: int = 1  # today and yesterday
+    # Forecasts: ForecastService already enforces its own per-competition interval (24 h) and its own
+    # daily allowance, so this only controls how often it is offered the chance to rotate.
+    SYNC_FORECASTS_INTERVAL_SECONDS: int = 6 * 3600
+
     # Cache TTLs (seconds) for provider data
     MATCH_CACHE_TTL_FIXTURES: int = 1800
     MATCH_CACHE_TTL_LIVE: int = 60

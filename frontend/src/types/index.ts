@@ -10,6 +10,8 @@ export type * from './brief';
 export type * from './revisions';
 /** Followed teams/leagues and saved matches (src/types/favourites.ts). */
 export type * from './favourites';
+/** The measured record counted from settled results (src/types/performance.ts). */
+export type * from './performance';
 
 // Core Entity Types
 export interface Team {

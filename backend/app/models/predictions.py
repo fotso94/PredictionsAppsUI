@@ -57,12 +57,26 @@ class MarketType(str, enum.Enum):
 
 
 class PredictionOutcome(str, enum.Enum):
-    """Prediction outcome enumeration"""
+    """Settlement outcome of one prediction against a real result.
+
+    PENDING - not settled yet.
+    WON     - the single most likely outcome the source published is the outcome that occurred.
+    LOST    - it is not.
+    VOID    - the fixture was postponed, cancelled or abandoned, so it was never played to a result.
+              A void is never a loss and never enters a hit rate.
+    PUSH    - there was no single pick to be right or wrong about: two or three outcomes shared the
+              highest probability the source published. The probabilistic score still applies.
+    """
     PENDING = "pending"
     WON = "won"
     LOST = "lost"
     VOID = "void"
     PUSH = "push"
+
+
+#: One shared PostgreSQL enum type, used by both settlement tables (expert predictions and provider
+#: forecasts) so the two scores are read with the same vocabulary.
+PREDICTION_OUTCOME_ENUM = Enum(PredictionOutcome, name="predictionoutcome")
 
 
 # Models
@@ -220,7 +234,16 @@ class PredictionAudit(Base, UUIDMixin, TimestampMixin):
 
 
 class PredictionResult(Base, UUIDMixin, TimestampMixin):
-    """Prediction results and outcomes"""
+    """The score of ONE expert prediction against the real result.
+
+    One row per prediction (``prediction_id`` is unique), so re-running settlement updates the same
+    row instead of counting the prediction twice.
+
+    ``rules_version`` and ``market_results`` exist because "was it right?" is meaningless without the
+    rule that was applied. The rule text that settled each market is stored on the row, next to what
+    the expert published and what actually happened, so a score can be read back and checked years
+    later even if the rules change in the meantime.
+    """
     __tablename__ = "prediction_results"
     __table_args__ = (
         Index('idx_prediction_results_prediction_id', 'prediction_id'),
@@ -228,27 +251,43 @@ class PredictionResult(Base, UUIDMixin, TimestampMixin):
         Index('idx_prediction_results_settled_at', 'settled_at'),
         {'schema': 'predictions', 'comment': 'Prediction results'}
     )
-    
+
     prediction_id = uuid_fk('predictions.predictions.id', nullable=False, unique=True)
-    match_result_id = uuid_fk('predictions.match_results.id', nullable=False)
-    
+    # Nullable: a postponed or cancelled fixture is settled VOID and has no score to point at.
+    match_result_id = uuid_fk('predictions.match_results.id', nullable=True,
+                              comment="Result that settled this prediction; NULL when the fixture was never played")
+
     # Outcome
-    outcome = Column(Enum(PredictionOutcome), nullable=False)
-    is_correct = Column(Boolean, comment="Was prediction correct")
-    
+    outcome = Column(PREDICTION_OUTCOME_ENUM, nullable=False)
+    is_correct = Column(Boolean, comment="Was prediction correct; NULL when there was no single pick or no result")
+
     # Accuracy Metrics
     probability_accuracy = Column(DECIMAL(5, 4), comment="How close probabilities were")
     confidence_calibration = Column(DECIMAL(5, 4), comment="Confidence vs actual")
-    
+
+    # What actually happened, and how the published numbers stood up to it
+    actual_outcome = Column(String(10), comment="home | draw | away in regulation time; NULL when not played")
+    probability_of_actual = Column(DECIMAL(5, 4),
+                                   comment="The probability the expert published for the outcome that occurred; "
+                                           "never derived, NULL when they published none")
+    brier_score = Column(DECIMAL(6, 5),
+                         comment="Three-way Brier score of the 1X2 probabilities (0 perfect, 2 worst); "
+                                 "NULL when it cannot be computed without inventing numbers")
+
     # Financial Metrics
     potential_return = Column(DECIMAL(10, 2))
     actual_return = Column(DECIMAL(10, 2))
     roi_percentage = Column(DECIMAL(10, 2))
-    
+
     # Settlement
     settled_at = Column(DateTime, nullable=False)
     settled_by_system = Column(Boolean, default=True)
-    
+    rules_version = Column(String(50), nullable=False,
+                           comment="Identifier of the settlement ruleset applied; see app/services/settlement.py")
+    market_results = Column(JSONB,
+                            comment="Per market: the rule applied, what was published, what happened, the outcome")
+    void_reason = Column(String(120), comment="Why the prediction was voided rather than scored")
+
     # Relationships
     prediction = relationship("Prediction", back_populates="result")
 

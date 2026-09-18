@@ -3,6 +3,8 @@ Main FastAPI Application
 Entry point for the Soccer Predictions Platform API
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -14,10 +16,41 @@ from app.core.logging import setup_logging
 from app.api.v1.api import api_router
 from app.db.init_db import init_db
 from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.services.sync_scheduler import start_background_scheduler, stop_background_scheduler
 
 # Setup logging
 setup_logging()
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start-up and shut-down, including the background data-refresh loop.
+
+    The scheduler is owned here rather than by a scheduling dependency: one asyncio task, started
+    after the app is otherwise ready and cancelled before the process goes away. It does not run a
+    sync on start (see SYNC_SCHEDULER_STARTUP_DELAY_SECONDS and the persisted per-task due-times),
+    so restarting the backend in development costs nothing.
+    """
+    logger.info(f"Starting {settings.PROJECT_NAME} v{app.version}")
+    logger.info(f"Environment: {settings.ENVIRONMENT}")
+    logger.info(f"Debug mode: {settings.DEBUG}")
+
+    # Initialize database (create schemas if needed)
+    try:
+        init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        raise
+
+    scheduler_task = start_background_scheduler()
+    try:
+        yield
+    finally:
+        await stop_background_scheduler(scheduler_task)
+        logger.info(f"Shutting down {settings.PROJECT_NAME}")
+
 
 # Create FastAPI application
 app = FastAPI(
@@ -27,6 +60,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url=f"{settings.API_V1_STR}/docs",
     redoc_url=f"{settings.API_V1_STR}/redoc",
+    lifespan=lifespan,
 )
 
 # CORS Middleware
@@ -54,28 +88,6 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize application on startup"""
-    logger.info(f"Starting {settings.PROJECT_NAME} v{app.version}")
-    logger.info(f"Environment: {settings.ENVIRONMENT}")
-    logger.info(f"Debug mode: {settings.DEBUG}")
-    
-    # Initialize database (create schemas if needed)
-    try:
-        init_db()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-        raise
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown"""
-    logger.info(f"Shutting down {settings.PROJECT_NAME}")
 
 
 @app.get("/", tags=["Root"])

@@ -9,9 +9,11 @@ import {
 } from '@heroicons/react/24/outline'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import MeasuredRecord from '@/components/ui/MeasuredRecord'
 import MatchdayWorkspace from '@/components/matches/MatchdayWorkspace'
 import { footballDataService } from '@/services/football-data.service'
 import { CoverageSummary, localDateString } from '@/services/match-data-source'
+import { performanceService, PerformanceResult } from '@/services/performance.service'
 
 /**
  * The home page.
@@ -38,12 +40,30 @@ import { CoverageSummary, localDateString } from '@/services/match-data-source'
 const HomePage: React.FC = () => {
   const [coverage, setCoverage] = useState<CoverageSummary | null>(null)
   const [coverageLoaded, setCoverageLoaded] = useState(false)
+  /**
+   * The measured record, from the settlement endpoint.
+   *
+   * Public on purpose. A visitor who has not signed in is exactly the person entitled to ask how
+   * often these sources have been right, and the honest answer today — nothing has been scored
+   * yet — is only worth anything if they can actually see it. The endpoint reads stored score
+   * rows and calls no provider, so this costs nothing.
+   */
+  const [performance, setPerformance] = useState<PerformanceResult | null>(null)
+  const [performanceLoading, setPerformanceLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
     footballDataService.getCoverage()
       .then(summary => { if (!cancelled) setCoverage(summary) })
       .finally(() => { if (!cancelled) setCoverageLoaded(true) })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    performanceService.getMeasuredPerformance()
+      .then(result => { if (!cancelled) setPerformance(result) })
+      .finally(() => { if (!cancelled) setPerformanceLoading(false) })
     return () => { cancelled = true }
   }, [])
 
@@ -111,8 +131,9 @@ const HomePage: React.FC = () => {
               <p>
                 Nothing here is computed on your behalf. When a source did not publish a market, the
                 match says so in the source&rsquo;s own words instead of showing a zero, and when a
-                forecast is older than it should be, the fixture says that too. No prediction on this
-                site has been scored against a result yet, so no accuracy figure is claimed anywhere.
+                forecast is older than it should be, the fixture says that too. How often each
+                source has been right is not guessed at either: it is counted from settled results,
+                and the measured record below shows exactly how much has been counted so far.
               </p>
               <p>
                 None of this is betting advice, and a probability is not a forecast of what will
@@ -140,11 +161,13 @@ const HomePage: React.FC = () => {
             <p className="mt-2 max-w-3xl text-sm text-secondary-400">
               Counted from the stored data
               {coverage?.measured_at ? ` on ${new Date(coverage.measured_at).toLocaleString()}` : ''}.
-              {/* The backend's own reason, word for word, after a colon so its lower-case first
-                  word reads as the clause it is. Only a trailing full stop is normalised, so the
-                  sentence ends once however the backend punctuated it. */}
-              {coverage && !coverage.accuracy_available
-                && ` No accuracy figure is shown: ${coverage.accuracy_unavailable_reason.replace(/\.\s*$/, '')}.`}
+              {/*
+                This used to append the coverage endpoint's own "no accuracy figure is shown"
+                clause. The measured record immediately below now answers that question properly —
+                per source, with the sample, the definition and the window — so repeating a
+                one-line version of it here would put two statements about the same thing on one
+                screen, and the weaker one first.
+              */}
             </p>
 
             <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -173,6 +196,19 @@ const HomePage: React.FC = () => {
                 </Card>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/*
+          The measured record, in public.
+          It sits after the coverage counts because it answers the next question a reader asks —
+          "and how often were they right?" — and it must answer it with whatever is true today.
+          Right now that answer is "nothing has been scored yet", stated as a real answer with the
+          reason and the window, rather than as an empty chart or a hopeful zero.
+        */}
+        <section className="border-t border-dark-800 py-10" aria-label="The measured record">
+          <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+            <MeasuredRecord result={performance} loading={performanceLoading} />
           </div>
         </section>
 

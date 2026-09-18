@@ -5,6 +5,13 @@ import { forecastSyncMessage } from '@/utils/predictionLabels'
 
 interface ForecastSyncNoticeProps {
   sync: ForecastSyncStatus | null | undefined
+  /**
+   * When refreshing resumes, from the backend's scheduler (see forecastStatus.ts).
+   *
+   * Optional: a caller with no scheduler state simply omits it and the notice reads exactly as it
+   * did before. Nothing here derives a resume time — an absent one stays absent.
+   */
+  resume?: string | null
   className?: string
 }
 
@@ -15,7 +22,7 @@ interface ForecastSyncNoticeProps {
  * fetched is still exactly what the provider published and stays on screen. Renders nothing when
  * the last refresh ran normally.
  */
-const ForecastSyncNotice: React.FC<ForecastSyncNoticeProps> = ({ sync, className = '' }) => {
+const ForecastSyncNotice: React.FC<ForecastSyncNoticeProps> = ({ sync, resume = null, className = '' }) => {
   const message = forecastSyncMessage(sync)
   if (!message) return null
 
@@ -31,6 +38,11 @@ const ForecastSyncNotice: React.FC<ForecastSyncNoticeProps> = ({ sync, className
         <p className="text-yellow-300/80">
           Forecasts already loaded stay visible and are unchanged — they are just not being updated right now.
         </p>
+        {/* When it comes back. A reader can do something with a time; "paused" on its own asks
+            them to keep checking. */}
+        {resume && (
+          <p className="mt-1 text-yellow-300/80" data-testid="forecast-sync-resume">{resume}</p>
+        )}
         {sync && sync.deferred.length > 0 && (
           <p className="mt-1 text-xs text-yellow-300/60">
             Waiting for the next allowance reset: {sync.deferred.join(', ')}

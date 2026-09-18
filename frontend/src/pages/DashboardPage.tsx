@@ -142,11 +142,23 @@ const DashboardPage: React.FC = () => {
               <h2 className="text-lg font-semibold text-white">Your prediction record</h2>
             </Card.Header>
             <Card.Body className="space-y-3 text-sm text-secondary-300">
+              {/*
+                This used to end "— for you or for anyone", which was true when nothing on the
+                installation could be scored at all. Settlement exists now: sources can be scored,
+                so that clause would become false the first time it runs, and a sentence that goes
+                stale silently is worse than no sentence. What stays true either way is the claim
+                this card is actually about — your own account has no scored record — so that is
+                all it claims, and the site-wide measured record is named as a separate thing.
+              */}
               <p>
-                Predictions on this site are not settled against final results yet, so no accuracy
-                rate, streak or profit figure has ever been calculated — for you or for anyone. Saving
-                a match records that you want to come back to it; it is not a wager and nothing about
+                Your own predictions are not settled against final results into a personal record,
+                so no accuracy rate, streak or profit figure is shown for your account. Saving a
+                match records that you want to come back to it; it is not a wager and nothing about
                 it is scored.
+              </p>
+              <p>
+                How the model providers and the experts have actually done, counted from settled
+                results, is published on the home page with the sample size behind every figure.
               </p>
               <div className="flex flex-wrap gap-3 pt-1">
                 <Button asChild>

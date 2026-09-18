@@ -88,16 +88,176 @@ export interface ProviderChainEntryPayload extends Json {
   last_success_at: string | null;
 }
 
+/**
+ * One scheduled refresh task, as `GET /data-providers/status` reports it.
+ *
+ * `never_run` with null timestamps and `last_skip_reason` with neither a success nor a failure are
+ * both real states the backend publishes, and both have their own wording in the interface — so
+ * the builders below construct them exactly, rather than approximating them with an old timestamp.
+ */
+export interface SyncTaskPayload extends Json {
+  enabled: boolean;
+  interval_seconds: number;
+  never_run: boolean;
+  last_run_at: string | null;
+  last_success_at: string | null;
+  last_error_at: string | null;
+  last_error: string | null;
+  last_duration_ms: number | null;
+  last_result: Json | null;
+  last_skipped_at: string | null;
+  last_skip_reason: string | null;
+  runs: number;
+  failures: number;
+  consecutive_failures: number;
+  backoff_seconds: number | null;
+  next_due_at: string | null;
+  due_now: boolean;
+  reason_not_due: string | null;
+}
+
+export interface SchedulerPayload extends Json {
+  enabled: boolean;
+  running: boolean;
+  tick_seconds: number;
+  startup_delay_seconds: number;
+  budget_reserve: number;
+  enabled_tasks: string[];
+  state_store_available: boolean;
+  tasks: Record<string, SyncTaskPayload>;
+}
+
 export interface ProviderStatusPayload extends Json {
   chain: ProviderChainEntryPayload[];
   forecasts: {
     budget: ProviderBudgetPayload | null;
     cooling_down: string | null;
   } & Json;
+  scheduler?: SchedulerPayload | null;
 }
 
 export interface LeaguesPayload extends Json {
   competitions?: Json[];
+}
+
+// ------------------------------------------------------------------- scheduled refresh (freshness)
+/**
+ * Scheduler payloads are built here rather than captured, because every interesting state is a
+ * state of the CLOCK: "refreshed four minutes ago" and "next attempt in twenty minutes" have to be
+ * relative to when the test runs or they decay into "two days ago" the moment the capture ages.
+ */
+const ago = (minutes: number): string => new Date(Date.now() - minutes * 60_000).toISOString();
+const ahead = (minutes: number): string => new Date(Date.now() + minutes * 60_000).toISOString();
+
+/** A task that has never completed a pass: no timestamps exist, and none may be invented. */
+export function neverRunTask(intervalSeconds: number, overrides: Partial<SyncTaskPayload> = {}): SyncTaskPayload {
+  return {
+    enabled: true,
+    interval_seconds: intervalSeconds,
+    never_run: true,
+    last_run_at: null,
+    last_success_at: null,
+    last_error_at: null,
+    last_error: null,
+    last_duration_ms: null,
+    last_result: null,
+    last_skipped_at: null,
+    last_skip_reason: null,
+    runs: 0,
+    failures: 0,
+    consecutive_failures: 0,
+    backoff_seconds: null,
+    next_due_at: null,
+    due_now: true,
+    reason_not_due: null,
+    ...overrides,
+  };
+}
+
+/** A task that last succeeded `minutesAgo` ago and is next due `minutesAhead` from now. */
+export function healthyTask(
+  intervalSeconds: number, minutesAgo: number, minutesAhead: number,
+  overrides: Partial<SyncTaskPayload> = {},
+): SyncTaskPayload {
+  return {
+    ...neverRunTask(intervalSeconds),
+    never_run: false,
+    last_run_at: ago(minutesAgo),
+    last_success_at: ago(minutesAgo),
+    last_duration_ms: 812,
+    last_result: { days: {}, errors: [] },
+    runs: 4,
+    next_due_at: ahead(minutesAhead),
+    due_now: false,
+    reason_not_due: `next due at ${ahead(minutesAhead)}`,
+    ...overrides,
+  };
+}
+
+/**
+ * A task that is deliberately doing nothing because the daily allowance is spent.
+ *
+ * Neither a success nor a failure: `last_skip_reason` is set, the counters stay at zero and
+ * `next_due_at` says when it will try again. This is the real state of the forecasts task on the
+ * local installation, which is why it has its own builder.
+ */
+export function pausedTask(
+  intervalSeconds: number, minutesAhead: number, reason: string,
+  overrides: Partial<SyncTaskPayload> = {},
+): SyncTaskPayload {
+  return {
+    ...neverRunTask(intervalSeconds),
+    last_skipped_at: ago(2),
+    last_skip_reason: reason,
+    next_due_at: ahead(minutesAhead),
+    due_now: false,
+    reason_not_due: `next due at ${ahead(minutesAhead)}`,
+    ...overrides,
+  };
+}
+
+/** Every task refreshing normally. This is what `baseStatus()` carries. */
+export function healthyScheduler(overrides: Partial<SchedulerPayload> = {}): SchedulerPayload {
+  return {
+    enabled: true,
+    running: true,
+    tick_seconds: 60,
+    startup_delay_seconds: 120,
+    budget_reserve: 50,
+    enabled_tasks: ['fixtures', 'live', 'results', 'forecasts'],
+    state_store_available: true,
+    tasks: {
+      fixtures: healthyTask(21_600, 12, 348),
+      live: healthyTask(120, 1, 1, {
+        last_result: { live_window_open: false, live_polled: false, note: 'no covered match is in its live window; no provider request made' },
+      }),
+      results: healthyTask(1800, 8, 22),
+      forecasts: healthyTask(21_600, 40, 320),
+    },
+    ...overrides,
+  };
+}
+
+/** The scheduler is up, but not one task has ever completed a pass. */
+export function neverRunScheduler(): SchedulerPayload {
+  return healthyScheduler({
+    tasks: {
+      fixtures: neverRunTask(21_600),
+      live: neverRunTask(120),
+      results: neverRunTask(1800),
+      forecasts: neverRunTask(21_600),
+    },
+  });
+}
+
+/** Fixtures and results are current; the forecast refresh is paused on a spent allowance. */
+export function pausedScheduler(): SchedulerPayload {
+  const scheduler = healthyScheduler();
+  scheduler.tasks.forecasts = pausedTask(
+    21_600, 95,
+    'daily request budget for gameforecast is spent (8/8 used; 0 held back for page loads)',
+  );
+  return scheduler;
 }
 
 export const baseMatches = (): ApiMatch[] => JSON.parse(JSON.stringify(matchesDay.matches)) as ApiMatch[];
@@ -116,7 +276,12 @@ export const baseStatus = (): ProviderStatusPayload => {
     entry.cooling_down = null;
     entry.last_error = null;
     entry.last_error_at = null;
+    // The capture predates the scheduler, so its success time is a day old. A healthy baseline
+    // needs a recent one, or every page would open saying the provider has not answered in a day.
+    entry.last_success_at = ago(12);
   }
+  // The capture predates the scheduler entirely; a healthy baseline carries a healthy one.
+  status.scheduler = healthyScheduler();
   return status;
 };
 
@@ -275,7 +440,215 @@ export function quotaExhaustedStatus(): ProviderStatusPayload {
     remaining_today: 0, enforced: true,
   };
   status.forecasts.cooling_down = 'daily request allowance for gameforecast is spent';
+  // The scheduler is the half of this state that says when it comes back.
+  status.scheduler = pausedScheduler();
   return status;
+}
+
+/** A backend that runs no scheduler at all: nothing refreshes unless a page asks for it. */
+export function noSchedulerStatus(): ProviderStatusPayload {
+  const status = baseStatus();
+  delete status.scheduler;
+  return status;
+}
+
+/** The scheduler is up and has never completed a pass. */
+export function neverRunSchedulerStatus(): ProviderStatusPayload {
+  const status = baseStatus();
+  status.scheduler = neverRunScheduler();
+  // Nothing has been retrieved either: a scheduler that has never run has fetched nothing.
+  for (const entry of status.chain || []) entry.last_success_at = null;
+  return status;
+}
+
+/** Fixtures current, forecast refresh paused on a spent allowance with a next-due time. */
+export function pausedSchedulerStatus(): ProviderStatusPayload {
+  const status = baseStatus();
+  status.scheduler = pausedScheduler();
+  return status;
+}
+
+// ------------------------------------------------------------------- the measured record
+/**
+ * `GET /api/v1/performance/sources`.
+ *
+ * Built rather than captured for the same reason as the scheduler: the local database has nothing
+ * scored, so a capture could only ever produce the empty case. The wording of every definition,
+ * rule and refusal below is copied verbatim from `backend/app/services/settlement.py`, so a test
+ * that asserts on it is asserting on the sentence the backend really serves.
+ */
+export interface MeasuredMarketPayload extends Json {
+  market: string;
+  rule: string;
+  scored: number;
+  hits: number;
+  pushes: number;
+  voids: number;
+  not_scored: number;
+  hit_rate: number | null;
+  hit_rate_available: boolean;
+  hit_rate_sample: number;
+  hit_rate_unavailable_reason: string | null;
+  hit_rate_definition: string;
+  brier_score: number | null;
+  brier_available: boolean;
+  brier_unavailable_reason: string | null;
+  brier_definition: string;
+  brier_baseline: number | null;
+  brier_sample: number;
+  mean_probability_of_actual: number | null;
+  mean_probability_of_actual_definition: string;
+  mean_probability_of_actual_sample: number;
+}
+
+export interface MeasuredSourcePayload extends Json {
+  source_type: string;
+  source_id: string;
+  source_label: string;
+  eligible: number;
+  scored: number;
+  pending: number;
+  void: number;
+  not_scored: number;
+  not_scored_reasons: Array<{ reason: string; count: number }>;
+  markets: MeasuredMarketPayload[];
+  measured: boolean;
+  not_measured_reason: string | null;
+}
+
+export interface PerformancePayload extends Json {
+  window: { start: string; end: string; basis: string };
+  minimum_sample: number;
+  minimum_sample_rationale: string;
+  rules: Json;
+  sources: MeasuredSourcePayload[];
+  sources_measured: number;
+  not_measured_reason: string | null;
+  measured_at: string;
+}
+
+/** The backend's minimum before any headline figure is published. */
+export const MINIMUM_SAMPLE = 30;
+
+const MINIMUM_SAMPLE_RATIONALE =
+  'An accuracy figure is only published once at least 30 predictions from that source have been '
+  + 'scored. At a hit rate near 50% the standard error is 0.5/sqrt(n), so a rate computed from '
+  + 'fewer than 30 results carries a 95% interval wider than +/- 18 percentage points and would '
+  + 'mislead. The counts behind it are published either way.';
+
+const HIT_RATE_DEFINITION =
+  'Share of scored predictions whose single most likely published outcome was the outcome that '
+  + 'occurred. Voids, pushes and markets the source did not publish are excluded from both the '
+  + 'numerator and the denominator.';
+
+const BRIER_DEFINITION =
+  'Brier score, the mean squared error of the published probabilities against what happened. '
+  + '0 is perfect, lower is better.';
+
+const MATCH_RESULT_RULE =
+  '1X2 on the regulation-time score. Hit test: the single highest of the three published '
+  + 'probabilities is compared with the outcome that occurred.';
+
+const RULES: Json = {
+  version: 'soccer-regulation-time-v1',
+  basis: 'Regulation time only: the score after 90 minutes plus stoppage time, as published by the '
+    + 'data provider that supplied the result.',
+  void: 'A fixture that was postponed, cancelled or abandoned is VOID for every market. A void is '
+    + 'never a loss, never a win, and never enters a hit rate or a Brier score.',
+  unsupplied_market: 'A market the source did not publish is not scored at all. It is never counted '
+    + 'as a loss and never read as a zero probability.',
+  prematch_only: 'Only evidence that existed before kickoff is scored.',
+  markets: { match_result: MATCH_RESULT_RULE },
+  probability_of_actual: 'The probability the source itself published for the outcome that actually occurred.',
+  brier: BRIER_DEFINITION,
+  brier_baselines: { match_result: 0.6667 },
+  hit_rate: HIT_RATE_DEFINITION,
+  minimum_sample: MINIMUM_SAMPLE,
+  minimum_sample_rationale: MINIMUM_SAMPLE_RATIONALE,
+};
+
+const isoDay = (offsetDays: number): string =>
+  new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+
+/** A 1X2 market row. Below `MINIMUM_SAMPLE` the backend withholds both figures, so this does too. */
+export function measuredMarket(scored: number, hits: number): MeasuredMarketPayload {
+  const enough = scored >= MINIMUM_SAMPLE;
+  return {
+    market: 'match_result',
+    rule: MATCH_RESULT_RULE,
+    scored,
+    hits,
+    pushes: 0,
+    voids: 0,
+    not_scored: 0,
+    hit_rate: enough ? Math.round((hits / scored) * 10_000) / 10_000 : null,
+    hit_rate_available: enough,
+    hit_rate_sample: scored,
+    hit_rate_unavailable_reason: enough
+      ? null
+      : `${scored} scored prediction(s) is below the minimum of ${MINIMUM_SAMPLE}. ${MINIMUM_SAMPLE_RATIONALE}`,
+    hit_rate_definition: HIT_RATE_DEFINITION,
+    brier_score: enough ? 0.5981 : null,
+    brier_available: enough,
+    brier_unavailable_reason: enough
+      ? null
+      : `${scored} prediction(s) carry a computable Brier score, below the minimum of ${MINIMUM_SAMPLE}. `
+        + MINIMUM_SAMPLE_RATIONALE,
+    brier_definition: BRIER_DEFINITION,
+    brier_baseline: 0.6667,
+    brier_sample: scored,
+    mean_probability_of_actual: enough ? 0.4123 : null,
+    mean_probability_of_actual_definition:
+      'The probability the source itself published for the outcome that actually occurred.',
+    mean_probability_of_actual_sample: scored,
+  };
+}
+
+/** One scored source. `scored` below `MINIMUM_SAMPLE` still counts — it just publishes no rate. */
+export function measuredSource(label: string, scored: number, hits: number): MeasuredSourcePayload {
+  return {
+    source_type: 'model_provider',
+    source_id: label,
+    source_label: label,
+    eligible: scored + 3,
+    scored,
+    pending: 2,
+    void: 1,
+    not_scored: 0,
+    not_scored_reasons: [],
+    markets: [measuredMarket(scored, hits)],
+    measured: true,
+    not_measured_reason: null,
+  };
+}
+
+function performanceEnvelope(sources: MeasuredSourcePayload[], notMeasuredReason: string | null): PerformancePayload {
+  return {
+    window: { start: isoDay(-90), end: isoDay(0), basis: 'kickoff date in UTC, both ends included' },
+    minimum_sample: MINIMUM_SAMPLE,
+    minimum_sample_rationale: MINIMUM_SAMPLE_RATIONALE,
+    rules: RULES,
+    sources,
+    sources_measured: sources.filter(source => source.measured).length,
+    not_measured_reason: notMeasuredReason,
+    measured_at: new Date().toISOString(),
+  };
+}
+
+/** The state of the local installation today: nothing has reached a result, so nothing is scored. */
+export function nothingMeasuredPerformance(): PerformancePayload {
+  return performanceEnvelope([], 'no match in this window has reached a terminal status yet, so '
+    + 'there is nothing to score');
+}
+
+/** A source with fewer scored predictions than the minimum: counts yes, headline figure no. */
+export function belowMinimumPerformance(): PerformancePayload {
+  return performanceEnvelope([measuredSource('gameforecast', 7, 4)], null);
+}
+
+/** A source with enough scored predictions for a published figure. */
+export function measuredPerformance(): PerformancePayload {
+  return performanceEnvelope([measuredSource('gameforecast', 106, 50)], null);
 }
 
 /** Provider status describing an expired or rejected trial. */
@@ -296,6 +669,8 @@ export interface StubOptions {
   day?: (isoDate: string, params: URLSearchParams) => DayPayload;
   status?: ProviderStatusPayload;
   coverage?: Json | null;
+  /** Answer `GET /performance/sources`. Defaults to the honest local state: nothing scored. */
+  performance?: PerformancePayload;
   matchById?: (id: string) => ApiMatch | null;
   /** Answer `GET /teams/search`; the default is an empty result set. */
   teamSearch?: (query: string) => { teams: Json[]; competitions: Json[] };
@@ -346,6 +721,12 @@ export async function stubBackend(page: Page, options: StubOptions = {}): Promis
     }
     if (path === '/data-providers/coverage') {
       return json(route, options.coverage ?? baseCoverage());
+    }
+    if (path === '/performance/sources') {
+      return json(route, options.performance ?? nothingMeasuredPerformance());
+    }
+    if (path === '/performance/rules') {
+      return json(route, RULES);
     }
     if (path === '/matches') {
       const date = url.searchParams.get('date') || new Date().toISOString().slice(0, 10);

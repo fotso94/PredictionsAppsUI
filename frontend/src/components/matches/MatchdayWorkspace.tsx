@@ -6,10 +6,12 @@ import CompetitionChip from '@/components/ui/CompetitionChip'
 import FilterSheet, { ActiveFilter, FilterSummaryBar } from '@/components/ui/FilterSheet'
 import EmptyState from '@/components/ui/EmptyState'
 import DataSourceNotice from '@/components/ui/DataSourceNotice'
+import DataFreshness from '@/components/ui/DataFreshness'
 import ForecastSyncNotice from '@/components/ui/ForecastSyncNotice'
+import { forecastAvailability } from '@/components/ui/forecastStatus'
 import { footballDataService } from '@/services/football-data.service'
 import { describeError } from '@/services/backend-match-data.service'
-import { DataSourceMeta, STORED_ONLY, localDateString } from '@/services/match-data-source'
+import { DataSourceMeta, ProviderStatus, STORED_ONLY, localDateString } from '@/services/match-data-source'
 import type { Match } from '@/types'
 import FixtureList from './FixtureList'
 import MatchFilterControls from './MatchFilterControls'
@@ -127,6 +129,18 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
   const [day, setDay] = useState<DayData>({
     status: 'loading', date: defaultDate, matches: [], meta: null, error: null,
   })
+  /**
+   * The backend's provider and scheduler state.
+   *
+   * Every read on this page is `refresh=false`, so the list itself carries no clue about how old
+   * it is. This is where that comes from: the scheduler records when each kind of data last
+   * refreshed, so "last updated" is a reported fact rather than a guess about who last browsed.
+   *
+   * `null` is kept distinct from "not loaded yet" by `statusLoaded`: a failed status request must
+   * read as "we cannot say how current this is", never as "it is current".
+   */
+  const [status, setStatus] = useState<ProviderStatus | null>(null)
+  const [statusLoaded, setStatusLoaded] = useState(false)
 
   const state = useMemo(
     () => readWorkspaceState(searchParams, defaultDate),
@@ -153,6 +167,16 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
 
     return () => { cancelled = true }
   }, [date, reloadToken])
+
+  // Reloaded with the list, so pressing Retry also re-asks how current the data is. The status
+  // endpoint reads Redis and the database only: it makes no provider request.
+  useEffect(() => {
+    let cancelled = false
+    footballDataService.getProviderStatus()
+      .then(result => { if (!cancelled) setStatus(result) })
+      .finally(() => { if (!cancelled) setStatusLoaded(true) })
+    return () => { cancelled = true }
+  }, [reloadToken])
 
   /** Write `next` back into the URL, moving off a fixed-day route when the day changes. */
   const apply = useCallback((next: WorkspaceState) => {
@@ -433,8 +457,23 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
         resultCount={day.status === 'ready' ? visible.length : null}
       />
 
+      {/*
+        How current this list is. It sits above the fixtures rather than under them because it
+        changes how every row below should be read: none of this is live, and on a day when the
+        scheduler is paused or has never run, that is the first thing worth knowing.
+
+        Held back until the status request has settled: a panel that said "cannot be stated" for
+        half a second on every load would be noise, and one that guessed would be worse.
+      */}
+      {statusLoaded && <DataFreshness status={status} className="mt-3" />}
+
       <DataSourceNotice meta={day.meta} className="mt-3" />
-      <ForecastSyncNotice sync={day.meta?.forecastSync} className="mt-3" />
+      <ForecastSyncNotice
+        sync={day.meta?.forecastSync}
+        /* "Paused" on its own is not actionable; the scheduler knows when it comes back. */
+        resume={forecastAvailability(status)?.resume ?? null}
+        className="mt-3"
+      />
 
       <div id={listId} className="mt-3">
         {body()}

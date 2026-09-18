@@ -169,6 +169,9 @@ export function describeDataState(
   add(forecast?.stateReason)
   // The operational quota wording: true, useful to an operator, and noise beside a sound forecast.
   add(availability?.message)
+  // And when it comes back. Kept out of `message` on purpose (see forecastStatus.ts) so the
+  // site-wide banner stays one line; here there is room for it, and it is what a reader can use.
+  add(availability?.resume)
   if (freshness?.max_age_hours) {
     add(`A forecast is treated as out of date once it is more than ${freshness.max_age_hours} hours old.`)
   }
@@ -217,8 +220,17 @@ export function confidenceStatement(
   return 'This provider publishes no confidence value with its forecasts.'
 }
 
-/** The site-wide statement about accuracy. Nothing has been scored against a result yet. */
+/**
+ * The site-wide statement about accuracy, used when the brief carries no wording of its own.
+ *
+ * It used to read "no prediction on this site has been scored against a match result yet". That
+ * was true when nothing could be scored at all, and it is the kind of sentence that goes false
+ * silently: settlement exists now, so the first time it runs the page would be making a claim
+ * nobody re-checked. What is permanently true is the distinction this sentence exists to draw —
+ * a probability about one fixture is not a record of how often a source has been right — so that
+ * is what it says, and it points at where the record actually lives.
+ */
 export const ACCURACY_STATEMENT =
-  'No prediction on this site has been scored against a match result yet, so no accuracy has ever '
-  + 'been measured for either source. A probability is what a source expects; it is not a record of '
-  + 'how often that source has been right.'
+  'A probability is what a source expects of this one fixture. It is not a measure of how often '
+  + 'that source has been right: that is counted separately from settled results, and is only ever '
+  + 'published with the sample it was counted from.'

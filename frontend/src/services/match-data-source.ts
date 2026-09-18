@@ -136,6 +136,76 @@ export interface ProviderChainEntry {
   cooling_down?: string | null;
 }
 
+/**
+ * One scheduled refresh task, as the backend's sync scheduler records it.
+ *
+ * This is what finally lets a page answer "how old is this?" with something other than a guess.
+ * Before the scheduler existed, nothing refreshed unless a visitor happened to load a page with
+ * refresh on, so freshness was a function of who had been browsing.
+ *
+ * THE FIELDS THAT MUST NOT BE BLURRED TOGETHER:
+ *  - `last_run_at` is when the task last STARTED. A run that failed still sets it.
+ *  - `last_success_at` is when it last actually worked. This, and only this, is what a
+ *    "last updated" claim may be built from.
+ *  - `last_skipped_at` / `last_skip_reason` is when it deliberately did nothing — almost always
+ *    because the daily request allowance was spent. A skip is neither a success nor a failure,
+ *    and reporting it as either would be false.
+ *  - `never_run` is true with every timestamp null. The honest rendering is "has never run", NOT
+ *    a timestamp borrowed from a different task.
+ */
+export interface SyncTaskState {
+  enabled: boolean;
+  /** How often this task is due, in seconds. */
+  interval_seconds: number;
+  /** True when this task has never completed a run. Every timestamp below is then null. */
+  never_run: boolean;
+  /** When the last attempt started — successful or not. */
+  last_run_at: string | null;
+  /** When the task last succeeded. The only basis for a "last updated" statement. */
+  last_success_at: string | null;
+  last_error_at: string | null;
+  /** The backend's own wording for the last failure. */
+  last_error: string | null;
+  last_duration_ms: number | null;
+  /** The task's own report of what it did. Shape differs per task; read defensively. */
+  last_result: Record<string, unknown> | null;
+  last_skipped_at: string | null;
+  /** Why the task deliberately did nothing, in the backend's words. */
+  last_skip_reason: string | null;
+  runs: number;
+  failures: number;
+  consecutive_failures: number;
+  /** Seconds the task is backing off for after repeated failures; null when it is not. */
+  backoff_seconds: number | null;
+  /** When the task is next due to be attempted. */
+  next_due_at: string | null;
+  due_now: boolean;
+  reason_not_due: string | null;
+}
+
+/**
+ * The backend's scheduled-refresh state, from `GET /data-providers/status`.
+ *
+ * Optional on `ProviderStatus`: a backend without the scheduler simply omits the block, and the
+ * interface must say "no scheduled refresh is reported" rather than inventing one.
+ *
+ * `state_store_available: false` is its own distinct fact — Redis is unreachable, so the scheduler
+ * cannot remember when anything ran. Timestamps are then unknown, not zero.
+ */
+export interface SchedulerStatus {
+  enabled: boolean;
+  running: boolean;
+  tick_seconds: number;
+  startup_delay_seconds: number;
+  budget_reserve: number;
+  /** Task names the operator switched on, e.g. ['fixtures', 'live', 'results', 'forecasts']. */
+  enabled_tasks: string[];
+  /** False when the state store is unreachable: nothing about past runs can be stated. */
+  state_store_available: boolean;
+  /** Keyed by task name. Open, so a task added to the backend later still reaches the reader. */
+  tasks: Record<string, SyncTaskState>;
+}
+
 export interface ProviderStatus {
   active_provider: string;
   configured_fallbacks: string[];
@@ -150,6 +220,8 @@ export interface ProviderStatus {
     last_sync?: Record<string, unknown> | null;
     cooling_down?: string | null;
   };
+  /** Scheduled refresh state. Absent on a backend that runs no scheduler. */
+  scheduler?: SchedulerStatus | null;
   checked_at: string;
 }
 

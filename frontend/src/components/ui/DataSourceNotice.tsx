@@ -1,20 +1,13 @@
 import React from 'react'
 import { ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/react/24/outline'
 import { DataSourceMeta } from '@/services/match-data-source'
+// One provider vocabulary for the whole interface: the same feed must not be called two different
+// things on one page, so this notice and the freshness panel read from the same map.
+import { fixtureProviderLabel as providerName } from './freshness'
 
 interface DataSourceNoticeProps {
   meta: DataSourceMeta | null
   className?: string
-}
-
-const providerName = (provider: string | null): string => {
-  switch (provider) {
-    case 'livescore': return 'Live Score API'
-    case 'api_football': return 'API-Football (fallback)'
-    case 'thesportsdb': return 'TheSportsDB (fallback)'
-    case 'sample': return 'sample data (not real fixtures)'
-    default: return provider || 'no provider'
-  }
 }
 
 /**

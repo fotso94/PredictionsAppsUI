@@ -6,6 +6,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import ForecastProvenance, { ForecastAnomalies } from '@/components/ui/ForecastProvenance'
+import DataFreshness from '@/components/ui/DataFreshness'
 import { isPublished } from '@/components/ui/probability'
 import { forecastAvailability } from '@/components/ui/forecastStatus'
 import { onTeamLogoError } from '@/components/ui/imageFallback'
@@ -43,6 +44,8 @@ const MatchDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
+  /** Kept apart from `providerStatus === null`: "not asked yet" is not "we asked and could not". */
+  const [statusLoaded, setStatusLoaded] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -70,9 +73,9 @@ const MatchDetailPage: React.FC = () => {
    */
   useEffect(() => {
     let cancelled = false
-    footballDataService.getProviderStatus().then(status => {
-      if (!cancelled) setProviderStatus(status)
-    })
+    footballDataService.getProviderStatus()
+      .then(status => { if (!cancelled) setProviderStatus(status) })
+      .finally(() => { if (!cancelled) setStatusLoaded(true) })
     return () => { cancelled = true }
   }, [])
 
@@ -199,6 +202,16 @@ const MatchDetailPage: React.FC = () => {
               </div>
             </Card.Body>
           </Card>
+
+          {/*
+            How current the page is, directly under the scoreline — the place the question is
+            actually asked. It is a different scope from the evidence panel below, and says so:
+            this is about our own refresh process (when fixtures, scores, results and forecasts
+            last refreshed across the site), while the panel below is about the forecast held for
+            THIS fixture. Neither is allowed to stand in for the other, and neither restates the
+            other's facts.
+          */}
+          {statusLoaded && <DataFreshness status={providerStatus} className="mb-6" />}
 
           {/*
             The evidence first: who published anything, which markets they covered, how current it

@@ -10,12 +10,16 @@ Provider provenance tables.
 - provider_forecast_snapshots: append-only history of every distinct forecast we received. A forecast
   is evidence of what a model said BEFORE kickoff, so updating the current row must never be the only
   record: evaluation later depends on the prematch snapshot still existing.
+- provider_forecast_results: the score of one PREMATCH snapshot against the real result. Keyed to the
+  snapshot rather than to the match, so the evidence and the score of that evidence stay together and
+  a later forecast can never be credited with a score that an earlier one earned.
 """
 
 from sqlalchemy import Boolean, Column, DateTime, DECIMAL, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.models.base import Base, TimestampMixin, UUIDMixin, uuid_fk
+from app.models.predictions import PREDICTION_OUTCOME_ENUM
 
 
 class ProviderEntityRef(Base, UUIDMixin, TimestampMixin):
@@ -120,3 +124,59 @@ class ProviderForecastSnapshot(Base, UUIDMixin, TimestampMixin):
     captured_before_kickoff = Column(Boolean,
                                      comment="True/false only when the kickoff was known at capture; NULL when it was not")
     raw_payload = Column(JSONB)
+
+
+class ProviderForecastResult(Base, UUIDMixin, TimestampMixin):
+    """The score of one prematch provider forecast against the real result.
+
+    Keyed to the SNAPSHOT, never to the current `provider_forecasts` row. The current row is
+    overwritten every time the model changes its mind, including after kickoff; scoring it would
+    credit a provider with a forecast it did not publish before the match. `snapshot_id` is unique,
+    so settling the same snapshot twice updates one row instead of counting it twice.
+
+    A snapshot whose `captured_before_kickoff` is not True is never scored at all - neither a win
+    nor a loss - and no row appears here for it.
+    """
+    __tablename__ = "provider_forecast_results"
+    __table_args__ = (
+        Index('idx_provider_forecast_results_match', 'match_id'),
+        Index('idx_provider_forecast_results_provider_settled', 'provider', 'settled_at'),
+        Index('idx_provider_forecast_results_outcome', 'outcome'),
+        {'schema': 'predictions',
+         'comment': 'Scores of prematch provider forecasts, kept with the snapshot that was scored'}
+    )
+
+    snapshot_id = uuid_fk('predictions.provider_forecast_snapshots.id', nullable=False, unique=True,
+                          fk_kwargs={'ondelete': 'CASCADE'},
+                          comment="The prematch forecast that was scored")
+    match_id = uuid_fk('predictions.matches.id', nullable=False, fk_kwargs={'ondelete': 'CASCADE'})
+    provider = Column(String(50), nullable=False, comment="Copied from the snapshot so a source can be aggregated")
+    # NULL when the fixture was never played to a result (postponed, cancelled, abandoned).
+    match_result_id = uuid_fk('predictions.match_results.id', nullable=True,
+                              comment="Result that settled this forecast; NULL when the fixture was never played")
+
+    # NULL means the source published no 1X2 for this fixture: there is nothing to be right or wrong
+    # about, and that is not a loss. Other markets on the same snapshot may still be scored.
+    outcome = Column(PREDICTION_OUTCOME_ENUM, nullable=True,
+                     comment="1X2 settlement; NULL when the source published no 1X2 for this fixture")
+    is_correct = Column(Boolean, comment="NULL when there was no single most likely outcome, or nothing to score")
+
+    actual_outcome = Column(String(10), comment="home | draw | away in regulation time; NULL when not played")
+    probability_of_actual = Column(DECIMAL(5, 4),
+                                   comment="The probability the source itself published for the outcome that "
+                                           "occurred; never derived, NULL when it published none")
+    brier_score = Column(DECIMAL(6, 5),
+                         comment="Three-way Brier score of the published 1X2 probabilities (0 perfect, 2 worst); "
+                                 "NULL when it cannot be computed without inventing numbers")
+
+    settled_at = Column(DateTime, nullable=False, comment="When this score was computed (UTC)")
+    settled_by_system = Column(Boolean, nullable=False, default=True)
+    rules_version = Column(String(50), nullable=False,
+                           comment="Identifier of the settlement ruleset applied; see app/services/settlement.py")
+    market_results = Column(JSONB,
+                            comment="Per market: the rule applied, what was published, what happened, the outcome")
+    void_reason = Column(String(120), comment="Why the forecast was voided rather than scored")
+    snapshot_captured_at = Column(DateTime,
+                                  comment="first_fetched_at of the scored snapshot, copied so the evidence's age "
+                                          "is readable without a join")
+    kickoff_at = Column(DateTime, comment="Kickoff of the fixture (UTC), copied for range queries on measured periods")
