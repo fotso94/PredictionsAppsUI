@@ -10,13 +10,18 @@ from email.mime.multipart import MIMEMultipart
 async def test_smtp_connection():
     """Test SMTP connection with Mailtrap Live credentials"""
     
-    # Mailtrap Live credentials
-    smtp_host = "live.smtp.mailtrap.io"
-    smtp_port = 587
-    smtp_user = "api"
-    smtp_password = "e839cb17caf5bfbd9a1ba2779d8ec68f"
-    from_email = "hello@camerinfrabeauty.com"
-    to_email = "fotsostephan88@gmail.com"
+    # Credentials come from backend/.env (see .env.example); nothing is hard-coded here.
+    import os
+    from app.core.config import settings
+    smtp_host = settings.SMTP_HOST or "live.smtp.mailtrap.io"
+    smtp_port = int(settings.SMTP_PORT or 587)
+    smtp_user = settings.SMTP_USER
+    smtp_password = settings.SMTP_PASSWORD
+    from_email = settings.EMAILS_FROM_EMAIL
+    to_email = os.environ.get("SMTP_TEST_TO_EMAIL") or from_email
+    if not (smtp_user and smtp_password and from_email):
+        raise SystemExit("Set SMTP_USER, SMTP_PASSWORD and EMAILS_FROM_EMAIL in backend/.env "
+                         "(optionally SMTP_TEST_TO_EMAIL) before running this script.")
     
     print(f"Testing SMTP connection to {smtp_host}:{smtp_port}")
     print(f"Username: {smtp_user}")

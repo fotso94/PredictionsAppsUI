@@ -143,7 +143,7 @@ class Settings(BaseSettings):
     
     # External APIs
     API_FOOTBALL_KEY: Optional[str] = None
-    THESPORTSDB_KEY: Optional[str] = "773015"
+    THESPORTSDB_KEY: Optional[str] = None  # optional; set in .env if the TheSportsDB fallback is ever wired
     
     # ML/AI Configuration
     ML_MODEL_PATH: str = "/app/ml/models"

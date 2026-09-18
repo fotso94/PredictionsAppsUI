@@ -4,7 +4,8 @@ interface ImportMetaEnv {
   readonly DEV: boolean
   readonly PROD: boolean
   readonly MODE: string
-  // Add more env variables as needed
+  /** INSECURE opt-in for local demos only; see api-football.service.ts */
+  readonly VITE_API_FOOTBALL_KEY?: string
 }
 
 interface ImportMeta {

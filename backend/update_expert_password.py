@@ -34,7 +34,7 @@ def update_password(email: str, new_password: str):
         db.commit()
         
         print(f"✅ Password updated successfully for {email}")
-        print(f"   New password: {new_password}")
+        print("   New password: (hidden)")
         
     except Exception as e:
         print(f"❌ Error updating password: {e}")
@@ -45,5 +45,9 @@ def update_password(email: str, new_password: str):
 
 
 if __name__ == "__main__":
-    update_password("blake2lang@gmail.com", "Jesuis237")
+    import os
+    import getpass
+    _email = os.environ.get("EXPERT_TEST_EMAIL") or input("Expert e-mail: ")
+    _password = os.environ.get("EXPERT_TEST_PASSWORD") or getpass.getpass("New password: ")
+    update_password(_email, _password)
 

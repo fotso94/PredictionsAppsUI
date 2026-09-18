@@ -8,12 +8,14 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
 // API Configuration
-// Using Vite proxy to avoid CORS issues
-// In development: requests go through Vite proxy at /api/football
-// In production: you'll need to set up a backend proxy or use environment variables
+// - Development: requests go through the Vite dev proxy at /api/football, which injects the
+//   API key server-side from API_FOOTBALL_KEY in frontend/.env. The browser never sees the key.
+// - Production: the browser must not hold the key; requests should go through a backend proxy
+//   (not implemented yet). VITE_API_FOOTBALL_KEY is an explicit, INSECURE opt-in for local demos
+//   only: any VITE_-prefixed variable is embedded in the public bundle.
 const API_CONFIG = {
   baseURL: import.meta.env.DEV ? '/api/football' : 'https://v3.football.api-sports.io',
-  apiKey: '38164887e0ce0b93419671e273fe64c0', // Pro API Key
+  apiKey: import.meta.env.VITE_API_FOOTBALL_KEY ?? '',
   timeout: 10000,
 };
 
@@ -330,7 +332,7 @@ class APIFootballService {
     // In development, use proxy (no API key header needed - proxy adds it)
     // In production, add API key header directly
     const headers: Record<string, string> = {};
-    if (!import.meta.env.DEV) {
+    if (!import.meta.env.DEV && API_CONFIG.apiKey) {
       headers['x-apisports-key'] = API_CONFIG.apiKey;
     }
 

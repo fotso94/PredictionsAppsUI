@@ -59,9 +59,9 @@ async def test_email_service():
         print("SMTP_HOST=smtp.gmail.com")
         print("SMTP_PORT=587")
         print("SMTP_TLS=true")
-        print("SMTP_USER=your-email@gmail.com")
+        print("SMTP_USER=test.user@example.com")
         print("SMTP_PASSWORD=your-app-specific-password")
-        print("EMAILS_FROM_EMAIL=your-email@gmail.com")
+        print("EMAILS_FROM_EMAIL=test.user@example.com")
         print("FRONTEND_URL=http://localhost:3000")
         print()
         return

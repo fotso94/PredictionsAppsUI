@@ -147,16 +147,18 @@ def main():
     print("Creating Expert User")
     print("=" * 60)
 
-    # User credentials
-    email = "blake2lang@gmail.com"
-    password = "Jesuis237"  # Updated password
-    first_name = "Blake"
-    last_name = "Lang"
+    # Credentials come from the environment (or a prompt); nothing is hard-coded here.
+    import os
+    import getpass
+    email = os.environ.get("EXPERT_TEST_EMAIL", "expert.test@example.com")
+    password = os.environ.get("EXPERT_TEST_PASSWORD") or getpass.getpass("Password for the expert user: ")
+    first_name = os.environ.get("EXPERT_TEST_FIRST_NAME", "Test")
+    last_name = os.environ.get("EXPERT_TEST_LAST_NAME", "Expert")
     is_verified = True
 
     print(f"\nUser Details:")
     print(f"  Email: {email}")
-    print(f"  Password: {password}")
+    print("  Password: (hidden)")
     print(f"  First Name: {first_name}")
     print(f"  Last Name: {last_name}")
     print(f"  Role: EXPERT")
@@ -182,7 +184,7 @@ def main():
         print("=" * 60)
         print("\nYou can now login with:")
         print(f"  Email: {email}")
-        print(f"  Password: {password}")
+        print("  Password: (hidden)")
         print(f"\nAccess Expert Dashboard at:")
         print(f"  http://localhost:3000/expert/dashboard")
         print("\n" + "=" * 60)

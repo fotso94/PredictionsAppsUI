@@ -133,7 +133,7 @@ def main():
     
     # Test 1: Request password reset
     print("\n📝 Enter the email address to test with:")
-    print("   (Use a registered email, e.g., fotsostephan88@gmail.com)")
+    print("   (Use a registered email, e.g., test.user@example.com)")
     email = input("   Email: ").strip()
     
     if not email:
