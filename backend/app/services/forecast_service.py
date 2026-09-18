@@ -16,7 +16,7 @@ import uuid
 from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -58,6 +58,54 @@ def _seconds_until_utc_midnight(now: datetime) -> int:
 PENDING_TTL_SECONDS = 48 * 3600
 
 _DATETIME_FIELDS = ("kickoff_utc", "model_run_at", "provider_updated_at", "fetched_at")
+
+
+# ------------------------------------------------------- which snapshot is "the" snapshot
+#: The order of forecast evidence: oldest first, so the newest version of it is the last row.
+#:
+#: ``first_fetched_at`` decides, and stays the primary key of the decision: the forecast a reader
+#: saw is the one the provider last published before they looked. It is not unique, and that is not
+#: corruption. The migration that backfilled this table stamped its one row per forecast with the
+#: record's retrieval time, and ``scripts/repair_forecasts.py`` appends its corrected re-reading of
+#: the same payload under the SAME retrieval time deliberately, because a repair retrieves nothing
+#: and must not move the clock forward. Rows that share a retrieval time therefore describe a single
+#: retrieval, and the row written last is the corrected reading of it - so ``created_at`` breaks the
+#: tie, and the later-created row wins.
+#:
+#: ``id`` closes the order. ``created_at`` comes from a Python-side default, so two rows written in
+#: one transaction can carry the same value to the microsecond; with no unique final key the
+#: database is free to return such rows in any order it likes, and "any order it likes" changes
+#: when a row is updated and rewritten elsewhere in the heap. That is exactly the failure this
+#: ordering exists to prevent: scoring picked one twin, the performance read picked the other, and
+#: a scored forecast was reported as still pending.
+SNAPSHOT_ORDER = (
+    ProviderForecastSnapshot.first_fetched_at.asc(),
+    ProviderForecastSnapshot.created_at.asc(),
+    ProviderForecastSnapshot.id.asc(),
+)
+
+
+def order_snapshots(query):
+    """Apply :data:`SNAPSHOT_ORDER` to a snapshot query. The one place that orders this table."""
+    return query.order_by(*SNAPSHOT_ORDER)
+
+
+def choose_snapshots(query) -> Dict[Tuple[uuid.UUID, str], ProviderForecastSnapshot]:
+    """The chosen snapshot per (match, provider) out of an already-filtered snapshot query.
+
+    The single place in the codebase that answers "which snapshot is the forecast?". Callers differ
+    only in what they filter to - settlement scores prematch snapshots, a resync compares against
+    the newest one of any kind - and never in how the winner is picked, because a scorer and a
+    reader that disagree about the row produce a score that the page cannot find.
+
+    Cost: one indexed query over the rows the caller filtered to, read rather than reduced in SQL.
+    The table holds one row per distinct forecast content per match and provider - a handful - so
+    the alternative, a per-key DISTINCT ON, would buy nothing and split the rule into SQL.
+    """
+    chosen: Dict[Tuple[uuid.UUID, str], ProviderForecastSnapshot] = {}
+    for row in order_snapshots(query).all():
+        chosen[(row.match_id, row.provider)] = row  # oldest first, so the newest row lands last
+    return chosen
 
 
 def _forecast_to_dict(forecast: ProviderForecast) -> Dict[str, Any]:
@@ -504,12 +552,14 @@ class ForecastService:
         """
         digest = content_hash(forecast)
         retrieved = _naive(_retrieved_at(forecast, self.now))
-        latest = (self.db.query(ProviderForecastSnapshot)
-                  .filter(ProviderForecastSnapshot.match_id == match.id,
-                          ProviderForecastSnapshot.provider == forecast.provider)
-                  .order_by(ProviderForecastSnapshot.first_fetched_at.desc(),
-                            ProviderForecastSnapshot.created_at.desc())
-                  .first())
+        # The same "which snapshot is the forecast?" question settlement asks, so it goes through
+        # the same helper: comparing new content against one twin while settlement scores the other
+        # is how a duplicate snapshot gets appended for content that had not changed at all.
+        latest = choose_snapshots(
+            self.db.query(ProviderForecastSnapshot)
+            .filter(ProviderForecastSnapshot.match_id == match.id,
+                    ProviderForecastSnapshot.provider == forecast.provider)
+        ).get((match.id, forecast.provider))
         now = _naive(self.now)
         if latest is not None and self._same_content(latest, forecast, digest):
             latest.content_hash = digest  # backfilled rows carry no hash until they are seen again
@@ -566,12 +616,16 @@ class ForecastService:
                _naive(forecast.model_run_at) == snapshot.model_run_at
 
     def snapshots_for_match(self, match_id, provider_name: Optional[str] = None) -> List[ProviderForecastSnapshot]:
-        """Full forecast history for a match, oldest first. Evidence for later evaluation."""
+        """Full forecast history for a match, oldest first. Evidence for later evaluation.
+
+        Ordered by :data:`SNAPSHOT_ORDER`, so the last row of this history is the row settlement
+        scores: a reader scrolling to the bottom of the evidence sees the forecast that was scored.
+        """
         query = self.db.query(ProviderForecastSnapshot).filter(ProviderForecastSnapshot.match_id == match_id)
         name = provider_name or (self.provider.name if self.provider else settings.PREDICTION_PROVIDER)
         if name and name != "none":
             query = query.filter(ProviderForecastSnapshot.provider == name)
-        return query.order_by(ProviderForecastSnapshot.first_fetched_at.asc()).all()
+        return order_snapshots(query).all()
 
     # ------------------------------------------------------------------ reads
     def forecast_for_match(self, match: Match, provider_name: Optional[str] = None) -> Optional[ProviderForecastRecord]:

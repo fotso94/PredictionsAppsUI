@@ -47,6 +47,7 @@ from app.models.predictions import (
 from app.models.provider_data import ProviderForecastResult, ProviderForecastSnapshot
 from app.models.users import User
 from app.services.expert_prediction import REVISION_ACTION
+from app.services.forecast_service import choose_snapshots
 
 logger = logging.getLogger(__name__)
 
@@ -514,18 +515,20 @@ def prematch_snapshots(db: Session, match_ids: Sequence[uuid.UUID]
     when the match started. Snapshots captured after kickoff, and snapshots captured when the
     kickoff was not yet known (``captured_before_kickoff IS NULL``), are not prematch evidence and
     are never returned here.
+
+    This function decides nothing on its own: the filter is settlement's (prematch only), the pick
+    is :func:`app.services.forecast_service.choose_snapshots`, which every reader of this table
+    goes through. Scoring and the performance read call this same function, so they cannot end up
+    on two different snapshots of one forecast - which, while the ordering was only
+    ``first_fetched_at`` and several snapshots share that timestamp, is precisely what happened:
+    settlement scored one twin and /performance/sources reported the other as still pending.
     """
     if not match_ids:
         return {}
-    rows = (db.query(ProviderForecastSnapshot)
-            .filter(ProviderForecastSnapshot.match_id.in_(list(match_ids)),
-                    ProviderForecastSnapshot.captured_before_kickoff.is_(True))
-            .order_by(ProviderForecastSnapshot.first_fetched_at.asc())
-            .all())
-    chosen: Dict[Tuple[uuid.UUID, str], ProviderForecastSnapshot] = {}
-    for row in rows:
-        chosen[(row.match_id, row.provider)] = row  # ascending order leaves the latest in place
-    return chosen
+    return choose_snapshots(
+        db.query(ProviderForecastSnapshot)
+        .filter(ProviderForecastSnapshot.match_id.in_(list(match_ids)),
+                ProviderForecastSnapshot.captured_before_kickoff.is_(True)))
 
 
 def snapshot_providers(db: Session, match_ids: Sequence[uuid.UUID]
