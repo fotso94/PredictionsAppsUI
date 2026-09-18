@@ -13,7 +13,7 @@
 import apiClient from './api-client';
 import { ConfidenceLevel, HeadToHead, League, LeagueStanding, Match, MatchPredictions, MatchStatus, Team } from '@/types';
 import {
-  DataSourceMeta, MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage, localDateString,
+  CoverageSummary, DataSourceMeta, MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage, localDateString,
 } from './match-data-source';
 
 const API = '/api/v1';
@@ -472,6 +472,16 @@ class BackendMatchDataService implements MatchDataSource {
       return data;
     } catch (error) {
       console.warn('Provider status unavailable:', describeError(error));
+      return null;
+    }
+  }
+
+  async getCoverage(): Promise<CoverageSummary | null> {
+    try {
+      const { data } = await apiClient.get<CoverageSummary>(`${API}/data-providers/coverage`);
+      return data;
+    } catch (error) {
+      console.warn('Coverage summary unavailable:', describeError(error));
       return null;
     }
   }

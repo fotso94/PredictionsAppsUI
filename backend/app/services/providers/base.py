@@ -147,18 +147,37 @@ class ProviderForecast:
     over_35_prob: Optional[float] = None
     under_35_prob: Optional[float] = None
     exact_score: Optional[Dict[str, float]] = None
+    #: Remainder probability the provider assigns to every scoreline it does not list
+    #: ("other" bucket). Kept separate so it is never rendered as a scoreline and so a
+    #: partial score list is never renormalised to imply certainty.
+    exact_score_other_prob: Optional[float] = None
     recommended_bets: Optional[Dict[str, Any]] = None
     reasoning: Optional[str] = None
     confidence: Optional[float] = None
     model_run_at: Optional[datetime] = None
     provider_updated_at: Optional[datetime] = None
+    #: Consistency problems detected in the provider payload (sums out of tolerance,
+    #: values dropped because they were out of bounds). Reported, never silently fixed.
+    anomalies: List[str] = field(default_factory=list)
     raw: Dict[str, Any] = field(default_factory=dict)
 
     def has_any_market(self) -> bool:
         return any(v is not None for v in (
             self.home_prob, self.draw_prob, self.away_prob,
-            self.btts_yes_prob, self.over_25_prob, self.over_35_prob,
-        ))
+            self.btts_yes_prob, self.btts_no_prob,
+            self.over_25_prob, self.under_25_prob,
+            self.over_35_prob, self.under_35_prob,
+        )) or bool(self.exact_score)
+
+    def markets(self) -> Dict[str, bool]:
+        """Which markets this forecast actually supplies, for unavailable-vs-zero rendering."""
+        return {
+            "match_result": any(v is not None for v in (self.home_prob, self.draw_prob, self.away_prob)),
+            "btts": any(v is not None for v in (self.btts_yes_prob, self.btts_no_prob)),
+            "over_under_25": any(v is not None for v in (self.over_25_prob, self.under_25_prob)),
+            "over_under_35": any(v is not None for v in (self.over_35_prob, self.under_35_prob)),
+            "exact_score": bool(self.exact_score),
+        }
 
 
 # ---------------------------------------------------------------------------

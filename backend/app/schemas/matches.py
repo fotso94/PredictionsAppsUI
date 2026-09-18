@@ -80,15 +80,27 @@ def serialize_forecast(record: Optional[ProviderForecastRecord], freshness: Dict
         "btts_yes_prob": _f(record.btts_yes_prob), "btts_no_prob": _f(record.btts_no_prob),
         "total_goals_over_25_prob": _f(record.total_goals_over_25_prob), "total_goals_under_25_prob": _f(record.total_goals_under_25_prob),
         "total_goals_over_35_prob": _f(record.total_goals_over_35_prob), "total_goals_under_35_prob": _f(record.total_goals_under_35_prob),
-        "exact_score": record.exact_score, "recommended_bets": record.recommended_bets, "reasoning": record.reasoning,
+        "exact_score": record.exact_score,
+        # The provider's remainder bucket for every scoreline it does not list. Kept apart so it is
+        # never rendered as a scoreline, and so the listed scores are never renormalised.
+        "exact_score_other_prob": _f(record.exact_score_other_prob),
+        "recommended_bets": record.recommended_bets, "reasoning": record.reasoning,
         "confidence": _f(record.confidence), "match_confidence": record.match_confidence, "matched_by": record.matched_by,
-        "model_run_at": _iso(record.model_run_at), "provider_updated_at": _iso(record.provider_updated_at), "fetched_at": _iso(record.fetched_at),
+        # Three distinct times, never conflated: when the provider's model ran, when the provider last
+        # touched the event, and when we retrieved it. model_run_at is null when the provider did not say.
+        "model_run_at": _iso(record.model_run_at), "provider_updated_at": _iso(record.provider_updated_at),
+        "fetched_at": _iso(record.fetched_at),
+        "generated_at_known": record.model_run_at is not None,
+        "anomalies": record.anomalies or [],
         "state": freshness.get("state"), "state_reason": freshness.get("reason"),
+        # A market is available only when the provider supplied a value for it. Anything false must be
+        # rendered as unavailable, never as 0%.
         "markets_available": {
-            "match_result": record.home_win_prob is not None and record.draw_prob is not None and record.away_win_prob is not None,
-            "btts": record.btts_yes_prob is not None,
-            "over_under_25": record.total_goals_over_25_prob is not None,
-            "over_under_35": record.total_goals_over_35_prob is not None,
+            "match_result": all(v is not None for v in (record.home_win_prob, record.draw_prob, record.away_win_prob)),
+            "btts": any(v is not None for v in (record.btts_yes_prob, record.btts_no_prob)),
+            "over_under_25": any(v is not None for v in (record.total_goals_over_25_prob, record.total_goals_under_25_prob)),
+            "over_under_35": any(v is not None for v in (record.total_goals_over_35_prob, record.total_goals_under_35_prob)),
+            "exact_score": bool(record.exact_score),
         },
     }
 

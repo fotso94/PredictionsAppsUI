@@ -58,8 +58,29 @@ export interface ProviderBudget {
   provider: string;
   daily_limit: number;
   used_today: number;
+  /** Reservations refused because the allowance was already spent; these never reached the provider */
+  refused_today?: number;
   remaining_today: number | null;
   enforced: boolean;
+}
+
+/**
+ * Counts measured from the data this installation actually holds.
+ * Accuracy and user counts are deliberately absent: scoring forecasts needs settled results,
+ * so any figure would be invented.
+ */
+export interface CoverageSummary {
+  competitions_covered: number;
+  competition_keys: string[];
+  upcoming_matches: number;
+  matches_stored: number;
+  model_forecasts: number;
+  upcoming_matches_with_forecast: number;
+  forecast_snapshots: number;
+  expert_predictions_published: number;
+  accuracy_available: boolean;
+  accuracy_unavailable_reason: string;
+  measured_at: string;
 }
 
 export interface ProviderChainEntry {
@@ -106,6 +127,7 @@ export interface MatchDataSource {
   getTeam(teamId: string): Promise<TeamPage | null>;
   search(query: string): Promise<SearchResults>;
   getProviderStatus(): Promise<ProviderStatus | null>;
+  getCoverage(): Promise<CoverageSummary | null>;
   clearCache(): void;
 }
 

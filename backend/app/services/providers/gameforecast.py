@@ -27,7 +27,7 @@ from app.core.config import settings
 from app.services.providers import competitions as comps
 from app.services.providers.base import (
     ForecastProvider, ProviderCompetition, ProviderForecast, ProviderNotConfiguredError,
-    ProviderUnavailableError, parse_utc, to_probability,
+    ProviderUnavailableError, parse_utc,
 )
 from app.services.providers.budget import RequestBudget
 from app.services.providers.http import ProviderHttpClient
@@ -50,36 +50,87 @@ def _bucket(pred: Dict[str, Any], name: str) -> Dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _snapshot_is_percent(latest: Dict[str, Any]) -> bool:
-    """Live payloads (verified 2026-09-17) publish probabilities on a 0-100 scale: home 85 / draw 10 / away 5.
-    A snapshot is treated as percent when any headline market value exceeds 1."""
-    for name in ("match_result", "total_goals", "both_teams_score"):
-        for value in _bucket(latest, name).values():
-            try:
-                if float(value) > 1:
-                    return True
-            except (TypeError, ValueError):
-                continue
-    return False
+# GameForecastAPI publishes every probability on a fixed 0-100 percentage scale. This is the
+# provider's documented contract (specs/game-forecast-api.json) and was confirmed against live
+# responses on 2026-09-17 (match_result home 85 / draw 10 / away 5, exact_score "3_0": 14).
+# The scale is applied explicitly and unconditionally: a provider value of 1 means 1%, never 100%.
+# Inferring the scale from whether values exceed 1 silently turns a genuine 1% into certainty.
+PROBABILITY_SCALE = 100.0
+
+#: Complementary pairs (yes/no, over/under) should sum to 100%; 1X2 outcomes should too.
+#: Integer rounding by the provider makes small deviations normal, so only report beyond this.
+SUM_TOLERANCE = 0.02
 
 
-def _converter(percent: bool):
-    def conv(value: Any) -> Optional[float]:
-        if value is None or isinstance(value, bool):
+def to_probability(value: Any) -> Optional[float]:
+    """Convert one provider percentage (0-100) to a 0-1 probability.
+
+    Returns None - meaning "market unavailable" - for anything that is not a finite number
+    inside the published range. Nothing is guessed, clamped or rescaled.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        value = value.strip().rstrip("%")
+        if not value:
             return None
-        try:
-            number = float(value)
-        except (TypeError, ValueError):
-            return None
-        if percent:
-            number = number / 100.0
-        if number < 0 or number > 1:
-            return None
-        return round(number, 4)
-    return conv
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number or number in (float("inf"), float("-inf")):  # NaN / +-inf
+        return None
+    if number < 0 or number > PROBABILITY_SCALE:
+        return None
+    return round(number / PROBABILITY_SCALE, 4)
+
+
+def _check_sum(anomalies: List[str], label: str, values: Iterable[Optional[float]]) -> None:
+    present = [v for v in values if v is not None]
+    if len(present) < 2:
+        return
+    total = sum(present)
+    if abs(total - 1.0) > SUM_TOLERANCE:
+        anomalies.append(f"{label} probabilities sum to {round(total * 100, 1)}%")
 
 
 _SCORE_KEY = re.compile(r"^(\d+)[_\-:](\d+)$")
+_OTHER_KEYS = {"other", "others", "any_other", "rest"}
+
+
+def _parse_exact_scores(exact: Dict[str, Any], anomalies: List[str]):
+    """Return (scorelines, other_bucket_probability).
+
+    Real scorelines are keyed "3-0". The provider's remainder bucket ("other") is kept apart so
+    it is never displayed as a scoreline, and the listed scores are never renormalised: a list
+    covering 62% of the outcome space keeps summing to 62%.
+    """
+    if not exact:
+        return None, None
+    scores: Dict[str, float] = {}
+    other: Optional[float] = None
+    dropped = 0
+    for raw_key, raw_value in exact.items():
+        key = str(raw_key).strip().lower()
+        probability = to_probability(raw_value)
+        if key in _OTHER_KEYS:
+            other = probability
+            continue
+        key_match = _SCORE_KEY.match(key)
+        if not key_match:
+            dropped += 1
+            continue
+        if probability is None:
+            dropped += 1
+            continue
+        scores[f"{key_match.group(1)}-{key_match.group(2)}"] = probability
+    if dropped:
+        anomalies.append(f"{dropped} exact-score entries were unreadable and were dropped")
+    if scores:
+        total = sum(scores.values()) + (other or 0.0)
+        if total > 1.0 + SUM_TOLERANCE:
+            anomalies.append(f"exact-score probabilities sum to {round(total * 100, 1)}%")
+    return (scores or None), other
 
 
 def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) -> Optional[ProviderForecast]:
@@ -89,7 +140,6 @@ def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) ->
         return None
     # The API returns the latest snapshot first unless include_all_history=true; take the most recent run_at
     latest = max(predictions, key=lambda p: str(p.get("run_at") or ""))
-    conv = _converter(_snapshot_is_percent(latest))
     result = _bucket(latest, "match_result")
     totals = _bucket(latest, "total_goals")
     btts = _bucket(latest, "both_teams_score")
@@ -100,16 +150,20 @@ def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) ->
     reasoning = latest.get("reasoning")
     if isinstance(reasoning, dict):
         reasoning = reasoning.get("en") or next(iter(reasoning.values()), None)
-    # exact scores arrive as {"3_0": 14, ..., "other": 38}: keep real scorelines as "3-0", drop the remainder bucket
-    exact_scores: Optional[Dict[str, float]] = None
-    if exact:
-        exact_scores = {}
-        for score, prob in exact.items():
-            key_match = _SCORE_KEY.match(str(score))
-            p = conv(prob)
-            if key_match and p is not None:
-                exact_scores[f"{key_match.group(1)}-{key_match.group(2)}"] = p
-        exact_scores = exact_scores or None
+
+    anomalies: List[str] = []
+    home_prob, draw_prob, away_prob = (to_probability(result.get(k)) for k in ("home", "draw", "away"))
+    btts_yes, btts_no = to_probability(btts.get("yes")), to_probability(btts.get("no"))
+    over_25, under_25 = to_probability(totals.get("over_2_5")), to_probability(totals.get("under_2_5"))
+    over_35, under_35 = to_probability(totals.get("over_3_5")), to_probability(totals.get("under_3_5"))
+    _check_sum(anomalies, "match result", (home_prob, draw_prob, away_prob))
+    _check_sum(anomalies, "both teams to score", (btts_yes, btts_no))
+    _check_sum(anomalies, "over/under 2.5", (over_25, under_25))
+    _check_sum(anomalies, "over/under 3.5", (over_35, under_35))
+    exact_scores, exact_other = _parse_exact_scores(exact, anomalies)
+    if anomalies:
+        logger.warning("GameForecastAPI event %s: %s", event.get("id"), "; ".join(anomalies))
+
     return ProviderForecast(
         provider=PROVIDER_NAME,
         external_event_id=str(event.get("id")),
@@ -121,23 +175,26 @@ def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) ->
         competition_key=competition_key,
         home_external_id=str(home.get("id")) if home.get("id") is not None else None,
         away_external_id=str(away.get("id")) if away.get("id") is not None else None,
-        home_prob=conv(result.get("home")),
-        draw_prob=conv(result.get("draw")),
-        away_prob=conv(result.get("away")),
-        btts_yes_prob=conv(btts.get("yes")),
-        btts_no_prob=conv(btts.get("no")),
-        over_25_prob=conv(totals.get("over_2_5")),
-        under_25_prob=conv(totals.get("under_2_5")),
-        over_35_prob=conv(totals.get("over_3_5")),
-        under_35_prob=conv(totals.get("under_3_5")),
+        home_prob=home_prob,
+        draw_prob=draw_prob,
+        away_prob=away_prob,
+        btts_yes_prob=btts_yes,
+        btts_no_prob=btts_no,
+        over_25_prob=over_25,
+        under_25_prob=under_25,
+        over_35_prob=over_35,
+        under_35_prob=under_35,
         exact_score=exact_scores,
+        exact_score_other_prob=exact_other,
         recommended_bets=latest.get("recommended_bets") if isinstance(latest.get("recommended_bets"), dict) else None,
         reasoning=reasoning if isinstance(reasoning, str) else None,
         confidence=None,  # not published by the provider; never derived
         model_run_at=parse_utc(latest.get("run_at")),
         provider_updated_at=parse_utc(event.get("updated_at")),
+        anomalies=anomalies,
         raw=event,
     )
+
 
 class GameForecastProvider(ForecastProvider):
     name = PROVIDER_NAME

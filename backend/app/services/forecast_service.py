@@ -9,6 +9,8 @@ logged but never attached.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import uuid
 from dataclasses import asdict
@@ -20,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.predictions import Match, MatchStatus
-from app.models.provider_data import ProviderForecastRecord
+from app.models.provider_data import ProviderForecastRecord, ProviderForecastSnapshot
 from app.services import match_matching
 from app.services.match_cache import MatchCache
 from app.services.match_registry import MatchRegistry, _aware_utc
@@ -71,6 +73,21 @@ def _forecast_from_dict(data: Dict[str, Any]) -> ProviderForecast:
 
 def _dec(value: Optional[float]) -> Optional[Decimal]:
     return Decimal(str(round(value, 4))) if value is not None else None
+
+
+#: Values that define a distinct forecast. Two payloads with the same values are the same evidence.
+_SNAPSHOT_FIELDS = (
+    "home_prob", "draw_prob", "away_prob", "btts_yes_prob", "btts_no_prob",
+    "over_25_prob", "under_25_prob", "over_35_prob", "under_35_prob",
+    "exact_score", "exact_score_other_prob", "recommended_bets", "reasoning", "confidence",
+)
+
+
+def content_hash(forecast: ProviderForecast) -> str:
+    """Stable hash of a forecast's values, used to tell a genuinely new snapshot from a re-fetch."""
+    payload = {name: getattr(forecast, name) for name in _SNAPSHOT_FIELDS}
+    payload["model_run_at"] = forecast.model_run_at.isoformat() if forecast.model_run_at else None
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
 
 
 def _naive(dt: Optional[datetime]) -> Optional[datetime]:
@@ -128,6 +145,26 @@ class ForecastService:
         if self.provider:
             self.cache.set(STATUS_KEY.format(provider=self.provider.name), report, ttl=7 * 24 * 3600, stale_ttl=7 * 24 * 3600)
 
+    def sync_order(self) -> List[str]:
+        """Covered competitions, least recently synced first.
+
+        The daily allowance (10 requests on the GameForecastAPI free plan) is usually too small for
+        all six competitions in one run. Always starting at the head of the configured list would
+        spend the whole allowance on the same leagues and never reach the tail, so the competitions
+        that did not get their turn yesterday go first today. Never-synced competitions come first.
+        """
+        epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        return sorted(self.keys, key=lambda key: (self._last_sync(key) or epoch, self.keys.index(key)))
+
+    def _budget_remaining(self) -> Optional[int]:
+        budget = getattr(self.provider, "budget", None)
+        if budget is None or not getattr(budget, "daily_limit", 0):
+            return None
+        try:
+            return budget.remaining()
+        except Exception:  # pragma: no cover - budget is best effort
+            return None
+
     def ensure_synced(self, days_ahead: Optional[int] = None, force: bool = False) -> Dict[str, Any]:
         """Sync every covered competition whose last sync is older than the configured interval."""
         report: Dict[str, Any] = {"provider": self.provider.name if self.provider else None, "competitions": {}, "skipped": []}
@@ -137,6 +174,7 @@ class ForecastService:
         interval = timedelta(hours=settings.GAMEFORECAST_SYNC_INTERVAL_HOURS)
         days_ahead = days_ahead or settings.GAMEFORECAST_SYNC_DAYS_AHEAD
         report["retried"] = {}
+        report["deferred"] = []
         cooling = self.cache.get(COOLDOWN_KEY.format(provider=self.provider.name))
         if isinstance(cooling, dict) and cooling.get("reason"):
             # No provider calls while paused, but forecasts fetched earlier can still be attached to
@@ -148,7 +186,9 @@ class ForecastService:
             report["error"] = f"skipped (recent failure: {cooling['reason']})"
             report["synced_at"] = self.now.isoformat()
             return report
-        for key in self.keys:
+        order = self.sync_order()
+        report["order"] = order
+        for key in order:
             last = self._last_sync(key)
             if not force and last and self.now - last < interval:
                 report["skipped"].append(key)
@@ -157,6 +197,17 @@ class ForecastService:
                 if retried:
                     report["retried"][key] = retried
                 continue
+            remaining = self._budget_remaining()
+            if remaining is not None and remaining < 1:
+                # Stop before reserving: the request would be refused anyway, and the remaining
+                # competitions keep their place at the head of tomorrow's order.
+                report["deferred"] = [k for k in order[order.index(key):] if k not in report["skipped"]]
+                report["error"] = f"daily request allowance for {self.provider.name} is spent; " \
+                                  f"{len(report['deferred'])} competition(s) deferred to the next reset"
+                seconds = _seconds_until_utc_midnight(self.now)
+                self.cache.set(COOLDOWN_KEY.format(provider=self.provider.name),
+                               {"reason": report["error"]}, ttl=seconds, stale_ttl=seconds)
+                break
             try:
                 # Forecasts can only be attached to fixtures we know about: fill the calendar first (cached,
                 # one provider request per competition at most every few hours).
@@ -170,6 +221,8 @@ class ForecastService:
                 break
             except ProviderError as exc:
                 report["competitions"][key] = {"error": str(exc)}
+                report["deferred"] = [k for k in order[order.index(key):]
+                                      if k not in report["skipped"] and k not in report["competitions"]]
                 logger.warning("Forecast sync for %s failed: %s", key, exc)
                 # quota/auth failures affect every competition: stop here and back off
                 seconds = _seconds_until_utc_midnight(self.now) if isinstance(exc, ProviderQuotaError) else (
@@ -282,17 +335,96 @@ class ForecastService:
         record.total_goals_over_35_prob = _dec(forecast.over_35_prob)
         record.total_goals_under_35_prob = _dec(forecast.under_35_prob)
         record.exact_score = forecast.exact_score
+        record.exact_score_other_prob = _dec(forecast.exact_score_other_prob)
         record.recommended_bets = forecast.recommended_bets
         record.reasoning = forecast.reasoning
         record.confidence = _dec(forecast.confidence)
+        record.anomalies = forecast.anomalies or None
         record.match_confidence = confidence
         record.matched_by = matched_by
         record.model_run_at = _naive(forecast.model_run_at)
         record.provider_updated_at = _naive(forecast.provider_updated_at)
         record.fetched_at = _naive(self.now)
         record.raw_payload = forecast.raw or None
+        self._record_snapshot(match, forecast, confidence, matched_by)
         self.db.flush()
         return record
+
+    def _record_snapshot(self, match: Match, forecast: ProviderForecast, confidence: str,
+                         matched_by: str) -> ProviderForecastSnapshot:
+        """Append this forecast to the evidence history, or mark the existing one as seen again.
+
+        A forecast is the record of what a model said before a match was played, so the current-row
+        update must never be the only trace. Unchanged content only moves `last_fetched_at`, which
+        keeps the table proportional to how often the model actually changes its mind.
+        """
+        digest = content_hash(forecast)
+        latest = (self.db.query(ProviderForecastSnapshot)
+                  .filter(ProviderForecastSnapshot.match_id == match.id,
+                          ProviderForecastSnapshot.provider == forecast.provider)
+                  .order_by(ProviderForecastSnapshot.first_fetched_at.desc(),
+                            ProviderForecastSnapshot.created_at.desc())
+                  .first())
+        now = _naive(self.now)
+        if latest is not None and self._same_content(latest, forecast, digest):
+            latest.content_hash = digest  # backfilled rows carry no hash until they are seen again
+            latest.last_fetched_at = now
+            return latest
+        kickoff = _naive(_aware_utc(match.match_date)) if match.match_date else None
+        snapshot = ProviderForecastSnapshot(
+            id=uuid.uuid4(), match_id=match.id, provider=forecast.provider,
+            external_event_id=forecast.external_event_id, content_hash=digest,
+            home_win_prob=_dec(forecast.home_prob), draw_prob=_dec(forecast.draw_prob),
+            away_win_prob=_dec(forecast.away_prob),
+            btts_yes_prob=_dec(forecast.btts_yes_prob), btts_no_prob=_dec(forecast.btts_no_prob),
+            total_goals_over_25_prob=_dec(forecast.over_25_prob),
+            total_goals_under_25_prob=_dec(forecast.under_25_prob),
+            total_goals_over_35_prob=_dec(forecast.over_35_prob),
+            total_goals_under_35_prob=_dec(forecast.under_35_prob),
+            exact_score=forecast.exact_score,
+            exact_score_other_prob=_dec(forecast.exact_score_other_prob),
+            recommended_bets=forecast.recommended_bets, reasoning=forecast.reasoning,
+            confidence=_dec(forecast.confidence), anomalies=forecast.anomalies or None,
+            match_confidence=confidence, matched_by=matched_by,
+            model_run_at=_naive(forecast.model_run_at),
+            provider_updated_at=_naive(forecast.provider_updated_at),
+            first_fetched_at=now, last_fetched_at=now, kickoff_at_capture=kickoff,
+            captured_before_kickoff=bool(kickoff and now < kickoff),
+            raw_payload=forecast.raw or None,
+        )
+        self.db.add(snapshot)
+        return snapshot
+
+    @staticmethod
+    def _same_content(snapshot: ProviderForecastSnapshot, forecast: ProviderForecast, digest: str) -> bool:
+        if snapshot.content_hash:
+            return snapshot.content_hash == digest
+        # Rows backfilled by the migration have no hash: compare the stored values instead.
+        pairs = (
+            (snapshot.home_win_prob, forecast.home_prob), (snapshot.draw_prob, forecast.draw_prob),
+            (snapshot.away_win_prob, forecast.away_prob),
+            (snapshot.btts_yes_prob, forecast.btts_yes_prob), (snapshot.btts_no_prob, forecast.btts_no_prob),
+            (snapshot.total_goals_over_25_prob, forecast.over_25_prob),
+            (snapshot.total_goals_under_25_prob, forecast.under_25_prob),
+            (snapshot.total_goals_over_35_prob, forecast.over_35_prob),
+            (snapshot.total_goals_under_35_prob, forecast.under_35_prob),
+            (snapshot.exact_score_other_prob, forecast.exact_score_other_prob),
+        )
+        for stored, fresh in pairs:
+            if (stored is None) != (fresh is None):
+                return False
+            if stored is not None and abs(float(stored) - float(fresh)) > 1e-6:
+                return False
+        return (snapshot.exact_score or None) == (forecast.exact_score or None) and \
+               _naive(forecast.model_run_at) == snapshot.model_run_at
+
+    def snapshots_for_match(self, match_id, provider_name: Optional[str] = None) -> List[ProviderForecastSnapshot]:
+        """Full forecast history for a match, oldest first. Evidence for later evaluation."""
+        query = self.db.query(ProviderForecastSnapshot).filter(ProviderForecastSnapshot.match_id == match_id)
+        name = provider_name or (self.provider.name if self.provider else settings.PREDICTION_PROVIDER)
+        if name and name != "none":
+            query = query.filter(ProviderForecastSnapshot.provider == name)
+        return query.order_by(ProviderForecastSnapshot.first_fetched_at.asc()).all()
 
     # ------------------------------------------------------------------ reads
     def forecast_for_match(self, match: Match, provider_name: Optional[str] = None) -> Optional[ProviderForecastRecord]:

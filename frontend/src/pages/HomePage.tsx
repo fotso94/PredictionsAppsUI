@@ -4,8 +4,8 @@ import { Helmet } from 'react-helmet-async'
 import {
   ChartBarIcon,
   TrophyIcon,
-  UsersIcon,
-  ArrowTrendingUpIcon,
+  CalendarDaysIcon,
+  CpuChipIcon,
   ArrowRightIcon,
   FireIcon
 } from '@heroicons/react/24/outline'
@@ -15,57 +15,74 @@ import Button from '@/components/ui/Button'
 import MatchCard from '@/components/ui/MatchCard'
 import { motion } from 'framer-motion'
 import { footballDataService } from '@/services/football-data.service'
+import { CoverageSummary } from '@/services/match-data-source'
 import { filterLiveAndScheduledMatches, filterLiveAndUpcomingMatches } from '@/utils/matchFilters'
 
 const HomePage: React.FC = () => {
   const [todayMatches, setTodayMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
+  const [coverage, setCoverage] = useState<CoverageSummary | null>(null)
+  const [coverageLoading, setCoverageLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
+
     async function fetchTodayMatches() {
       try {
         setLoading(true)
         const matches = await footballDataService.getTodayFixtures()
-        setTodayMatches(matches)
+        if (!cancelled) setTodayMatches(matches)
       } catch (error) {
         console.error('Error fetching today\'s matches:', error)
-        setTodayMatches([])
+        if (!cancelled) setTodayMatches([])
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    async function fetchCoverage() {
+      try {
+        const summary = await footballDataService.getCoverage()
+        if (!cancelled) setCoverage(summary)
+      } finally {
+        if (!cancelled) setCoverageLoading(false)
       }
     }
 
     fetchTodayMatches()
+    fetchCoverage()
+    return () => { cancelled = true }
   }, [])
 
+  /**
+   * Measured from the data this installation actually holds. There is deliberately no accuracy,
+   * success-rate or user-count figure here: scoring a forecast needs settled results, and none have
+   * been scored yet, so any such number would be invented.
+   */
   const stats = [
     {
-      name: 'Total Predictions',
-      value: '15,234',
-      icon: ChartBarIcon,
-      change: '+12%',
-      changeType: 'increase' as const,
-    },
-    {
-      name: 'Accuracy Rate',
-      value: '78.5%',
+      name: 'Competitions covered',
+      value: coverage ? String(coverage.competitions_covered) : null,
       icon: TrophyIcon,
-      change: '+2.1%',
-      changeType: 'increase' as const,
+      detail: 'Top five European leagues and the Champions League',
     },
     {
-      name: 'Active Users',
-      value: '8,429',
-      icon: UsersIcon,
-      change: '+18%',
-      changeType: 'increase' as const,
+      name: 'Upcoming fixtures loaded',
+      value: coverage ? coverage.upcoming_matches.toLocaleString() : null,
+      icon: CalendarDaysIcon,
+      detail: 'Scheduled and in-play matches currently stored',
     },
     {
-      name: 'Success Rate',
-      value: '82.3%',
-      icon: ArrowTrendingUpIcon,
-      change: '+5.2%',
-      changeType: 'increase' as const,
+      name: 'Model forecasts available',
+      value: coverage ? coverage.upcoming_matches_with_forecast.toLocaleString() : null,
+      icon: CpuChipIcon,
+      detail: 'Upcoming matches with a GameForecast model prediction attached',
+    },
+    {
+      name: 'Expert predictions published',
+      value: coverage ? coverage.expert_predictions_published.toLocaleString() : null,
+      icon: ChartBarIcon,
+      detail: 'Published by verified experts on this site',
     },
   ]
 
@@ -77,8 +94,8 @@ const HomePage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>Soccer Predictions - Professional Football Analytics & Betting Tips</title>
-        <meta name="description" content="Get accurate soccer predictions with advanced analytics. Professional football betting tips, match analysis, and expert insights for today's games." />
+        <title>Soccer Predictions - Fixtures, Model Forecasts and Expert Analysis</title>
+        <meta name="description" content="Fixtures and results for the top five European leagues and the Champions League, with GameForecastAPI model forecasts and predictions published by verified experts." />
       </Helmet>
 
       <div className="min-h-screen">
@@ -97,8 +114,9 @@ const HomePage: React.FC = () => {
                 <span className="text-gradient">Soccer Predictions</span>
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-secondary-300">
-                Get accurate match predictions powered by advanced analytics and expert insights. 
-                Join thousands of successful bettors who trust our professional analysis.
+                Fixtures and results from Europe&rsquo;s top five leagues and the Champions League,
+                with model forecasts from GameForecastAPI and predictions published by verified experts.
+                Every probability shown comes from a named source, and markets without one are marked unavailable.
               </p>
               <div className="mt-10 flex items-center justify-center gap-x-6">
                 <Button size="lg" asChild>
@@ -108,7 +126,7 @@ const HomePage: React.FC = () => {
                   </Link>
                 </Button>
                 <Button variant="outline" size="lg" asChild>
-                  <Link to="/register">Start Free Trial</Link>
+                  <Link to="/register">Create an account</Link>
                 </Button>
               </div>
             </motion.div>
@@ -125,7 +143,7 @@ const HomePage: React.FC = () => {
               className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4"
             >
               {stats.map((stat) => (
-                <Card key={stat.name} className="text-center">
+                <Card key={stat.name} className="text-center" data-testid="coverage-stat">
                   <Card.Body>
                     <div className="flex items-center justify-center">
                       <div className="rounded-lg bg-primary-900 p-3">
@@ -133,13 +151,15 @@ const HomePage: React.FC = () => {
                       </div>
                     </div>
                     <div className="mt-4">
-                      <div className="text-2xl font-bold text-white">{stat.value}</div>
-                      <div className="text-sm text-secondary-400">{stat.name}</div>
-                      <div className="mt-2 flex items-center justify-center">
-                        <span className="text-success-400 text-sm font-medium">
-                          {stat.change} from last month
-                        </span>
+                      <div className="text-2xl font-bold text-white">
+                        {coverageLoading ? (
+                          <span className="inline-block h-7 w-16 animate-pulse rounded bg-dark-700" aria-label="Loading" />
+                        ) : stat.value ?? (
+                          <span className="text-base font-medium text-secondary-500">Unavailable</span>
+                        )}
                       </div>
+                      <div className="text-sm text-secondary-400">{stat.name}</div>
+                      <div className="mt-2 text-xs text-secondary-500">{stat.detail}</div>
                     </div>
                   </Card.Body>
                 </Card>
@@ -163,7 +183,7 @@ const HomePage: React.FC = () => {
                     Featured Predictions
                   </h2>
                   <p className="mt-2 text-secondary-400">
-                    Today's top predictions with highest confidence levels
+                    Today&rsquo;s matches where an expert published a high-confidence prediction
                   </p>
                 </div>
                 <Button variant="outline" asChild>
@@ -269,15 +289,15 @@ const HomePage: React.FC = () => {
               className="text-center"
             >
               <h2 className="text-3xl font-bold text-white">
-                Ready to Start Winning?
+                Follow the fixtures that matter
               </h2>
               <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-100">
-                Join our community of successful bettors and get access to premium predictions, 
-                detailed analysis, and expert insights.
+                Create an account to save the competitions you follow and to read expert reasoning
+                alongside each model forecast. Nothing here is betting advice.
               </p>
               <div className="mt-8 flex items-center justify-center gap-x-6">
                 <Button size="lg" variant="secondary" asChild>
-                  <Link to="/register">Get Started Free</Link>
+                  <Link to="/register">Create an account</Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
                   <Link to="/predictions/today">Browse Predictions</Link>

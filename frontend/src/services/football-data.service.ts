@@ -23,7 +23,7 @@ import {
 } from './api-mapper.service';
 import backendMatchDataService from './backend-match-data.service';
 import {
-  MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage, configuredDataSource, localDateString,
+  CoverageSummary, MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage, configuredDataSource, localDateString,
 } from './match-data-source';
 
 // Popular league IDs from API-Football
@@ -689,6 +689,11 @@ class ApiFootballDataService implements MatchDataSource {
   }
 
   async getProviderStatus(): Promise<ProviderStatus | null> {
+    return null;
+  }
+
+  /** Not measurable from the browser-side API-Football path: reported as unavailable, never guessed. */
+  async getCoverage(): Promise<CoverageSummary | null> {
     return null;
   }
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -66,3 +66,34 @@ class MatchCache:
             client.delete(key, f"{key}:stale")
         except Exception as exc:  # pragma: no cover
             logger.warning("Cache delete failed (%s): %s", key, exc)
+
+    def keys(self, pattern: str) -> List[str]:
+        """Cache keys matching a glob, base keys only (the parallel `:stale` copies are omitted).
+
+        SCAN is used rather than KEYS so a large cache is never blocked.
+        """
+        client = self._redis()
+        if client is None:
+            return []
+        found = []
+        try:
+            for raw in client.scan_iter(match=pattern, count=200):
+                key = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw)
+                if not key.endswith(":stale"):
+                    found.append(key)
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Cache scan failed (%s): %s", pattern, exc)
+        return found
+
+    def delete_pattern(self, pattern: str) -> int:
+        """Drop every cached entry matching a glob, with its stale copy. Returns how many were removed.
+
+        Used when stored data changes underneath the cache - an expert publishing a prediction, or a
+        forecast repair - so the public pages never keep serving the superseded payload.
+        """
+        keys = self.keys(pattern)
+        for key in keys:
+            self.delete(key)
+        if keys:
+            logger.info("Cache invalidated: %d entries matching %s", len(keys), pattern)
+        return len(keys)

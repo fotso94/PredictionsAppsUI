@@ -28,3 +28,6 @@ backend/.pytest_cache/
 # Logs and local tooling output
 *.log
 .trunk/
+
+# Local database backups (may contain credentials/PII) - never commit
+backups/
