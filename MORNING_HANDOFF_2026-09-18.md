@@ -256,8 +256,10 @@ shows the model forecast with its reasoning, the most likely score as "3-0 (14%)
 38%", the three separate timestamps, markets the expert left blank marked unavailable, and the
 paused-refresh notice.
 
-A QA expert account exists for the browser tests: `qa.expert@predictions-local.dev` /
-`QaExpertLocal!2026`. Local only, and it holds no live predictions.
+A QA expert account exists for the browser tests: `qa.expert@predictions-local.dev`. Its password is
+a local test fixture, not a secret, and this repository is public, so it is overridable with
+`E2E_QA_PASSWORD` (the default is in `frontend/e2e/support/qa-account.ts`). The account holds no live
+predictions, and it must never exist in a deployed database: it can publish as an expert.
 
 ---
 

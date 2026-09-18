@@ -11,10 +11,18 @@ import { ApiMatch } from './api-stub';
 
 export const API = process.env.E2E_API_URL || 'http://127.0.0.1:8000';
 
+/**
+ * The password is a LOCAL TEST FIXTURE, not a secret, and this repository is public. Override it
+ * with E2E_QA_PASSWORD when you want a different one.
+ *
+ * This account must never exist in a deployed database. It is created by the suite against the
+ * local backend, it holds nothing, and every prediction it publishes is removed again. If local
+ * seed data is ever promoted to a real environment, delete it first: it can publish as an expert.
+ */
 export const QA_EXPERT = {
-  email: 'qa.expert@predictions-local.dev',
+  email: process.env.E2E_QA_EMAIL || 'qa.expert@predictions-local.dev',
   username: 'qa_expert_local',
-  password: 'QaExpertLocal!2026',
+  password: process.env.E2E_QA_PASSWORD || 'local-only-e2e-fixture',
   first_name: 'QA',
   last_name: 'Expert',
   role: 'expert',
