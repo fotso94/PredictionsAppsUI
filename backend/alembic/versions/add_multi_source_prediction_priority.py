@@ -28,21 +28,18 @@ def upgrade() -> None:
     5. Update existing predictions with priority levels
     """
     
-    # 1. Add new enum values to PredictionSource
-    # Note: Enum types are in the 'users' schema (from initial migration)
-    # Enum values are uppercase
-    op.execute("""
-        ALTER TYPE users.predictionsource
-        ADD VALUE IF NOT EXISTS 'LLM_GENERATED';
-    """)
-    op.execute("""
-        ALTER TYPE users.predictionsource
-        ADD VALUE IF NOT EXISTS 'API_FOOTBALL_BASELINE';
-    """)
-    op.execute("""
-        ALTER TYPE users.predictionsource
-        ADD VALUE IF NOT EXISTS 'DEFAULT_RANDOMIZED';
-    """)
+    # 1. Add new enum values to PredictionSource (values are uppercase in the database).
+    # The enum type was created by the initial migration without an explicit schema, so it lives in
+    # whichever schema was first on the search_path at that time: 'users' when the Docker init script
+    # has set the database search_path, 'public' on a bare PostgreSQL. Resolve it at runtime.
+    enum_schema = op.get_bind().execute(sa.text(
+        "SELECT n.nspname FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace "
+        "WHERE t.typname = 'predictionsource' ORDER BY (n.nspname = 'users') DESC LIMIT 1"
+    )).scalar()
+    if enum_schema is None:
+        raise RuntimeError("PostgreSQL enum type 'predictionsource' not found; run migration 9b3c8646a52d first")
+    for value in ('LLM_GENERATED', 'API_FOOTBALL_BASELINE', 'DEFAULT_RANDOMIZED'):
+        op.execute(f'ALTER TYPE "{enum_schema}".predictionsource ADD VALUE IF NOT EXISTS \'{value}\'')
     
     # 2. Add priority_level column
     op.add_column(
