@@ -59,6 +59,9 @@ _ALIASES = {
     "bayern": "bayern munich", "bayern munchen": "bayern munich", "fc bayern munchen": "bayern munich",
     "fc bayern": "bayern munich", "borussia dortmund": "dortmund", "bvb": "dortmund",
     "borussia monchengladbach": "monchengladbach", "bor monchengladbach": "monchengladbach", "gladbach": "monchengladbach",
+    "borussia m gladbach": "monchengladbach", "m gladbach": "monchengladbach", "mgladbach": "monchengladbach",
+    "hamburger sv": "hamburg", "hsv": "hamburg", "hamburger": "hamburg", "fc cologne": "koln", "1 fc cologne": "koln",
+    "heidenheim 1846": "heidenheim", "fc heidenheim": "heidenheim", "st pauli": "st pauli", "fc st pauli": "st pauli",
     "leverkusen": "bayer leverkusen", "bayer 04 leverkusen": "bayer leverkusen", "frankfurt": "eintracht frankfurt",
     "eintracht": "eintracht frankfurt", "koln": "koln", "fc koln": "koln", "1 fc koln": "koln", "cologne": "koln",
     "mainz": "mainz 05", "fsv mainz": "mainz 05", "rb leipzig": "leipzig", "rasenballsport leipzig": "leipzig",
@@ -86,6 +89,8 @@ def normalize_team_name(name: Optional[str]) -> str:
     if not name:
         return ""
     text = strip_accents(name.translate(_LETTER_MAP)).lower()
+    # German transliterations: providers write "Moenchengladbach"/"Koeln"/"Muenchen" for ö/ü; fold both spellings
+    text = text.replace("oe", "o").replace("ae", "a").replace("ue", "u")
     text = text.replace("&", " and ").replace("-", " ").replace("/", " ")
     text = re.sub(r"[^a-z0-9 ]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip()

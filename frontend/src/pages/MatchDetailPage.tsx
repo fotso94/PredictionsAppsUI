@@ -8,7 +8,7 @@ import Button from '@/components/ui/Button'
 import { Badge, ConfidenceBadge } from '@/components/ui/Badge'
 import { footballDataService } from '@/services/football-data.service'
 import { describeError } from '@/services/backend-match-data.service'
-import { providerLabel } from '@/utils/predictionLabels'
+import { providerLabel, betLabels } from '@/utils/predictionLabels'
 import { isMatchLive, isMatchFinished, getMatchStatusText, getMatchStatusBadgeClasses } from '@/utils/matchFilters'
 
 const pctText = (value: number) => `${Math.round(value)}%`
@@ -264,10 +264,10 @@ const MatchDetailPage: React.FC = () => {
                     {forecast.analysis && (
                       <p className="text-sm text-secondary-300 whitespace-pre-line">{forecast.analysis}</p>
                     )}
-                    {forecast.recommendedBets && Object.keys(forecast.recommendedBets).length > 0 && (
+                    {betLabels(forecast.recommendedBets).length > 0 && (
                       <div className="text-xs text-secondary-400">
-                        <span className="text-secondary-300">Provider suggestions: </span>
-                        {Object.entries(forecast.recommendedBets).map(([k, v]) => `${k}: ${String(v)}`).join(' · ')}
+                        <span className="text-secondary-300">Model's suggested markets: </span>
+                        {betLabels(forecast.recommendedBets).join(' · ')}
                       </div>
                     )}
                     <p className="text-xs text-secondary-500">

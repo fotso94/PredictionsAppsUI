@@ -139,6 +139,12 @@ class ForecastService:
         report["retried"] = {}
         cooling = self.cache.get(COOLDOWN_KEY.format(provider=self.provider.name))
         if isinstance(cooling, dict) and cooling.get("reason"):
+            # No provider calls while paused, but forecasts fetched earlier can still be attached to
+            # fixtures that appeared (or became matchable) since.
+            for key in self.keys:
+                retried = self._retry_pending(key)
+                if retried:
+                    report["retried"][key] = retried
             report["error"] = f"skipped (recent failure: {cooling['reason']})"
             report["synced_at"] = self.now.isoformat()
             return report

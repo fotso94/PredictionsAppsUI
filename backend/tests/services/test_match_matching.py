@@ -83,3 +83,16 @@ def test_naive_kickoffs_are_treated_as_utc():
     naive = KICKOFF.replace(tzinfo=None)
     d = find_match("Liverpool", "Everton", naive, "premier_league", [MatchCandidate("m1", "Liverpool", "Everton", naive, "premier_league")])
     assert d.attached and d.confidence == "exact"
+
+
+def test_german_transliterations_match_live_provider_names():
+    # Live Score API spells umlauts with "oe"/"ue"; GameForecast strips them
+    assert team_names_match("Borussia Moenchengladbach", "Borussia Monchengladbach")
+    assert team_names_match("Borussia Moenchengladbach", "Borussia M'gladbach")
+    assert team_names_match("1. FC Koeln", "FC Cologne")
+    assert team_names_match("FC Cologne", "Köln")
+    assert team_names_match("Hamburger SV", "Hamburg")
+    assert team_names_match("Bayern Muenchen", "Bayern Munich")
+    assert team_names_match("Mainz 05", "FSV Mainz 05")
+    assert team_names_match("RasenBallsport Leipzig", "RB Leipzig")
+    assert not team_names_match("Borussia Moenchengladbach", "Borussia Dortmund")

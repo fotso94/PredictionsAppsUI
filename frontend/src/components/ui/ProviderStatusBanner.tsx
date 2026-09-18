@@ -39,14 +39,13 @@ const ProviderStatusBanner: React.FC = () => {
       problems.push(`Last ${active.name} request failed: ${active.last_error}`)
     }
   }
-  if (status.forecasts?.cooling_down) {
-    problems.push(`Model forecasts are unavailable: ${status.forecasts.cooling_down}`)
-  }
-  if (status.forecasts && !status.forecasts.configured && status.forecasts.active_provider !== 'none') {
-    problems.push(`Prediction provider "${status.forecasts.active_provider}" is not configured; model forecasts are unavailable.`)
-  }
-  if (status.forecasts?.budget && status.forecasts.budget.enforced && status.forecasts.budget.remaining_today === 0) {
-    problems.push('Daily forecast request budget is exhausted; forecasts refresh tomorrow.')
+  const forecasts = status.forecasts
+  if (forecasts && !forecasts.configured && forecasts.active_provider !== 'none') {
+    problems.push(`Prediction provider "${forecasts.active_provider}" is not configured; model forecasts are unavailable.`)
+  } else if (forecasts?.budget && forecasts.budget.enforced && forecasts.budget.remaining_today === 0) {
+    problems.push('Model forecast updates are paused until tomorrow (daily request allowance used); forecasts already loaded stay visible.')
+  } else if (forecasts?.cooling_down) {
+    problems.push(`Model forecast updates are paused after a provider error: ${forecasts.cooling_down}`)
   }
 
   if (problems.length === 0) return null

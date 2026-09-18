@@ -295,6 +295,19 @@ def test_forecasts_fetched_before_fixtures_are_attached_later_without_new_reques
         assert service.forecast_for_match(match) is not None
 
 
+def test_pending_forecasts_are_retried_while_the_provider_is_paused(db):
+    cache = MatchCache(client=FakeRedis())
+    service = ForecastService(db, provider=SampleForecastProvider(), cache=cache, now=NOW, keys=KEYS, sync_fixtures=False)
+    first = service.ensure_synced(days_ahead=3)
+    assert first["competitions"]["premier_league"]["unmatched"] > 0  # no fixtures yet
+    cache.set("forecast:cooldown:sample", {"reason": "quota"}, ttl=3600, stale_ttl=3600)
+    data = MatchDataService(db, providers=[SampleDataProvider(now=NOW)], cache=cache, now=NOW, keys=KEYS)
+    matches, _ = data.matches_for_day(DAY)
+    paused = service.ensure_synced(days_ahead=3)
+    assert paused["error"].startswith("skipped (recent failure") and paused["retried"]["premier_league"]["attached"] == 2
+    assert all(service.forecast_for_match(m) is not None for m in matches)
+
+
 def test_ensure_synced_loads_fixtures_before_attaching(db):
     cache = MatchCache(client=FakeRedis())
     fixtures = MatchDataService(db, providers=[SampleDataProvider(now=NOW)], cache=cache, now=NOW, keys=KEYS)

@@ -10,13 +10,16 @@ Spec: https://gameforecastapi.com/specs/game-forecast-api.json (OpenAPI 3.1, fet
                  round, start_at (ISO), score{...}, odds[], predictions[], updated_at}
   predictions[i] = {match_result{home,draw,away}, total_goals{over_2_5, under_2_5, ...},
                     both_teams_score{yes,no}, exact_score{...}, recommended_bets{}, reasoning{en,...}, run_at}
-  Probabilities are published on a 0-100 scale in the spec example; `to_probability` accepts both.
+  Probabilities are published on a 0-100 scale (verified live 2026-09-17); exact_score keys look like "3_0"
+  plus an "other" remainder bucket; extra markets (over/under 0.5/1.5, first_half_winner, team_to_score_first,
+  home/away_team_goals) exist and are not used yet.
 Free plan: 10 requests/day (10/hour); Pro: 5,000 requests/month.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -47,6 +50,38 @@ def _bucket(pred: Dict[str, Any], name: str) -> Dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _snapshot_is_percent(latest: Dict[str, Any]) -> bool:
+    """Live payloads (verified 2026-09-17) publish probabilities on a 0-100 scale: home 85 / draw 10 / away 5.
+    A snapshot is treated as percent when any headline market value exceeds 1."""
+    for name in ("match_result", "total_goals", "both_teams_score"):
+        for value in _bucket(latest, name).values():
+            try:
+                if float(value) > 1:
+                    return True
+            except (TypeError, ValueError):
+                continue
+    return False
+
+
+def _converter(percent: bool):
+    def conv(value: Any) -> Optional[float]:
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        if percent:
+            number = number / 100.0
+        if number < 0 or number > 1:
+            return None
+        return round(number, 4)
+    return conv
+
+
+_SCORE_KEY = re.compile(r"^(\d+)[_\-:](\d+)$")
+
+
 def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) -> Optional[ProviderForecast]:
     """Translate one /events item into a ProviderForecast (None when no prediction snapshot exists)."""
     predictions = event.get("predictions") or []
@@ -54,6 +89,7 @@ def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) ->
         return None
     # The API returns the latest snapshot first unless include_all_history=true; take the most recent run_at
     latest = max(predictions, key=lambda p: str(p.get("run_at") or ""))
+    conv = _converter(_snapshot_is_percent(latest))
     result = _bucket(latest, "match_result")
     totals = _bucket(latest, "total_goals")
     btts = _bucket(latest, "both_teams_score")
@@ -64,13 +100,15 @@ def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) ->
     reasoning = latest.get("reasoning")
     if isinstance(reasoning, dict):
         reasoning = reasoning.get("en") or next(iter(reasoning.values()), None)
+    # exact scores arrive as {"3_0": 14, ..., "other": 38}: keep real scorelines as "3-0", drop the remainder bucket
     exact_scores: Optional[Dict[str, float]] = None
     if exact:
         exact_scores = {}
         for score, prob in exact.items():
-            p = to_probability(prob)
-            if p is not None:
-                exact_scores[str(score)] = p
+            key_match = _SCORE_KEY.match(str(score))
+            p = conv(prob)
+            if key_match and p is not None:
+                exact_scores[f"{key_match.group(1)}-{key_match.group(2)}"] = p
         exact_scores = exact_scores or None
     return ProviderForecast(
         provider=PROVIDER_NAME,
@@ -83,15 +121,15 @@ def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) ->
         competition_key=competition_key,
         home_external_id=str(home.get("id")) if home.get("id") is not None else None,
         away_external_id=str(away.get("id")) if away.get("id") is not None else None,
-        home_prob=to_probability(result.get("home")),
-        draw_prob=to_probability(result.get("draw")),
-        away_prob=to_probability(result.get("away")),
-        btts_yes_prob=to_probability(btts.get("yes")),
-        btts_no_prob=to_probability(btts.get("no")),
-        over_25_prob=to_probability(totals.get("over_2_5")),
-        under_25_prob=to_probability(totals.get("under_2_5")),
-        over_35_prob=to_probability(totals.get("over_3_5")),
-        under_35_prob=to_probability(totals.get("under_3_5")),
+        home_prob=conv(result.get("home")),
+        draw_prob=conv(result.get("draw")),
+        away_prob=conv(result.get("away")),
+        btts_yes_prob=conv(btts.get("yes")),
+        btts_no_prob=conv(btts.get("no")),
+        over_25_prob=conv(totals.get("over_2_5")),
+        under_25_prob=conv(totals.get("under_2_5")),
+        over_35_prob=conv(totals.get("over_3_5")),
+        under_35_prob=conv(totals.get("under_3_5")),
         exact_score=exact_scores,
         recommended_bets=latest.get("recommended_bets") if isinstance(latest.get("recommended_bets"), dict) else None,
         reasoning=reasoning if isinstance(reasoning, str) else None,
@@ -100,7 +138,6 @@ def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) ->
         provider_updated_at=parse_utc(event.get("updated_at")),
         raw=event,
     )
-
 
 class GameForecastProvider(ForecastProvider):
     name = PROVIDER_NAME

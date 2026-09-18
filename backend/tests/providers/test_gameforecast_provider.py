@@ -55,6 +55,26 @@ def test_parse_event_uses_latest_snapshot_and_converts_percentages():
     assert f.competition_key == "premier_league" and f.home_external_id == "31"
 
 
+def test_parse_event_real_percent_payload_with_small_exact_scores():
+    """Shape observed live on 2026-09-17 (Bayern v Union Berlin)."""
+    e = event(predictions=[{
+        "run_at": "2026-09-17T00:00:00Z",
+        "match_result": {"home": 85, "draw": 10, "away": 5},
+        "total_goals": {"over_0_5": 99, "over_1_5": 95, "over_2_5": 85, "over_3_5": 65, "under_0_5": 1, "under_1_5": 5, "under_2_5": 15, "under_3_5": 35},
+        "both_teams_score": {"yes": 30, "no": 70},
+        "exact_score": {"0_0": 1, "1_0": 3, "2_0": 12, "3_0": 14, "3_1": 9, "other": 38},
+        "recommended_bets": {"1": "matchResult.homeWinProbability", "2": "totalGoals.over2_5", "3": "bothTeamsScore.no"},
+        "reasoning": "Bayern are in excellent form.",
+    }])
+    f = parse_event(e)
+    assert (f.home_prob, f.draw_prob, f.away_prob) == (0.85, 0.1, 0.05)
+    assert (f.btts_yes_prob, f.btts_no_prob) == (0.3, 0.7)
+    assert (f.over_25_prob, f.under_25_prob, f.over_35_prob, f.under_35_prob) == (0.85, 0.15, 0.65, 0.35)
+    assert f.exact_score == {"0-0": 0.01, "1-0": 0.03, "2-0": 0.12, "3-0": 0.14, "3-1": 0.09}  # 1 means 1%, "other" dropped
+    assert max(f.exact_score, key=f.exact_score.get) == "3-0"
+    assert f.reasoning == "Bayern are in excellent form."
+
+
 def test_parse_event_accepts_unit_scale_probabilities():
     e = event(predictions=[{"run_at": "2026-09-18T06:00:00Z", "match_result": {"home": 0.5, "draw": 0.3, "away": 0.2}}])
     f = parse_event(e)

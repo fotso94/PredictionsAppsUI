@@ -69,7 +69,7 @@ UTC kickoff, never by numeric ids (`backend/app/services/match_matching.py`).
 | Role | Provider | Setting | Status |
 |---|---|---|---|
 | Match data (primary) | [Live Score API](https://live-score-api.com) — 14-day trial, 1,500 requests/day | `DATA_PROVIDER=livescore` + `LIVESCORE_API_KEY` / `LIVESCORE_API_SECRET` | verified live (fixtures, calendar, competition ids 2/3/4/1/5/244); calls are spaced 1 s apart because bursts get HTTP 401 |
-| Model forecasts (primary) | [GameForecastAPI](https://www.gameforecastapi.com) via RapidAPI — free plan 10 requests/day | `PREDICTION_PROVIDER=gameforecast` + `GAMEFORECAST_API_KEY` | implemented against the published OpenAPI spec; needs the RapidAPI key for live validation |
+| Model forecasts (primary) | [GameForecastAPI](https://www.gameforecastapi.com) via RapidAPI — free plan 10 requests/day | `PREDICTION_PROVIDER=gameforecast` + `GAMEFORECAST_API_KEY` (the account must be subscribed to the API's Basic plan on RapidAPI) | verified live: 1X2, BTTS, over/under 2.5 and 3.5, exact scores, reasoning; one sync of six competitions costs 6 requests |
 | Match data (retained fallback) | API-Football (free plan, current season restricted) | `DATA_PROVIDER=api_football` or in `DATA_PROVIDER_FALLBACKS` | retained integration, limited |
 | Match data (retained fallback) | TheSportsDB v1 | `DATA_PROVIDER=thesportsdb` + `THESPORTSDB_KEY` | retained integration; the stored key is rejected as invalid, so it needs a valid key before it can serve as a fallback |
 | Forecasts (retained fallback) | API-Football `/predictions` (1X2 only) | `PREDICTION_PROVIDER=api_football` | retained integration |
