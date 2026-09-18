@@ -68,10 +68,10 @@ UTC kickoff, never by numeric ids (`backend/app/services/match_matching.py`).
 
 | Role | Provider | Setting | Status |
 |---|---|---|---|
-| Match data (primary) | [Live Score API](https://live-score-api.com) — 14-day trial, 1,500 requests/day | `DATA_PROVIDER=livescore` + `LIVESCORE_API_KEY` / `LIVESCORE_API_SECRET` | implemented against the documented API; needs the trial credentials for live validation |
+| Match data (primary) | [Live Score API](https://live-score-api.com) — 14-day trial, 1,500 requests/day | `DATA_PROVIDER=livescore` + `LIVESCORE_API_KEY` / `LIVESCORE_API_SECRET` | verified live (fixtures, calendar, competition ids 2/3/4/1/5/244); calls are spaced 1 s apart because bursts get HTTP 401 |
 | Model forecasts (primary) | [GameForecastAPI](https://www.gameforecastapi.com) via RapidAPI — free plan 10 requests/day | `PREDICTION_PROVIDER=gameforecast` + `GAMEFORECAST_API_KEY` | implemented against the published OpenAPI spec; needs the RapidAPI key for live validation |
 | Match data (retained fallback) | API-Football (free plan, current season restricted) | `DATA_PROVIDER=api_football` or in `DATA_PROVIDER_FALLBACKS` | retained integration, limited |
-| Match data (retained fallback) | TheSportsDB v1 | `DATA_PROVIDER=thesportsdb` + `THESPORTSDB_KEY` | retained integration, untested |
+| Match data (retained fallback) | TheSportsDB v1 | `DATA_PROVIDER=thesportsdb` + `THESPORTSDB_KEY` | retained integration; the stored key is rejected as invalid, so it needs a valid key before it can serve as a fallback |
 | Forecasts (retained fallback) | API-Football `/predictions` (1X2 only) | `PREDICTION_PROVIDER=api_football` | retained integration |
 | Local development | deterministic sample data (clearly labelled "not real") | `DATA_PROVIDER=sample`, `PREDICTION_PROVIDER=sample` | for running the UI without any key |
 
@@ -82,6 +82,12 @@ and a stale cached copy is served (and flagged) when a provider fails. Forecasts
 once per `GAMEFORECAST_SYNC_INTERVAL_HOURS` per competition and stored separately from expert
 predictions (`predictions.provider_forecasts`); a forecast older than `FORECAST_MAX_AGE_HOURS` or for
 a match that already kicked off is reported as `stale` / `kickoff_passed`, never as current.
+
+Failures back off automatically: rejected credentials pause a provider for 30 minutes, an exhausted
+quota until UTC midnight, other errors 2 minutes (`cooling_down` in `/api/v1/data-providers/status`).
+After fixing credentials, an admin `POST /api/v1/data-providers/sync` clears the pauses and retries.
+Before switching a development database from `sample` to a real provider, run
+`python backend/scripts/purge_sample_data.py` to drop the sample fixtures.
 
 Switching providers: change `DATA_PROVIDER` / `PREDICTION_PROVIDER` (and the fallback list) in
 `backend/.env` and restart the backend. Expert predictions stay attached to the internal match

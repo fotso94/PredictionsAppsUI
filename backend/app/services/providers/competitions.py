@@ -35,24 +35,24 @@ class CanonicalCompetition:
 COMPETITIONS: Dict[str, CanonicalCompetition] = {
     "premier_league": CanonicalCompetition(
         key="premier_league", name="Premier League", country="England", country_code="ENG", is_cup=False,
-        aliases=("premier league",), api_football_id=39, thesportsdb_id=4328, gameforecast_id=15,
+        aliases=("premier league",), api_football_id=39, thesportsdb_id=4328, gameforecast_id=15, livescore_id=2,
     ),
     "la_liga": CanonicalCompetition(
         key="la_liga", name="La Liga", country="Spain", country_code="ESP", is_cup=False,
         aliases=("la liga", "laliga", "primera division", "primera división", "liga ea sports"),
-        api_football_id=140, thesportsdb_id=4335,
+        api_football_id=140, thesportsdb_id=4335, livescore_id=3,
     ),
     "serie_a": CanonicalCompetition(
         key="serie_a", name="Serie A", country="Italy", country_code="ITA", is_cup=False,
-        aliases=("serie a",), api_football_id=135, thesportsdb_id=4332,
+        aliases=("serie a",), api_football_id=135, thesportsdb_id=4332, livescore_id=4,
     ),
     "bundesliga": CanonicalCompetition(
         key="bundesliga", name="Bundesliga", country="Germany", country_code="GER", is_cup=False,
-        aliases=("bundesliga",), api_football_id=78, thesportsdb_id=4331,
+        aliases=("bundesliga",), api_football_id=78, thesportsdb_id=4331, livescore_id=1,
     ),
     "ligue_1": CanonicalCompetition(
         key="ligue_1", name="Ligue 1", country="France", country_code="FRA", is_cup=False,
-        aliases=("ligue 1", "ligue1"), api_football_id=61, thesportsdb_id=4334,
+        aliases=("ligue 1", "ligue1"), api_football_id=61, thesportsdb_id=4334, livescore_id=5,
     ),
     "champions_league": CanonicalCompetition(
         key="champions_league", name="UEFA Champions League", country="Europe", country_code="EUR", is_cup=True,
@@ -66,7 +66,12 @@ EXCLUDED_NAME_FRAGMENTS = (
     "women", "u21", "u19", "u18", "u17", "u23", "youth", "reserve", " ii", "2.", " 2", "femen",
     "qualif", "playoff", "play-off", "amateur", "cup", "super", "rfef", "asia", "afc", "concacaf",
     "copa", "african", "caf ", "premier league 2", "next gen", "femm", "femin", "frauen", "feminine",
+    # Live Score API list (verified 2026-09-17): "Non Premier League", "2nd Bundesliga", regional leagues
+    "2nd", "3rd", "second", "third", "non premier", "national", "northern", "southern", "mainland",
+    "territory", "summer series", "trophy", "welsh", "west bank", "sg.", "tt ", "state league", "regional",
 )
+# Confederations whose "Champions League" is ours
+EUROPEAN_FEDERATIONS = ("uefa", "europe")
 
 
 def covered_keys(setting: str) -> List[str]:
@@ -101,12 +106,15 @@ def match_competition_name(
     country: Optional[str] = None,
     keys: Optional[Iterable[str]] = None,
     is_cup: Optional[bool] = None,
+    exact: bool = False,
 ) -> Optional[str]:
     """
     Return the canonical key whose aliases match a provider competition name, or None.
-
-    - Names containing an excluded fragment (women, u21, qualifiers, "2", ...) never match.
+    - `exact=True` requires the whole normalised name to equal an alias ("Premier League"), which
+      callers try first; the substring pass ("LaLiga Santander") is only a fallback.
+    - Names containing an excluded fragment (women, u21, qualifiers, "2nd", "non premier", ...) never match.
     - For domestic leagues the provider country (when given) must agree with ours.
+    - The Champions League must belong to UEFA/Europe when a federation or country is given.
     - "cup" only disqualifies league competitions.
     """
     n = _norm(name)
@@ -115,7 +123,11 @@ def match_competition_name(
     candidates = [COMPETITIONS[k] for k in (keys or COMPETITIONS.keys()) if k in COMPETITIONS]
     country_n = _norm(country) if country else ""
     for comp in candidates:
-        if not any(alias in n for alias in comp.aliases):
+        aliases = [_norm(a) for a in comp.aliases]
+        if exact:
+            if n not in aliases:
+                continue
+        elif not any(alias in n for alias in aliases):
             continue
         excluded = [frag for frag in EXCLUDED_NAME_FRAGMENTS if frag in n]
         if comp.is_cup:
@@ -124,8 +136,29 @@ def match_competition_name(
             continue
         if is_cup is not None and is_cup != comp.is_cup:
             continue
-        if comp.key != "champions_league" and country_n:
-            if country_n not in (_norm(comp.country), _norm(comp.country_code)):
+        if comp.key == "champions_league":
+            if country_n and country_n not in EUROPEAN_FEDERATIONS:
                 continue
+        elif country_n and country_n not in (_norm(comp.country), _norm(comp.country_code)):
+            continue
         return comp.key
     return None
+
+
+def resolve_competitions(items: Iterable[tuple], keys: Iterable[str]) -> Dict[str, int]:
+    """
+    Two-pass resolution over provider rows (index, name, country, is_cup): exact alias matches first,
+    substring matches only for keys still unresolved. Returns key -> row index.
+    """
+    rows = list(items)
+    wanted = [k for k in keys if k in COMPETITIONS]
+    found: Dict[str, int] = {}
+    for exact in (True, False):
+        missing = [k for k in wanted if k not in found]
+        if not missing:
+            break
+        for index, name, country, is_cup in rows:
+            key = match_competition_name(name, country=country, keys=missing, is_cup=is_cup, exact=exact)
+            if key and key not in found:
+                found[key] = index
+    return found

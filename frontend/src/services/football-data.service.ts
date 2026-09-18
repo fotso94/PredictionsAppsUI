@@ -23,7 +23,7 @@ import {
 } from './api-mapper.service';
 import backendMatchDataService from './backend-match-data.service';
 import {
-  MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage, configuredDataSource,
+  MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage, configuredDataSource, localDateString,
 } from './match-data-source';
 
 // Popular league IDs from API-Football
@@ -448,18 +448,14 @@ class ApiFootballDataService implements MatchDataSource {
    * Get today's fixtures
    */
   async getTodayFixtures(): Promise<Match[]> {
-    const today = new Date().toISOString().split('T')[0];
-    return this.getFixturesByDate(today);
+    return this.getFixturesByDate(localDateString(0));
   }
 
   /**
    * Get tomorrow's fixtures
    */
   async getTomorrowFixtures(): Promise<Match[]> {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    return this.getFixturesByDate(tomorrowStr);
+    return this.getFixturesByDate(localDateString(1));
   }
 
   /**

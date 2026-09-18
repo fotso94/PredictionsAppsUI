@@ -13,7 +13,7 @@
 import apiClient from './api-client';
 import { ConfidenceLevel, HeadToHead, League, LeagueStanding, Match, MatchPredictions, MatchStatus, Team } from '@/types';
 import {
-  DataSourceMeta, MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage, utcDateString,
+  DataSourceMeta, MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage, localDateString,
 } from './match-data-source';
 
 const API = '/api/v1';
@@ -290,7 +290,7 @@ export function mapApiMatch(match: ApiMatch): Match {
     homeTeam,
     awayTeam,
     league: mapApiLeague(match.competition),
-    date: match.kickoff_utc ? match.kickoff_utc.split('T')[0] : utcDateString(),
+    date: match.kickoff_utc ? localDateString(0, new Date(match.kickoff_utc)) : localDateString(),
     time: localTime(match.kickoff_utc),
     kickoffUtc: match.kickoff_utc || undefined,
     status: match.status || 'scheduled',
@@ -423,11 +423,11 @@ class BackendMatchDataService implements MatchDataSource {
   }
 
   getTodayFixtures(): Promise<Match[]> {
-    return this.getFixturesByDate(utcDateString(0));
+    return this.getFixturesByDate(localDateString(0));
   }
 
   getTomorrowFixtures(): Promise<Match[]> {
-    return this.getFixturesByDate(utcDateString(1));
+    return this.getFixturesByDate(localDateString(1));
   }
 
   async getLiveMatches(): Promise<MatchListResult> {

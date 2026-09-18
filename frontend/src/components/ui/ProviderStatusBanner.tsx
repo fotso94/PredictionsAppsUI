@@ -33,9 +33,14 @@ const ProviderStatusBanner: React.FC = () => {
     if (active.budget && active.budget.enforced && active.budget.remaining_today === 0) {
       problems.push(`Daily request budget for ${active.name} is exhausted; showing cached data until tomorrow.`)
     }
-    if (active.last_error && (!active.last_success_at || (active.last_error_at || '') > active.last_success_at)) {
+    if (active.cooling_down) {
+      problems.push(`Fixture provider ${active.name} is paused after a failure: ${active.cooling_down}`)
+    } else if (active.last_error && (!active.last_success_at || (active.last_error_at || '') > active.last_success_at)) {
       problems.push(`Last ${active.name} request failed: ${active.last_error}`)
     }
+  }
+  if (status.forecasts?.cooling_down) {
+    problems.push(`Model forecasts are unavailable: ${status.forecasts.cooling_down}`)
   }
   if (status.forecasts && !status.forecasts.configured && status.forecasts.active_provider !== 'none') {
     problems.push(`Prediction provider "${status.forecasts.active_provider}" is not configured; model forecasts are unavailable.`)

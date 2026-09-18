@@ -13,6 +13,8 @@ Authentication: `key` and `secret` query parameters. All dates/times are UTC.
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -51,6 +53,10 @@ LIVE_STATUS_MAP = {
 MAX_PAGES = 5
 COMPETITION_STORE_KEY = "provider:livescore:competitions"
 COMPETITION_LIST_MAX_PAGES = 40
+MIN_REQUEST_INTERVAL = 1.0   # seconds between calls (bursts are answered with HTTP 401)
+BURST_RETRY_DELAY = 2.5
+_last_request_at = 0.0
+_throttle_lock = threading.Lock()
 
 
 class LiveScoreAPIProvider(MatchDataProvider):
@@ -59,7 +65,8 @@ class LiveScoreAPIProvider(MatchDataProvider):
 
     def __init__(self, api_key: Optional[str] = None, api_secret: Optional[str] = None,
                  base_url: Optional[str] = None, transport=None, budget: Optional[RequestBudget] = None,
-                 competition_overrides: Optional[Dict[str, str]] = None, store: Optional[MatchCache] = None):
+                 competition_overrides: Optional[Dict[str, str]] = None, store: Optional[MatchCache] = None,
+                 use_default_ids: bool = True):
         self.api_key = api_key if api_key is not None else settings.LIVESCORE_API_KEY
         self.api_secret = api_secret if api_secret is not None else settings.LIVESCORE_API_SECRET
         self.client = ProviderHttpClient(PROVIDER_NAME, base_url or settings.LIVESCORE_API_BASE_URL, transport=transport)
@@ -67,6 +74,7 @@ class LiveScoreAPIProvider(MatchDataProvider):
         self._overrides = competition_overrides if competition_overrides is not None \
             else comps.parse_id_overrides(settings.LIVESCORE_COMPETITION_IDS)
         self._competition_cache: Dict[str, ProviderCompetition] = {}
+        self._use_default_ids = use_default_ids
         # Resolved competition ids are kept in Redis so a new provider instance (one per request)
         # does not re-download the paginated competition list every time.
         self._store = store if store is not None else MatchCache()
@@ -99,9 +107,32 @@ class LiveScoreAPIProvider(MatchDataProvider):
         params.update({k: v for k, v in extra.items() if v is not None})
         return params
 
+    def _throttle(self) -> None:
+        """Live Score API answers HTTP 401 to bursts: keep at least MIN_REQUEST_INTERVAL between calls."""
+        global _last_request_at
+        with _throttle_lock:
+            wait = MIN_REQUEST_INTERVAL - (time.monotonic() - _last_request_at)
+            if wait > 0:
+                time.sleep(wait)
+            _last_request_at = time.monotonic()
+
     def _get(self, path: str, **params: Any) -> Dict[str, Any]:
-        self.budget.consume(1)
-        payload = self.client.get_json(path, self._params(**params))
+        params = self._params(**params)
+        attempts = 0
+        while True:
+            attempts += 1
+            self._throttle()
+            self.budget.consume(1)
+            try:
+                payload = self.client.get_json(path, params)
+                break
+            except ProviderAuthError:
+                # A rejected call right after other calls is usually the burst limit, not the credentials:
+                # pause once and retry before reporting an authentication problem.
+                if attempts >= 2:
+                    raise
+                logger.info("Live Score API: 401 after a burst of requests, retrying once after %.1fs", BURST_RETRY_DELAY)
+                time.sleep(BURST_RETRY_DELAY)
         if not isinstance(payload, dict):
             raise ProviderUnavailableError("Live Score API returned a non-object payload", provider=self.name)
         if payload.get("success") is False or "error" in payload and not payload.get("success"):
@@ -222,7 +253,7 @@ class LiveScoreAPIProvider(MatchDataProvider):
         # Overrides and static defaults never need a network call
         for key in list(missing):
             override = self._overrides.get(key) or (
-                str(comps.get(key).livescore_id) if comps.get(key).livescore_id else None)
+                str(comps.get(key).livescore_id) if self._use_default_ids and comps.get(key).livescore_id else None)
             if override:
                 canonical = comps.get(key)
                 self._competition_cache[key] = ProviderCompetition(
@@ -233,13 +264,14 @@ class LiveScoreAPIProvider(MatchDataProvider):
             # The full competition list is fetched at most once a day (persisted in Redis), so a deep
             # pagination cap is affordable here even though the endpoint may return many pages.
             items = self._paginate("competitions/list.json", "competition", max_pages=COMPETITION_LIST_MAX_PAGES)
-            for item in items:
-                comp = self._competition_from_payload(item)
-                key = comps.match_competition_name(comp.name, country=comp.country, keys=missing, is_cup=comp.is_cup or None)
-                if key and key not in self._competition_cache:
-                    comp.key = key
-                    self._competition_cache[key] = comp
-                    logger.info("Live Score API: resolved %s -> id %s (%s, %s)", key, comp.external_id, comp.name, comp.country)
+            parsed = [self._competition_from_payload(item) for item in items]
+            resolved = comps.resolve_competitions(
+                [(i, c.name, c.country, c.is_cup or None) for i, c in enumerate(parsed)], missing)
+            for key, index in resolved.items():
+                comp = parsed[index]
+                comp.key = key
+                self._competition_cache[key] = comp
+                logger.info("Live Score API: resolved %s -> id %s (%s, %s)", key, comp.external_id, comp.name, comp.country)
             self._save_store()
         unresolved = [k for k in keys if k not in self._competition_cache]
         if unresolved:
@@ -274,16 +306,27 @@ class LiveScoreAPIProvider(MatchDataProvider):
             return []
         comp = comps_found[0]
         limit = datetime.now(timezone.utc).date() + timedelta(days=days_ahead)
-        items = self._paginate("fixtures/list.json", "fixtures", competition_id=comp.external_id)
-        self._check_competition_name(comp, items)
+        # The calendar is chronological and paginated (30 per page, whole season): stop as soon as a
+        # page reaches past the window instead of downloading every remaining round.
         fixtures = []
-        for item in items:
-            fixture = self._fixture_from_scheduled(item, [key])
-            fixture.competition = comp
-            if fixture.kickoff_utc.date() <= limit:
-                fixtures.append(fixture)
+        page = 1
+        while page <= MAX_PAGES:
+            data = self._get("fixtures/list.json", page=page if page > 1 else None, competition_id=comp.external_id)
+            chunk = data.get("fixtures") or []
+            if page == 1:
+                self._check_competition_name(comp, chunk)
+            past_window = False
+            for item in chunk:
+                fixture = self._fixture_from_scheduled(item, [key])
+                fixture.competition = comp
+                if fixture.kickoff_utc.date() <= limit:
+                    fixtures.append(fixture)
+                else:
+                    past_window = True
+            if past_window or not data.get("next_page") or not chunk:
+                break
+            page += 1
         return fixtures
-
     def get_live(self, keys: Iterable[str]) -> List[ProviderFixture]:
         keys = list(keys)
         wanted = {c.external_id: c for c in self.list_competitions(keys)}

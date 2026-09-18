@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 STATUS_KEY = "provider:status:{name}"
 COOLDOWN_KEY = "provider:cooldown:{name}"
-AUTH_COOLDOWN_SECONDS = 10 * 60        # rejected credentials: retry every 10 minutes, not on every page load
+AUTH_COOLDOWN_SECONDS = 30 * 60        # rejected credentials: retry every 30 minutes, not on every page load
 UNAVAILABLE_COOLDOWN_SECONDS = 2 * 60  # upstream errors / network problems
 
 
@@ -119,6 +119,11 @@ class MatchDataService:
         payload = self.cache.get(COOLDOWN_KEY.format(name=name))
         return payload.get("reason") if isinstance(payload, dict) else None
 
+    def clear_cooldowns(self) -> None:
+        """Forget recent failures (used by the admin sync after credentials were fixed)."""
+        for p in self.providers:
+            self.cache.delete(COOLDOWN_KEY.format(name=p.name))
+
     def _set_cooldown(self, name: str, reason: str, seconds: int) -> None:
         self.cache.set(COOLDOWN_KEY.format(name=name), {"reason": reason, "until_seconds": seconds}, ttl=seconds, stale_ttl=seconds)
 
@@ -156,7 +161,9 @@ class MatchDataService:
             self.cache.set(cache_key, {"provider": provider.name, "fetched_at": meta.fetched_at, "data": data}, ttl=ttl)
             return data
         stale = self.cache.get_stale(cache_key)
-        if stale is not None:
+        # Only a copy produced by a provider that is still in the chain may be served: switching
+        # DATA_PROVIDER must never resurrect data from a provider that is no longer configured.
+        if stale is not None and stale.get("provider") in {p.name for p in self.providers}:
             meta.source, meta.provider, meta.fetched_at, meta.stale = "stale-cache", stale.get("provider"), stale.get("fetched_at"), True
             return stale["data"]
         if last_error is not None:

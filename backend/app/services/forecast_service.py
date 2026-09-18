@@ -42,7 +42,7 @@ LAST_SYNC_KEY = "forecast:last_sync:{provider}:{key}"
 STATUS_KEY = "forecast:status:{provider}"
 PENDING_KEY = "forecast:pending:{provider}:{key}"
 COOLDOWN_KEY = "forecast:cooldown:{provider}"
-AUTH_COOLDOWN_SECONDS = 10 * 60
+AUTH_COOLDOWN_SECONDS = 30 * 60
 UNAVAILABLE_COOLDOWN_SECONDS = 2 * 60
 
 
@@ -310,6 +310,10 @@ class ForecastService:
             if age > timedelta(hours=settings.FORECAST_MAX_AGE_HOURS):
                 return {"state": "stale", "reason": f"forecast generated {int(age.total_seconds() // 3600)} h ago"}
         return {"state": "available", "reason": None}
+
+    def clear_cooldown(self) -> None:
+        if self.provider:
+            self.cache.delete(COOLDOWN_KEY.format(provider=self.provider.name))
 
     def status(self) -> Dict[str, Any]:
         provider = self.provider

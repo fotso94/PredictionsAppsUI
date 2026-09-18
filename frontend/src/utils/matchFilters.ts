@@ -6,6 +6,7 @@
  */
 
 import { Match, MatchStatus } from '@/types';
+import { localDateString } from '@/services/match-data-source';
 
 /**
  * Check if a match is currently live
@@ -61,10 +62,8 @@ export function filterLiveAndScheduledMatches(matches: Match[]): Match[] {
  * - Home Page "Featured Predictions" section
  */
 export function filterLiveAndUpcomingMatches(matches: Match[], includeTomorrow: boolean = false): Match[] {
-  const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const today = localDateString(0);
+  const tomorrowStr = localDateString(1);
 
   return matches.filter(match => {
     // Exclude finished, postponed, cancelled

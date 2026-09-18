@@ -70,6 +70,8 @@ export interface ProviderChainEntry {
   last_success_at?: string | null;
   last_error_at?: string | null;
   last_error?: string | null;
+  /** Reason the provider is paused after a recent failure, if any */
+  cooling_down?: string | null;
 }
 
 export interface ProviderStatus {
@@ -84,6 +86,7 @@ export interface ProviderStatus {
     integration_status: string | null;
     budget?: ProviderBudget | null;
     last_sync?: Record<string, unknown> | null;
+    cooling_down?: string | null;
   };
   checked_at: string;
 }
@@ -116,7 +119,21 @@ export function fakePredictionsAllowed(): boolean {
   return String(import.meta.env.VITE_ALLOW_FAKE_PREDICTIONS || '').toLowerCase() === 'true';
 }
 
-/** UTC calendar date helpers shared by the data sources (the backend keys fixtures by UTC date). */
+/**
+ * Calendar date (YYYY-MM-DD) in the viewer's local time zone, `offsetDays` from today.
+ * "Today" and "Tomorrow" follow the user's clock; the backend interprets the date as the UTC day
+ * of kick-off, which coincides with the local day for European kick-offs from the Americas/Europe.
+ */
+export function localDateString(offsetDays = 0, from: Date = new Date()): string {
+  const d = new Date(from.getTime());
+  d.setDate(d.getDate() + offsetDays);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** @deprecated use localDateString; kept for the legacy API-Football path */
 export function utcDateString(offsetDays = 0): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + offsetDays);

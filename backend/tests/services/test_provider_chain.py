@@ -196,3 +196,12 @@ def test_quota_failure_cools_down_until_midnight():
         call(svc, key="a")
     ttl = redis.ttls["provider:cooldown:gameforecast_like"]
     assert 60 <= ttl <= 24 * 3600
+
+
+def test_stale_copy_from_a_provider_outside_the_chain_is_not_served():
+    redis = FakeRedis()
+    call(service([FakeProvider("sample", [fixture("sample", "s1")])], MatchCache(client=redis)))
+    redis.store.pop("k")  # fresh copy expired; stale copy (provider=sample) remains
+    broken = FakeProvider("livescore", error=ProviderUnavailableError("down", provider="livescore"))
+    with pytest.raises(ProviderUnavailableError):
+        call(service([broken], MatchCache(client=redis)))

@@ -28,11 +28,14 @@ async def provider_status(db: Session = Depends(get_db)):
 async def force_sync(days: int = Query(2, ge=1, le=7), forecasts: bool = Query(True),
                      db: Session = Depends(get_db), current_user: User = Depends(get_current_admin_user)):
     service = MatchDataService(db)
+    service.clear_cooldowns()  # an admin-triggered sync retries providers even after recent failures
     today = datetime.now(timezone.utc).date()
     report = {"days": {}}
     for offset in range(days):
         day = today + timedelta(days=offset)
         report["days"][day.isoformat()] = service.sync_day(day).to_dict()
     if forecasts:
-        report["forecasts"] = ForecastService(db).ensure_synced(force=True)
+        forecast_service = ForecastService(db)
+        forecast_service.clear_cooldown()
+        report["forecasts"] = forecast_service.ensure_synced(force=True)
     return report

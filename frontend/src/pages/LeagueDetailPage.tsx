@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import MatchCard from '@/components/ui/MatchCard'
 import { footballDataService } from '@/services/football-data.service'
 import { describeError } from '@/services/backend-match-data.service'
+import { localDateString } from '@/services/match-data-source'
 
 const LeagueDetailPage: React.FC = () => {
   // Support both route patterns: /league/:id and /leagues/:leagueId
@@ -57,7 +58,7 @@ const LeagueDetailPage: React.FC = () => {
         }
 
         // Upcoming matches first (today onwards), oldest first
-        const today = new Date().toISOString().split('T')[0]
+        const today = localDateString(0)
         const upcomingMatches = matchesData
           .filter(match => match.date >= today && match.status !== 'finished')
           .sort((a, b) => (a.kickoffUtc || a.date).localeCompare(b.kickoffUtc || b.date))

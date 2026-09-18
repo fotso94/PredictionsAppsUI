@@ -87,13 +87,63 @@ def _route(request: httpx.Request) -> httpx.Response:
     return json_response({"success": False, "error": "unknown endpoint"}, 404)
 
 
-def provider(handler=_route, key="trial-key", secret="trial-secret", budget=None, overrides=None, store=None):
+@pytest.fixture(autouse=True)
+def _no_throttle(monkeypatch):
+    """Requests are spaced 1 s apart against the real API; tests must not wait."""
+    monkeypatch.setattr("app.services.providers.livescore_api.MIN_REQUEST_INTERVAL", 0.0)
+    monkeypatch.setattr("app.services.providers.livescore_api.BURST_RETRY_DELAY", 0.0)
+
+
+def provider(handler=_route, key="trial-key", secret="trial-secret", budget=None, overrides=None, store=None,
+             use_default_ids=False):
     transport, recorder = make_transport(handler)
     p = LiveScoreAPIProvider(api_key=key, api_secret=secret, transport=transport,
                              budget=budget or RequestBudget("livescore", 1200, client=FakeRedis()),
                              competition_overrides=overrides if overrides is not None else {},
-                             store=store or MatchCache(client=FakeRedis()))
+                             store=store or MatchCache(client=FakeRedis()), use_default_ids=use_default_ids)
     return p, recorder
+
+
+def test_default_ids_avoid_the_competition_list_entirely():
+    p, recorder = provider(use_default_ids=True)
+    comps = {c.key: c.external_id for c in p.list_competitions(
+        ["premier_league", "la_liga", "serie_a", "bundesliga", "ligue_1", "champions_league"])}
+    assert comps == {"premier_league": "2", "la_liga": "3", "serie_a": "4", "bundesliga": "1", "ligue_1": "5", "champions_league": "244"}
+    assert recorder.requests == []
+
+
+def test_exact_name_wins_over_lookalikes_listed_first():
+    payload = {"success": True, "data": {"competition": [
+        {"id": "487", "name": "Non Premier League", "is_cup": "0", "countries": [{"name": "England"}]},
+        {"id": "93", "name": "2nd Bundesliga", "is_cup": "0", "countries": [{"name": "Germany"}]},
+        {"id": "268", "name": "Champions League", "is_cup": "1", "federations": [{"name": "CONCACAF"}]},
+        {"id": "512", "name": "Premier League", "is_cup": "0", "countries": [{"name": "Belize"}]},
+        {"id": "2", "name": "Premier League", "is_cup": "0", "countries": [{"name": "England"}]},
+        {"id": "1", "name": "Bundesliga", "is_cup": "0", "countries": [{"name": "Germany"}]},
+        {"id": "244", "name": "Champions League", "is_cup": "1", "federations": [{"name": "UEFA"}]},
+    ], "next_page": False}}
+    p, _ = provider(lambda r: json_response(payload))
+    comps = {c.key: c.external_id for c in p.list_competitions(["premier_league", "bundesliga", "champions_league"])}
+    assert comps == {"premier_league": "2", "bundesliga": "1", "champions_league": "244"}
+
+
+def test_burst_401_is_retried_once_before_failing():
+    calls = {"n": 0}
+
+    def flaky(request):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return json_response({"success": False, "error": "This API key and secret do not have access to our data enabled"}, 401)
+        return json_response(FIXTURES_PAGE_2)
+    p, recorder = provider(flaky, overrides={"premier_league": "2"})
+    fixtures = p.get_fixtures(date(2026, 9, 20), ["premier_league"])
+    assert [f.external_id for f in fixtures] == ["1002"] and len(recorder.requests) == 2
+
+    always = lambda r: json_response({"success": False, "error": "This API key and secret do not have access to our data enabled"}, 401)
+    p, recorder = provider(always, overrides={"premier_league": "2"})
+    with pytest.raises(ProviderAuthError):
+        p.get_fixtures(date(2026, 9, 20), ["premier_league"])
+    assert len(recorder.requests) == 2  # exactly one retry
 
 
 def test_resolved_competition_ids_persist_across_provider_instances():
@@ -121,8 +171,8 @@ def test_competitions_resolved_by_name_and_country_excluding_variants():
     assert {k: c.external_id for k, c in comps.items()} == {
         "premier_league": "2", "la_liga": "3", "serie_a": "4", "bundesliga": "1", "ligue_1": "7"}
     assert comps["premier_league"].season_name == "2026/2027"
-    # champions league uses the recorded id (244) without a network call; the list was fetched once
-    assert p.list_competitions(["champions_league"])[0].external_id == "244"
+    # the list was fetched once; a second lookup of already resolved keys makes no request
+    assert p.list_competitions(["serie_a"])[0].external_id == "4"
     assert len(recorder.requests) == 1
 
 
@@ -227,3 +277,27 @@ def test_auth_error_carries_the_provider_message():
     with pytest.raises(ProviderAuthError) as exc:
         p.get_fixtures(date(2026, 9, 20), ["premier_league"])
     assert "do not have access to our data enabled" in str(exc.value)
+
+
+def test_upcoming_stops_paginating_after_the_window():
+    def calendar(request):
+        params = dict(request.url.params)
+        assert params.get("competition_id") == "2" and "date" not in params
+        if params.get("page") is None:
+            return json_response({"success": True, "data": {"fixtures": [
+                {"id": "1", "date": "2026-09-20", "time": "14:00:00", "home": {"id": "1", "name": "A"}, "away": {"id": "2", "name": "B"},
+                 "competition": {"id": "2", "name": "Premier League"}},
+                {"id": "2", "date": "2026-10-20", "time": "14:00:00", "home": {"id": "3", "name": "C"}, "away": {"id": "4", "name": "D"},
+                 "competition": {"id": "2", "name": "Premier League"}},
+            ], "next_page": "yes"}})
+        raise AssertionError("page 2 must not be requested once the window is passed")
+    p, recorder = provider(calendar, overrides={"premier_league": "2"})
+    from unittest.mock import patch
+    from datetime import datetime as real_datetime
+    class FrozenDate(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2026, 9, 18, 12, 0, tzinfo=tz)
+    with patch("app.services.providers.livescore_api.datetime", FrozenDate):
+        fixtures = p.get_upcoming("premier_league", days_ahead=7)
+    assert [f.external_id for f in fixtures] == ["1"] and len(recorder.requests) == 1

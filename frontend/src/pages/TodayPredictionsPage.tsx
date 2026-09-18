@@ -8,7 +8,7 @@ import MatchCard from '@/components/ui/MatchCard'
 import { Badge } from '@/components/ui/Badge'
 import { motion } from 'framer-motion'
 import { footballDataService } from '@/services/football-data.service'
-import { DataSourceMeta, utcDateString } from '@/services/match-data-source'
+import { DataSourceMeta, localDateString } from '@/services/match-data-source'
 import { describeError } from '@/services/backend-match-data.service'
 import DataSourceNotice from '@/components/ui/DataSourceNotice'
 import { filterLiveAndScheduledMatches } from '@/utils/matchFilters'
@@ -36,7 +36,7 @@ const TodayPredictionsPage: React.FC = () => {
         setError(null)
 
         const [matchesResult, leaguesData] = await Promise.all([
-          footballDataService.getFixturesByDateWithMeta(utcDateString(0)),
+          footballDataService.getFixturesByDateWithMeta(localDateString(0)),
           footballDataService.getTopLeagues().catch(() => [] as League[])
         ])
         const matchesData = matchesResult.matches
