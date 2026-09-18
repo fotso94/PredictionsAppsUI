@@ -15,6 +15,9 @@ is yours to make.
 |---|---|
 | `4ca601c` | Explicit provider probability scale, forecast evidence table and migration, request-budget accounting, sync rotation, measured coverage endpoint replacing the invented home-page figures |
 | `f4b2d0c` | The full correctness pass: provider hardening, match identity, API and schema fixes, the whole frontend truthfulness chain, the eight failing backend tests, the Playwright suite |
+| `0a988d7` | This handoff and Addendum E |
+| `00c6e60` | Defects that only showed up in the rendered pages: anomaly severity, the deleted-prediction count, the Featured Predictions subtitle, mobile search, the footer |
+| `d83edc8` | Defects raised by the independent review: fixture and forecast orientation, recycled provider ids, repair provenance, token expiry, daylight saving, unvalidated over/under pairs, dead footer links, the unearned "verified" claim, derived confidence badges, backend lint |
 
 The story in one line each:
 
@@ -51,7 +54,7 @@ Backend, from `backend/`:
 ./venv/bin/python -m pytest -o addopts="" -p no:cacheprovider -q
 ```
 
-**340 passed, 0 failed.** The baseline was 213 passed with 8 failures that had been red for about
+**362 passed, 0 failed.** The baseline was 213 passed with 8 failures that had been red for about
 eleven months. Run twice to check for flakiness; identical both times.
 
 Frontend, from `frontend/`:
@@ -69,17 +72,48 @@ module attribute where a FastAPI dependency override was needed, so the real aut
 correctly rejected their mock token. Fixed with `app.dependency_overrides`. Production
 authentication is untouched and no test was skipped or deleted.
 
+The backend lint baseline is also clean now: `./venv/bin/python -m pyflakes app/ scripts/` reports
+**0 findings**, down from 78. One of those was a genuine undefined name in the authentication path;
+the rest were unused imports.
+
+## 2b. What the independent review found
+
+A separate review ran against this work overnight and reported nine testable defects. Each was
+reproduced before being fixed, and each now has a regression test that fails without the fix. The
+three that mattered most:
+
+- **A fixture listed away-first was accepted as the same match, with the probabilities written
+  unswapped.** The away side's win probability would land on the home side. A matching pair of names
+  is not enough, and in a two-legged tie the reverse fixture is a different match, so a reversed
+  listing is now refused outright.
+- **A match found by provider id had its teams and competition overwritten without being checked.**
+  Provider ids are small integers and get recycled between seasons, so one could quietly repurpose
+  an existing row and carry any expert prediction attached to it over to a different game.
+- **The repair script stamped snapshots with the repair time.** A repair re-reads a payload already
+  on disk and retrieves nothing, so this could turn a forecast obtained before kickoff into an
+  apparent post-kickoff one. The 40 rows already written were corrected against a fresh backup.
+
+Also fixed: token expiry was read as local time and compared against UTC, which rejects a freshly
+issued thirty-minute token in New York; a local day was built by adding a fixed 24 hours, which
+drops an hour on each daylight-saving transition; over/under pairs were unvalidated, so an expert
+could publish 90% over and 90% under the same line; seven footer links pointed at `#`; "verified
+experts" claimed a review that direct publishing does not perform; and a model forecast's confidence
+badge is derived from the probability rather than published by the model, which it now says.
+
+The review is in `CODEX_INDEPENDENT_REVIEW.md`. Two of its items are deliberately left for you:
+the old public S3 deployment, and whether to add CI.
+
 ---
 
 ## 3. Browser tests
 
 ```bash
-npm run e2e          # everything: 75 tests
-npm run e2e:mocked   # 33 desktop + 33 mobile, deterministic
+npm run e2e          # everything: 79 tests
+npm run e2e:mocked   # 35 desktop + 35 mobile, deterministic
 npm run e2e:live     # 9 against the local backend
 ```
 
-**75 passed, 0 failed.** Artifacts: traces and screenshots on failure in `frontend/e2e/.artifacts/`,
+**79 passed, 0 failed.** Artifacts: traces and screenshots on failure in `frontend/e2e/.artifacts/`,
 HTML report in `frontend/e2e/.report/` (`npm run e2e:report`). Both are git-ignored.
 
 The suite is deliberately split, because mixing the two kinds hides which one proved what:
@@ -250,6 +284,12 @@ A QA expert account exists for the browser tests: `qa.expert@predictions-local.d
 8. **The main JavaScript bundle is 679 kB.** Route-level code splitting would fix it. Cosmetic today.
 9. **The expert review queue still exists** alongside direct publishing. Left in place: removing
    admin tooling is a product decision, not mine.
+10. **Public registration accepts `role=admin`.** Flagged by the independent review. It is a
+    security issue, and you put security hardening in Phase 2, so I did not change it — but it is
+    worth knowing that anyone can currently sign up as an administrator.
+11. **The support and social links in the footer have no pages behind them.** They now read as plain
+    text marked "not published yet" rather than as links that go nowhere. Give each one a route and
+    turn it back into a link.
 
 ---
 
@@ -259,4 +299,8 @@ A QA expert account exists for the browser tests: `qa.expert@predictions-local.d
 git push origin main progress
 ```
 
-Both branches are at `f4b2d0c`, two commits ahead of the remote.
+Both branches are at `d83edc8`, five commits ahead of the remote.
+
+The `backups/` directory holds the database dumps taken before each migration and repair. It is
+git-ignored because it contains password hashes. Keep it until you are satisfied with the result,
+then delete it.
