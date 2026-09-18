@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import (
     get_db,
+    get_current_admin_user,
     get_current_expert_user,
     get_current_verified_expert_user
 )
@@ -311,20 +312,21 @@ async def get_my_predictions(
 async def approve_prediction(
     prediction_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_expert_user)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
-    Approve a prediction
+    Approve a prediction.
 
-    **Permission**: Expert or Admin
+    **Permission**: Admin only.
 
-    **TEMPORARY**: Currently allows experts to approve their own predictions.
-    This is a temporary workaround until the admin system is fully implemented.
+    This used to accept any expert, with a TODO saying it should be admin-only "once the admin
+    system is in place". It let an expert approve their own prediction, which makes the word
+    approval mean nothing. The blocker that TODO named is gone: administrators are granted with
+    `backend/scripts/grant_admin.py`, so the restriction it asked for now applies.
 
-    **TODO**: Once admin system is in place:
-    - Restrict this endpoint to admin users only
-    - Experts should NOT be able to approve their own predictions
-    - Add proper admin approval workflow
+    Nothing changes while EXPERT_DIRECT_PUBLISH is on, because predictions are published on
+    creation and never sit waiting. It matters when the flag is off, which is precisely when
+    somebody is expecting a real review step.
 
     **Returns**: Approved prediction
     """
@@ -332,8 +334,6 @@ async def approve_prediction(
     audit_service = PredictionAuditService(db)
 
     try:
-        # TODO: Change this to require admin user once admin system is implemented
-        # For now, allow experts to approve their own predictions (temporary)
         prediction = expert_service.approve_prediction(prediction_id, current_user)
 
         # Log audit trail - both approval and publication
@@ -362,19 +362,13 @@ async def reject_prediction(
     prediction_id: str,
     reason: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_expert_user)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
-    Reject a prediction
+    Reject a prediction.
 
-    **Permission**: Expert or Admin
-
-    **TEMPORARY**: Currently allows experts to reject their own predictions.
-    This is a temporary workaround until the admin system is fully implemented.
-
-    **TODO**: Once admin system is in place:
-    - Restrict this endpoint to admin users only
-    - Experts should NOT be able to reject their own predictions
+    **Permission**: Admin only, for the same reason as approve above: a review an author can
+    perform on their own work is not a review.
 
     **Returns**: Rejected prediction
     """
@@ -382,7 +376,6 @@ async def reject_prediction(
     audit_service = PredictionAuditService(db)
 
     try:
-        # TODO: Change this to require admin user once admin system is implemented
         prediction = expert_service.reject_prediction(prediction_id, current_user, reason)
 
         # Log audit trail

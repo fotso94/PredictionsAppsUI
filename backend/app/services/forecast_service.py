@@ -418,6 +418,17 @@ class ForecastService:
                         "away": forecast.away_name, "kickoff_utc": forecast.kickoff_utc.isoformat() if forecast.kickoff_utc else None,
                         "reason": decision.reason, "candidates": decision.candidate_ids}
             match = self.db.query(Match).filter(Match.id == uuid.UUID(decision.match_id)).first()
+            if match is None:
+                # The candidate came from this same session, so it should still be there. If it is
+                # not - deleted underneath us, or a stale id - refusing is the only safe answer:
+                # attaching a forecast to a match we cannot load is exactly the uncertain association
+                # this whole path exists to prevent.
+                logger.warning("Forecast %s matched match %s, which no longer exists; refusing to attach",
+                               forecast.external_event_id, decision.match_id)
+                return {"result": "unmatched", "event": forecast.external_event_id, "home": forecast.home_name,
+                        "away": forecast.away_name,
+                        "kickoff_utc": forecast.kickoff_utc.isoformat() if forecast.kickoff_utc else None,
+                        "reason": "matched match no longer exists", "candidates": [decision.match_id]}
             confidence, matched_by = decision.confidence, "name_kickoff"
             self.registry.set_ref("match", match.id, forecast.provider, forecast.external_event_id, confidence=confidence,
                                   matched_by=matched_by, metadata={"home": forecast.home_name, "away": forecast.away_name,

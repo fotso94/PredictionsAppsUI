@@ -1,217 +1,214 @@
 # Soccer Predictions Frontend
 
-A modern, responsive soccer predictions platform built with React, TypeScript, and Tailwind CSS. This frontend application provides a comprehensive interface for viewing soccer match predictions, analyzing betting markets, and tracking prediction performance.
+A React 18 / TypeScript / Vite single-page app for the Soccer Predictions Platform. It renders
+fixtures, model forecasts and expert predictions served by the FastAPI backend, and provides the
+authentication, expert publishing and account screens.
 
-## 🚀 Features
+> **What this document is.** Everything below is checked against the code in this directory. Where a
+> property has not been measured, it says so instead of claiming a number. Nothing here should be
+> read as a production-readiness statement — see [Status](#status).
 
-### Core Features
-- **Homepage**: Hero section with featured predictions and statistics showcase
-- **Today/Tomorrow Predictions**: Comprehensive match predictions with filtering capabilities
-- **Match Analysis**: Detailed match information with head-to-head statistics
-- **User Authentication**: Login and registration interfaces
-- **User Dashboard**: Personal prediction history and performance tracking
-- **League Pages**: League-specific predictions and standings
-- **Responsive Design**: Optimized for desktop, tablet, and mobile devices
+## Status
 
-### Technical Features
-- **Modern UI/UX**: Dark theme with professional sports-focused design
-- **TypeScript**: Full type safety and enhanced developer experience
-- **Performance Optimized**: Code splitting, lazy loading, and optimized builds
-- **SEO Ready**: React Helmet integration for meta tags and SEO
-- **Accessibility**: WCAG compliant with proper ARIA labels
-- **Animation**: Smooth transitions with Framer Motion
+| Claim | State |
+|---|---|
+| `npm run type-check`, `npm run lint`, `npm run build` | Green. `lint` runs with `--max-warnings 0`, so it fails on a single warning |
+| Playwright suite (`npm run e2e`) | Green at the last recorded run (2026-09-18). No count is quoted here on purpose — specs are still being added, so a number written into a README goes stale; run the command and read what it prints. Needs the local stack running |
+| Unit/component tests | **None.** There is no Vitest/Jest setup in this package |
+| Lighthouse / Core Web Vitals | **Never measured.** No audit has been run and no score is claimed |
+| WCAG / accessibility conformance | **Never audited.** Components use semantic elements and some ARIA attributes, but no conformance level has been tested or claimed |
+| Route-level code splitting / lazy loading | **Not implemented.** Every page in `src/App.tsx` is a static top-level `import`; there is no `React.lazy` or `<Suspense>` anywhere in the app. `npm run build` confirms it: the whole app emits as **one 680 kB JS chunk** (189 kB gzipped) and Vite prints its own "chunks are larger than 500 kB" warning. Route-level splitting is a *target*, not a current property |
+| PWA / service worker | **Not implemented.** No manifest, no service worker, no `vite-plugin-pwa` |
+| Production readiness | Not claimed. The app has never been deployed against the current backend; see the root `README.md` deployment section |
 
-## 🛠️ Tech Stack
+## Tech stack
 
-- **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS with custom dark theme
-- **Routing**: React Router DOM v6
-- **UI Components**: Headless UI + Custom components
-- **Icons**: Heroicons
-- **Animations**: Framer Motion
-- **Charts**: Recharts for data visualization
-- **HTTP Client**: Axios (configured for future backend integration)
-- **State Management**: React Query (configured for data fetching)
-- **Notifications**: React Hot Toast
-- **SEO**: React Helmet Async
+| Concern | What is used | Notes |
+|---|---|---|
+| Framework | React 18 + TypeScript | |
+| Build | Vite | `vite.config.ts`; `base: './'`, source maps disabled in production builds |
+| Styling | Tailwind CSS, dark theme | `tailwind.config.js` |
+| Routing | React Router DOM v6 | all routes declared in `src/App.tsx` |
+| HTTP | Axios | `src/services/api-client.ts` |
+| Auth state | React context | `src/contexts/AuthContext.tsx`, `src/hooks/useAuth.ts` |
+| Icons | Heroicons | |
+| Animation | Framer Motion | used on the home and predictions pages |
+| Head/SEO tags | React Helmet Async | |
+| Notifications | React Hot Toast | |
+| Dialog/menu primitives | Headless UI | used in `src/components/layout/Header.tsx` |
+| E2E tests | Playwright | `playwright.config.ts`, specs in `e2e/` |
 
-## 📦 Installation
+Two dependencies are declared in `package.json` but are **not used by any source file**, so do not
+assume they describe behaviour:
 
-### Prerequisites
-- Node.js 18+ 
-- npm or yarn
+- `recharts` — no import anywhere in `src/`.
+- `react-query` — `QueryClientProvider` is mounted in `src/main.tsx`, but there is no `useQuery` or
+  `useMutation` in the app. Data fetching goes through the service modules and Axios.
 
-### Setup
+## Install and run
+
 ```bash
-# Clone the repository
-git clone https://github.com/fotso94/PredictionsAppsUI.git
-cd PredictionsAppsUI/frontend
-
-# Install dependencies
+cd frontend
 npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+cp .env.example .env     # defaults work against a local backend
+npm run dev              # http://localhost:3000
 ```
 
-## 🚀 Available Scripts
+The dev server port is `3000` (`vite.config.ts` and the `dev` script). Override it with
+`npx vite --port 3100 --strictPort` when 3000 is taken.
 
-- `npm run dev` - Start development server on port 3000
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
-- `npm run lint:fix` - Fix ESLint issues
-- `npm run type-check` - Run TypeScript type checking
+The backend must be running for real data; see the root `README.md` for the backend and Docker
+steps.
 
-## 📁 Project Structure
+## Scripts
+
+| Script | What it does |
+|---|---|
+| `npm run dev` | Vite dev server on port 3000 |
+| `npm run build` | `tsc` then `vite build` into `dist/` |
+| `npm run preview` | Serve the built `dist/` |
+| `npm run type-check` | `tsc --noEmit` |
+| `npm run lint` | ESLint, `--max-warnings 0` |
+| `npm run lint:fix` | ESLint with `--fix` |
+| `npm run e2e` | Every Playwright project |
+| `npm run e2e:mocked` | The deterministic mocked desktop + mobile projects |
+| `npm run e2e:live` | The expert publishing flow against the local backend |
+| `npm run e2e:report` | Open the last Playwright HTML report |
+
+`e2e:mocked` stubs every backend call from the captured payloads in `e2e/fixtures/`, so it spends no
+provider allowance. `e2e:live` needs the local stack running and creates only its own clearly-marked
+QA records.
+
+## Project structure
 
 ```
 frontend/
-├── public/                 # Static assets
+├── e2e/                  # Playwright
+│   ├── fixtures/        # captured, sanitised backend payloads
+│   ├── live/            # specs that run against the local backend
+│   ├── mocked/          # deterministic specs, every backend call stubbed
+│   └── support/         # helpers and shared setup
+├── public/
+│   ├── leagues/         # league crest assets
+│   └── teams/           # team crest assets
 ├── src/
-│   ├── components/        # Reusable UI components
-│   │   ├── layout/       # Layout components (Header, Footer)
-│   │   └── ui/           # UI components (Button, Card, etc.)
-│   ├── pages/            # Page components
-│   ├── types/            # TypeScript type definitions
-│   ├── data/             # Mock data and constants
-│   ├── services/         # API services (configured for backend)
-│   ├── utils/            # Utility functions
-│   ├── hooks/            # Custom React hooks
-│   └── assets/           # Images, icons, etc.
-├── dist/                 # Production build output
+│   ├── components/
+│   │   ├── layout/      # Header, Footer, Layout, SearchDropdown
+│   │   ├── ui/          # Card, Button, Badge, MatchCard, provider/forecast notices,
+│   │   │                # and the probability/market/forecast-status helpers
+│   │   ├── ProtectedRoute.tsx
+│   │   └── PredictionSourceBadge.tsx
+│   ├── contexts/        # AuthContext
+│   ├── hooks/           # useAuth
+│   ├── pages/           # one component per route, all imported eagerly by App.tsx
+│   ├── services/        # API clients and mappers (see below)
+│   ├── types/           # auth.ts, expert.ts, index.ts
+│   ├── utils/           # errors, matchFilters, predictionLabels
+│   ├── App.tsx          # route table
+│   ├── main.tsx         # providers and mount
+│   └── index.css
+├── playwright.config.ts
+├── vite.config.ts
 └── package.json
 ```
 
-## 🎨 Design System
+There is no `src/data/` directory and no mock data. `src/data/mockData.ts` was **deleted**: it held
+a hard-coded user record and a `Math.random()` prediction generator that were being bundled into the
+production app. The `@data/*` alias is gone from `vite.config.ts`; a stale `@data/*` entry remains in
+`tsconfig.json` and resolves to nothing.
 
-### Color Palette
-- **Primary**: Green (#10B981) - Success, predictions
-- **Secondary**: Blue (#3B82F6) - Information, links
-- **Accent**: Yellow (#F59E0B) - Warnings, highlights
-- **Background**: Dark grays (#0F172A, #1E293B)
-- **Text**: Light grays (#F8FAFC, #CBD5E1)
+There is no `src/assets/` directory either — images live in `public/`.
 
-### Typography
-- **Headings**: Inter font family, various weights
-- **Body**: Inter font family, regular weight
-- **Monospace**: For odds and statistics
+## Backend integration
 
-## 🔌 Backend Integration Guide
+There is no `src/services/api.ts`. The HTTP layer is `src/services/api-client.ts`, and it reads Vite
+environment variables through `import.meta.env`, **not** `process.env` (`process.env` is not defined
+in a Vite browser bundle):
 
-The frontend is designed to easily integrate with a backend API. Key integration points:
-
-### API Configuration
-```typescript
-// src/services/api.ts
-const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:8000/api'
+```ts
+// src/services/api-client.ts
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '30000', 10);
 ```
 
-### Data Fetching
-- React Query is configured for data fetching
-- Axios interceptors are set up for authentication
-- Mock data can be easily replaced with API calls
+The data source is selected at runtime by `VITE_DATA_SOURCE`
+(`src/services/match-data-source.ts`):
+
+- `backend` (default) — fixtures, forecasts, leagues and teams come from the FastAPI backend
+  (`backend-match-data.service.ts`). Provider credentials stay on the server.
+- `api-football` — the retained legacy path that calls API-Football from the browser through the
+  Vite **dev-server** proxy (`/api/football` in `vite.config.ts`). That proxy exists only while
+  `vite dev` is running, so this data source does not work in a production build.
+
+### Environment variables
+
+`.env.example` is the authoritative list. The ones that matter:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8000   # FastAPI backend
+VITE_API_TIMEOUT=30000
+VITE_DATA_SOURCE=backend                  # backend | api-football
+API_FOOTBALL_KEY=                         # NO VITE_ prefix: dev-server proxy only
+```
+
+Never set `VITE_API_FOOTBALL_KEY`. Any `VITE_`-prefixed value is embedded verbatim in the public
+bundle and shipped to every visitor.
 
 ### Authentication
-- JWT token handling is implemented
-- Protected routes are configured
-- User context is ready for backend integration
 
-### Environment Variables
-Create a `.env` file:
-```
-VITE_API_URL=your_backend_url
-VITE_APP_NAME=Soccer Predictions
-```
+JWT access and refresh tokens are handled in `src/services/auth.service.ts` and
+`src/contexts/AuthContext.tsx`; `src/components/ProtectedRoute.tsx` guards the authenticated routes.
+Axios interceptors in `api-client.ts` attach the access token and handle refresh.
 
-## 🚀 Deployment
+## Design system
 
-### Vercel (Recommended)
-```bash
-npm install -g vercel
-vercel --prod
-```
+### Colours
 
-### Netlify
-```bash
-npm run build
-# Upload dist/ folder to Netlify
-```
+Six extended colour families are defined in `tailwind.config.js`, each as a full 50-950 scale. The
+`500` step of each:
 
-### Docker
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
-EXPOSE 3000
-CMD ["npm", "run", "preview"]
-```
+| Family | `500` | Used for |
+|---|---|---|
+| `primary` | `#0ea5e9` (sky blue) | primary actions and links |
+| `secondary` | `#64748b` (slate) | secondary surfaces and text |
+| `success` | `#22c55e` (green) | positive states |
+| `warning` | `#f59e0b` (amber) | cautions |
+| `danger` | `#ef4444` (red) | errors and destructive actions |
+| `dark` | `#64748b` | the dark-theme surface scale (`dark.800` `#1e293b`, `dark.900` `#0f172a`) |
 
-## 🔧 Configuration
+`darkMode: 'class'`. `tailwind.config.js` is authoritative; do not hard-code hex values in
+components.
 
-### Tailwind CSS
-Custom configuration in `tailwind.config.js` with:
-- Dark theme colors
-- Custom spacing and typography
-- Component utilities
+### Typography
 
-### Vite Configuration
-- Path aliases for clean imports
-- Build optimizations
-- Development server configuration
+Inter, with a `system-ui, sans-serif` fallback stack (`theme.extend.fontFamily.sans`).
 
-## 📱 Responsive Design
+## Responsive design
 
-- **Mobile**: 320px - 768px
-- **Tablet**: 768px - 1024px  
-- **Desktop**: 1024px+
+Tailwind's default breakpoints, mobile-first. The Playwright `mocked-mobile` project runs the whole
+mocked suite at iPhone 13 dimensions, so mobile rendering is exercised on every run. No specific
+device matrix beyond that is claimed.
 
-All components are fully responsive with mobile-first approach.
+## Known gaps
 
-## 🧪 Testing
+- No unit or component test setup (Playwright is the only automated coverage).
+- No route-level code splitting: `npm run build` emits a single ~680 kB JS chunk (189 kB gzipped)
+  and Vite warns about it on every build. `React.lazy` on the route components in `App.tsx` is the
+  fix.
+- No Lighthouse, Core Web Vitals or accessibility audit has been run.
+- `recharts` and `react-query` are installed but unused; both could be removed.
+- The `@data/*` path alias in `tsconfig.json` points at a directory that no longer exists.
 
-Testing setup is ready for:
-- Unit tests with Jest/Vitest
-- Component tests with React Testing Library
-- E2E tests with Playwright/Cypress
+## Contributing
 
-## 📈 Performance
+1. Create a feature branch.
+2. Make your changes.
+3. Run `npm run type-check`, `npm run lint`, `npm run build` and `npm run e2e:mocked`.
+4. Open a pull request.
 
-- **Lighthouse Score**: 95+ (Performance, Accessibility, Best Practices, SEO)
-- **Bundle Size**: Optimized with code splitting
-- **Loading**: Lazy loading for routes and components
-- **Caching**: Service worker ready for PWA
+Do not disable a lint rule or raise the `--max-warnings` threshold to make the gate pass.
 
-## 🤝 Contributing
+## License
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and linting
-5. Submit a pull request
-
-## 📄 License
-
-MIT License - see LICENSE file for details
-
-## 🆘 Support
-
-For support and questions:
-- Create an issue on GitHub
-- Check the documentation
-- Review the code comments
-
----
-
-**Ready for Production** ✅
-This frontend is production-ready and can be deployed immediately while backend integration is developed separately.
+No `LICENSE` file exists in this repository, so no licence is currently granted. Earlier revisions of
+this file claimed MIT; that was not backed by a licence file. Ask the owner before reusing this code.

@@ -27,7 +27,10 @@ This Docker Compose configuration provides a complete local development environm
 - **PostgreSQL 15**: Multi-schema database with initialization scripts
 - **Redis 7**: Caching and session management
 - **Adminer**: Web-based database management UI
-- **Backend API**: FastAPI application (to be implemented)
+- **Backend API**: the FastAPI application in `backend/` — it **is** implemented, but it is not
+  started by this Compose file. Its service block in `docker/docker-compose.yml` is commented out,
+  so the backend is run on the host (`uvicorn app.main:app --reload --port 8000`) against the
+  PostgreSQL and Redis containers started here. See the root `README.md`.
 
 ### Architecture
 
@@ -38,7 +41,7 @@ This Docker Compose configuration provides a complete local development environm
 │                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
 │  │  PostgreSQL  │  │    Redis     │  │   Adminer    │      │
-│  │  Port: 5432  │  │  Port: 6379  │  │  Port: 8080  │      │
+│  │  Port: 5432  │  │  Port: 6379  │  │ Host: 8081   │      │
 │  └──────────────┘  └──────────────┘  └──────────────┘      │
 │         │                  │                  │             │
 │         └──────────────────┴──────────────────┘             │
@@ -46,7 +49,8 @@ This Docker Compose configuration provides a complete local development environm
 │                  ┌──────────────────┐                       │
 │                  │  Backend API     │                       │
 │                  │  Port: 8000      │                       │
-│                  │  (Coming Soon)   │                       │
+│                  │ (runs on host,   │                       │
+│                  │  not in Compose) │                       │
 │                  └──────────────────┘                       │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -63,7 +67,7 @@ This Docker Compose configuration provides a complete local development environm
 
 2. **Docker Compose** (v2.0+)
    - Included with Docker Desktop
-   - Verify: `docker-compose --version`
+   - Verify: `docker compose version`
 
 ### System Requirements
 
@@ -75,45 +79,91 @@ This Docker Compose configuration provides a complete local development environm
 
 ## 🚀 Quick Start
 
+### 0. The canonical command (read this first)
+
+Every Compose command in this document must be run **from the repository root**, with both of these
+flags:
+
+```bash
+docker compose -f docker/docker-compose.yml --project-directory . <subcommand>
+```
+
+To keep the rest of this document short, define this helper once per shell — it works in both `zsh`
+and `bash`:
+
+```bash
+cd /path/to/PredictionsAppsUI          # the repository ROOT, not docker/
+dc() { docker compose -f docker/docker-compose.yml --project-directory . "$@"; }
+```
+
+Every `dc …` below means exactly that command.
+
+**Why both flags are required.** `docker/docker-compose.yml` writes its bind mounts relative to the
+project directory (`./docker/postgres/init`, `./docker/postgres/conf`, `./docker/redis/redis.conf`).
+Compose resolves the project directory from the **compose file's own directory** unless
+`--project-directory` overrides it, so `-f` alone is not enough. The project name is derived from the
+same directory, so getting it wrong also creates a *second*, separate stack.
+
+Verify it yourself without starting anything — `config` only prints the resolved configuration:
+
+```bash
+# correct: run from the repository root, with both flags
+docker compose -f docker/docker-compose.yml --project-directory . config | grep -E '^name:|source: /'
+#   name: predictionsappsui
+#   source: …/PredictionsAppsUI/docker/postgres/init        ✅ exists
+
+# wrong: bare `docker compose` from docker/, or `-f` without --project-directory
+cd docker && docker compose config | grep -E '^name:|source: /'
+#   name: docker                                             ❌ a different project
+#   source: …/PredictionsAppsUI/docker/docker/postgres/init   ❌ does not exist
+```
+
+With the wrong form the init scripts and `postgres.conf` silently resolve to non-existent
+`docker/docker/…` paths (Docker then creates them as empty directories), and `redis.conf` is mounted
+as a **directory** instead of a file, so Redis starts unconfigured.
+
 ### 1. Start All Services
 
 ```bash
-# From project root directory
-docker-compose up -d
+dc up -d
 ```
 
-**Expected Output:**
+**Expected Output** (exact wording varies by Compose version):
 ```
-Creating network "soccer_predictions_network" ... done
-Creating volume "soccer_predictions_postgres_data" ... done
-Creating volume "soccer_predictions_redis_data" ... done
-Creating soccer_predictions_postgres ... done
-Creating soccer_predictions_redis    ... done
-Creating soccer_predictions_adminer  ... done
+[+] Running 6/6
+ ✔ Network soccer_predictions_network       Created
+ ✔ Volume "soccer_predictions_postgres_data" Created
+ ✔ Volume "soccer_predictions_redis_data"    Created
+ ✔ Container soccer_predictions_postgres     Started
+ ✔ Container soccer_predictions_redis        Started
+ ✔ Container soccer_predictions_adminer      Started
 ```
 
 ### 2. Verify Services are Running
 
 ```bash
-docker-compose ps
+dc ps
 ```
 
 **Expected Output:**
 ```
-NAME                          STATUS    PORTS
-soccer_predictions_postgres   Up        0.0.0.0:5432->5432/tcp
-soccer_predictions_redis      Up        0.0.0.0:6379->6379/tcp
-soccer_predictions_adminer    Up        0.0.0.0:8080->8080/tcp
+NAME                          STATUS          PORTS
+soccer_predictions_postgres   Up (healthy)    0.0.0.0:5432->5432/tcp
+soccer_predictions_redis      Up (healthy)    0.0.0.0:6379->6379/tcp
+soccer_predictions_adminer    Up              0.0.0.0:8081->8080/tcp
 ```
+
+Adminer listens on **8080 inside the container and 8081 on the host**
+(`docker/docker-compose.yml`, `ports: "8081:8080"`), so the URL is <http://localhost:8081>.
 
 ### 3. Check Service Health
 
 ```bash
 # Check PostgreSQL
-docker-compose exec postgres pg_isready -U postgres
+dc exec postgres pg_isready -U postgres
 
 # Check Redis
-docker-compose exec redis redis-cli ping
+dc exec redis redis-cli ping
 ```
 
 ### 4. Access Services
@@ -131,7 +181,7 @@ docker-compose exec redis redis-cli ping
 ### 5. Stop All Services
 
 ```bash
-docker-compose down
+dc down
 ```
 
 ---
@@ -281,7 +331,7 @@ docker-compose down
 
 ### Using Adminer
 
-1. **Access Adminer**: http://localhost:8080
+1. **Access Adminer**: http://localhost:8081
 2. **Login**:
    - System: PostgreSQL
    - Server: postgres
@@ -302,7 +352,7 @@ docker-compose down
 
 ```bash
 # Connect to PostgreSQL
-docker-compose exec postgres psql -U postgres -d soccer_predictions
+dc exec postgres psql -U postgres -d soccer_predictions
 
 # List schemas
 \dn
@@ -327,7 +377,7 @@ SELECT * FROM users.users LIMIT 10;
 
 ```bash
 # Connect to Redis
-docker-compose exec redis redis-cli
+dc exec redis redis-cli
 
 # Select database
 SELECT 0
@@ -353,22 +403,22 @@ exit
 **PostgreSQL Backup:**
 ```bash
 # Backup all schemas
-docker-compose exec postgres pg_dump -U postgres -d soccer_predictions > backup.sql
+dc exec postgres pg_dump -U postgres -d soccer_predictions > backup.sql
 
 # Backup specific schema
-docker-compose exec postgres pg_dump -U postgres -d soccer_predictions -n users > users_backup.sql
+dc exec postgres pg_dump -U postgres -d soccer_predictions -n users > users_backup.sql
 ```
 
 **PostgreSQL Restore:**
 ```bash
 # Restore from backup
-docker-compose exec -T postgres psql -U postgres -d soccer_predictions < backup.sql
+dc exec -T postgres psql -U postgres -d soccer_predictions < backup.sql
 ```
 
 **Redis Backup:**
 ```bash
 # Trigger RDB snapshot
-docker-compose exec redis redis-cli BGSAVE
+dc exec redis redis-cli BGSAVE
 
 # Copy RDB file
 docker cp soccer_predictions_redis:/data/dump.rdb ./redis_backup.rdb
@@ -380,7 +430,7 @@ docker cp soccer_predictions_redis:/data/dump.rdb ./redis_backup.rdb
 
 ### Services Won't Start
 
-**Problem**: `docker-compose up` fails
+**Problem**: `dc up` fails
 
 **Solutions:**
 1. Check if ports are already in use:
@@ -391,11 +441,11 @@ docker cp soccer_predictions_redis:/data/dump.rdb ./redis_backup.rdb
    # Check port 6379 (Redis)
    lsof -i :6379
    
-   # Check port 8080 (Adminer)
-   lsof -i :8080
+   # Check port 8081 (Adminer on the host)
+   lsof -i :8081
    ```
 
-2. Stop conflicting services or change ports in `docker-compose.yml`
+2. Stop conflicting services or change ports in `docker/docker-compose.yml`
 
 3. Check Docker Desktop is running
 
@@ -408,23 +458,23 @@ docker cp soccer_predictions_redis:/data/dump.rdb ./redis_backup.rdb
 **Solutions:**
 1. Check service is running:
    ```bash
-   docker-compose ps postgres
+   dc ps postgres
    ```
 
 2. Check logs:
    ```bash
-   docker-compose logs postgres
+   dc logs postgres
    ```
 
 3. Wait for health check to pass:
    ```bash
-   docker-compose ps
+   dc ps
    # Wait until STATUS shows "healthy"
    ```
 
 4. Verify connection:
    ```bash
-   docker-compose exec postgres pg_isready -U postgres
+   dc exec postgres pg_isready -U postgres
    ```
 
 ### Redis Connection Issues
@@ -434,18 +484,18 @@ docker cp soccer_predictions_redis:/data/dump.rdb ./redis_backup.rdb
 **Solutions:**
 1. Check service is running:
    ```bash
-   docker-compose ps redis
+   dc ps redis
    ```
 
 2. Test connection:
    ```bash
-   docker-compose exec redis redis-cli ping
+   dc exec redis redis-cli ping
    # Should return: PONG
    ```
 
 3. Check logs:
    ```bash
-   docker-compose logs redis
+   dc logs redis
    ```
 
 ### Adminer Cannot Connect to Database
@@ -455,7 +505,7 @@ docker cp soccer_predictions_redis:/data/dump.rdb ./redis_backup.rdb
 **Solutions:**
 1. Ensure PostgreSQL is healthy:
    ```bash
-   docker-compose ps postgres
+   dc ps postgres
    ```
 
 2. Use correct server name: `postgres` (not `localhost`)
@@ -466,10 +516,10 @@ docker cp soccer_predictions_redis:/data/dump.rdb ./redis_backup.rdb
 
 ### Data Not Persisting
 
-**Problem**: Data is lost after `docker-compose down`
+**Problem**: Data is lost after `dc down`
 
 **Solutions:**
-1. Don't use `docker-compose down -v` (removes volumes)
+1. Don't use `dc down -v` (removes volumes)
 
 2. Check volumes exist:
    ```bash
@@ -505,58 +555,58 @@ docker cp soccer_predictions_redis:/data/dump.rdb ./redis_backup.rdb
 
 ```bash
 # All services
-docker-compose logs -f
+dc logs -f
 
 # Specific service
-docker-compose logs -f postgres
-docker-compose logs -f redis
-docker-compose logs -f adminer
+dc logs -f postgres
+dc logs -f redis
+dc logs -f adminer
 
 # Last 100 lines
-docker-compose logs --tail=100 postgres
+dc logs --tail=100 postgres
 ```
 
 ### Execute Commands in Containers
 
 ```bash
 # PostgreSQL
-docker-compose exec postgres bash
-docker-compose exec postgres psql -U postgres -d soccer_predictions
+dc exec postgres bash
+dc exec postgres psql -U postgres -d soccer_predictions
 
 # Redis
-docker-compose exec redis sh
-docker-compose exec redis redis-cli
+dc exec redis sh
+dc exec redis redis-cli
 ```
 
 ### Restart Services
 
 ```bash
 # Restart all services
-docker-compose restart
+dc restart
 
 # Restart specific service
-docker-compose restart postgres
-docker-compose restart redis
+dc restart postgres
+dc restart redis
 ```
 
 ### Rebuild Services
 
 ```bash
 # Rebuild all services
-docker-compose up -d --build
+dc up -d --build
 
 # Rebuild specific service
-docker-compose up -d --build postgres
+dc up -d --build postgres
 ```
 
 ### Clean Up
 
 ```bash
 # Stop and remove containers (keeps volumes)
-docker-compose down
+dc down
 
 # Stop and remove containers and volumes (DELETES ALL DATA)
-docker-compose down -v
+dc down -v
 
 # Remove unused Docker resources
 docker system prune -a
@@ -564,19 +614,27 @@ docker system prune -a
 
 ### Environment Variables
 
-Create a `.env` file in the project root to override default values:
+**These values are not configurable through a `.env` file today.** `docker/docker-compose.yml`
+contains no `${VARIABLE}` substitution at all — the credentials and the port mappings are written
+literally:
 
-```bash
-# PostgreSQL
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_secure_password
-POSTGRES_DB=soccer_predictions
-
-# Ports
-POSTGRES_PORT=5432
-REDIS_PORT=6379
-ADMINER_PORT=8080
+```yaml
+environment:
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres123
+  POSTGRES_DB: soccer_predictions
+ports:
+  - "5432:5432"      # postgres
+  - "6379:6379"      # redis
+  - "8081:8080"      # adminer: host 8081 -> container 8080
 ```
+
+To change any of them, edit `docker/docker-compose.yml` (and then the matching `DATABASE_URL` /
+`REDIS_URL` in `backend/.env`), or add the substitutions yourself first, for example
+`- "${POSTGRES_PORT:-5432}:5432"`. A root `.env` file has no effect until that change is made.
+
+These are local development credentials committed to a public repository. They must never be reused
+for anything reachable from outside this machine.
 
 ---
 
@@ -592,31 +650,31 @@ ADMINER_PORT=8080
 
 ```bash
 # Start services
-docker-compose up -d
+dc up -d
 
 # Stop services
-docker-compose down
+dc down
 
 # View logs
-docker-compose logs -f
+dc logs -f
 
 # Check status
-docker-compose ps
+dc ps
 
 # Restart service
-docker-compose restart postgres
+dc restart postgres
 
 # Execute command
-docker-compose exec postgres psql -U postgres
+dc exec postgres psql -U postgres
 
 # Backup database
-docker-compose exec postgres pg_dump -U postgres -d soccer_predictions > backup.sql
+dc exec postgres pg_dump -U postgres -d soccer_predictions > backup.sql
 
 # Restore database
-docker-compose exec -T postgres psql -U postgres -d soccer_predictions < backup.sql
+dc exec -T postgres psql -U postgres -d soccer_predictions < backup.sql
 
 # Clean up
-docker-compose down -v
+dc down -v
 docker system prune -a
 ```
 

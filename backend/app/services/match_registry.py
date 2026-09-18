@@ -59,6 +59,7 @@ class MatchRegistry:
         self._teams_cache: Optional[List[Team]] = None
         self._teams_count: int = -1
         self._league_key_cache: Dict[uuid.UUID, Optional[str]] = {}
+        self._legacy_league_ids: Optional[List[uuid.UUID]] = None
 
     # ------------------------------------------------------------------ refs
     def get_ref(self, entity_type: str, provider: str, external_id: str) -> Optional[ProviderEntityRef]:
@@ -223,6 +224,15 @@ class MatchRegistry:
         self._league_key_cache[league_id] = key
         return key
 
+    def _leagues_without_canonical_key(self) -> List[uuid.UUID]:
+        """Leagues that predate the canonical registry: no canonical key by either form it is stored in."""
+        if self._legacy_league_ids is None:
+            self._legacy_league_ids = [
+                league.id for league in self.db.query(League).all()
+                if not self.canonical_key_for_league(league.id)
+            ]
+        return self._legacy_league_ids
+
     def candidates_for(self, league_id: Optional[uuid.UUID], kickoff_utc: datetime,
                        window: timedelta = match_matching.LOOKUP_WINDOW,
                        competition_key: Optional[str] = None) -> List[match_matching.MatchCandidate]:
@@ -236,11 +246,24 @@ class MatchRegistry:
 
         Every candidate carries ITS OWN canonical competition key, not the caller's, so find_match's
         competition gate actually compares two competitions.
+
+        Matches in a league with no canonical key are admitted too. Those are rows written before the
+        provider work, when leagues were created per provider; filtering them out by league made a
+        pre-Phase-1 fixture invisible here, so the sync saw no candidate at all, wrote a SECOND match
+        row for the same game, and left the expert prediction on the first one - without recording a
+        refusal, so nobody would learn it had happened. Such a candidate carries `competition_key`
+        None, and find_match's competition gate skips a candidate with no key, so the team names and
+        the kickoff decide it, which is exactly what should happen when the competition is unknown.
         """
         start, end = _naive_utc(kickoff_utc - window), _naive_utc(kickoff_utc + window)
         query = self.db.query(Match).filter(Match.match_date >= start, Match.match_date <= end)
         if league_id is not None:
-            query = query.filter(Match.league_id == league_id)
+            legacy_league_ids = self._leagues_without_canonical_key()
+            if legacy_league_ids:
+                query = query.filter(or_(Match.league_id == league_id,
+                                         Match.league_id.in_(legacy_league_ids)))
+            else:
+                query = query.filter(Match.league_id == league_id)
         candidates = []
         for m in query.all():
             home = self.db.query(Team).filter(Team.id == m.home_team_id).first()
@@ -522,6 +545,13 @@ class MatchRegistry:
             return None
         legacy = self.db.query(Match).filter(or_(Match.external_api_id == raw,
                                                  Match.external_api_id == f"{settings.DATA_PROVIDER}:{external_id}")).first()
+        if legacy is None and provider:
+            # The pre-registry shape: the bare id in external_api_id with the provider name kept
+            # separately in external_api_source. "api_football:1035049" has to find a row storing
+            # "1035049". Scoped by source and external_api_id is unique, so this cannot be ambiguous
+            # or claim another provider's row.
+            legacy = self.db.query(Match).filter(Match.external_api_id == external_id,
+                                                 Match.external_api_source == provider).first()
         if legacy:
             self._backfill_legacy_ref(legacy)
             return legacy.id

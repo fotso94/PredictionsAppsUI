@@ -25,12 +25,11 @@ class SearchService {
     if (!query || query.trim().length < MIN_QUERY_LENGTH) {
       return { teams: [], leagues: [] };
     }
-    try {
-      return await footballDataService.search(query.trim());
-    } catch (error) {
-      console.error('Error performing search:', error);
-      return { teams: [], leagues: [] };
-    }
+    // Deliberately NOT caught here. Swallowing the failure and returning an empty result made the
+    // dropdown tell the reader "No results found for Arsenal" when the search had never run — a
+    // statement about the world, made from a network error. The caller has an error branch; let it
+    // reach it, so a failure reads as a failure.
+    return footballDataService.search(query.trim());
   }
 }
 

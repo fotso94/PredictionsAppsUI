@@ -21,7 +21,6 @@ export default defineConfig(({ mode }) => {
         '@hooks': '/src/hooks',
         // '@data' removed with src/data/mockData.ts: it held a hard-coded user record and a
         // Math.random() prediction generator that were bundled into the production app.
-        '@assets': '/src/assets'
       }
     },
     server: {

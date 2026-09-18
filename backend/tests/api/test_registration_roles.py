@@ -68,3 +68,38 @@ def test_the_self_selectable_roles_are_exactly_regular_and_expert():
     source = inspect.getsource(register)
     assert 'SELF_SELECTABLE_ROLES = ["regular", "expert"]' in source
     assert '"admin"' not in source.split("SELF_SELECTABLE_ROLES")[1].split("]")[0]
+
+
+# ------------------------------------------------------------------ approval is not self-service
+def test_approval_and_rejection_are_administrator_only():
+    """A review the author can perform on their own work is not a review.
+
+    These endpoints used to accept any expert, with a TODO asking for admin-only "once the admin
+    system is in place". Nothing changes while EXPERT_DIRECT_PUBLISH is on, because predictions are
+    published on creation; it matters when the flag is off, which is exactly when somebody expects a
+    real review step.
+    """
+    from app.api.v1.endpoints import expert
+    from app.core.deps import get_current_admin_user
+
+    for name in ("approve_prediction", "reject_prediction"):
+        handler = getattr(expert, name)
+        dependencies = [
+            default.dependency
+            for default in handler.__defaults__ or ()
+            if hasattr(default, "dependency")
+        ]
+        assert get_current_admin_user in dependencies, f"{name} must require an administrator"
+
+
+def test_publishing_itself_is_still_direct_for_experts():
+    """The admin-only approval must not have reintroduced a gate in front of publishing."""
+    from app.api.v1.endpoints import expert
+    from app.core.deps import get_current_admin_user
+
+    dependencies = [
+        default.dependency
+        for default in expert.create_manual_prediction.__defaults__ or ()
+        if hasattr(default, "dependency")
+    ]
+    assert get_current_admin_user not in dependencies

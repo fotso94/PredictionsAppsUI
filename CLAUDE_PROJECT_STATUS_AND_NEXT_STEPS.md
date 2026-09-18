@@ -5,7 +5,32 @@
 **Mode:** strict read-only. No application code, documentation, dependency, Git, or AWS state was changed. This file is the only project file created.
 **Report location note:** the brief referenced `~/Documents/PredictionsAppsUI/`; that path does not exist. The repository lives at `~/Documents/DevProjects/PredictionsAppsUI/`, so the report was written there.
 
-> **Latest state (read this first).** Sections 1–27 describe the repository as found on 2026-09-17 *before* any change. Two implementation phases have since been executed and are recorded at the end of this file: **Addendum A** (docs scrubbed/archived, BTTS work committed, frontend build fixed, `main` now carries the real application) and **Addendum B** (credentials removed from code, migration made portable, README added). Owner decisions taken since: experts publish directly for now (no admin approval gate) and security hardening is deferred to a second phase; see Addendum C. Sections 9–12, 16 and 17 are therefore historical.
+> # ⚠️ Read this first: sections 1–27 are HISTORICAL
+>
+> **Sections 1–27 describe the repository as found on 2026-09-17, *before* any change was made.**
+> They are an accurate record of the starting point and a wrong description of the project today.
+> Several of their instructions — create a `develop` branch, build the server-side data proxy, delete
+> TheSportsDB, impose an admin approval gate — are **done or deliberately reversed**; do not act on
+> them. §1 and §27 carry their own detailed notices.
+>
+> **For the current state, read in this order:**
+>
+> 1. The root [`README.md`](README.md) — what the system is, how to run it, the provider
+>    architecture, how the tests are run.
+> 2. [`MORNING_HANDOFF_2026-09-18.md`](MORNING_HANDOFF_2026-09-18.md) — the latest working session and
+>    §8's list of open items in priority order.
+> 3. [`CODEX_INDEPENDENT_REVIEW.md`](CODEX_INDEPENDENT_REVIEW.md) — an independent audit of that work.
+> 4. **Addenda A–E at the end of this file** — the dated record of every implementation phase since
+>    2026-09-17. These are current; sections 1–27 are not.
+>
+> Addendum summary: **A** (docs scrubbed/archived, BTTS work committed, frontend build fixed, `main`
+> carries the real application), **B** (credentials removed from code, migration made portable,
+> README added), **C** (owner decisions: experts publish directly, security hardening deferred to
+> Phase 2), **D** (Phase 1 data and prediction integrations — Live Score API and GameForecastAPI,
+> called server-side), **E** (Phase 1 correctness pass).
+>
+> Sections 9–12, 16 and 17 in particular record Git, AWS and test state at a single moment and have
+> since moved. Re-run the commands rather than quoting the numbers.
 
 ### How to read the labels
 
@@ -24,6 +49,47 @@ Secrets policy: every key, password, token, or personal e-mail found is referenc
 ---
 
 ## 1. Executive summary
+
+> # ⚠️ HISTORICAL — describes the repository as found on **2026-09-17**, before any change
+>
+> **Do not act on this section.** It describes a frozen, unbuildable prototype with leaked
+> credentials and no server-side data path. Most of what it lists as urgent has since been done, and
+> some of it has been deliberately reversed by owner decision. It is kept as the record of the
+> starting point, not as instructions.
+>
+> **For the current state, read instead:**
+>
+> | Question | Where the current answer is |
+> |---|---|
+> | What the system is and how to run it | the root [`README.md`](README.md) |
+> | What changed overnight and what is still open | [`MORNING_HANDOFF_2026-09-18.md`](MORNING_HANDOFF_2026-09-18.md) |
+> | What an independent audit found | [`CODEX_INDEPENDENT_REVIEW.md`](CODEX_INDEPENDENT_REVIEW.md) |
+> | The detail of the work done since | Addenda A–E at the end of this file |
+>
+> **What has changed since this summary was written** (each verifiable in the code today):
+>
+> - The frontend **builds**. `type-check`, `lint` (`--max-warnings 0`) and `build` all pass.
+> - The **server-side data path exists**: `/api/v1/matches`, `/leagues`, `/teams` and
+>   `/data-providers/*` are implemented, and provider credentials are read by the backend only.
+> - **The data providers changed.** Live Score API (fixtures) and GameForecastAPI (model forecasts)
+>   are primary. API-Football and TheSportsDB were **retained as fallbacks by owner decision** — the
+>   instruction further down to delete TheSportsDB is reversed; do not follow it.
+> - **Credentials were removed from application code** (Addendum B). Rotation of the exposed keys
+>   remains an owner action.
+> - **Public registration no longer accepts `role=admin`** (`backend/app/api/v1/endpoints/auth.py`).
+> - **Experts publish directly** (`EXPERT_DIRECT_PUBLISH=true`, Addendum C). The instruction below to
+>   impose an admin approval gate is superseded; see the root README for what the flag actually does
+>   when switched off.
+> - There is a **backend test baseline of 362 passing tests** (recorded on Python 3.9.6) and a
+>   **79-test Playwright suite**, where this summary found the suite unrunnable.
+>
+> **What remains true from this summary:** no backend has ever been deployed; the only cloud
+> footprint is the two stale public S3 buckets; there is no CI; the exposed keys still need rotating;
+> and no accuracy figure is published anywhere because nothing has been settled or scored.
+
+---
+
+### Original summary, as written on 2026-09-17 (historical)
 
 **Where the project stands.** PredictionsAppsUI is a soccer-predictions web platform: a React 18 / Vite / TypeScript frontend and a FastAPI / SQLAlchemy 2 / PostgreSQL 15 (5 schemas, 66 tables) / Redis 7 backend, with three user profiles (regular, expert, admin), JWT auth, an expert manual-prediction workflow, and API-Football as the live fixtures source. AugmentCode worked on it from 2025-09-22 to about 2025-10-16 in a single burst; nothing has changed since. The work is substantial and the technical direction is sound, but the project is **not in a releasable or reproducible state** today.
 
@@ -585,6 +651,37 @@ Subagents (read-only) produced the full inventories of the 109 documentation fil
 ---
 
 ## 27. START HERE — for the next implementation session
+
+> # ⛔ HISTORICAL — this was the plan on **2026-09-17**. Do not work from it.
+>
+> This checklist was written before any implementation. Most of it is **done**, and several items are
+> **reversed by owner decision**. Following it now would undo completed work. It is kept as the
+> record of what was planned, not as a task list.
+>
+> **Item by item:**
+>
+> | Instruction below | Status today |
+> |---|---|
+> | `git switch -c develop progress` | **Do not.** No `develop` branch exists or is wanted; work is on `main` and `progress`. Branch strategy was settled without it |
+> | Add a root `.gitignore` | **Done** — one exists at the repository root |
+> | Remove hard-coded keys from code | **Done** (Addendum B). Rotating the exposed keys is still an **owner** action |
+> | `delete frontend/src/services/thesportsdb.service.ts` | **Reversed.** TheSportsDB is a *retained fallback* by owner decision. The file stays. (Its stored key is currently rejected as invalid — that is a key problem, not a reason to delete the integration) |
+> | Delete `frontend/src/services/prediction.service.ts` | **Not done, and no longer the plan.** The file is still present |
+> | Fix `.eslintrc.cjs` and the 10 `tsc` errors; set `base: '/'` | **Done**, except `base`: `vite.config.ts` uses `base: './'` deliberately. `type-check`, `lint` and `build` pass |
+> | Commit the BTTS work with its migration | **Done** |
+> | Backend P0 fixes | **Partly done.** Registration no longer accepts `role=admin`; the rest of the Phase 2 security list (session revocation, `SECRET_KEY` handling, rate limits) is still open |
+> | "approval policy" / admin approval gate (and Phase 2 "server-side data proxy") | **Superseded.** The server-side data path is **built** — `/api/v1/matches`, `/leagues`, `/teams`, `/data-providers/*` — do not rebuild it. Experts publish directly (`EXPERT_DIRECT_PUBLISH=true`, Addendum C); do not impose admin review unless the owner reverses that decision. What the flag actually does when switched off is documented in the root `README.md` |
+> | Add `.github/workflows/ci.yml`; push; open PR | **Not done, and deliberately left to the owner** — it would run on their GitHub account. Still worth doing |
+> | "Local run (after Phase 1 fixes)" | **Superseded.** The compose command given below is missing `--project-directory .` and does not work. The canonical command is in the root `README.md` and `docker/README.md` |
+>
+> **Where to start instead:** the root [`README.md`](README.md) for how to run and test the system,
+> [`MORNING_HANDOFF_2026-09-18.md`](MORNING_HANDOFF_2026-09-18.md) §8 for the open items in priority
+> order, and [`CODEX_INDEPENDENT_REVIEW.md`](CODEX_INDEPENDENT_REVIEW.md) for the independent audit's
+> outstanding findings.
+
+---
+
+### Original START HERE, as written on 2026-09-17 (historical — see the notice above)
 
 **Preconditions (owner):** rotate the four credential sets (§25 item 1); confirm the branch strategy (§25 item 3); answer items 5–8 of §25 or accept the defaults below.
 

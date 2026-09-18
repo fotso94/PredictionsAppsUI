@@ -3,11 +3,19 @@
 A soccer match-predictions web application: a React 18 / Vite / TypeScript frontend and a
 FastAPI / SQLAlchemy 2 backend on PostgreSQL 15 (five schemas) and Redis 7, with regular,
 expert and admin roles, JWT authentication and an expert prediction workflow (1X2,
-both-teams-to-score, over/under goals). Fixture data comes from API-Football.
+both-teams-to-score, over/under goals). Fixtures, live scores and results come from
+[Live Score API](https://live-score-api.com) and model forecasts from
+[GameForecastAPI](https://www.gameforecastapi.com); both are called **server-side** by the backend.
+API-Football and TheSportsDB are retained as fallback integrations. See
+[Data providers](#data-providers-phase-1) for the full table.
 
-> **Project status:** [`CLAUDE_PROJECT_STATUS_AND_NEXT_STEPS.md`](CLAUDE_PROJECT_STATUS_AND_NEXT_STEPS.md)
-> holds the verified state of the code, GitHub and AWS, the prioritized backlog and the open
-> decisions. Product requirements live in [`docs/requirements/`](docs/requirements/).
+> **Project status.** The latest working session and the open items are in
+> [`MORNING_HANDOFF_2026-09-18.md`](MORNING_HANDOFF_2026-09-18.md); an independent audit of that work
+> is in [`CODEX_INDEPENDENT_REVIEW.md`](CODEX_INDEPENDENT_REVIEW.md).
+> [`CLAUDE_PROJECT_STATUS_AND_NEXT_STEPS.md`](CLAUDE_PROJECT_STATUS_AND_NEXT_STEPS.md) holds the
+> GitHub and AWS inventory and the dated implementation record in its **Addenda A–E** — but its
+> sections 1–27 describe the repository as found on 2026-09-17 and are marked HISTORICAL; do not work
+> from them. Product requirements live in [`docs/requirements/`](docs/requirements/).
 
 ## Repository layout
 
@@ -22,8 +30,17 @@ both-teams-to-score, over/under goals). Fixture data comes from API-Football.
 
 ## Prerequisites
 
-Docker Desktop, Node.js 18+ (tested with 24), Python 3.11 (the project targets 3.11), and an
-API-Football key.
+Docker Desktop and Node.js 18+ (tested with 24).
+
+Python: `backend/pyproject.toml` declares `^3.11`, and 3.11 is the supported runtime — create the
+virtualenv with `python3.11` explicitly, not with a bare `python`. Note that the virtualenv currently
+checked into this working tree is **3.9.6** (the macOS system Python), and the recorded backend test
+baseline of 362 passed was produced on it. `backend/README.md` covers the interpreter setup and how
+the two compare.
+
+Provider keys (all read by the backend, never by the browser): `LIVESCORE_API_KEY` /
+`LIVESCORE_API_SECRET` for fixtures and `GAMEFORECAST_API_KEY` for model forecasts. An
+`API_FOOTBALL_KEY` is only needed for the retained API-Football integration.
 
 ## Local development
 
@@ -41,7 +58,8 @@ API-Football key.
    cd backend
    python3.11 -m venv venv && source venv/bin/activate
    pip install -r requirements.txt
-   cp .env.example .env        # then set SECRET_KEY, SMTP_*, API_FOOTBALL_KEY, ...
+   cp .env.example .env        # then set SECRET_KEY, SMTP_*, LIVESCORE_API_KEY,
+                               # LIVESCORE_API_SECRET, GAMEFORECAST_API_KEY, ...
    alembic upgrade head
    uvicorn app.main:app --reload --port 8000
    ```
@@ -53,9 +71,14 @@ API-Football key.
    ```bash
    cd frontend
    npm install
-   cp .env.example .env        # set API_FOOTBALL_KEY (used only by the dev proxy)
+   cp .env.example .env        # defaults are fine: VITE_DATA_SOURCE=backend needs no key
    npm run dev                 # http://localhost:3000
    ```
+
+   With the default `VITE_DATA_SOURCE=backend` the browser only talks to the FastAPI backend, so no
+   provider key belongs in `frontend/.env`. `API_FOOTBALL_KEY` (no `VITE_` prefix) is read by the
+   Vite **dev server** proxy and is only needed for the retained `VITE_DATA_SOURCE=api-football`
+   path.
 
 ## Data providers (Phase 1)
 
@@ -69,7 +92,7 @@ UTC kickoff, never by numeric ids (`backend/app/services/match_matching.py`).
 | Role | Provider | Setting | Status |
 |---|---|---|---|
 | Match data (primary) | [Live Score API](https://live-score-api.com) — 14-day trial, 1,500 requests/day | `DATA_PROVIDER=livescore` + `LIVESCORE_API_KEY` / `LIVESCORE_API_SECRET` | verified live (fixtures, calendar, competition ids 2/3/4/1/5/244); calls are spaced 1 s apart because bursts get HTTP 401 |
-| Model forecasts (primary) | [GameForecastAPI](https://www.gameforecastapi.com) via RapidAPI — free plan 10 requests/day | `PREDICTION_PROVIDER=gameforecast` + `GAMEFORECAST_API_KEY` (the account must be subscribed to the API's Basic plan on RapidAPI) | verified live: 1X2, BTTS, over/under 2.5 and 3.5, exact scores, reasoning; one sync of six competitions costs 6 requests |
+| Model forecasts (primary) | [GameForecastAPI](https://www.gameforecastapi.com) via RapidAPI — free plan 10 requests/day | `PREDICTION_PROVIDER=gameforecast` + `GAMEFORECAST_API_KEY` (the account must be subscribed to the API's Basic plan on RapidAPI) | verified live: 1X2, BTTS, over/under 2.5 and 3.5, exact scores, reasoning. A pass over all six competitions currently costs **6 requests** — one `/events` request for each of the five leagues whose GameForecast id is recorded in `competitions.py`, plus one `/leagues` discovery request for the Champions League, whose id is still unresolved. A paginated competition costs up to `MAX_PAGES` (4) requests instead of one |
 | Match data (retained fallback) | API-Football (free plan, current season restricted) | `DATA_PROVIDER=api_football` or in `DATA_PROVIDER_FALLBACKS` | retained integration, limited |
 | Match data (retained fallback) | TheSportsDB v1 | `DATA_PROVIDER=thesportsdb` + `THESPORTSDB_KEY` | retained integration; the stored key is rejected as invalid, so it needs a valid key before it can serve as a fallback |
 | Forecasts (retained fallback) | API-Football `/predictions` (1X2 only) | `PREDICTION_PROVIDER=api_football` | retained integration |
@@ -107,6 +130,21 @@ Forecasts are synced at most once per `GAMEFORECAST_SYNC_INTERVAL_HOURS` per com
 competitions are visited **least-recently-synced first**, so an allowance too small for all six
 stops starving the tail of the list. Competitions that did not get their turn are reported under
 `deferred` and lead the next run. A Redis lock stops two workers paying for the same competition.
+
+**There is no scheduler.** The project has no cron job, Celery worker or APScheduler: forecast
+synchronisation is request-driven and happens only when something calls one of these two paths:
+
+- `GET /api/v1/matches?refresh=true` (the default) returns fixtures and then calls
+  `ForecastService.ensure_synced()` when the day has matches
+  (`backend/app/api/v1/endpoints/matches.py`, `list_matches`). Competitions synced within
+  `GAMEFORECAST_SYNC_INTERVAL_HOURS` (24) are skipped, so this path refreshes a given competition at
+  most once a day.
+- `POST /api/v1/data-providers/sync` (admin only) clears the cooldowns and calls
+  `ensure_synced(force=True)`, which ignores the interval
+  (`backend/app/api/v1/endpoints/data_providers.py`, `force_sync`).
+
+A daily allowance resetting at 00:00 UTC restores the *budget*; it does not start a sync. Nothing
+is fetched until one of the two requests above arrives.
 
 A forecast older than `FORECAST_MAX_AGE_HOURS` or for a match that already kicked off is reported as
 `stale` / `kickoff_passed`, never as current. A spent allowance is reported separately, as
@@ -148,12 +186,43 @@ Frontend: `VITE_DATA_SOURCE=backend` (default) uses the endpoints above; `VITE_D
 re-enables the legacy browser-side API-Football path (retained). Randomized placeholder predictions are
 gone from the real-data path; missing markets are shown as "Unavailable".
 
-Product decision recorded for Phase 1: experts publish directly (`EXPERT_DIRECT_PUBLISH=true`); set it
-to `false` to restore the review queue and admin verification.
+### Expert publishing and the `EXPERT_DIRECT_PUBLISH` flag
+
+Product decision recorded for Phase 1: experts publish directly (`EXPERT_DIRECT_PUBLISH=true`,
+`backend/app/core/config.py`). Publishing directly grants **permission to publish**; it is not a
+review of anyone's credentials.
+
+Setting the flag to `false` does **not**, on its own, put an administrator in the loop. This is what
+actually happens with the flag off, in the code as it stands:
+
+| With `EXPERT_DIRECT_PUBLISH=false` | Behaviour | Where |
+|---|---|---|
+| A new expert's profile at sign-up | Created **unverified** | `auth.py`, `ensure_expert_profile(..., verified=bool(settings.EXPERT_DIRECT_PUBLISH))` |
+| An unverified expert calling an expert endpoint | `403 Expert verification required` | `deps.py`, `get_current_verified_expert_user` |
+| Verifying that expert | Admin-only and functional: `POST /api/v1/admin/experts/{user_id}/verify` really sets `is_verified` | `admin.py`, `verify_expert` |
+| A new prediction | Created `PENDING` instead of `PUBLISHED`, so it is not public | `expert_prediction.py`, `_initial_status` |
+| Publishing that pending prediction | **Not admin-gated.** `POST /api/v1/expert/predictions/{id}/approve` depends on `get_current_expert_user`, which admits any expert *or* admin, and neither the route nor the service checks ownership — an expert can approve their own prediction. Same for `/reject`. | `expert.py`, `approve_prediction` / `reject_prediction`; `expert_prediction.py`, same names |
+| Experts already verified while the flag was on | Stay verified; the flag is not applied retroactively | `deps.py`, `get_current_verified_expert_user` |
+
+So the flag off restores the **pending queue** and admin verification of expert *accounts*, but it
+does not add administrator review of prediction *content*. The two endpoints carry explicit
+`TODO: Change this to require admin user` comments saying exactly that. Enforcing admin review means
+changing those dependencies to `get_current_admin_user`, not only flipping the flag.
+
+(The independent review described the approval handler as a "success-only stub". That part is not
+accurate: `approve_prediction` does real work — it rejects a non-pending prediction, sets
+`PUBLISHED`, records `approved_by`/`approved_at`/`published_at`, writes audit entries and
+invalidates the cache. The defect is the missing admin restriction, not a no-op handler.)
 
 ## Tests and checks
 
-- Backend: `cd backend && ./venv/bin/python -m pytest -o addopts="" -q` — most tests are pure unit
+The backend suite and the three frontend gates below were re-run and are green; the Playwright suite
+was last recorded green on 2026-09-18 and was not re-run here. **No test count is quoted on
+purpose** — tests are still being added, so any number written down goes stale; run the command and
+read the number it prints.
+
+- Backend: `cd backend && ./venv/bin/python -m pytest -o addopts="" -q` — `-o addopts=""` drops the
+  coverage flags that `pyproject.toml` sets by default. Most tests are pure unit
   tests; `tests/test_cache_services.py` needs Redis and the database-backed tests need PostgreSQL
   (`TEST_DATABASE_URL`, default `soccer_predictions_test`). No test makes a real provider request:
   `tests/conftest.py` blanks every provider credential and providers are driven through
@@ -165,18 +234,34 @@ to `false` to restore the review queue and admin verification.
   markets, 1% probabilities, exhausted quota, expired trial, empty days, backend failures, timezone
   boundaries). `npm run e2e:live` runs the expert publishing flow against the local backend, creating
   and removing only its own clearly-marked QA records and never triggering a provider refresh.
-  Both need the local stack running (see below).
+  Both need the local stack running (see **Local development** above).
 
 ## Secrets
 
 Never commit keys or passwords. `backend/.env` and `frontend/.env` are git-ignored and the
-`.env.example` files list every setting. The API-Football key is read by the Vite dev proxy from
-`API_FOOTBALL_KEY` (no `VITE_` prefix) so it never reaches the browser bundle; production builds
-must call API-Football through a backend proxy, which is not built yet. Keys that were committed
-before 2026-09-17 must be treated as compromised and rotated.
+`.env.example` files list every setting.
+
+The server-side path is the one that is built and is the default. Every provider credential
+(`LIVESCORE_*`, `GAMEFORECAST_API_KEY`, and `API_FOOTBALL_KEY` when the retained API-Football
+provider is selected) is read by the backend from `backend/.env` and never reaches the browser;
+the UI receives data through `/api/v1/matches`, `/leagues`, `/teams` and `/data-providers/*`
+(`backend/app/services/providers/registry.py`, `backend/app/api/v1/api.py`).
+
+The one path that has no production story is the **legacy browser-side** one,
+`VITE_DATA_SOURCE=api-football`. It relies on the `/api/football` proxy defined in
+`frontend/vite.config.ts`, which exists only while `vite dev` is running; a static production build
+has no such proxy, so that data source works in development only. Use `VITE_DATA_SOURCE=backend`
+(the default) for anything deployed. Never set `VITE_API_FOOTBALL_KEY`: a `VITE_`-prefixed value is
+embedded in the public bundle.
+
+Keys that were committed before 2026-09-17 must be treated as compromised and rotated.
 
 ## Deployment
 
-Only a static frontend demo is deployed (an S3 website bucket in `us-east-1`); no backend
-deployment exists or is recorded. See the status report (sections 13-15 and 23) for the
-current cloud state and the deployment plan.
+Only a static frontend demo is deployed (two public S3 website buckets in `us-east-1`, serving a
+build from October 2025 that predates the current backend); **no backend deployment exists or is
+recorded**, and there is no CloudFront, RDS, ElastiCache, ECS or IaC for this project.
+
+`CLAUDE_PROJECT_STATUS_AND_NEXT_STEPS.md` §13-15 hold the AWS resource inventory. Its §23 phased
+plan is part of the range marked HISTORICAL there — read it as the plan proposed on 2026-09-17, not
+as an agreed deployment plan.

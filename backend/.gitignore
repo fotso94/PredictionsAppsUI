@@ -22,7 +22,7 @@ wheels/
 MANIFEST
 
 # Virtual Environment
-venv/
+venv*/
 env/
 ENV/
 env.bak/
@@ -92,7 +92,7 @@ celerybeat.pid
 .env
 .venv
 env/
-venv/
+venv*/
 ENV/
 env.bak/
 venv.bak/

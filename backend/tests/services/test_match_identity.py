@@ -98,7 +98,17 @@ def team(db, name: str, country="Germany") -> Team:
 
 def legacy_match(db, registry, external_api_id: str, home: Team, away: Team, kickoff=KICKOFF,
                  key="bundesliga", status=MatchStatus.SCHEDULED) -> Match:
-    """A match row as the pre-registry code wrote it: an external_api_id and no provider_entity_ref."""
+    """
+    A match row as the pre-registry code wrote it: an external_api_id and no provider_entity_ref.
+
+    NOTE (review B10): the row is only half legacy. Its LEAGUE comes from `ensure_canonical_league`,
+    so it already carries `league_metadata["canonical_key"]` and a canonical ref - state that only
+    exists from Phase 1 onwards. A genuinely pre-Phase-1 match sits in a league the old code path
+    created, with no canonical key at all, and that changes the outcome: `candidates_for` filters on
+    the canonical league id and never offers such a row to the name/kickoff fallback.
+    `tests/services/test_legacy_recovery_db.py` builds that state with the ORM instead and pins the
+    difference; keep the two files in step.
+    """
     league = registry.ensure_canonical_league(key)
     source = external_api_id.split(":", 1)[0] if ":" in external_api_id else None
     row = Match(id=uuid.uuid4(), home_team_id=home.id, away_team_id=away.id, league_id=league.id,

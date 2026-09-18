@@ -4,6 +4,21 @@ Overnight run against the six priorities you set. Everything is local: nothing w
 AWS resource was touched, nothing was purchased, no branch was pushed, and no provider trial
 allowance was spent on testing.
 
+> **Corrections applied 18 September 2026, after the independent review.** Four claims in the
+> original version of this handoff were wrong or unproven and have been rewritten in place. If you
+> read the first version, re-read these:
+>
+> | Original claim | Correction |
+> |---|---|
+> | Ligue 1 "fills in automatically" once the allowance resets (§4, §8.1) | There is **no scheduler**. The reset restores budget, not work. Sync is request-driven: a page load hitting `GET /api/v1/matches?refresh=true`, or the admin `POST /api/v1/data-providers/sync`. See §4 |
+> | A second full six-competition refresh fits in the day (§5, §8.4) | It does not. A pass costs 6 requests against a plan limit of 10 and a configured budget of **8**. 6 + 6 = 12. Only a partial second pass of two competitions fits. See §5 |
+> | The 9 uncovered fixtures lack forecasts "because the provider published nothing" (§4) | Not established. A forecast can also be missing because it was never requested or was not matched. §4 lists what would tell them apart |
+> | "No Champions League fixtures until 13 October" (§4, §8.2) | One provider's answer for one requested window, not a verified calendar. The Champions League GameForecast id is also still unresolved |
+>
+> One item has since been fixed in code and is marked as such: §8.10, public registration accepting
+> `role=admin`. Test counts and the commit position in §9 are snapshots — re-run and re-check rather
+> than quoting them.
+
 ---
 
 ## 1. What changed, and the commit IDs
@@ -54,8 +69,12 @@ Backend, from `backend/`:
 ./venv/bin/python -m pytest -o addopts="" -p no:cacheprovider -q
 ```
 
-**362 passed, 0 failed.** The baseline was 213 passed with 8 failures that had been red for about
-eleven months. Run twice to check for flakiness; identical both times.
+**362 passed, 0 failed** at the time this was written. The baseline was 213 passed with 8 failures
+that had been red for about eleven months. Run twice to check for flakiness; identical both times.
+
+> Tests have been added since, so this number has already moved (a re-run later the same day
+> reported 380 passed, 4 xfailed). Treat 362 as the count for *this session*, not as the current
+> total — run the command and read what it prints.
 
 Frontend, from `frontend/`:
 
@@ -158,20 +177,64 @@ Screenshots of the final state, desktop and mobile, are in `frontend/e2e/screens
 | Ligue 1 | 9 | 9 | 0 | 0 | **not attempted** — deferred, allowance spent |
 | Champions League | 0 | 0 | 0 | 0 | no fixtures in the window, so nothing to forecast |
 
-These are four different things and the table keeps them apart: a forecast attached, a provider that
-returned nothing for a fixture, a competition never attempted, and a competition with no fixtures.
-The 30 forecasts cover 30 of the 39 upcoming fixtures in the four completed competitions; the
-provider simply published nothing for the other 9.
+These are four different things and the table keeps them apart: a forecast attached, a competition
+never attempted, and a competition with no fixtures.
+
+The 30 forecasts cover 30 of the 39 upcoming fixtures in the four completed competitions. **The
+remaining 9 have no attached forecast, and that is all that is established.** An earlier version of
+this handoff said the provider "published nothing" for them. That was not verified and should not be
+relied on: a forecast can be absent for at least three different reasons, and a missing row does not
+distinguish them.
+
+| Possible reason | Evidence that would establish it |
+|---|---|
+| The forecast arrived but was not matched to our fixture | The unmatched/ambiguous forecasts we already paid for are cached in Redis under `forecast:pending:gameforecast:<competition>` (`forecast_service.py`, `PENDING_KEY` / `_store_pending`). If a fixture's counterpart is sitting there, the provider *did* publish it |
+| The fixture was never requested | It falls outside the requested window (`GAMEFORECAST_SYNC_DAYS_AHEAD`, 7 days) or beyond `MAX_PAGES` (4 pages × 50 events) of the paginated `/events` response |
+| The provider genuinely published no forecast for it | Only provable from the provider's own response for that competition and window. We store `raw_payload` per *stored* forecast (`provider_data.py`) — so a fixture with no forecast has no payload of its own to inspect |
+
+The cheapest first check costs nothing: the per-competition sync report kept in Redis
+(`_record_status`, 7-day TTL) records `fetched`, `attached`, `ambiguous` and `unmatched` per
+competition (`forecast_service.py`, `sync_competition`). If `fetched` equals `attached` for a competition, nothing
+arrived that we failed to attach, which narrows the 9 to "not published, or not requested". If
+`unmatched` is non-zero, matching is at least part of the answer.
+
+Until someone runs those checks, record these 9 as **no forecast attached**, not as *the provider has
+none*.
 
 Markets supplied per forecast: 1X2, both teams to score, over/under 2.5, over/under 3.5, exact
 scores with the provider's "other scorelines" remainder, its recommended markets, and its written
 reasoning. Confidence is never shown for a model forecast, because the provider does not publish one
 and deriving it would be an invention.
 
-**Ligue 1 and the Champions League go first on the next sync.** That is verified, not hoped for —
-the rotation now reports the order as `ligue_1 → champions_league → premier_league → la_liga →
-serie_a → bundesliga`. The Champions League has no fixtures until 13 October, so expect Ligue 1 to
-fill in and the Champions League to stay empty until then.
+**Ligue 1 and the Champions League go first on the next sync.** That part is verified: the rotation
+reports the order as `ligue_1 → champions_league → premier_league → la_liga → serie_a → bundesliga`.
+
+**But there is no scheduler, so "the next sync" does not happen by itself.** An earlier version of
+this handoff said Ligue 1 would "fill in automatically" once the allowance reset. It will not. The
+project contains no cron job, no Celery worker and no APScheduler — a search of `backend/app` and
+`backend/scripts` for any of them returns nothing. The UTC-midnight reset restores the *budget*; it
+starts no work. Synchronisation is request-driven, and exactly two things trigger it:
+
+1. **A page load that reaches the matches endpoint with refresh on.**
+   `GET /api/v1/matches?refresh=true` — `refresh` defaults to `true` — returns the fixtures and then
+   calls `ForecastService.ensure_synced()` when the day has matches
+   (`backend/app/api/v1/endpoints/matches.py`, `list_matches`). Opening Today or Tomorrow in the browser
+   after 00:00 UTC is enough. This path honours `GAMEFORECAST_SYNC_INTERVAL_HOURS` (24), so a
+   competition synced in the last day is skipped.
+2. **The admin sync endpoint.** `POST /api/v1/data-providers/sync` (admin authentication required)
+   clears the provider cooldowns and calls `ensure_synced(force=True)`, which ignores the 24-hour
+   interval (`backend/app/api/v1/endpoints/data_providers.py`, `force_sync`).
+
+So: after 8pm local time, open the site (or call the admin sync endpoint) and *then* check that
+Ligue 1 picked up forecasts. Nothing happens if nobody asks.
+
+**On the Champions League:** one query against GameForecastAPI's window returned no Champions League
+fixtures before 13 October. That is an observation from a single provider over a single requested
+window, not a verified competition calendar — do not treat it as the fixture list. The Champions
+League GameForecast league id also remains **unresolved**: it carries no `gameforecast_id` in
+`backend/app/services/providers/competitions.py`, so every attempt to reach it first spends a
+`/leagues` discovery request, and a failed discovery is remembered for 6 hours (`UNRESOLVED_TTL`) to
+stop it draining the plan.
 
 ---
 
@@ -191,10 +254,44 @@ bug before that bug was fixed. **I did not reset it.** At most 9 of the plan's 1
 really spent today, and resetting a counter to manufacture allowance is exactly the thing you asked
 me not to do. It costs us nothing beyond today: the allowance resets on its own.
 
-A full six-competition sync now costs 6 requests, down from 11. The league ids verified live are
-recorded in code (Premier League 15, La Liga 13, Serie A 3, Bundesliga 14, Ligue 1 4), so a Redis
-flush no longer re-pays discovery. Only the Champions League id is still unknown and will cost one
-lookup the first time it resolves.
+### What a full pass really costs, and whether a second one fits
+
+The league ids verified live are recorded in code (Premier League 15, La Liga 13, Serie A 3,
+Bundesliga 14, Ligue 1 4 — `backend/app/services/providers/competitions.py`), so a Redis flush no
+longer re-pays discovery for those five. The Champions League has no recorded id, so reaching it
+costs a `/leagues` discovery request first.
+
+| | Requests |
+|---|---|
+| `/events` for the five competitions with a recorded id | 5 |
+| `/leagues` discovery for the Champions League (id still unresolved) | 1 |
+| `/events` for the Champions League, once its id resolves | +1 |
+| A competition whose results paginate | up to `MAX_PAGES` (4) instead of 1 |
+| **One full pass today** | **6** (7 once the Champions League id resolves) |
+
+The two limits it has to fit inside:
+
+- **The plan:** 10 requests/day (GameForecastAPI free plan).
+- **The application budget:** `GAMEFORECAST_DAILY_REQUEST_BUDGET` = **8**
+  (`backend/app/core/config.py`; not overridden in `backend/.env`). This is the binding limit,
+  and it is deliberately below the plan limit.
+
+**A second full pass does not fit.** 6 + 6 = 12, which is over the plan's 10 and well over the
+configured 8. After one full pass, **2 requests remain** against the configured budget — enough for
+two more `/events` calls, i.e. a partial second pass covering at most two competitions, with no
+margin for a retry or for pagination. An earlier version of this handoff said a second refresh "is
+possible but leaves no margin"; that was wrong, and this replaces it.
+
+Two further constraints make a same-day second pass unlikely even within budget:
+
+- `GAMEFORECAST_SYNC_INTERVAL_HOURS` is **24**, so the request-driven path skips any competition
+  synced in the last day. A same-day second pass needs the admin `force=True` sync.
+- When the remaining budget drops below 1, the sync stops *before* reserving and pauses the provider
+  until UTC midnight, leaving the unvisited competitions at the head of the next run
+  (`forecast_service.py`, `ensure_synced`).
+
+An affordable cadence within these numbers: **one full pass per UTC day**, triggered by the first
+page load after the reset, with the 2 spare requests held back for a retry.
 
 ---
 
@@ -265,16 +362,24 @@ predictions, and it must never exist in a deployed database: it can publish as a
 
 ## 8. Remaining issues, most consequential first
 
-1. **Ligue 1 has no forecasts until the allowance resets.** Automatic, nothing to do. Worth one look
-   after 8pm your time to confirm the rotation ran.
-2. **The Champions League GameForecast id is still unverified.** No fixtures until 13 October, so it
-   could not be confirmed without spending requests on an empty window. It will resolve by name on
-   the first sync that reaches it.
+1. **Ligue 1 has no forecasts, and nothing will fetch them on its own.** The allowance resets at
+   00:00 UTC, but there is no scheduler in this project — see §4. After 8pm your time, open the site
+   (any page that loads `/api/v1/matches` with `refresh=true`, which is the default) or call the
+   admin `POST /api/v1/data-providers/sync`, and *then* check that Ligue 1 picked up forecasts.
+2. **The Champions League GameForecast id is still unresolved.** It has no `gameforecast_id` in
+   `competitions.py`, so it must be discovered by name, which costs one `/leagues` request per
+   attempt (remembered as unresolvable for 6 hours after a failure). The one query we ran returned no
+   Champions League fixtures before 13 October, but that is a single provider's answer for a single
+   requested window — not a verified competition calendar, and not a reason to assume the id would
+   resolve if there were fixtures.
 3. **TheSportsDB is not a usable fallback.** The stored key is rejected as invalid. It needs a valid
    key, or the fallback should be dropped from the chain so it stops being listed as available.
-4. **Ten requests a day is tight.** Six competitions cost 6 requests, so a second refresh in a day is
-   possible but leaves no margin for a retry. If forecasts should update more than once daily, the
-   paid plan is the only route. I did not purchase anything.
+4. **Ten requests a day is tight — tighter than this handoff first said.** A full pass costs 6 today
+   (7 once the Champions League id resolves) against a plan limit of 10 and a configured application
+   budget of **8** (`GAMEFORECAST_DAILY_REQUEST_BUDGET`). A **second full pass does not fit**: it
+   would need 12. Only a partial second pass of at most two competitions fits, with nothing left for
+   a retry. See §5 for the arithmetic. If forecasts must update more than once a day across all six
+   competitions, a paid plan is the only route. I did not purchase anything.
 5. **No bookmaker odds feed.** Shown as unavailable everywhere, which is correct, but it is a visible
    gap on every match page.
 6. **No results settlement, so no accuracy anywhere.** The evidence table now records prematch
@@ -286,9 +391,14 @@ predictions, and it must never exist in a deployed database: it can publish as a
 8. **The main JavaScript bundle is 679 kB.** Route-level code splitting would fix it. Cosmetic today.
 9. **The expert review queue still exists** alongside direct publishing. Left in place: removing
    admin tooling is a product decision, not mine.
-10. **Public registration accepts `role=admin`.** Flagged by the independent review. It is a
-    security issue, and you put security hardening in Phase 2, so I did not change it — but it is
-    worth knowing that anyone can currently sign up as an administrator.
+10. ~~**Public registration accepts `role=admin`.**~~ **Fixed since this handoff was written.**
+    `POST /api/v1/auth/register` now accepts only `regular` and `expert` and returns HTTP 400 for
+    anything else, with `admin` deliberately excluded
+    (`backend/app/api/v1/endpoints/auth.py`, `SELF_SELECTABLE_ROLES`; commit `91ed108`). Administrators are promoted
+    by an existing administrator. Note what the remaining self-selectable `expert` role does and does
+    not mean: it grants permission to publish, not reviewed credentials. The wider Phase 2 security
+    review (session revocation, `SECRET_KEY` handling, rate limits, the old public bundle) is still
+    outstanding.
 11. **The support and social links in the footer have no pages behind them.** They now read as plain
     text marked "not published yet" rather than as links that go nowhere. Give each one a route and
     turn it back into a link.
@@ -301,7 +411,15 @@ predictions, and it must never exist in a deployed database: it can publish as a
 git push origin main progress
 ```
 
-Both branches are at `d83edc8`, five commits ahead of the remote.
+Commits have been added since this handoff was written, so the count below it originally gave
+(`d83edc8`, five ahead) is out of date. Check the current position rather than trusting a number in
+a document:
+
+```bash
+git log --oneline -5
+git status -sb
+git rev-list --left-right --count origin/main...main   # behind / ahead
+```
 
 The `backups/` directory holds the database dumps taken before each migration and repair. It is
 git-ignored because it contains password hashes. Keep it until you are satisfied with the result,

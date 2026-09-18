@@ -48,10 +48,20 @@ export interface ApiForecast extends Json {
   anomalies?: Array<{ severity: 'warning' | 'note'; code: string; message: string }>;
 }
 
+export interface ApiTeamRef extends Json {
+  id: string;
+  name: string;
+  short_name: string | null;
+  logo: string;
+  country: string | null;
+}
+
 export interface ApiMatch extends Json {
   id: string;
   kickoff_utc: string;
   status: string;
+  home?: ApiTeamRef;
+  away?: ApiTeamRef;
   forecast: ApiForecast | null;
   forecast_state?: string;
 }
@@ -131,6 +141,58 @@ export function emptyDayPayload(isoDate: string): DayPayload {
   const payload = baseDayPayload();
   payload.date = isoDate;
   payload.matches = [];
+  return payload;
+}
+
+/**
+ * A captured fixture rescheduled onto `kickoffUtc` and renamed, so a test can look for it on the
+ * page by club name. Everything else — competition, forecast, status — is the real captured shape.
+ */
+export function fixtureAt(kickoffUtc: string, homeName: string, awayName: string, id?: string): ApiMatch {
+  const match = JSON.parse(JSON.stringify(baseMatches()[0])) as ApiMatch;
+  match.id = id ?? `${homeName}-${awayName}-${kickoffUtc}`.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase();
+  match.kickoff_utc = kickoffUtc;
+  match.status = 'scheduled';
+  if (match.home) { match.home.name = homeName; match.home.short_name = homeName; }
+  if (match.away) { match.away.name = awayName; match.away.short_name = awayName; }
+  return match;
+}
+
+/**
+ * The backend's own day-selection rule, applied to a fixed pool of fixtures.
+ *
+ * `backend/app/api/v1/endpoints/matches.py::local_day_window` selects the half-open UTC window
+ * ``[local midnight, next local midnight)`` from the caller's `tz_offset` (minutes east of UTC at
+ * local midnight) and `tz_offset_end` (the offset at the NEXT local midnight — they differ by an
+ * hour on a daylight-saving transition, when the local day is 23 or 25 hours rather than 24).
+ * Reimplementing exactly that here means a test can assert what the VIEWER ends up seeing: if the
+ * client sent offsets that do not bound its own calendar day, an edge-of-day fixture drops out of
+ * the response and disappears from the page.
+ *
+ * A request with no `tz_offset` is answered by the UTC calendar day, which is what the backend
+ * falls back to — so a client that stops sending the offsets fails these tests rather than
+ * silently reverting to UTC bucketing.
+ */
+export function selectLocalDay(pool: ApiMatch[], isoDate: string, params: URLSearchParams): DayPayload {
+  const midnightUtc = Date.parse(`${isoDate}T00:00:00Z`);
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const rawStart = params.get('tz_offset');
+  const rawEnd = params.get('tz_offset_end');
+  const startOffset = rawStart === null ? 0 : Number(rawStart);
+  const endOffset = rawEnd === null ? startOffset : Number(rawEnd);
+
+  let from = midnightUtc - startOffset * 60_000;
+  let to = midnightUtc + DAY_MS - endOffset * 60_000;
+  // The backend ignores a nonsensical pair rather than returning an empty day; mirror that.
+  if (!(to > from)) to = from + DAY_MS;
+  if (Number.isNaN(from) || Number.isNaN(to)) { from = midnightUtc; to = midnightUtc + DAY_MS; }
+
+  const payload = baseDayPayload();
+  payload.date = isoDate;
+  payload.matches = pool.filter(match => {
+    const kickoff = Date.parse(match.kickoff_utc);
+    return kickoff >= from && kickoff < to;
+  });
   return payload;
 }
 
@@ -227,13 +289,33 @@ export function expiredTrialStatus(): ProviderStatusPayload {
 }
 
 export interface StubOptions {
-  day?: (isoDate: string) => DayPayload;
+  /**
+   * Answer `GET /matches`. The second argument is the whole query string, so a test that cares
+   * about the timezone contract can apply the backend's own rule with selectLocalDay().
+   */
+  day?: (isoDate: string, params: URLSearchParams) => DayPayload;
   status?: ProviderStatusPayload;
   coverage?: Json | null;
   matchById?: (id: string) => ApiMatch | null;
+  /** Answer `GET /teams/search`; the default is an empty result set. */
+  teamSearch?: (query: string) => { teams: Json[]; competitions: Json[] };
   /** Return a status code to make that route fail instead of answering. */
   fail?: (url: string) => number | null;
 }
+
+/**
+ * Sign-in stubbing, registered by e2e/support/auth.ts.
+ *
+ * It lives here rather than in a page.route() of its own so that the order of the two setup calls
+ * cannot matter: whichever handler Playwright reaches first, the /auth/* answers come from the
+ * same place. Without a signed-in session the auth endpoints answer 401, which is what a signed-out
+ * browser really gets — so a test that forgets to sign in lands on the login page instead of
+ * quietly being handed an empty object.
+ */
+export type AuthHandler = (route: Route, request: Request) => Promise<void> | void;
+const authHandlers = new WeakMap<Page, AuthHandler>();
+export const registerAuthHandler = (page: Page, handler: AuthHandler): void => { authHandlers.set(page, handler); };
+export const authHandlerFor = (page: Page): AuthHandler | undefined => authHandlers.get(page);
 
 /**
  * Intercept every backend call. Anything not explicitly modelled answers with an empty, valid
@@ -252,6 +334,13 @@ export async function stubBackend(page: Page, options: StubOptions = {}): Promis
       return json(route, { detail: 'Simulated backend failure' }, failWith);
     }
 
+    if (path.startsWith('/auth/')) {
+      const handler = authHandlerFor(page);
+      if (handler) return handler(route, request);
+      // Nobody signed in: answer the way the real backend answers an anonymous caller.
+      return json(route, { detail: 'Not authenticated' }, 401);
+    }
+
     if (path === '/data-providers/status') {
       return json(route, options.status ?? baseStatus());
     }
@@ -260,7 +349,8 @@ export async function stubBackend(page: Page, options: StubOptions = {}): Promis
     }
     if (path === '/matches') {
       const date = url.searchParams.get('date') || new Date().toISOString().slice(0, 10);
-      return json(route, (options.day ?? ((d: string) => dayPayload(d)))(date));
+      const answer = options.day ?? ((d: string) => dayPayload(d));
+      return json(route, answer(date, url.searchParams));
     }
     if (path === '/matches/live') {
       return json(route, { matches: [], provider: 'livescore', source: 'provider', stale: false, errors: [] });
@@ -279,7 +369,8 @@ export async function stubBackend(page: Page, options: StubOptions = {}): Promis
       return json(route, baseLeagues().competitions?.[0] ?? { detail: 'not found' });
     }
     if (path.startsWith('/teams/search')) {
-      return json(route, { teams: [], competitions: [] });
+      const query = url.searchParams.get('q') || '';
+      return json(route, options.teamSearch?.(query) ?? { teams: [], competitions: [] });
     }
     if (path.startsWith('/teams/')) {
       return json(route, { team: null, upcoming: [], recent: [] });

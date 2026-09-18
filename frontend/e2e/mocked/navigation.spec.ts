@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { stubBackend, dayPayload } from '../support/api-stub';
+import { test, expect, Page, Locator } from '@playwright/test';
+import { stubBackend, dayPayload, Json } from '../support/api-stub';
 
 /**
  * Navigation, layout and honesty of the marketing surface.
@@ -108,24 +108,100 @@ test('the footer copyright year is current, not frozen', async ({ page }) => {
   expect(text).toContain(`© ${new Date().getFullYear()}`);
 });
 
-test('search accepts a query and reports its result honestly', async ({ page }) => {
-  await stubBackend(page, { day: d => dayPayload(d) });
-  await page.goto('/');
-  await page.waitForLoadState('networkidle');
+/**
+ * Header search.
+ *
+ * These used to type a query and then only check the page contained no "undefined" and no "NaN",
+ * which a search box that silently does nothing also passes. What matters is what the reader is
+ * told: the matching club when there is one, an explicit "no results" when there is not, and
+ * something other than a false "no results" when the request failed.
+ *
+ * SearchDropdown (src/components/layout/SearchDropdown.tsx) waits for three characters and debounces
+ * for 400 ms before calling the backend, so each test types a real query and waits for the request.
+ */
+const ARSENAL_RESULTS = {
+  teams: [
+    { id: 'team-arsenal', name: 'Arsenal', short_name: 'ARS', logo: '/teams/default.svg', country: 'England' },
+    { id: 'team-arsenal-w', name: 'Arsenal Women', short_name: 'ARSW', logo: '/teams/default.svg', country: 'England' },
+  ] as Json[],
+  competitions: [
+    {
+      id: 'comp-premier-league', key: 'premier_league', name: 'Premier League', country: 'England',
+      country_code: 'ENG', logo: '/leagues/default.svg', is_cup: false, providers: {},
+    },
+  ] as Json[],
+};
 
-  // On the narrow layout the search box lives behind the menu button; open it first.
+/** The header search box, reached through the menu button on the narrow layout. */
+async function openSearch(page: Page): Promise<Locator> {
   const menu = page.getByRole('button', { name: /menu|open main menu/i }).first();
   if (await menu.count() > 0 && await menu.isVisible()) await menu.click();
-
-  const search = page.locator('input[type="search"], input[placeholder*="Search" i]')
+  return page.locator('input[type="search"], input[placeholder*="Search" i]')
     .filter({ visible: true }).first();
-  if (await search.count() === 0) {
-    test.skip(true, 'no visible search input on this layout');
-    return;
-  }
-  await search.fill('Arsenal');
-  await page.waitForTimeout(800);
+}
+
+/** Type `query` and wait for the search request the component makes after its debounce. */
+async function searchFor(page: Page, query: string): Promise<Locator> {
+  const box = await openSearch(page);
+  await expect(box, 'the header must offer a search box on this layout').toHaveCount(1);
+  const answered = page.waitForResponse(r => r.url().includes('/api/v1/teams/search'));
+  await box.fill(query);
+  await answered;
+  return box;
+}
+
+test('search lists the clubs and competitions that match', async ({ page }) => {
+  await stubBackend(page, {
+    day: d => dayPayload(d),
+    teamSearch: () => ARSENAL_RESULTS,
+  });
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await searchFor(page, 'Arsenal');
+
+  // the matching club is actually listed, by name, with its country
+  await expect(page.getByRole('button', { name: /Arsenal\s+England/ }).first()).toBeVisible();
+  await expect(page.getByText('Arsenal Women', { exact: true })).toBeVisible();
+  await expect(page.getByText('Premier League', { exact: true }).first()).toBeVisible();
+  // and the counts the dropdown prints match what the backend returned
+  await expect(page.getByText('Teams (2)', { exact: true })).toBeVisible();
+  await expect(page.getByText('Leagues (1)', { exact: true })).toBeVisible();
+
   const text = (await page.locator('body').innerText()).toLowerCase();
   expect(text).not.toContain('undefined');
   expect(text).not.toContain('nan');
+});
+
+test('a search with no matches says so instead of showing a blank panel', async ({ page }) => {
+  await stubBackend(page, {
+    day: d => dayPayload(d),
+    teamSearch: () => ({ teams: [], competitions: [] }),
+  });
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await searchFor(page, 'Nowhere Athletic');
+
+  await expect(page.getByText(/no results found for "Nowhere Athletic"/i)).toBeVisible();
+  await expect(page.getByText(/try a different search term/i)).toBeVisible();
+});
+
+/**
+ * A search that failed must not be reported as a search that found nothing.
+ *
+ * search.service.ts used to catch every error and return an empty result, so a 500 from the API
+ * produced "No results found for Arsenal" — a statement about the world, manufactured from a
+ * network error. The service now lets the failure reach the component's own error branch.
+ */
+test('a failed search reports the failure, not an empty result', async ({ page }) => {
+  await stubBackend(page, {
+    day: d => dayPayload(d),
+    fail: url => (url.includes('/teams/search') ? 500 : null),
+  });
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await searchFor(page, 'Arsenal');
+
+  await expect(page.getByText(/failed to search/i)).toBeVisible();
+  // and it must NOT claim there is no such club
+  await expect(page.getByText(/no results found for "Arsenal"/i)).toHaveCount(0);
 });

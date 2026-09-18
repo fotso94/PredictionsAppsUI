@@ -13,7 +13,7 @@ frontend/dist-ssr/
 # Python / backend
 __pycache__/
 *.py[cod]
-backend/venv/
+backend/venv*/
 .venv/
 backend/htmlcov/
 backend/.coverage

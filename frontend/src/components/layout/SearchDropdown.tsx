@@ -43,6 +43,10 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
         console.error('Search error:', err);
         setError('Failed to search. Please try again.');
         setResults({ teams: [], leagues: [] });
+        // The panel has to open for the message to be seen at all. Without this the dropdown stayed
+        // shut on failure and the reader was told nothing, which is how a failed search came to be
+        // indistinguishable from one that found nothing.
+        setIsOpen(true);
       } finally {
         setIsLoading(false);
       }
