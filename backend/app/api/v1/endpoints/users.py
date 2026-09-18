@@ -3,13 +3,11 @@ User Management Endpoints
 Demonstrates role-based permission system
 """
 
-from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.deps import (
     get_db,
-    get_current_user,
     get_current_active_user,
     get_current_admin_user
 )

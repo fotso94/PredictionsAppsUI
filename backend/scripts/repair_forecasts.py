@@ -117,6 +117,12 @@ def main() -> int:
                 if forecast is None:
                     counts["unparseable"] += 1
                     continue
+                # A repair re-reads a payload we already hold; it retrieves nothing. Stamping the
+                # snapshot with "now" would move a forecast fetched before kickoff to after it, which
+                # is precisely the prematch evidence this history exists to preserve.
+                forecast.fetched_at = (record.fetched_at.replace(tzinfo=timezone.utc)
+                                       if record.fetched_at and record.fetched_at.tzinfo is None
+                                       else record.fetched_at)
                 changes = _describe(record, forecast)
                 if not changes:
                     counts["already_correct"] += 1

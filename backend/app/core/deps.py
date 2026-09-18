@@ -3,7 +3,7 @@ Dependencies
 FastAPI dependencies for authentication and authorization
 """
 
-from typing import Generator, Optional
+from typing import Generator
 from datetime import datetime
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.core.security import verify_access_token
 from app.core.redis import get_sessions_redis
 from app.db.session import SessionLocal
-from app.models.users import User
+from app.models.users import ExpertProfile, User
 from app.schemas.auth import TokenPayload
 
 
@@ -181,7 +181,7 @@ async def get_current_admin_user(
     return current_user
 
 
-def ensure_expert_profile(db: Session, user: User, verified: bool) -> "ExpertProfile":
+def ensure_expert_profile(db: Session, user: User, verified: bool) -> ExpertProfile:
     """
     Return the user's expert profile, creating it when missing.
 
@@ -190,8 +190,6 @@ def ensure_expert_profile(db: Session, user: User, verified: bool) -> "ExpertPro
     expert can publish immediately. With the flag off the profile is created unverified and the
     admin verification flow applies.
     """
-    from app.models.users import ExpertProfile
-
     profile = db.query(ExpertProfile).filter(ExpertProfile.user_id == user.id).first()
     if profile is None:
         profile = ExpertProfile(

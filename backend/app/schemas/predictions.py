@@ -5,7 +5,7 @@ Pydantic models for prediction-related API requests and responses
 
 from pydantic import BaseModel, Field, field_serializer, validator
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 
 from app.schemas.matches import iso_utc
@@ -162,6 +162,22 @@ class ExpertPredictionCreate(BaseModel):
                 raise ValueError('BTTS probabilities must sum to 1.0 when both are provided')
         return v
 
+    @validator('total_goals_under_25_prob')
+    def over_under_25_sum_to_one(cls, v, values):
+        """Over 2.5 and under 2.5 are complementary: a match cannot be 90% both."""
+        over = values.get('total_goals_over_25_prob')
+        if v is not None and over is not None and not (0.99 <= over + v <= 1.01):
+            raise ValueError('Over/under 2.5 probabilities must sum to 1.0 when both are provided')
+        return v
+
+    @validator('total_goals_under_35_prob')
+    def over_under_35_sum_to_one(cls, v, values):
+        """Over 3.5 and under 3.5 are complementary in the same way."""
+        over = values.get('total_goals_over_35_prob')
+        if v is not None and over is not None and not (0.99 <= over + v <= 1.01):
+            raise ValueError('Over/under 3.5 probabilities must sum to 1.0 when both are provided')
+        return v
+
 
 class ExpertPredictionOverride(BaseModel):
     """Schema for overriding existing predictions"""
@@ -207,6 +223,22 @@ class ExpertPredictionOverride(BaseModel):
                 raise ValueError('BTTS probabilities must sum to 1.0 when both are provided')
         return v
 
+    @validator('total_goals_under_25_prob')
+    def over_under_25_sum_to_one(cls, v, values):
+        """Over 2.5 and under 2.5 are complementary: a match cannot be 90% both."""
+        over = values.get('total_goals_over_25_prob')
+        if v is not None and over is not None and not (0.99 <= over + v <= 1.01):
+            raise ValueError('Over/under 2.5 probabilities must sum to 1.0 when both are provided')
+        return v
+
+    @validator('total_goals_under_35_prob')
+    def over_under_35_sum_to_one(cls, v, values):
+        """Over 3.5 and under 3.5 are complementary in the same way."""
+        over = values.get('total_goals_over_35_prob')
+        if v is not None and over is not None and not (0.99 <= over + v <= 1.01):
+            raise ValueError('Over/under 3.5 probabilities must sum to 1.0 when both are provided')
+        return v
+
 
 class ExpertPredictionUpdate(BaseModel):
     """Schema for updating existing predictions"""
@@ -248,6 +280,22 @@ class ExpertPredictionUpdate(BaseModel):
             total = values['btts_yes_prob'] + v
             if not (0.99 <= total <= 1.01):
                 raise ValueError('BTTS probabilities must sum to 1.0 when both are provided')
+        return v
+
+    @validator('total_goals_under_25_prob')
+    def over_under_25_sum_to_one(cls, v, values):
+        """Over 2.5 and under 2.5 are complementary: a match cannot be 90% both."""
+        over = values.get('total_goals_over_25_prob')
+        if v is not None and over is not None and not (0.99 <= over + v <= 1.01):
+            raise ValueError('Over/under 2.5 probabilities must sum to 1.0 when both are provided')
+        return v
+
+    @validator('total_goals_under_35_prob')
+    def over_under_35_sum_to_one(cls, v, values):
+        """Over 3.5 and under 3.5 are complementary in the same way."""
+        over = values.get('total_goals_over_35_prob')
+        if v is not None and over is not None and not (0.99 <= over + v <= 1.01):
+            raise ValueError('Over/under 3.5 probabilities must sum to 1.0 when both are provided')
         return v
 
 

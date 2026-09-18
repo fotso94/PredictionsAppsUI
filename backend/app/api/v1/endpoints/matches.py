@@ -36,15 +36,27 @@ TZ_OFFSET_MAX_MINUTES = 840
 _SOURCE_RANK = {"database": 0, "stale-cache": 1, "cache": 2, "provider": 3}
 
 
-def local_day_window(day: date, tz_offset_minutes: int) -> Tuple[datetime, datetime]:
+def local_day_window(day: date, tz_offset_minutes: int,
+                     tz_offset_end_minutes: Optional[int] = None) -> Tuple[datetime, datetime]:
     """
-    Half-open UTC window ``[local midnight, local midnight + 24h)`` of one local calendar day.
+    Half-open UTC window ``[local midnight, next local midnight)`` of one local calendar day.
 
     Today/tomorrow must mean the viewer's calendar day. Bucketing by the UTC day instead makes a
     late-evening kickoff vanish from Today and reappear under Tomorrow for everyone east of UTC.
+
+    A local day is not always 24 hours. On a daylight-saving transition it is 23 or 25, so the end is
+    computed from its own offset rather than by adding a fixed day: in New York on 1 November 2026 the
+    day runs 04:00Z to 05:00Z the next day, and a fixed 24-hour window would silently drop the first
+    hour, taking any kickoff just after local midnight with it. `tz_offset_end_minutes` is the
+    viewer's offset at the NEXT local midnight; without it the start offset is reused, which is
+    correct on every day except a transition.
     """
-    start = datetime.combine(day, time.min, tzinfo=timezone.utc) - timedelta(minutes=tz_offset_minutes)
-    return start, start + timedelta(days=1)
+    midnight = datetime.combine(day, time.min, tzinfo=timezone.utc)
+    start = midnight - timedelta(minutes=tz_offset_minutes)
+    end_offset = tz_offset_minutes if tz_offset_end_minutes is None else tz_offset_end_minutes
+    end = midnight + timedelta(days=1) - timedelta(minutes=end_offset)
+    # A nonsensical pair (end at or before start) is ignored rather than returning an empty day.
+    return (start, end) if end > start else (start, start + timedelta(days=1))
 
 
 def _merge_meta(first: Optional[SyncMeta], second: SyncMeta) -> SyncMeta:
@@ -139,8 +151,12 @@ async def list_matches(
                                      description="Caller's UTC offset in MINUTES east of UTC (e.g. 120 for UTC+2, -300 for "
                                                  "UTC-5; that is -Date.getTimezoneOffset()). When sent, the matches "
                                                  "returned are the ones kicking off in the caller's local calendar day "
-                                                 "[local midnight, +24h). When omitted, the UTC calendar day is used, "
-                                                 "exactly as before."),
+                                                 "[local midnight, next local midnight). When omitted, the UTC calendar "
+                                                 "day is used, exactly as before."),
+    tz_offset_end: Optional[int] = Query(None, ge=TZ_OFFSET_MIN_MINUTES, le=TZ_OFFSET_MAX_MINUTES,
+                                         description="Caller's UTC offset in MINUTES at the NEXT local midnight. Only "
+                                                     "differs from tz_offset on a daylight-saving transition, when the "
+                                                     "local day is 23 or 25 hours rather than 24. Defaults to tz_offset."),
     db: Session = Depends(get_db),
 ):
     now = datetime.now(timezone.utc)
@@ -151,7 +167,7 @@ async def list_matches(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="date must be YYYY-MM-DD")
     service = MatchDataService(db)
     forecasts = ForecastService(db)
-    window = local_day_window(day, tz_offset) if tz_offset is not None else None
+    window = local_day_window(day, tz_offset, tz_offset_end) if tz_offset is not None else None
     try:
         if window is None:
             matches, meta = service.matches_for_day(day, refresh=refresh)

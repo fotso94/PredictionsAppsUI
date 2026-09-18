@@ -4,11 +4,10 @@ Specialized caching for user sessions, authentication tokens, and user data
 """
 
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
-import json
+from datetime import datetime
 import logging
 
-from app.services.cache import CacheService, sessions_cache
+from app.services.cache import sessions_cache
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)

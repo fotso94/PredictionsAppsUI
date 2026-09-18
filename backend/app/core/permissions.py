@@ -4,7 +4,7 @@ Role-based permission checking utilities and decorators
 """
 
 from enum import Enum
-from typing import List, Optional
+from typing import List
 from fastapi import HTTPException, status
 
 from app.models.users import User, UserType

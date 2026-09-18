@@ -77,7 +77,7 @@ const PredictionBlock: React.FC<{ prediction: MatchPredictions }> = ({ predictio
         {outcome && bestLabel !== null && best !== null ? (
           <>
             <span className="text-white font-medium">{bestLabel} <span className="text-secondary-400 font-normal">({formatPercent(best)})</span></span>
-            <ConfidenceBadge level={outcome.confidence} />
+            <ConfidenceBadge level={outcome.confidence} basis={prediction.source === 'expert' ? 'published' : 'derived'} />
           </>
         ) : <Unavailable />}
       </MarketRow>
@@ -96,7 +96,7 @@ const PredictionBlock: React.FC<{ prediction: MatchPredictions }> = ({ predictio
         {bothTeamsToScore && bttsLead.known.length > 0 ? (
           <>
             <TwoWayMarket sides={[bttsYes, bttsNo]} lead={bttsLead} />
-            <ConfidenceBadge level={bothTeamsToScore.confidence} />
+            <ConfidenceBadge level={bothTeamsToScore.confidence} basis={prediction.source === 'expert' ? 'published' : 'derived'} />
           </>
         ) : <Unavailable />}
       </MarketRow>
@@ -104,7 +104,7 @@ const PredictionBlock: React.FC<{ prediction: MatchPredictions }> = ({ predictio
         {totalGoals && lead25.known.length > 0 ? (
           <>
             <TwoWayMarket sides={[over25, under25]} lead={lead25} />
-            <ConfidenceBadge level={totalGoals.confidence} />
+            <ConfidenceBadge level={totalGoals.confidence} basis={prediction.source === 'expert' ? 'published' : 'derived'} />
           </>
         ) : <Unavailable />}
       </MarketRow>

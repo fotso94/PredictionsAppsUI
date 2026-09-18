@@ -71,6 +71,9 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, fo
 
   const prediction = match.predictions
   const isExpertPrediction = prediction?.source === 'expert'
+  // A model forecast publishes no confidence score, so its badge is only the strength of the
+  // probability. Saying otherwise would attribute a judgement the model never made.
+  const confidenceBasis = isExpertPrediction ? 'published' : 'derived'
   const hiddenForecastNote = !prediction ? forecastStateText(match.providerForecast?.state) : null
   const pausedNote = !prediction ? forecastSyncMessage(forecastSync) : null
   const showScore = (isMatchLive(match) || isMatchFinished(match)) && match.result
@@ -202,7 +205,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, fo
                           {getMostLikelyOutcome(outcome.homeWin, outcome.draw, outcome.awayWin)}
                           <span className="text-secondary-400 font-normal"> ({formatPercent(Math.max(outcome.homeWin, outcome.draw, outcome.awayWin))})</span>
                         </span>
-                        <ConfidenceBadge level={outcome.confidence} />
+                        <ConfidenceBadge level={outcome.confidence} basis={confidenceBasis} />
                       </div>
                     ) : (
                       <span data-testid="match-outcome-unavailable"><Unavailable /></span>
@@ -226,7 +229,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, fo
                             <span className="text-secondary-500 font-normal"> · other side {UNAVAILABLE_TEXT.toLowerCase()}</span>
                           </span>
                         )}
-                        <ConfidenceBadge level={prediction.bothTeamsToScore.confidence} />
+                        <ConfidenceBadge level={prediction.bothTeamsToScore.confidence} basis={confidenceBasis} />
                       </div>
                     ) : (
                       <Unavailable />
@@ -249,7 +252,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, fo
                             <span className="text-secondary-500 font-normal"> · other side {UNAVAILABLE_TEXT.toLowerCase()}</span>
                           </span>
                         )}
-                        <ConfidenceBadge level={prediction.totalGoals.confidence} />
+                        <ConfidenceBadge level={prediction.totalGoals.confidence} basis={confidenceBasis} />
                       </div>
                     ) : (
                       <Unavailable />

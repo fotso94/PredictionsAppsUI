@@ -241,7 +241,7 @@ export const PREDICTION_SOURCE_INFO: Record<PredictionSource, PredictionSourceIn
     icon: '👤',
     color: 'text-purple-600',
     priority: 100,
-    description: 'Manual prediction created by verified expert',
+    description: 'Manual prediction created by a registered expert',
   },
   [PredictionSource.EXPERT_OVERRIDE]: {
     source: PredictionSource.EXPERT_OVERRIDE,

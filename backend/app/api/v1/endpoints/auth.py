@@ -21,14 +21,13 @@ from app.core.security import (
 )
 from app.core.deps import (
     get_db,
-    get_current_user,
     get_current_active_user,
     verify_refresh_token_not_blacklisted,
     blacklist_refresh_token,
     store_refresh_token,
     revoke_user_refresh_tokens,
 )
-from app.models.users import User, UserType, AccountStatus
+from app.models.users import User, AccountStatus
 from app.schemas.auth import (
     LoginRequest,
     LoginResponse,
@@ -152,7 +151,6 @@ async def refresh_token(
     # Extract user ID and JTI
     user_id = payload.get("sub")
     jti = payload.get("jti")
-    role = payload.get("role", "regular")
     
     if user_id is None or jti is None:
         raise HTTPException(

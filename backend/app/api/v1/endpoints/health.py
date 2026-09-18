@@ -6,7 +6,6 @@ System health and status monitoring
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-import redis
 from typing import Dict, Any
 
 from app.db.session import get_db

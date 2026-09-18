@@ -4,11 +4,9 @@ Comprehensive Redis caching utilities for sessions, predictions, and general dat
 """
 
 import json
-import hashlib
 import logging
 from typing import Any, Optional, Callable, Dict, List
 from functools import wraps
-from datetime import datetime, timedelta
 import redis
 
 from app.core.redis import (

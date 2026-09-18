@@ -4,11 +4,10 @@ Specialized caching for predictions, match data, and ML model outputs
 """
 
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
-import json
+from datetime import datetime
 import logging
 
-from app.services.cache import CacheService, predictions_cache, ml_models_cache, match_data_cache
+from app.services.cache import predictions_cache, ml_models_cache, match_data_cache
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ provider produced the data. Probabilities are 0-1 floats; missing markets are nu
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from app.models.predictions import League, Match, MatchStatus, Prediction, Team
 from app.models.provider_data import ProviderEntityRef, ProviderForecastRecord

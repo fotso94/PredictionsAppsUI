@@ -756,7 +756,7 @@ class ExpertPredictionService:
             match_uuid: Match UUID
             external_match_id: External API match ID (API-Football fixture ID)
         """
-        from app.models.predictions import Match, MatchStatus, Team, League
+        from app.models.predictions import Match, Team
         from app.services.api_football import APIFootballService
 
         # Check if match already exists

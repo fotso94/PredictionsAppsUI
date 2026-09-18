@@ -7,13 +7,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
 import logging
 
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.api.v1.api import api_router
-from app.db.session import engine
 from app.db.init_db import init_db
 from app.middleware.security_headers import SecurityHeadersMiddleware
 

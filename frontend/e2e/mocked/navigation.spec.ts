@@ -86,6 +86,20 @@ test('the home page publishes no unmeasured performance claim', async ({ page })
   expect(text).not.toMatch(/thousands of successful/);
 });
 
+test('the footer makes no promise the site does not keep', async ({ page }) => {
+  await stubBackend(page, { day: d => dayPayload(d) });
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+
+  // a link that goes nowhere is a promise the site does not keep
+  const deadLinks = await page.locator('a[href="#"]').count();
+  expect(deadLinks).toBe(0);
+
+  // nobody's credentials have been reviewed, so nothing may claim they were
+  const text = (await page.locator('body').innerText()).toLowerCase();
+  expect(text).not.toContain('verified expert');
+});
+
 test('the footer copyright year is current, not frozen', async ({ page }) => {
   await stubBackend(page, { day: d => dayPayload(d) });
   await page.goto('/');

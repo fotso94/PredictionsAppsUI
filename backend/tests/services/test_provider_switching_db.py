@@ -509,3 +509,58 @@ def test_expert_predictions_survive_a_forecast_provider_change(db):
     assert kept.id == prediction.id and kept.status == PredictionStatus.PUBLISHED
     assert float(service.forecast_for_match(matches[0], "gameforecast").home_win_prob) == 0.5
     assert float(service.forecast_for_match(matches[0], "api_football").home_win_prob) == 0.4
+
+
+# ----------------------------------------------------------------------------- orientation and identity
+def test_a_forecast_listed_the_other_way_round_is_refused_not_flipped(db):
+    """Every probability is orientation-bound, and a reverse leg is a different match.
+
+    Attaching a forecast listed away-first would put the away side's win probability on the home
+    side, which is worse than having no forecast at all.
+    """
+    registry, fixtures, matches = sample_day(db)
+    service = ForecastService(db, provider=SampleForecastProvider(), cache=MatchCache(client=FakeRedis()),
+                              now=NOW, keys=KEYS, sync_fixtures=False)
+    league_id = matches[0].league_id
+    assert service.attach_forecast(forecast(fixtures[0], event_id="R1"), "premier_league", league_id)["result"] == "attached"
+    db.flush()
+
+    reversed_listing = forecast(fixtures[0], event_id="R1",
+                                home_name=fixtures[0].away.name, away_name=fixtures[0].home.name,
+                                home_prob=0.8, draw_prob=0.1, away_prob=0.1)
+    outcome = service.attach_forecast(reversed_listing, "premier_league", league_id)
+    assert outcome["result"] == "ambiguous"
+    # the forecast already stored is untouched, and 0.8 never lands on the wrong side
+    assert float(service.forecast_for_match(matches[0], "gameforecast").home_win_prob) == 0.5
+
+
+def test_a_recycled_fixture_id_cannot_repurpose_an_existing_match(db):
+    """Provider fixture ids get reused between seasons; the teams decide, not the id."""
+    registry, fixtures, matches = sample_day(db)
+    user = _expert(db)
+    prediction = _publish(db, matches[0], user)
+    original_home, original_away = matches[0].home_team_id, matches[0].away_team_id
+
+    recycled = replace(
+        fixtures[0],
+        home=replace(fixtures[0].home, external_id="zz1", name="Sporting CP"),
+        away=replace(fixtures[0].away, external_id="zz2", name="Benfica"),
+    )
+    assert registry.upsert_fixture(recycled) is None
+    db.flush()
+
+    refreshed = db.query(Match).filter(Match.id == matches[0].id).one()
+    assert (refreshed.home_team_id, refreshed.away_team_id) == (original_home, original_away)
+    assert db.query(Prediction).filter(Prediction.match_id == matches[0].id).one().id == prediction.id
+    assert any("no longer names the same teams" in r["reason"] for r in registry.refusals)
+
+
+def test_a_fixture_sent_the_other_way_round_does_not_swap_the_stored_teams(db):
+    registry, fixtures, matches = sample_day(db)
+    original_home, original_away = matches[0].home_team_id, matches[0].away_team_id
+    flipped = replace(fixtures[0], home=fixtures[0].away, away=fixtures[0].home)
+
+    assert registry.upsert_fixture(flipped) is None
+    db.flush()
+    refreshed = db.query(Match).filter(Match.id == matches[0].id).one()
+    assert (refreshed.home_team_id, refreshed.away_team_id) == (original_home, original_away)

@@ -5,7 +5,6 @@ Comprehensive testing script for PostgreSQL and Redis connectivity
 """
 
 import sys
-import os
 from pathlib import Path
 
 # Add parent directory to path
@@ -62,7 +61,7 @@ def test_postgresql_connection():
             # Get PostgreSQL version
             result = conn.execute(text("SELECT version()"))
             version = result.scalar()
-            print_success(f"Connected to PostgreSQL")
+            print_success("Connected to PostgreSQL")
             print_info(f"Version: {version}")
             
             # Test basic query
@@ -214,7 +213,7 @@ def test_connection_pooling():
         # Redis connection pool
         client = get_redis_client()
         pool = client.connection_pool
-        print_info(f"Redis connection pool created")
+        print_info("Redis connection pool created")
         print_info(f"Max connections: {pool.max_connections}")
         
         # Test multiple operations

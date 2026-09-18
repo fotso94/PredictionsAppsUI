@@ -4,13 +4,12 @@ ML Models Schema Models
 """
 
 from datetime import datetime
-from typing import List
 
 from sqlalchemy import (
     Column, String, Boolean, DateTime, Integer, Text, Enum,
-    ForeignKey, Index, UniqueConstraint, CheckConstraint, DECIMAL, BigInteger, Float
+    Index, UniqueConstraint, DECIMAL, BigInteger
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, UUIDMixin, TimestampMixin, uuid_fk

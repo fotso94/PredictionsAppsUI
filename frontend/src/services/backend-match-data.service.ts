@@ -14,7 +14,7 @@ import apiClient from './api-client';
 import { ConfidenceLevel, ForecastAnomaly, HeadToHead, League, LeagueStanding, Match, MatchPredictions, MatchStatus, Team } from '@/types';
 import {
   CoverageSummary, DataSourceMeta, ForecastSyncStatus, MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage,
-  localDateString, timezoneOffsetMinutes,
+  localDateString, localDayOffsets, timezoneOffsetMinutes,
 } from './match-data-source';
 import { getErrorMessage, getErrorStatus } from '@/utils/errors';
 
@@ -526,9 +526,11 @@ class BackendMatchDataService implements MatchDataSource {
   async getFixturesByDateWithMeta(date: string): Promise<MatchListResult> {
     return this.cached(`${CACHE_KEYS.matchesByDate}${date}`, async () => {
       // The viewer's calendar day, not the UTC one: a 21:00 kickoff in New York is 01:00 the next
-      // day in UTC, and bucketing it by the UTC day would hide tonight's match from Today.
+      // day in UTC, and bucketing it by the UTC day would hide tonight's match from Today. Both
+      // boundaries are sent because a daylight-saving day is 23 or 25 hours, not 24.
+      const offsets = localDayOffsets(date);
       const { data } = await apiClient.get<ApiMatchList>(`${API}/matches`, {
-        params: { date, tz_offset: timezoneOffsetMinutes(date) },
+        params: { date, tz_offset: offsets.start, tz_offset_end: offsets.end },
       });
       return { matches: data.matches.map(mapApiMatch), meta: metaOf(data) };
     });

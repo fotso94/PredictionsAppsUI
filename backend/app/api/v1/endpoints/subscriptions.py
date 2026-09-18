@@ -5,8 +5,7 @@ Handles subscription tier management and upgrades/downgrades
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from app.db.session import get_db
 from app.core.deps import get_current_user

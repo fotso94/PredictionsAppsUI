@@ -3,7 +3,7 @@ Admin Endpoints
 Demonstrates admin-specific role-based permissions
 """
 
-from typing import List, Dict, Any
+from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime

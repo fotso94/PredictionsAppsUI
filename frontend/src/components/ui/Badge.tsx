@@ -11,6 +11,12 @@ interface BadgeProps {
 interface ConfidenceBadgeProps {
   level: ConfidenceLevel
   className?: string
+  /**
+   * Where the level came from. An expert publishes a confidence score; a model forecast does not,
+   * so its badge is only the strength of the probability itself. Labelling a derived bucket as the
+   * model's confidence would attribute a judgement the model never made.
+   */
+  basis?: 'published' | 'derived'
 }
 
 const Badge: React.FC<BadgeProps> = ({ 
@@ -33,7 +39,7 @@ const Badge: React.FC<BadgeProps> = ({
   )
 }
 
-const ConfidenceBadge: React.FC<ConfidenceBadgeProps> = ({ level, className }) => {
+const ConfidenceBadge: React.FC<ConfidenceBadgeProps> = ({ level, className, basis = 'published' }) => {
   const confidenceClasses = {
     low: 'confidence-low',
     medium: 'confidence-medium',
@@ -48,8 +54,17 @@ const ConfidenceBadge: React.FC<ConfidenceBadgeProps> = ({ level, className }) =
     'very-high': 'Very High',
   }
 
+  const title = basis === 'derived'
+    ? `${confidenceLabels[level]} probability. This source publishes no confidence score, so this `
+      + 'reflects how strong the probability is, not how confident the source claims to be.'
+    : `${confidenceLabels[level]} confidence, as published by the source.`
+
   return (
-    <span className={clsx(confidenceClasses[level], className)}>
+    <span
+      className={clsx(confidenceClasses[level], className)}
+      title={title}
+      data-basis={basis}
+    >
       {confidenceLabels[level]}
     </span>
   )

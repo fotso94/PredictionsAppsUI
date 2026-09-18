@@ -3,7 +3,7 @@ Security Utilities
 Password hashing, JWT token generation, validation, and security headers
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Union, Optional, Dict
 from jose import jwt, JWTError
 from passlib.context import CryptContext
@@ -109,6 +109,19 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def _is_expired(exp: Optional[int]) -> bool:
+    """Has this token's `exp` claim passed?
+
+    `exp` is seconds since the Unix epoch, which is an absolute instant. Reading it with a naive
+    `datetime.fromtimestamp` yields the machine's LOCAL time and comparing that against `utcnow()`
+    shifts every expiry by the machine's UTC offset - rejecting a freshly issued token west of
+    Greenwich, and honouring an expired one east of it. Both sides are compared in UTC here.
+    """
+    if exp is None:
+        return True
+    return datetime.fromtimestamp(exp, tz=timezone.utc) <= datetime.now(timezone.utc)
+
+
 def verify_access_token(token: str) -> Optional[Dict[str, Any]]:
     """
     Verify access token and return payload
@@ -128,8 +141,7 @@ def verify_access_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
     # Verify expiration
-    exp = payload.get("exp")
-    if exp is None or datetime.fromtimestamp(exp) < datetime.utcnow():
+    if _is_expired(payload.get("exp")):
         return None
 
     return payload
@@ -154,8 +166,7 @@ def verify_refresh_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
     # Verify expiration
-    exp = payload.get("exp")
-    if exp is None or datetime.fromtimestamp(exp) < datetime.utcnow():
+    if _is_expired(payload.get("exp")):
         return None
 
     # Verify JTI exists

@@ -323,16 +323,36 @@ class MatchRegistry:
         return refusals
 
     def _refuse_fixture(self, fixture: ProviderFixture, decision: match_matching.MatchDecision) -> None:
+        self._record_refusal(fixture, decision.reason, list(decision.candidate_ids))
+
+    def _record_refusal(self, fixture: ProviderFixture, reason: str, candidates: List[str]) -> None:
         self.refusals.append({
             "provider": fixture.provider, "external_id": str(fixture.external_id),
             "home": fixture.home.name, "away": fixture.away.name,
             "kickoff_utc": fixture.kickoff_utc.isoformat() if fixture.kickoff_utc else None,
-            "competition_key": fixture.competition.key, "reason": decision.reason,
-            "candidates": list(decision.candidate_ids),
+            "competition_key": fixture.competition.key, "reason": reason,
+            "candidates": candidates,
         })
         logger.warning("Refusing fixture %s:%s (%s vs %s): %s; candidates=%s. No match row written.",
                        fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name,
-                       decision.reason, decision.candidate_ids)
+                       reason, candidates)
+
+    def _ref_still_describes(self, match: Match, fixture: ProviderFixture) -> bool:
+        """Do the teams on the match a provider id points at still match the ones just sent, in order?
+
+        A provider id is a claim, not proof. These ids are small integers and get recycled between
+        seasons, and `_apply_fixture` overwrites the teams and the competition outright, so a recycled
+        id would quietly repurpose an existing match row - taking any expert prediction attached to it
+        along to a different game.
+
+        The order has to agree too: in a two-legged tie the reverse fixture is a different match.
+        """
+        stored_home = self.db.query(Team).filter(Team.id == match.home_team_id).first()
+        stored_away = self.db.query(Team).filter(Team.id == match.away_team_id).first()
+        if stored_home is None or stored_away is None:
+            return True  # a half-built row has nothing to contradict
+        return (match_matching.team_names_match(fixture.home.name, stored_home.name)
+                and match_matching.team_names_match(fixture.away.name, stored_away.name))
 
     def upsert_fixture(self, fixture: ProviderFixture) -> Optional[Match]:
         """
@@ -351,6 +371,11 @@ class MatchRegistry:
 
         match = self.match_by_ref(fixture.provider, fixture.external_id)
         matched_by, confidence = "provider_id", "exact"
+        if match is not None and not self._ref_still_describes(match, fixture):
+            self._record_refusal(
+                fixture, "provider fixture id no longer names the same teams in the same order",
+                [str(match.id)])
+            return None
         if match is None:
             recovered = self._recover_legacy_match(fixture)
             if recovered is not None:

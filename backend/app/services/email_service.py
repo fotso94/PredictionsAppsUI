@@ -5,12 +5,10 @@ Supports SMTP, SendGrid, and AWS SES
 """
 
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from pathlib import Path
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import smtplib
-import ssl
 
 import aiosmtplib
 from jinja2 import Environment, FileSystemLoader, select_autoescape

@@ -11,13 +11,11 @@ from sqlalchemy.exc import IntegrityError
 from app.core.deps import (
     get_db,
     get_current_expert_user,
-    get_current_verified_expert_user,
-    get_current_admin_user
+    get_current_verified_expert_user
 )
 from app.core.permissions import (
     Permission,
     require_permission,
-    require_any_permission,
     is_expert_verified
 )
 from app.models.users import User
@@ -28,7 +26,6 @@ from app.schemas.predictions import (
     ExpertPredictionOverride,
     ExpertPredictionUpdate,
     ExpertPredictionResponse,
-    ReviewQueueItem,
     ExpertPerformanceMetrics,
 )
 from app.services.expert_prediction import ExpertPredictionService
@@ -496,19 +493,10 @@ async def delete_prediction(
                 detail=f"Prediction {prediction_id} not found"
             )
 
-        # Store prediction data for audit log before deletion
-        prediction_data = {
-            "id": str(prediction.id),
-            "match_id": str(prediction.match_id),
-            "source": prediction.source.value if hasattr(prediction.source, 'value') else prediction.source,
-            "created_by": str(prediction.created_by),
-            "status": prediction.status.value if hasattr(prediction.status, 'value') else prediction.status
-        }
-
-        # Delete prediction
+        # Deletion is a soft delete, so the loaded row stays readable and the audit entry below can
+        # use it directly. (A dict was being built here for that purpose and never passed anywhere.)
         expert_service.delete_prediction(prediction_id, current_user)
 
-        # Log audit trail (using stored data since prediction is now soft-deleted)
         try:
             audit_service.log_prediction_deleted(
                 prediction=prediction,

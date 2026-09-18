@@ -404,7 +404,8 @@ class ForecastService:
             return {"result": "ambiguous", "event": forecast.external_event_id, "home": forecast.home_name,
                     "away": forecast.away_name,
                     "kickoff_utc": forecast.kickoff_utc.isoformat() if forecast.kickoff_utc else None,
-                    "reason": "provider event id no longer names the same teams", "candidates": [str(match.id)]}
+                    "reason": "provider event id no longer names the same teams in the same order",
+                    "candidates": [str(match.id)]}
         if match is None:
             # 2. competition + teams + kickoff
             candidates = self.registry.candidates_for(league_id, forecast.kickoff_utc, competition_key=key) if forecast.kickoff_utc else []
@@ -425,19 +426,27 @@ class ForecastService:
         return {"result": "attached", "event": forecast.external_event_id, "match_id": str(match.id)}
 
     def _ref_still_describes(self, match: Match, forecast: ProviderForecast) -> bool:
-        """Does the match a provider id points at still have the teams the provider just named?"""
+        """Does the match a provider id points at still have the teams, in the order, just named?
+
+        The orientation has to agree, not just the pair of names. Two reasons:
+
+        - every probability is orientation-bound. Attaching a forecast listed the other way round
+          would put the away side's win probability on the home side, which is worse than having no
+          forecast at all.
+        - in a two-legged tie, Liverpool v Everton and Everton v Liverpool are different matches, so
+          a reversed pair is not evidence that this is the same fixture.
+
+        The owner's rule is to reject a swapped fixture rather than guess, so a reversed listing
+        fails this check and the forecast is refused.
+        """
         if not forecast.home_name or not forecast.away_name:
             return True  # nothing to check against; the ref stands
         home = self.db.query(Team).filter(Team.id == match.home_team_id).first()
         away = self.db.query(Team).filter(Team.id == match.away_team_id).first()
         if home is None or away is None:
             return True
-        if match_matching.team_names_match(forecast.home_name, home.name) and \
-                match_matching.team_names_match(forecast.away_name, away.name):
-            return True
-        # a provider that lists the fixture the other way round is still the same fixture
-        return match_matching.team_names_match(forecast.home_name, away.name) and \
-            match_matching.team_names_match(forecast.away_name, home.name)
+        return (match_matching.team_names_match(forecast.home_name, home.name)
+                and match_matching.team_names_match(forecast.away_name, away.name))
 
     def _upsert_record(self, match: Match, forecast: ProviderForecast, confidence: str, matched_by: str) -> ProviderForecastRecord:
         record = self.db.query(ProviderForecastRecord).filter(

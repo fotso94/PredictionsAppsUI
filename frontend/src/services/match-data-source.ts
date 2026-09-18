@@ -184,15 +184,29 @@ export function localDateString(offsetDays = 0, from: Date = new Date()): string
 }
 
 /**
- * Minutes east of UTC for a given local calendar day, for the backend's `tz_offset` parameter.
+ * The viewer's UTC offsets that bound one local calendar day, for the backend's `tz_offset` and
+ * `tz_offset_end` parameters. Both are minutes east of UTC.
  *
- * The offset is taken from noon on that day rather than from "now", so a daylight-saving transition
- * cannot hand back the neighbouring day's offset and shift the window by an hour.
+ * They are taken at local midnight and at the NEXT local midnight rather than from a single moment,
+ * because a local day is not always 24 hours: on a daylight-saving transition it is 23 or 25. In
+ * New York on 1 November 2026 the day runs 04:00Z to 05:00Z the next day, and a single offset with a
+ * fixed 24-hour window would drop the first hour along with anything kicking off in it.
+ *
+ * Only the browser knows the viewer's transition rules, so the boundaries are computed here rather
+ * than guessed on the server.
  */
+export function localDayOffsets(isoDate?: string): { start: number; end: number } {
+  const base = isoDate ? new Date(`${isoDate}T00:00:00`) : new Date();
+  const midnight = Number.isNaN(base.getTime()) ? new Date() : base;
+  midnight.setHours(0, 0, 0, 0);
+  const nextMidnight = new Date(midnight.getTime());
+  nextMidnight.setDate(nextMidnight.getDate() + 1);
+  return { start: -midnight.getTimezoneOffset(), end: -nextMidnight.getTimezoneOffset() };
+}
+
+/** The offset at the start of a local day. Kept for callers that only need the one value. */
 export function timezoneOffsetMinutes(isoDate?: string): number {
-  const reference = isoDate ? new Date(`${isoDate}T12:00:00`) : new Date();
-  const at = Number.isNaN(reference.getTime()) ? new Date() : reference;
-  return -at.getTimezoneOffset();
+  return localDayOffsets(isoDate).start;
 }
 
 /** @deprecated use localDateString; kept for the legacy API-Football path */

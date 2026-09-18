@@ -140,6 +140,24 @@ test.describe('payload observations', () => {
   });
 });
 
+test.describe('confidence attribution', () => {
+  test('a model forecast never claims a confidence the model did not publish', async ({ page }) => {
+    const matches = baseMatches();
+    await stubBackend(page, { day: d => dayPayload(d, matches), matchById: () => matches[0] });
+
+    await page.goto(`/match/${matches[0].id}`);
+    await page.waitForLoadState('networkidle');
+
+    const badges = page.locator('[data-basis]');
+    await expect(badges.first()).toBeVisible();
+    // GameForecastAPI publishes no confidence score, so every badge here is a derived bucket
+    const bases = await badges.evaluateAll(nodes => nodes.map(n => n.getAttribute('data-basis')));
+    expect(bases.length).toBeGreaterThan(0);
+    expect(bases.every(b => b === 'derived')).toBe(true);
+    await expect(badges.first()).toHaveAttribute('title', /publishes no confidence score/);
+  });
+});
+
 test.describe('bookmaker odds', () => {
   test('absent odds are reported as unavailable, never invented', async ({ page }) => {
     const matches = baseMatches();

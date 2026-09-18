@@ -17,7 +17,6 @@ import random
 import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 

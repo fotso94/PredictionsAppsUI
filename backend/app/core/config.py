@@ -4,7 +4,7 @@ Centralized settings management using Pydantic BaseSettings
 """
 
 from typing import Any, List, Optional, Union
-from pydantic import AnyHttpUrl, field_validator, ValidationInfo
+from pydantic import field_validator, ValidationInfo
 from pydantic_settings import BaseSettings
 import secrets
 import json

@@ -5,7 +5,6 @@ Structured logging setup for the application
 
 import logging
 import sys
-from typing import Any
 import json
 from datetime import datetime
 

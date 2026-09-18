@@ -7,7 +7,6 @@ Handles integration with API-Football API for fetching match, team, and league d
 import logging
 import httpx
 from typing import Optional, Dict, Any
-from datetime import datetime
 
 from app.core.config import settings
 

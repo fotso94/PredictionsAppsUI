@@ -100,7 +100,7 @@ const HomePage: React.FC = () => {
       name: 'Expert predictions published',
       value: coverage ? coverage.expert_predictions_published.toLocaleString() : null,
       icon: ChartBarIcon,
-      detail: 'Published by verified experts on this site',
+      detail: 'Published by experts registered on this site',
     },
   ]
 
@@ -117,7 +117,7 @@ const HomePage: React.FC = () => {
     <>
       <Helmet>
         <title>Soccer Predictions - Fixtures, Model Forecasts and Expert Analysis</title>
-        <meta name="description" content="Fixtures and results for the top five European leagues and the Champions League, with GameForecastAPI model forecasts and predictions published by verified experts." />
+        <meta name="description" content="Fixtures and results for the top five European leagues and the Champions League, with GameForecastAPI model forecasts and predictions published by registered experts." />
       </Helmet>
 
       <div className="min-h-screen">
@@ -137,7 +137,7 @@ const HomePage: React.FC = () => {
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-secondary-300">
                 Fixtures and results from Europe&rsquo;s top five leagues and the Champions League,
-                with model forecasts from GameForecastAPI and predictions published by verified experts.
+                with model forecasts from GameForecastAPI and predictions published by registered experts.
                 Every probability shown comes from a named source, and markets without one are marked unavailable.
               </p>
               <div className="mt-10 flex items-center justify-center gap-x-6">

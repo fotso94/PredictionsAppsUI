@@ -4,11 +4,10 @@ Users Schema Models
 """
 
 from datetime import datetime
-from typing import List
 
 from sqlalchemy import (
     Column, String, Boolean, DateTime, Integer, Text, Enum,
-    ForeignKey, Index, UniqueConstraint, CheckConstraint, DECIMAL
+    Index, UniqueConstraint, DECIMAL
 )
 from sqlalchemy.dialects.postgresql import UUID, INET, JSONB
 from sqlalchemy.orm import relationship
