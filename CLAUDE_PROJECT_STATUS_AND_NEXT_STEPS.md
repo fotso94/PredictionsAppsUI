@@ -655,4 +655,41 @@ Owner authorized two items from §25: **item 4** (commit the BTTS/Total-Goals wo
 4. Over/Under 2.5 and 3.5 pairs are still not validated for complementarity (documented behaviour: "no strict sum validation"); decide whether to enforce it.
 5. Remaining P0/P1 items from §18 are untouched (registration role escalation, session revocation, `SECRET_KEY` default, expert override kwargs, `db.func.date`, `status` shadowing, email template path, source-badge case bug, mock match detail page).
 
+---
+
+## Addendum B — Implementation phase 2 (2026-09-17): credentials out of code, migration portability, README
+
+Owner asked for follow-through on the three open items of Addendum A. Commits on `main` (mirrored to `progress`): `2534b55` security, `ceee14f` migration fix, `7501cc4` README.
+
+### B.1 Credentials removed from application code (`2534b55`)
+
+| Location (before) | Now |
+|---|---|
+| `frontend/vite.config.ts` hard-coded API-Football key in the dev proxy | Proxy reads `API_FOOTBALL_KEY` from `frontend/.env` via `loadEnv` (no `VITE_` prefix, so it is never bundled) and injects `x-apisports-key` server-side; the current key was written to the git-ignored `frontend/.env` so local development keeps working until rotation. |
+| `frontend/src/services/api-football.service.ts` hard-coded key | `apiKey: import.meta.env.VITE_API_FOOTBALL_KEY ?? ''`; the header is only sent when a key is configured. `VITE_API_FOOTBALL_KEY` is documented (`.env.example`, `vite-env.d.ts`) as an insecure demo-only opt-in because anything `VITE_`-prefixed ships in the public bundle. Production builds therefore send no key until a backend proxy exists. |
+| `frontend/src/services/thesportsdb*.ts` (3 files, ~1,000 lines, premium key in URL) | Deleted; nothing imported them. |
+| `backend/app/core/config.py` default `THESPORTSDB_KEY` | `None`; `backend/.env.example` placeholder emptied. |
+| `backend/alembic.ini` dev DB URL with password | Placeholder URL; `alembic/env.py` already overrides it from settings. |
+| `backend/test_smtp_connection.py` Mailtrap token | Reads `SMTP_*`/`EMAILS_FROM_EMAIL` from settings, optional `SMTP_TEST_TO_EMAIL`. |
+| `backend/create_expert_user.py`, `backend/update_expert_password.py` expert e-mail + password | `EXPERT_TEST_EMAIL` / `EXPERT_TEST_PASSWORD` env vars or interactive prompt; passwords no longer echoed. |
+| Personal e-mail addresses in `backend/.env.example`, `test_email_manual.py`, `test_password_reset.py` | `example.com` placeholders. |
+
+Verification: no tracked file contains any of the four secret values (API-Football key, TheSportsDB key, Mailtrap token, expert password); `tsc` 0 errors, ESLint 0 errors / 51 warnings, `vite build` succeeds and the bundle contains no 32-hex token and no TheSportsDB code; backend imports (58 routes) and 93 unit tests pass; helper scripts parse.
+
+### B.2 What still has to happen for item 1 (owner actions)
+
+1. **Rotate** at the providers: API-Football (api-sports.io dashboard → regenerate key), TheSportsDB (premium key; optional since the integration is deleted), Mailtrap (reset the Live SMTP token), and change the expert test user's password. Put the new values only in `frontend/.env` (`API_FOOTBALL_KEY`) and `backend/.env` (`SMTP_PASSWORD`, `API_FOOTBALL_KEY`); never in tracked files.
+2. **History**: the old values remain in git history on `main`/`progress` (API-Football and TheSportsDB keys since `e07b2b2` 2025-10-08, 5 commits each, 3 file paths; Mailtrap token since `736ab2d` 2025-10-11; expert password since `d221f6f` 2025-10-14). The repository is public with **0 forks**. Options: (a) rotation only, history left as-is, values become useless; (b) rewrite history with `git filter-repo --replace-text` (not installed; `pip install git-filter-repo`) followed by a force-push of `main`, `progress` and the four `archive/*` tags and a fresh clone on every machine; GitHub may additionally need a support request to purge cached views. Recommendation: (a) is sufficient once rotation is done; choose (b) only if a clean public history matters.
+3. GitHub already has secret scanning **and push protection enabled** (confirmed via API); "non-provider patterns" and "validity checks" are disabled and can be turned on in repository settings for broader coverage.
+4. The live S3 site `soccer-predictions-app-7787` still serves the old key in its October bundle until it is emptied/blocked or redeployed from a key-free build (owner decision, §25 item 2).
+
+### B.3 Migration portability (`ceee14f`)
+
+`add_multi_source_prediction_priority.py` (`2a4f8c9d1e3b`) now resolves the schema of the `predictionsource` enum from `pg_type`/`pg_namespace` before adding values. Verified on `postgres:15-alpine`: bare database (enum in `public`) and database initialised by `docker/postgres/init/01-init-database.sql` (enum in `users`) both reach head `eb2ef2cf6caf`; `downgrade -1` / `upgrade head` round-trip works. Pre-existing limitation left as-is: `alembic downgrade base` drops the tables but not the 20 enum types created by the initial migration, so a subsequent `upgrade head` on the same database fails with "type already exists" (documented in `backend/docs/DATABASE_MODELS_IMPLEMENTATION.md`); recreate the database instead of downgrading to base.
+
+### B.4 README and housekeeping
+
+- `README.md` added at the root (`7501cc4`): overview, layout, prerequisites, local development steps, tests, secrets policy, deployment status. The Compose file needs no change: run it from the repository root with `docker compose -f docker/docker-compose.yml --project-directory . up -d` and the `docker/postgres/...` and `docker/redis/...` bind mounts resolve correctly (verified with `docker compose config`).
+- The 15 MB duplicate screenshot was deleted from the working tree (it was never tracked).
+
 *End of report.*
