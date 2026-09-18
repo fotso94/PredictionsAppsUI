@@ -54,6 +54,17 @@ class ExpertPredictionService:
         self.db = db
         self.cache_service = cache_service or PredictionCacheService()
     
+    @staticmethod
+    def _initial_status() -> PredictionStatus:
+        """Experts publish directly (EXPERT_DIRECT_PUBLISH=True); otherwise predictions wait for review."""
+        from app.core.config import settings
+        return PredictionStatus.PUBLISHED if settings.EXPERT_DIRECT_PUBLISH else PredictionStatus.PENDING
+
+    @staticmethod
+    def _initial_published_at():
+        from app.core.config import settings
+        return datetime.utcnow() if settings.EXPERT_DIRECT_PUBLISH else None
+
     def create_manual_prediction(
         self,
         data: ExpertPredictionCreate,
@@ -71,19 +82,31 @@ class ExpertPredictionService:
         """
         logger.info(f"Creating manual prediction for match {data.match_id} by expert {expert_user.id}")
 
-        # Convert match_id to UUID if it's not already
-        # API-Football provides numeric IDs, so we need to handle both formats
+        # Phase 1 providers (Live Score API / GameForecastAPI / fallbacks): resolve the identifier
+        # through the match registry first. This accepts an internal match UUID, any provider's
+        # fixture id recorded in predictions.provider_entity_refs, or a legacy external_api_id, so
+        # expert predictions stay attached to the same internal match whichever provider is active.
+        match_uuid = None
         try:
-            match_uuid = uuid.UUID(data.match_id)
-        except ValueError:
-            # If it's not a valid UUID, create a deterministic UUID from the match ID
-            # This ensures the same match ID always maps to the same UUID
-            namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # DNS namespace UUID
-            match_uuid = uuid.uuid5(namespace, str(data.match_id))
-            logger.info(f"Converted match_id {data.match_id} to UUID {match_uuid}")
+            from app.services.match_registry import MatchRegistry
+            match_uuid = MatchRegistry(self.db).resolve_match_id(str(data.match_id))
+        except Exception as exc:  # registry tables missing (pre-migration) must not block experts
+            logger.warning(f"Match registry lookup failed for {data.match_id}: {exc}")
 
-        # Ensure match exists in database
-        self._ensure_match_exists(match_uuid, str(data.match_id))
+        if match_uuid is None:
+            # Legacy path (retained): API-Football numeric ids are mapped to a deterministic UUID
+            # and the match row is created from API-Football data or as a placeholder.
+            try:
+                match_uuid = uuid.UUID(data.match_id)
+            except ValueError:
+                # If it's not a valid UUID, create a deterministic UUID from the match ID
+                # This ensures the same match ID always maps to the same UUID
+                namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # DNS namespace UUID
+                match_uuid = uuid.uuid5(namespace, str(data.match_id))
+                logger.info(f"Converted match_id {data.match_id} to UUID {match_uuid}")
+
+            # Ensure match exists in database
+            self._ensure_match_exists(match_uuid, str(data.match_id))
 
         # Create prediction
         prediction = Prediction(
@@ -109,7 +132,8 @@ class ExpertPredictionService:
             total_goals_confidence=Decimal(str(data.total_goals_confidence)) if data.total_goals_confidence is not None else None,
             # Reasoning & Metadata
             reasoning=data.reasoning,
-            status=PredictionStatus.PENDING,  # Requires approval
+            status=self._initial_status(),
+            published_at=self._initial_published_at(),
             prediction_metadata={
                 "key_factors": data.key_factors or {},
                 "created_via": "expert_manual",
@@ -182,7 +206,8 @@ class ExpertPredictionService:
             total_goals_confidence=Decimal(str(data.total_goals_confidence)) if data.total_goals_confidence is not None else None,
             # Reasoning & Metadata
             reasoning=data.reasoning,
-            status=PredictionStatus.PENDING,  # Requires approval
+            status=self._initial_status(),
+            published_at=self._initial_published_at(),
             prediction_metadata={
                 "key_factors": data.key_factors or {},
                 "created_via": "expert_override",

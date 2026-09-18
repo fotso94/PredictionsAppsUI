@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import { footballDataService, POPULAR_LEAGUES } from '@/services/football-data.service';
+import { apiFootballDataService as footballDataService, POPULAR_LEAGUES } from '@/services/football-data.service';
 import { League, Team, Match } from '@/types';
 
 export default function APITestPage() {

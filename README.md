@@ -57,6 +57,43 @@ API-Football key.
    npm run dev                 # http://localhost:3000
    ```
 
+## Data providers (Phase 1)
+
+Fixtures, live scores, results, standings and model forecasts are fetched **server-side** by the
+backend and served to the UI through `/api/v1/matches`, `/api/v1/leagues`, `/api/v1/teams` and
+`/api/v1/data-providers/status`. Credentials never reach the browser. Everything is keyed by
+canonical competitions (`premier_league`, `la_liga`, `serie_a`, `bundesliga`, `ligue_1`,
+`champions_league`) and cross-provider fixture identity is resolved by competition + team names +
+UTC kickoff, never by numeric ids (`backend/app/services/match_matching.py`).
+
+| Role | Provider | Setting | Status |
+|---|---|---|---|
+| Match data (primary) | [Live Score API](https://live-score-api.com) — 14-day trial, 1,500 requests/day | `DATA_PROVIDER=livescore` + `LIVESCORE_API_KEY` / `LIVESCORE_API_SECRET` | implemented against the documented API; needs the trial credentials for live validation |
+| Model forecasts (primary) | [GameForecastAPI](https://www.gameforecastapi.com) via RapidAPI — free plan 10 requests/day | `PREDICTION_PROVIDER=gameforecast` + `GAMEFORECAST_API_KEY` | implemented against the published OpenAPI spec; needs the RapidAPI key for live validation |
+| Match data (retained fallback) | API-Football (free plan, current season restricted) | `DATA_PROVIDER=api_football` or in `DATA_PROVIDER_FALLBACKS` | retained integration, limited |
+| Match data (retained fallback) | TheSportsDB v1 | `DATA_PROVIDER=thesportsdb` + `THESPORTSDB_KEY` | retained integration, untested |
+| Forecasts (retained fallback) | API-Football `/predictions` (1X2 only) | `PREDICTION_PROVIDER=api_football` | retained integration |
+| Local development | deterministic sample data (clearly labelled "not real") | `DATA_PROVIDER=sample`, `PREDICTION_PROVIDER=sample` | for running the UI without any key |
+
+Quota protection: every provider call goes through a per-day request budget in Redis
+(`LIVESCORE_DAILY_REQUEST_BUDGET`, `GAMEFORECAST_DAILY_REQUEST_BUDGET`), responses are cached
+(`MATCH_CACHE_TTL_*`), live scores are only polled while a covered match is within its live window,
+and a stale cached copy is served (and flagged) when a provider fails. Forecasts are synced at most
+once per `GAMEFORECAST_SYNC_INTERVAL_HOURS` per competition and stored separately from expert
+predictions (`predictions.provider_forecasts`); a forecast older than `FORECAST_MAX_AGE_HOURS` or for
+a match that already kicked off is reported as `stale` / `kickoff_passed`, never as current.
+
+Switching providers: change `DATA_PROVIDER` / `PREDICTION_PROVIDER` (and the fallback list) in
+`backend/.env` and restart the backend. Expert predictions stay attached to the internal match
+records because every provider's fixture id is recorded in `predictions.provider_entity_refs`.
+
+Frontend: `VITE_DATA_SOURCE=backend` (default) uses the endpoints above; `VITE_DATA_SOURCE=api-football`
+re-enables the legacy browser-side API-Football path (retained). Randomized placeholder predictions are
+gone from the real-data path; missing markets are shown as "Unavailable".
+
+Product decision recorded for Phase 1: experts publish directly (`EXPERT_DIRECT_PUBLISH=true`); set it
+to `false` to restore the review queue and admin verification.
+
 ## Tests and checks
 
 - Backend: `cd backend && pytest` — most tests are pure unit tests; `tests/test_cache_services.py`

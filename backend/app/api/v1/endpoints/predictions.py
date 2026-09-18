@@ -20,6 +20,15 @@ def _optional_float(value):
     return float(value) if value is not None else None
 
 
+def _resolve_match_id(db: Session, raw: str) -> Optional[uuid.UUID]:
+    """Resolve any supported match identifier through the provider-aware match registry."""
+    try:
+        from app.services.match_registry import MatchRegistry
+        return MatchRegistry(db).resolve_match_id(raw)
+    except Exception:  # registry tables not migrated yet: legacy lookup still works
+        return None
+
+
 @router.get("/published", response_model=List[PublicPredictionResponse])
 async def get_published_predictions(
     match_id: Optional[str] = Query(None, description="Match UUID"),
@@ -73,17 +82,22 @@ async def get_published_predictions(
     
     # Filter by external_match_id if provided
     if external_match_id:
-        # First, find matches with this external_match_id
-        matches = db.query(Match).filter(
-            Match.external_api_id == external_match_id
-        ).all()
-        
-        if matches:
-            match_ids = [m.id for m in matches]
-            query = query.filter(Prediction.match_id.in_(match_ids))
+        # Resolve through the match registry first (internal UUID, any provider's fixture id or a
+        # legacy external_api_id), then fall back to the legacy exact lookup.
+        resolved = _resolve_match_id(db, external_match_id)
+        if resolved is not None:
+            query = query.filter(Prediction.match_id == resolved)
         else:
-            # No matches found with this external_match_id, return empty list
-            return []
+            matches = db.query(Match).filter(
+                Match.external_api_id == external_match_id
+            ).all()
+
+            if matches:
+                match_ids = [m.id for m in matches]
+                query = query.filter(Prediction.match_id.in_(match_ids))
+            else:
+                # No matches found with this external_match_id, return empty list
+                return []
     
     # Filter by date if provided
     if date:
@@ -185,10 +199,15 @@ async def get_published_prediction_by_match(
     - Display expert prediction on match detail pages
     - Check if expert prediction exists before showing API-Football prediction
     """
-    # Find match with this external_match_id
-    match = db.query(Match).filter(
-        Match.external_api_id == external_match_id
-    ).first()
+    # Find the match: registry resolution (internal UUID / provider fixture id / legacy id) first
+    match = None
+    resolved = _resolve_match_id(db, external_match_id)
+    if resolved is not None:
+        match = db.query(Match).filter(Match.id == resolved).first()
+    if match is None:
+        match = db.query(Match).filter(
+            Match.external_api_id == external_match_id
+        ).first()
     
     if not match:
         return None

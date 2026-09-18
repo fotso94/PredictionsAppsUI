@@ -4,6 +4,7 @@ FastAPI dependencies for authentication and authorization
 """
 
 from typing import Generator, Optional
+from datetime import datetime
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -180,17 +181,47 @@ async def get_current_admin_user(
     return current_user
 
 
+def ensure_expert_profile(db: Session, user: User, verified: bool) -> "ExpertProfile":
+    """
+    Return the user's expert profile, creating it when missing.
+
+    Registration only creates the user row; with EXPERT_DIRECT_PUBLISH (Phase 1: experts publish
+    directly, no admin approval) the profile is created on first use and marked verified so the
+    expert can publish immediately. With the flag off the profile is created unverified and the
+    admin verification flow applies.
+    """
+    from app.models.users import ExpertProfile
+
+    profile = db.query(ExpertProfile).filter(ExpertProfile.user_id == user.id).first()
+    if profile is None:
+        profile = ExpertProfile(
+            user_id=user.id,
+            is_verified=verified,
+            verified_at=datetime.utcnow() if verified else None,
+            expertise_areas={},
+            performance_data={},
+        )
+        db.add(profile)
+        db.commit()
+        db.refresh(user)
+    return profile
+
+
 async def get_current_verified_expert_user(
-    current_user: User = Depends(get_current_expert_user)
+    current_user: User = Depends(get_current_expert_user),
+    db: Session = Depends(get_db)
 ) -> User:
     """
     Get current verified expert user
 
     Requires user to be a verified expert or admin.
-    Checks that expert profile exists and is verified.
+    Checks that expert profile exists and is verified. When EXPERT_DIRECT_PUBLISH is enabled
+    (Phase 1 decision: experts publish directly), a missing profile is created on the fly and
+    verification is not enforced.
 
     Args:
         current_user: Current expert or admin user
+        db: Database session
 
     Returns:
         User object
@@ -202,14 +233,17 @@ async def get_current_verified_expert_user(
     if current_user.user_type.value == "admin":
         return current_user
 
-    # Check if expert profile exists and is verified
-    if not hasattr(current_user, 'expert_profile') or current_user.expert_profile is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Expert profile not found"
-        )
+    direct_publish = bool(settings.EXPERT_DIRECT_PUBLISH)
+    profile = current_user.expert_profile if hasattr(current_user, 'expert_profile') else None
+    if profile is None:
+        if not direct_publish:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Expert profile not found"
+            )
+        profile = ensure_expert_profile(db, current_user, verified=True)
 
-    if not current_user.expert_profile.is_verified:
+    if not profile.is_verified and not direct_publish:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Expert verification required. Your application is pending approval."

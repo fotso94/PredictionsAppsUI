@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { footballDataService } from '../services/football-data.service';
+import { describeError } from '../services/backend-match-data.service';
 import { Match } from '../types';
 import {
   filterLiveAndScheduledMatches,
@@ -40,7 +41,7 @@ const ExpertMatchSelectionPage: React.FC = () => {
       setTomorrowMatches(tomorrow);
     } catch (err: any) {
       console.error('Failed to load matches:', err);
-      setError(err.message || 'Failed to load matches');
+      setError(describeError(err));
     } finally {
       setLoading(false);
     }
@@ -146,8 +147,14 @@ const ExpertMatchSelectionPage: React.FC = () => {
       {/* Match Details */}
       <div className="mb-4 text-xs text-gray-600 dark:text-gray-400">
         <p>Venue: {match.venue}</p>
-        <p>Round: {match.round}</p>
-        <p className="font-mono text-xs text-gray-500 mt-2">ID: {match.id}</p>
+        {match.round && <p>Round: {match.round}</p>}
+        <p className="mt-2">
+          {match.expertPrediction ? '👤 An expert prediction is already published' : match.providerForecast?.state === 'available' ? '🤖 Model forecast available' : 'No prediction yet'}
+        </p>
+        <p className="font-mono text-xs text-gray-500 mt-2 break-all">ID: {match.id}</p>
+        {match.provider && match.externalId && (
+          <p className="font-mono text-xs text-gray-500 break-all">{match.provider}: {match.externalId.includes(':') ? match.externalId.split(':').slice(1).join(':') : match.externalId}</p>
+        )}
       </div>
 
       {/* Action Button */}
@@ -232,14 +239,15 @@ const ExpertMatchSelectionPage: React.FC = () => {
           Or Enter Match ID Manually
         </h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          If you already have a match ID from API-Football, you can enter it here to create a prediction directly.
+          Paste the internal match ID shown on a match card, or a fixture ID from the active data provider
+          (for example a Live Score API fixture id). Legacy API-Football fixture ids are still accepted.
         </p>
         <div className="flex gap-4">
           <input
             type="text"
             value={selectedMatchId}
             onChange={(e) => setSelectedMatchId(e.target.value)}
-            placeholder="Enter API-Football match ID (e.g., 1445646)"
+            placeholder="Match ID (internal UUID or provider fixture id)"
             className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
           />
           <button
@@ -299,11 +307,11 @@ const ExpertMatchSelectionPage: React.FC = () => {
           <li>Click "Create Prediction for This Match" on any match card</li>
           <li>The match ID will be automatically filled in the prediction form</li>
           <li>Enter your probabilities, confidence score, and reasoning</li>
-          <li>Submit your prediction for review</li>
+          <li>Publish your prediction — it goes live immediately on the public match pages</li>
         </ol>
         <p className="mt-4 text-sm text-blue-700 dark:text-blue-400">
-          <strong>Note:</strong> Match IDs from API-Football are numeric (e.g., 1445646).
-          You can also manually enter a match ID if you have one from the API.
+          <strong>Note:</strong> Expert predictions are shown separately from model forecasts and always take priority.
+          The match list only covers the configured competitions (Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League).
         </p>
       </div>
     </div>

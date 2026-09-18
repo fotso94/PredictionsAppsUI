@@ -1,8 +1,15 @@
 /**
- * Football Data Service
- * 
- * High-level service that combines API-Football calls with data mapping
- * This is the main service that the frontend components should use
+ * Football Data Service (facade)
+ *
+ * `footballDataService` is the single entry point pages use for fixtures, leagues, standings, teams,
+ * search and match details. Which implementation backs it is chosen by VITE_DATA_SOURCE:
+ *
+ *  - "backend" (default): backend-match-data.service.ts -> FastAPI /api/v1/matches, /leagues, /teams.
+ *    The backend talks to Live Score API (primary), GameForecastAPI (forecasts) and the retained
+ *    API-Football / TheSportsDB fallbacks, with credentials and caching kept server-side.
+ *  - "api-football": the legacy browser-side API-Football implementation below (retained integration,
+ *    limited by the free plan and the dev-proxy key). Randomized placeholders are off unless
+ *    VITE_ALLOW_FAKE_PREDICTIONS=true.
  */
 
 import { Team, League, Match, LeagueStanding } from '@/types';
@@ -14,6 +21,10 @@ import {
   mapFixture,
   mapHeadToHead,
 } from './api-mapper.service';
+import backendMatchDataService from './backend-match-data.service';
+import {
+  MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage, configuredDataSource,
+} from './match-data-source';
 
 // Popular league IDs from API-Football
 export const POPULAR_LEAGUES = {
@@ -36,7 +47,9 @@ const cache = {
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-class FootballDataService {
+class ApiFootballDataService implements MatchDataSource {
+  readonly name = 'api-football' as const;
+
   /**
    * Get current season year
    * Pro API plan has access to current season data
@@ -163,7 +176,8 @@ class FootballDataService {
   /**
    * Get teams for a specific league
    */
-  async getTeamsByLeague(leagueId: number, season?: number): Promise<Team[]> {
+  async getTeamsByLeague(leagueIdInput: number | string, season?: number): Promise<Team[]> {
+    const leagueId = Number(leagueIdInput);
     const currentSeason = season || this.getCurrentSeason();
     const cacheKey = `teams-${leagueId}-${currentSeason}`;
     const cached = cache.teams.get(cacheKey);
@@ -454,10 +468,11 @@ class FootballDataService {
    * Integrates expert predictions from backend with API-Football predictions
    */
   async getFixturesByLeague(
-    leagueId: number,
+    leagueIdInput: number | string,
     season?: number,
-    options?: { next?: number; last?: number }
+    options: { next?: number; last?: number } = { next: 10 }
   ): Promise<Match[]> {
+    const leagueId = Number(leagueIdInput);
     const currentSeason = season || this.getCurrentSeason();
 
     try {
@@ -535,7 +550,8 @@ class FootballDataService {
   /**
    * Get league standings
    */
-  async getStandings(leagueId: number, season?: number): Promise<LeagueStanding[]> {
+  async getStandings(leagueIdInput: number | string, season?: number): Promise<LeagueStanding[]> {
+    const leagueId = Number(leagueIdInput);
     const currentSeason = season || this.getCurrentSeason();
 
     try {
@@ -625,6 +641,61 @@ class FootballDataService {
     };
   }
 
+  // ------------------------------------------------------------------ MatchDataSource extras (legacy path)
+  async getLeague(leagueId: string): Promise<League | null> {
+    const leagues = await this.getTopLeagues();
+    return leagues.find(l => String(l.id) === String(leagueId)) || null;
+  }
+
+  async getFixturesByDateWithMeta(date: string): Promise<MatchListResult> {
+    const matches = await this.getFixturesByDate(date);
+    return { matches, meta: { provider: 'api_football', source: 'browser', stale: false, fetchedAt: new Date().toISOString(), errors: [] } };
+  }
+
+  async getMatch(matchId: string): Promise<Match | null> {
+    for (const entry of cache.matches.values()) {
+      const hit = entry.data.find(m => m.id === matchId);
+      if (hit) return hit;
+    }
+    const numeric = Number(matchId);
+    if (!Number.isFinite(numeric)) return null;
+    const response = await apiFootballService.getFixtures({ id: numeric });
+    const fixture = response.response?.[0];
+    if (!fixture) return null;
+    const homeTeam = this.createBasicTeam(fixture.teams.home);
+    const awayTeam = this.createBasicTeam(fixture.teams.away);
+    const expert = await this.fetchExpertPredictionsBatch([fixture.fixture.id]);
+    const prediction = this.mergePredictions(fixture.fixture.id, null, expert.get(fixture.fixture.id) || null);
+    return mapFixture(fixture, homeTeam, awayTeam, this.createBasicLeague(fixture.league), prediction);
+  }
+
+  async getTeam(teamId: string): Promise<TeamPage | null> {
+    const numeric = Number(teamId);
+    if (!Number.isFinite(numeric)) return null;
+    const response = await apiFootballService.getTeams({ id: numeric });
+    const apiTeam = response.response?.[0];
+    if (!apiTeam) return null;
+    const team = mapTeam(apiTeam);
+    return { team, upcoming: [], recent: [] };
+  }
+
+  async search(query: string): Promise<SearchResults> {
+    if (!query || query.length < 3) return { teams: [], leagues: [] };
+    const [teams, leagues] = await Promise.all([
+      apiFootballService.getTeams({ search: query }).then(r => (r.response || []).slice(0, 10).map(t => ({
+        id: String(t.team.id), name: t.team.name, logo: t.team.logo, country: t.team.country, founded: t.team.founded,
+      }))).catch(() => []),
+      apiFootballService.getLeagues({ search: query }).then(r => (r.response || []).slice(0, 10).map(l => ({
+        id: String(l.league.id), name: l.league.name, logo: l.league.logo, country: l.country.name, type: l.league.type,
+      }))).catch(() => []),
+    ]);
+    return { teams, leagues };
+  }
+
+  async getProviderStatus(): Promise<ProviderStatus | null> {
+    return null;
+  }
+
   /**
    * Clear all caches
    */
@@ -635,7 +706,16 @@ class FootballDataService {
   }
 }
 
-// Export singleton instance
-export const footballDataService = new FootballDataService();
+/** Legacy browser-side API-Football implementation (retained fallback; select with VITE_DATA_SOURCE=api-football). */
+export const apiFootballDataService = new ApiFootballDataService();
+
+/** Active data source for the whole UI. */
+export const footballDataService: MatchDataSource =
+  configuredDataSource() === 'api-football' ? apiFootballDataService : backendMatchDataService;
+
+if (import.meta.env.DEV) {
+  console.info(`[data] fixtures/predictions source: ${footballDataService.name}`);
+}
+
 export default footballDataService;
 

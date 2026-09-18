@@ -8,6 +8,7 @@ import pytest
 from unittest.mock import Mock
 from fastapi import HTTPException
 
+from app.core.config import settings
 from app.core.deps import (
     get_current_expert_user,
     get_current_verified_expert_user,
@@ -186,13 +187,40 @@ class TestExpertUserDependencies:
         assert result == expert_user_verified
     
     @pytest.mark.asyncio
-    async def test_get_current_verified_expert_user_with_unverified_expert(self, expert_user_unverified):
-        """Test get_current_verified_expert_user rejects unverified experts"""
+    async def test_get_current_verified_expert_user_with_unverified_expert(self, expert_user_unverified, monkeypatch):
+        """Review workflow (EXPERT_DIRECT_PUBLISH=False): unverified experts are rejected"""
+        monkeypatch.setattr(settings, "EXPERT_DIRECT_PUBLISH", False)
         with pytest.raises(HTTPException) as exc_info:
             await get_current_verified_expert_user(expert_user_unverified)
         
         assert exc_info.value.status_code == 403
         assert "Expert verification required" in str(exc_info.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_direct_publish_allows_unverified_expert(self, expert_user_unverified, monkeypatch):
+        """Phase 1 decision (EXPERT_DIRECT_PUBLISH=True): experts publish without admin verification"""
+        monkeypatch.setattr(settings, "EXPERT_DIRECT_PUBLISH", True)
+        result = await get_current_verified_expert_user(expert_user_unverified)
+        assert result == expert_user_unverified
+
+    @pytest.mark.asyncio
+    async def test_direct_publish_creates_missing_profile(self, monkeypatch):
+        """With direct publish a missing expert profile is created on first use instead of a 403"""
+        monkeypatch.setattr(settings, "EXPERT_DIRECT_PUBLISH", True)
+        user = Mock(spec=User)
+        user.id = "expert-no-profile"
+        user.user_type = UserType.EXPERT
+        user.account_status = "active"
+        user.expert_profile = None
+        created = Mock(is_verified=True)
+        ensure = Mock(return_value=created)
+        monkeypatch.setattr("app.core.deps.ensure_expert_profile", ensure)
+        db = Mock()
+
+        result = await get_current_verified_expert_user(user, db)
+
+        assert result == user
+        ensure.assert_called_once_with(db, user, verified=True)
     
     @pytest.mark.asyncio
     async def test_get_current_verified_expert_user_with_admin(self, admin_user):
@@ -201,8 +229,9 @@ class TestExpertUserDependencies:
         assert result == admin_user
     
     @pytest.mark.asyncio
-    async def test_get_current_verified_expert_user_no_profile(self):
-        """Test get_current_verified_expert_user rejects expert without profile"""
+    async def test_get_current_verified_expert_user_no_profile(self, monkeypatch):
+        """Review workflow (EXPERT_DIRECT_PUBLISH=False): expert without profile is rejected"""
+        monkeypatch.setattr(settings, "EXPERT_DIRECT_PUBLISH", False)
         user = Mock(spec=User)
         user.id = "expert-no-profile"
         user.user_type = UserType.EXPERT

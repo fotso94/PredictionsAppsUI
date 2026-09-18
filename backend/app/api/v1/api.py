@@ -5,7 +5,10 @@ Main router that includes all API v1 endpoints
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import health, auth, users, expert, admin, subscriptions, predictions
+from app.api.v1.endpoints import (
+    health, auth, users, expert, admin, subscriptions, predictions,
+    matches, leagues, teams, data_providers,
+)
 
 api_router = APIRouter()
 
@@ -22,8 +25,9 @@ api_router.include_router(expert.router, prefix="/expert", tags=["expert"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(subscriptions.router, prefix="/subscriptions", tags=["subscriptions"])
 
-# Future routers will be added here:
-# api_router.include_router(matches.router, prefix="/matches", tags=["matches"])
-# api_router.include_router(leagues.router, prefix="/leagues", tags=["leagues"])
-# api_router.include_router(teams.router, prefix="/teams", tags=["teams"])
+# Match data (Live Score API primary, retained fallbacks) and provider forecasts (GameForecastAPI)
+api_router.include_router(matches.router, prefix="/matches", tags=["matches"])
+api_router.include_router(leagues.router, prefix="/leagues", tags=["leagues"])
+api_router.include_router(teams.router, prefix="/teams", tags=["teams"])
+api_router.include_router(data_providers.router, prefix="/data-providers", tags=["data-providers"])
 

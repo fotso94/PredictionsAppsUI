@@ -82,6 +82,8 @@ from app.models.analytics import (
 )
 
 # Audit schema models (8 tables)
+from app.models.provider_data import ProviderEntityRef, ProviderForecastRecord
+
 from app.models.audit import (
     AuditLog,
     DataAccessLog,
@@ -130,6 +132,8 @@ __all__ = [
     "MatchStatistic",
     "League",
     "Team",
+    "ProviderEntityRef",
+    "ProviderForecastRecord",
     "PredictionTemplate",
     "PredictionComment",
     "PredictionShare",

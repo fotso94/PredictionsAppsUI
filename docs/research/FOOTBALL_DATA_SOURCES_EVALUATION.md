@@ -6,6 +6,11 @@
 
 ---
 
+> **Correction (2026-09-17, after review and Phase 1 implementation).**
+> 1. **football-data.co.uk must not be used for training or commercial use.** Its terms restrict the data to personal, non-commercial use and prohibit use for machine-learning/AI training. Every recommendation below that relies on it for an in-house model (§2.2, §3 item 4, §4 baseline row, §5 step 4) is withdrawn. No internal prediction model is built in Phase 1.
+> 2. **Providers adopted for Phase 1:** Live Score API (14-day trial, 1,500 requests/day, no pre-match odds) for fixtures/live/results/standings and **GameForecastAPI** (RapidAPI, free plan 10 requests/day, Pro $19/month for 5,000 requests; 1X2, BTTS, O/U 2.5 and, when published, O/U 3.5, exact score, reasoning) for model forecasts. API-Football and TheSportsDB are retained as fallbacks. See `README.md` ("Data providers") and Addendum D of the status report.
+> 3. Missing from the comparison: GameForecastAPI (above) and BSD/Bzzoiro-style prediction feeds; neither was evaluated when this document was written.
+
 ## 1. What the application actually needs
 
 Derived from `docs/requirements/COMPREHENSIVE_REQUIREMENTS_DOCUMENT.md` (FR-DATA-001/002, FR-PRED-001) and the current frontend/backend code:

@@ -296,7 +296,8 @@ export const PREDICTION_SOURCE_INFO: Record<PredictionSource, PredictionSourceIn
  * Get prediction source display info
  */
 export function getPredictionSourceInfo(source: string): PredictionSourceInfo {
-  const sourceEnum = source.toUpperCase() as PredictionSource;
+  // Enum values are lower-case ("expert_manual"); accept either casing from the API
+  const sourceEnum = (source || '').toLowerCase() as PredictionSource;
   return PREDICTION_SOURCE_INFO[sourceEnum] || PREDICTION_SOURCE_INFO[PredictionSource.DEFAULT_RANDOMIZED];
 }
 

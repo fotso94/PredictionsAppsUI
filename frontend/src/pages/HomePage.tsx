@@ -71,7 +71,7 @@ const HomePage: React.FC = () => {
 
   // Get featured matches (high confidence predictions, live and upcoming only)
   const featuredMatches = filterLiveAndUpcomingMatches(todayMatches, true)
-    .filter(m => m.predictions.outcome.confidence === 'high' || m.predictions.outcome.confidence === 'very-high')
+    .filter(m => m.predictions?.outcome.confidence === 'high' || m.predictions?.outcome.confidence === 'very-high')
     .slice(0, 3)
 
   return (

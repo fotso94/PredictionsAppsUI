@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
-import { footballDataService } from '@/services/football-data.service'
+import { apiFootballDataService as footballDataService } from '@/services/football-data.service'
 import apiFootballService from '@/services/api-football.service'
 
 const DebugAPIPage: React.FC = () => {

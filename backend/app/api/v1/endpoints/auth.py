@@ -296,6 +296,11 @@ async def register(
     db.commit()
     db.refresh(new_user)
 
+    # Experts get their profile at sign-up (verified when EXPERT_DIRECT_PUBLISH is on)
+    if new_user.user_type == UserType.EXPERT:
+        from app.core.deps import ensure_expert_profile
+        ensure_expert_profile(db, new_user, verified=bool(settings.EXPERT_DIRECT_PUBLISH))
+
     # Generate tokens for automatic login
     access_token = create_access_token(
         subject=str(new_user.id),

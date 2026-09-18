@@ -21,6 +21,10 @@ import {
   APITeamStatistics,
   APIPrediction,
 } from './api-football.service';
+import { fakePredictionsAllowed } from './match-data-source';
+
+/** API-Football prediction payload with the source tag added by football-data.service.ts */
+type APIPredictionWithSource = APIPrediction & { source?: 'expert' | 'api-football' | 'default' };
 
 /**
  * Map API-Football league to our League type
@@ -128,9 +132,13 @@ export function mapMatchStatus(apiStatus: string): MatchStatus {
 }
 
 /**
- * Generate mock odds (API-Football odds require separate subscription)
+ * Placeholder odds for local demos only (API-Football odds require a separate subscription).
+ * Returns null unless VITE_ALLOW_FAKE_PREDICTIONS=true: the real-data path shows odds as unavailable.
  */
-function generateMockOdds(): MatchOdds {
+function generateMockOdds(): MatchOdds | null {
+  if (!fakePredictionsAllowed()) {
+    return null;
+  }
   return {
     homeWin: 2.1 + Math.random() * 2,
     draw: 3.2 + Math.random() * 1.5,
@@ -236,9 +244,13 @@ function generateCorrectScore(): { score: string; probability: number } {
 /**
  * Map API-Football prediction to our MatchPredictions type
  */
-export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions {
+export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions | null {
   if (!apiPrediction) {
-    // Generate varied default predictions to appear more realistic
+    // No prediction from any source: the UI shows "unavailable". Randomized placeholders are an
+    // explicit local-demo opt-in (VITE_ALLOW_FAKE_PREDICTIONS=true) and never reach the real-data path.
+    if (!fakePredictionsAllowed()) {
+      return null;
+    }
     const outcome = generateOutcomePercentages();
     const btts = generateBTTSPercentages();
     const totalGoals = generateTotalGoalsPercentages();
@@ -268,8 +280,10 @@ export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions 
         probability: correctScore.probability,
         confidence: randomConfidence(),
       },
-      analysis: 'Prediction data will be available closer to match time.',
+      analysis: 'Randomized placeholder prediction (local demo mode).',
       keyFactors: ['Form analysis', 'Head-to-head record', 'Team statistics'],
+      source: 'default',
+      markets: { matchResult: true, btts: true, overUnder25: true, overUnder35: true },
     };
   }
 
@@ -323,33 +337,23 @@ export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions 
     return 'low';
   };
 
-  // Use expert BTTS data if available, otherwise use defaults
+  // BTTS only when the source supplied it (no invented defaults)
   const bothTeamsToScore = (btts_yes_prob !== null && btts_yes_prob !== undefined &&
                              btts_no_prob !== null && btts_no_prob !== undefined) ? {
     yes: btts_yes_prob * 100,
     no: btts_no_prob * 100,
     confidence: getConfidenceLevel(btts_confidence),
-  } : {
-    yes: 60, // Default
-    no: 40,
-    confidence: 'medium' as const,
-  };
+  } : null;
 
-  // Use expert Total Goals data if available, otherwise use defaults
+  // Total goals only when the source supplied it; the 3.5 line stays null when absent
   const totalGoals = (total_goals_over_25_prob !== null && total_goals_over_25_prob !== undefined &&
                       total_goals_under_25_prob !== null && total_goals_under_25_prob !== undefined) ? {
     over25: total_goals_over_25_prob * 100,
     under25: total_goals_under_25_prob * 100,
-    over35: total_goals_over_35_prob !== null && total_goals_over_35_prob !== undefined ? total_goals_over_35_prob * 100 : 40,
-    under35: total_goals_under_35_prob !== null && total_goals_under_35_prob !== undefined ? total_goals_under_35_prob * 100 : 60,
+    over35: total_goals_over_35_prob !== null && total_goals_over_35_prob !== undefined ? total_goals_over_35_prob * 100 : null,
+    under35: total_goals_under_35_prob !== null && total_goals_under_35_prob !== undefined ? total_goals_under_35_prob * 100 : null,
     confidence: getConfidenceLevel(total_goals_confidence),
-  } : {
-    over25: 65,
-    under25: 35,
-    over35: 40,
-    under35: 60,
-    confidence: 'high' as const,
-  };
+  } : null;
 
   return {
     outcome: {
@@ -360,11 +364,12 @@ export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions 
     },
     bothTeamsToScore,
     totalGoals,
-    correctScore: {
+    correctScore: apiPrediction.predictions.goals.home !== null && apiPrediction.predictions.goals.home !== undefined &&
+      apiPrediction.predictions.goals.away !== null && apiPrediction.predictions.goals.away !== undefined ? {
       mostLikely: `${apiPrediction.predictions.goals.home}-${apiPrediction.predictions.goals.away}`,
       probability: maxPercent,
       confidence,
-    },
+    } : null,
     analysis: apiPrediction.predictions.advice || 'Based on recent form and statistics.',
     keyFactors: [
       `Winner prediction: ${apiPrediction.predictions.winner.name}`,
@@ -377,6 +382,12 @@ export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions 
     source_type,
     confidence_score,
     priority_level,
+    markets: {
+      matchResult: true,
+      btts: bothTeamsToScore !== null,
+      overUnder25: totalGoals !== null,
+      overUnder35: totalGoals !== null && totalGoals.over35 !== null,
+    },
   };
 }
 
@@ -403,8 +414,13 @@ export function mapFixture(
     venue: apiFixture.fixture.venue.name || homeTeam.venue,
     round: apiFixture.league.round,
     season: `${apiFixture.league.season}/${(apiFixture.league.season + 1).toString().slice(-2)}`,
-    odds: generateMockOdds(), // Using mock odds for now
+    odds: generateMockOdds(), // null on the real-data path (no odds feed)
     predictions: mapPredictions(prediction),
+    expertPrediction: prediction && (prediction as APIPredictionWithSource).source === 'expert' ? mapPredictions(prediction) : null,
+    providerForecast: prediction && (prediction as APIPredictionWithSource).source === 'api-football' ? mapPredictions(prediction) : null,
+    provider: 'api-football',
+    externalId: apiFixture.fixture.id.toString(),
+    kickoffUtc: date.toISOString(),
     headToHead: {
       totalMatches: 0,
       homeTeamWins: 0,

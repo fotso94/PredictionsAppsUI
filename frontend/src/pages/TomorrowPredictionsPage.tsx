@@ -8,6 +8,9 @@ import MatchCard from '@/components/ui/MatchCard'
 import { Badge } from '@/components/ui/Badge'
 import { motion } from 'framer-motion'
 import { footballDataService } from '@/services/football-data.service'
+import { DataSourceMeta, utcDateString } from '@/services/match-data-source'
+import { describeError } from '@/services/backend-match-data.service'
+import DataSourceNotice from '@/components/ui/DataSourceNotice'
 
 const TomorrowPredictionsPage: React.FC = () => {
   // API Data State
@@ -16,6 +19,7 @@ const TomorrowPredictionsPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [usingMockData, setUsingMockData] = useState(false)
+  const [meta, setMeta] = useState<DataSourceMeta | null>(null)
 
   // Filter State
   const [selectedLeagues, setSelectedLeagues] = useState<string[]>([])
@@ -28,12 +32,13 @@ const TomorrowPredictionsPage: React.FC = () => {
       try {
         setLoading(true)
         setError(null)
-        console.log('Fetching tomorrow\'s fixtures from API-Football...')
 
-        const [matchesData, leaguesData] = await Promise.all([
-          footballDataService.getTomorrowFixtures(),
-          footballDataService.getTopLeagues()
+        const [matchesResult, leaguesData] = await Promise.all([
+          footballDataService.getFixturesByDateWithMeta(utcDateString(1)),
+          footballDataService.getTopLeagues().catch(() => [] as League[])
         ])
+        const matchesData = matchesResult.matches
+        setMeta(matchesResult.meta)
 
         console.log('Tomorrow\'s matches received:', matchesData.length, 'matches')
         console.log('Leagues received:', leaguesData.length, 'leagues')
@@ -43,7 +48,7 @@ const TomorrowPredictionsPage: React.FC = () => {
         setUsingMockData(false)
       } catch (err) {
         console.error('Error fetching tomorrow\'s fixtures:', err)
-        setError(err instanceof Error ? err.message : 'Failed to fetch data from API-Football')
+        setError(describeError(err))
         setMatches([])
         setLeagues([])
         setUsingMockData(false)
@@ -75,10 +80,11 @@ const TomorrowPredictionsPage: React.FC = () => {
     }
     
     if (selectedConfidence.length > 0) {
-      const hasMatchingConfidence = 
-        selectedConfidence.includes(match.predictions.outcome.confidence) ||
-        selectedConfidence.includes(match.predictions.bothTeamsToScore.confidence) ||
-        selectedConfidence.includes(match.predictions.totalGoals.confidence)
+      const prediction = match.predictions
+      const hasMatchingConfidence = prediction !== null && (
+        selectedConfidence.includes(prediction.outcome.confidence) ||
+        (prediction.bothTeamsToScore !== null && selectedConfidence.includes(prediction.bothTeamsToScore.confidence)) ||
+        (prediction.totalGoals !== null && selectedConfidence.includes(prediction.totalGoals.confidence)))
       
       if (!hasMatchingConfidence) return false
     }
@@ -149,7 +155,7 @@ const TomorrowPredictionsPage: React.FC = () => {
             <div className="mt-4 flex items-center space-x-4">
               <Badge variant="info">{filteredMatches.length} matches</Badge>
               <Badge variant="success">
-                {filteredMatches.filter(m => m.predictions.outcome.confidence === 'high' || m.predictions.outcome.confidence === 'very-high').length} high confidence
+                {filteredMatches.filter(m => m.predictions?.outcome.confidence === 'high' || m.predictions?.outcome.confidence === 'very-high').length} high confidence
               </Badge>
               {usingMockData && (
                 <Badge variant="warning">⚠️ Using Mock Data</Badge>
@@ -243,6 +249,7 @@ const TomorrowPredictionsPage: React.FC = () => {
             {/* Matches Grid */}
             <div className="lg:col-span-3">
               {/* Loading State */}
+              <DataSourceNotice meta={meta} className="mb-6" />
               {loading ? (
                 <motion.div
                   initial={{ opacity: 0 }}

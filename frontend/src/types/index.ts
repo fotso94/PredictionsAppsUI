@@ -44,16 +44,45 @@ export interface Match {
   homeTeam: Team;
   awayTeam: Team;
   league: League;
+  /** UTC calendar date (YYYY-MM-DD) */
   date: string;
+  /** Local kickoff time (HH:mm) */
   time: string;
+  /** ISO 8601 UTC kickoff, when known */
+  kickoffUtc?: string;
   status: MatchStatus;
   venue: string;
   round: string;
   season: string;
-  odds: MatchOdds;
-  predictions: MatchPredictions;
+  /** Bookmaker odds. Null when no odds feed is configured (Phase 1 has none). */
+  odds: MatchOdds | null;
+  /** Primary prediction shown to users: the expert prediction when one exists, otherwise the provider forecast. */
+  predictions: MatchPredictions | null;
+  /** Published expert prediction (highest priority), separate from any model forecast. */
+  expertPrediction?: MatchPredictions | null;
+  /** Every published expert prediction (detail pages). */
+  expertPredictions?: MatchPredictions[];
+  /** Forecast from the configured prediction provider (e.g. GameForecastAPI), never mixed with expert data. */
+  providerForecast?: MatchPredictions | null;
   headToHead: HeadToHead;
   result?: MatchResult;
+  /** Provenance of the fixture record */
+  provider?: string | null;
+  externalId?: string | null;
+  minute?: string | null;
+  lastSyncedAt?: string | null;
+}
+
+/** Availability of a provider forecast; anything but "available" must be shown as such. */
+export type ForecastState = 'available' | 'stale' | 'kickoff_passed' | 'unavailable';
+
+export type PredictionSourceKind = 'expert' | 'provider' | 'api-football' | 'default';
+
+export interface PredictionMarkets {
+  matchResult: boolean;
+  btts: boolean;
+  overUnder25: boolean;
+  overUnder35: boolean;
 }
 
 export interface MatchResult {
@@ -123,36 +152,54 @@ export interface MatchOdds {
 }
 
 export interface MatchPredictions {
+  /** 1X2 probabilities in percent (0-100) */
   outcome: {
     homeWin: number;
     draw: number;
     awayWin: number;
     confidence: ConfidenceLevel;
   };
+  /** Null when the source did not supply this market */
   bothTeamsToScore: {
     yes: number;
     no: number;
     confidence: ConfidenceLevel;
-  };
+  } | null;
+  /** Null when the source did not supply this market; over35/under35 null when only the 2.5 line exists */
   totalGoals: {
     over25: number;
     under25: number;
-    over35: number;
-    under35: number;
+    over35: number | null;
+    under35: number | null;
     confidence: ConfidenceLevel;
-  };
+  } | null;
+  /** Null when the source did not supply an exact-score market */
   correctScore: {
     mostLikely: string;
     probability: number;
     confidence: ConfidenceLevel;
-  };
+  } | null;
   analysis: string;
   keyFactors: string[];
   // Metadata for prediction source
-  source?: 'expert' | 'api-football' | 'default';
+  source?: PredictionSourceKind;
   source_type?: string;
-  confidence_score?: number;
+  confidence_score?: number | null;
   priority_level?: number;
+  /** Provider name for provider forecasts (e.g. "gameforecast") */
+  providerName?: string;
+  /** Freshness of a provider forecast */
+  state?: ForecastState;
+  stateReason?: string | null;
+  /** Which markets the source actually supplied */
+  markets?: PredictionMarkets;
+  /** When the model run / expert publication happened */
+  generatedAt?: string | null;
+  publishedAt?: string | null;
+  /** Provider-reported recommended bets, verbatim */
+  recommendedBets?: Record<string, unknown> | null;
+  /** How confidently the forecast was linked to this fixture (exact | high) */
+  matchConfidence?: string | null;
 }
 
 export interface HeadToHead {

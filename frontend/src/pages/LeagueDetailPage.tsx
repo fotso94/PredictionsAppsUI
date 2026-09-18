@@ -7,6 +7,7 @@ import Button from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import MatchCard from '@/components/ui/MatchCard'
 import { footballDataService } from '@/services/football-data.service'
+import { describeError } from '@/services/backend-match-data.service'
 
 const LeagueDetailPage: React.FC = () => {
   // Support both route patterns: /league/:id and /leagues/:leagueId
@@ -28,12 +29,7 @@ const LeagueDetailPage: React.FC = () => {
       try {
         setLoading(true)
         setError(null)
-        console.log('Fetching league details from API-Football for ID:', leagueIdParam)
-
-        // First, get all leagues to find the current one
-        const allLeagues = await footballDataService.getTopLeagues()
-        // Convert string ID to number for comparison
-        const foundLeague = allLeagues.find(l => String(l.id) === String(leagueIdParam))
+        const foundLeague = await footballDataService.getLeague(leagueIdParam)
 
         if (!foundLeague) {
           setError('League not found')
@@ -43,27 +39,28 @@ const LeagueDetailPage: React.FC = () => {
 
         setLeague(foundLeague)
 
-        // Fetch teams, standings, and fixtures in parallel
-        console.log('Fetching teams, standings, and fixtures for league:', foundLeague.name)
-        const leagueIdNum = parseInt(leagueIdParam)
-        const [teamsData, standingsData, matchesData] = await Promise.all([
-          footballDataService.getTeamsByLeague(leagueIdNum),
-          footballDataService.getStandings(leagueIdNum),
-          footballDataService.getFixturesByLeague(leagueIdNum, undefined, { next: 10 })
+        // Standings, teams and calendar in parallel; each degrades independently
+        const [standingsResult, teamsResult, matchesResult] = await Promise.allSettled([
+          footballDataService.getStandings(foundLeague.id),
+          footballDataService.getTeamsByLeague(foundLeague.id),
+          footballDataService.getFixturesByLeague(foundLeague.id),
         ])
+        const standingsData = standingsResult.status === 'fulfilled' ? standingsResult.value : []
+        const teamsData = teamsResult.status === 'fulfilled' ? teamsResult.value : []
+        const matchesData = matchesResult.status === 'fulfilled' ? matchesResult.value : []
+        const failures = [standingsResult, teamsResult, matchesResult].filter(r => r.status === 'rejected')
+        if (failures.length === 3) {
+          throw (failures[0] as PromiseRejectedResult).reason
+        }
+        if (failures.length > 0) {
+          setError('Some league data could not be loaded right now.')
+        }
 
-        console.log('Teams received:', teamsData.length, 'teams')
-        console.log('Standings received:', standingsData.length, 'standings')
-        console.log('Matches received:', matchesData.length, 'matches')
-
-        // Filter to show only upcoming matches (future dates)
-        const now = new Date()
-        const upcomingMatches = matchesData.filter(match => {
-          const matchDate = new Date(match.date)
-          return matchDate >= now
-        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
-        console.log('Upcoming matches:', upcomingMatches.length, 'matches')
+        // Upcoming matches first (today onwards), oldest first
+        const today = new Date().toISOString().split('T')[0]
+        const upcomingMatches = matchesData
+          .filter(match => match.date >= today && match.status !== 'finished')
+          .sort((a, b) => (a.kickoffUtc || a.date).localeCompare(b.kickoffUtc || b.date))
 
         setTeams(teamsData)
         setStandings(standingsData)
@@ -71,7 +68,7 @@ const LeagueDetailPage: React.FC = () => {
         setUsingMockData(false)
       } catch (err) {
         console.error('Error fetching league data:', err)
-        setError(err instanceof Error ? err.message : 'Failed to fetch league data from API-Football')
+        setError(describeError(err))
         setTeams([])
         setStandings([])
         setMatches([])
@@ -133,7 +130,7 @@ const LeagueDetailPage: React.FC = () => {
               />
               <div>
                 <h1 className="text-3xl font-bold text-white">{league.name}</h1>
-                <p className="text-secondary-400">{league.country} • {league.season}</p>
+                <p className="text-secondary-400">{league.country}{league.season ? ` • ${league.season}` : ''}</p>
               </div>
             </div>
             {usingMockData && (

@@ -131,7 +131,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
       {/* Success Message */}
       {success && (
         <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
-          ✅ Prediction created successfully! It is now pending approval.
+          ✅ Prediction published! It is now live on the public match pages.
         </div>
       )}
 
