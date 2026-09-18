@@ -190,7 +190,7 @@ class Settings(BaseSettings):
     SYNC_SCHEDULER_ENABLED: bool = True
     # Comma-separated subset of "fixtures,live,results,forecasts"; empty disables every task.
     # One line in .env disables a single task, e.g. SYNC_SCHEDULER_TASKS=fixtures,results
-    SYNC_SCHEDULER_TASKS: str = "fixtures,live,results,forecasts"
+    SYNC_SCHEDULER_TASKS: str = "fixtures,live,results,forecasts,settle"
     # How often the loop wakes up and asks each task whether it is due. Costs nothing by itself.
     SYNC_SCHEDULER_TICK_SECONDS: int = 60
     # Grace period after startup before the first tick. Development restarts the backend constantly;
@@ -214,6 +214,11 @@ class Settings(BaseSettings):
     SYNC_RESULTS_LOOKBACK_DAYS: int = 1  # today and yesterday
     # Forecasts: ForecastService already enforces its own per-competition interval (24 h) and its own
     # daily allowance, so this only controls how often it is offered the chance to rotate.
+    #: Scoring reads stored data only, so it costs nothing and can run often. Ten minutes means a
+    #: match that finished is scored within ten minutes of its result being ingested.
+    SYNC_SETTLE_INTERVAL_SECONDS: int = 600
+    #: How far back to look for matches that finished but were never scored (a restart, an outage).
+    SYNC_SETTLE_LOOKBACK_DAYS: int = 3
     SYNC_FORECASTS_INTERVAL_SECONDS: int = 6 * 3600
 
     # Cache TTLs (seconds) for provider data

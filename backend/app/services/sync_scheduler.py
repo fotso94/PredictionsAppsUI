@@ -54,7 +54,10 @@ TASK_FIXTURES = "fixtures"
 TASK_LIVE = "live"
 TASK_RESULTS = "results"
 TASK_FORECASTS = "forecasts"
-TASK_NAMES: Tuple[str, ...] = (TASK_FIXTURES, TASK_LIVE, TASK_RESULTS, TASK_FORECASTS)
+TASK_SETTLE = "settle"
+#: Order matters: `settle` runs after `results`, so a result ingested this pass is scored in it
+#: rather than half an hour later.
+TASK_NAMES: Tuple[str, ...] = (TASK_FIXTURES, TASK_LIVE, TASK_RESULTS, TASK_FORECASTS, TASK_SETTLE)
 
 STATE_KEY = "sync:task:{name}"
 LOCK_KEY = "sync:lock:{name}"
@@ -177,6 +180,7 @@ class SyncScheduler:
             TASK_LIVE: settings.SYNC_LIVE_INTERVAL_SECONDS,
             TASK_RESULTS: settings.SYNC_RESULTS_INTERVAL_SECONDS,
             TASK_FORECASTS: settings.SYNC_FORECASTS_INTERVAL_SECONDS,
+            TASK_SETTLE: settings.SYNC_SETTLE_INTERVAL_SECONDS,
         }[name]
         # A misconfigured 0 would turn the loop into a hot loop against the provider.
         return max(int(seconds), 30)
@@ -280,6 +284,11 @@ class SyncScheduler:
     @staticmethod
     def _providers_for(services: _Services, name: str) -> List[Any]:
         """Every provider this task could call, in the order the chain would try them."""
+        if name == TASK_SETTLE:
+            # Scoring reads stored results and stored predictions. It calls nobody, so no budget can
+            # block it — which is the point: a spent allowance must never stop us scoring what we
+            # already hold.
+            return []
         if name == TASK_FORECASTS:
             provider = services.forecast.provider
             return [provider] if provider is not None else []
@@ -375,12 +384,33 @@ class SyncScheduler:
         error = report.get("error")
         return report, not error, error
 
+    def _run_settle(self, services: _Services) -> Tuple[Dict[str, Any], bool, Optional[str]]:
+        """Score the prematch evidence for matches that have finished. Makes no provider request.
+
+        Without this the results task ingests final scores and nothing ever reads them: the table
+        `prediction_results` sat empty for exactly that reason before the scheduler existed.
+        """
+        from app.services.settlement import SettlementService
+
+        now = services.match.now
+        lookback = max(int(settings.SYNC_SETTLE_LOOKBACK_DAYS), 1)
+        service = SettlementService(self._db_of(services))
+        report = service.settle_range(start=now - timedelta(days=lookback), end=now)
+        errors = _clip(list(report.get("errors") or []))
+        report["errors"] = errors
+        return report, not errors, "; ".join(errors) or None
+
+    @staticmethod
+    def _db_of(services: _Services):
+        return services._db
+
     def _execute(self, name: str, services: _Services) -> Tuple[Dict[str, Any], bool, Optional[str]]:
         return {
             TASK_FIXTURES: self._run_fixtures,
             TASK_LIVE: self._run_live,
             TASK_RESULTS: self._run_results,
             TASK_FORECASTS: self._run_forecasts,
+            TASK_SETTLE: self._run_settle,
         }[name](services)
 
     # ------------------------------------------------------------------ one pass
@@ -526,6 +556,9 @@ class SyncScheduler:
                     f"{len(due_keys)} competition(s) past their {settings.GAMEFORECAST_SYNC_INTERVAL_HOURS}h "
                     f"interval, capped at {capped} by the remaining allowance; up to 1 forecast request "
                     f"and 1 fixture request each")
+        if name == TASK_SETTLE:
+            # Scoring reads stored results and stored predictions; it contacts nobody.
+            return 0, "no provider request: scoring reads only what is already stored"
         service = services.match
         keys = len(service.keys)
         if name == TASK_FIXTURES:

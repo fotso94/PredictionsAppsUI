@@ -735,3 +735,30 @@ def test_the_one_shot_script_rejects_an_unknown_task():
     from scripts import sync_once
     with pytest.raises(SystemExit):
         sync_once.main(["--task", "standings"])
+
+
+# ------------------------------------------------------------------ settlement is scheduled
+def test_settle_is_one_of_the_scheduled_tasks():
+    """Results were being ingested with nothing to score them.
+
+    The results task and the settlement service were built in parallel and neither wired the two
+    together, so final scores landed in the database and prediction_results stayed empty. This
+    pins the connection.
+    """
+    from app.services import sync_scheduler as module
+
+    assert module.TASK_SETTLE in module.TASK_NAMES
+    assert module.TASK_SETTLE in settings.SYNC_SCHEDULER_TASKS.split(",")
+    # and it runs after results, so a score ingested this pass is settled in the same pass
+    assert module.TASK_NAMES.index(module.TASK_SETTLE) > module.TASK_NAMES.index(module.TASK_RESULTS)
+
+
+def test_scoring_costs_no_provider_request_and_no_allowance_can_block_it():
+    """A spent allowance must never stop us scoring what we already hold."""
+    from app.services import sync_scheduler as module
+
+    services = object.__new__(module._Services)
+    # no provider is reachable for this task, so the budget ceiling has nothing to stop
+    assert module.SyncScheduler._providers_for(services, module.TASK_SETTLE) == []
+    scheduler = module.SyncScheduler(tasks=[module.TASK_SETTLE])
+    assert scheduler._budget_block(services, module.TASK_SETTLE) is None
