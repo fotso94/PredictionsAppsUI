@@ -5,6 +5,8 @@
 **Mode:** strict read-only. No application code, documentation, dependency, Git, or AWS state was changed. This file is the only project file created.
 **Report location note:** the brief referenced `~/Documents/PredictionsAppsUI/`; that path does not exist. The repository lives at `~/Documents/DevProjects/PredictionsAppsUI/`, so the report was written there.
 
+> **Latest state (read this first).** Sections 1–27 describe the repository as found on 2026-09-17 *before* any change. Two implementation phases have since been executed and are recorded at the end of this file: **Addendum A** (docs scrubbed/archived, BTTS work committed, frontend build fixed, `main` now carries the real application) and **Addendum B** (credentials removed from code, migration made portable, README added). Owner decisions taken since: experts publish directly for now (no admin approval gate) and security hardening is deferred to a second phase; see Addendum C. Sections 9–12, 16 and 17 are therefore historical.
+
 ### How to read the labels
 
 | Label | Meaning |
@@ -318,7 +320,7 @@ Claims in commit messages checked: d221f6f says routes `/expert/create-predictio
 ## 14. Current cloud deployment state
 
 - **Frontend:** the S3 site is the Vite build of 2025-10-07 (assets hash `index-48183f90`), identical to local `frontend/dist`. It predates authentication (commit 9cfc8de, 2025-10-09), the public API integration, and all expert features: the deployed bundle contains **zero** `/api/v1/` references and no `localhost:8000`, but does contain one API-Football key and one `v3.football.api-sports.io` reference [VERIFIED by fetching the bundle]. Deep links fail (relative asset paths + 404 fallback) and there is no HTTPS.
-- **Backend / database / cache:** **never deployed**. No container image was ever pushed (no ECR repositories), no RDS or ElastiCache instance exists, no compute of any kind is attached to this project. [AWS, VERIFIED]
+- **Backend / database / cache:** **no deployment exists or is recorded**. No ECR repository, RDS or ElastiCache instance, or compute of any kind is attached to this project today, no document describes a backend deployment, and CloudTrail (90-day window) shows no related activity; an earlier, since-deleted deployment cannot be excluded. [AWS, VERIFIED for the current state]
 - **DNS / TLS:** no hosted zone, certificate, or CloudFront distribution for this project. The `setup-cloudfront.ps1` script on `origin/dev` was never run (CloudFront list contains only the unrelated Zayne Tech distribution). [AWS, VERIFIED; doc claim "Consider CloudFront" → NOT IMPLEMENTED]
 - **CI/CD-related resources:** the `github-oidc` role could be used by a future GitHub Actions workflow, but it currently grants AdministratorAccess to any repository under `fotso94/*` [AWS, VERIFIED] — over-privileged and not project-specific.
 - **Deployment mechanism used so far:** manual `aws s3 sync` from a developer machine (PowerShell scripts on `origin/dev`; `DEPLOYMENT_SUMMARY.md`), using the `superadmin` long-lived keys. [DOC + AWS, PARTIALLY VERIFIED — the scripts and timestamps are consistent; the exact commands run are not logged]
@@ -334,7 +336,7 @@ Claims in commit messages checked: d221f6f says routes `/expert/create-predictio
 | `origin/dev:deployment-info.txt` (bucket name, region, date 2025-09-22) | bucket creation time 2025-09-23T03:07Z UTC | VERIFIED consistent |
 | `DEPLOYMENT_SUMMARY.md` / `FRONTEND_ARCHITECTURE_ANALYSIS.md §8.4` ("17 files, 2.6 MiB, cache-control set") | 17 objects; total ≈2.7 MB | PARTIALLY VERIFIED (object count and size match; per-object Cache-Control headers not inspected) |
 | `AWS_PRODUCTION_DEPLOYMENT_PLAN.md` (ECS Fargate, RDS, ElastiCache, ALB, Route 53, CloudFront, 5 named buckets, us-west-2 DR) | nothing | NOT IMPLEMENTED |
-| `backend/Dockerfile` | no ECR repo, no ECS/App Runner service | NOT IMPLEMENTED |
+| `backend/Dockerfile` | no ECR repo, no ECS service | NOT IMPLEMENTED |
 | `backend/app/core/config.py` AWS SES settings, `email_service.py` SES stub | no SES identities | NOT IMPLEMENTED |
 | `docker/docker-compose.yml` | local only | n/a |
 | `origin/dev:setup-cloudfront.ps1` | no distribution | NOT IMPLEMENTED |
@@ -488,7 +490,7 @@ Do **not** invest further in: the TheSportsDB layer, `prediction.service.ts`, `s
 | **0 — Secure & stabilise** | Secret rotation/scrub, root `.gitignore`, WIP committed, TS/ESLint fixed, P0 backend fixes, CI skeleton, branch cleanup | `npm run build` and `pytest` (unit) green in GitHub Actions; no secrets in tree; `develop` is default & protected | 3–5 engineer-days |
 | **1 — Reproducible dev & tests** | Compose fix + backend service, Python 3.11, test DB, integration tests runnable, coverage baseline, `.dockerignore`, docs triage (archive superseded, fix ports/paths) | `docker compose up` gives a working stack from scratch; all 121+ tests pass in CI | 3–5 days |
 | **2 — MVP feature completion** | Backend fixtures proxy + cache (key server-side), BTTS in public API/aggregator, real match detail, admin approval or explicit self-publish policy, expert onboarding, subscription persistence, SES/SendGrid provider, remove/label fabricated predictions, fix P1 bugs | Regular user can browse real fixtures and real published predictions end-to-end; expert flow works incl. override; no fake data shown as real | 2–3 weeks |
-| **3 — Cloud MVP deployment** | IaC (Terraform or CDK), CloudFront+S3, backend container (App Runner or ECS Fargate single service), RDS PostgreSQL (single-AZ to start), ElastiCache (or Redis on the same task initially), Secrets Manager, CloudWatch logs/alarms, OIDC-scoped deploy role, domain + ACM TLS, migrations job | Public HTTPS URL serving the current build against a live backend; deploy from GitHub Actions; rollback documented | 1–2 weeks |
+| **3 — Cloud MVP deployment** | IaC (Terraform or CDK), CloudFront+S3, backend container (ECS Express Mode / Fargate, single service; App Runner is closed to new customers since 2026-04-30), RDS PostgreSQL (single-AZ to start), ElastiCache (or Redis on the same task initially), Secrets Manager, CloudWatch logs/alarms, OIDC-scoped deploy role, domain + ACM TLS, migrations job | Public HTTPS URL serving the current build against a live backend; deploy from GitHub Actions; rollback documented | 1–2 weeks |
 | **4 — Post-MVP** | Settlement/accuracy, ML baseline, LLM source, analytics dashboards, notifications, e-mail verification, rate limiting, payments, DR/backups per plan | Per requirements §4.2/4.5 | ongoing |
 
 ---
@@ -510,7 +512,7 @@ Do **not** invest further in: the TheSportsDB layer, `prediction.service.ts`, `s
 | Option | Components | Estimate |
 |---|---|---|
 | Today | 2 S3 website buckets | ≈ $0.01–0.05 / month |
-| **Lean MVP (recommended)** | S3 + CloudFront (≈$1–5); App Runner 1 vCPU/2 GB with min 1 instance (≈$25–50) **or** ECS Fargate 0.5 vCPU/1 GB (≈$15) + ALB (≈$18); RDS `db.t4g.micro` single-AZ 20 GB (≈$13–16); ElastiCache `cache.t4g.micro` (≈$12) or skip initially; Secrets Manager (≈$1–2); CloudWatch (≈$2–5); Route 53 zone ($0.50) | **≈ $60–110 / month** |
+| **Lean MVP (recommended)** | S3 + CloudFront (≈$1–5); ECS Fargate 0.5 vCPU/1 GB (≈$15) + ALB (≈$18) via ECS Express Mode (App Runner is closed to new customers since 2026-04-30); RDS `db.t4g.micro` single-AZ 20 GB (≈$13–16); ElastiCache `cache.t4g.micro` (≈$12, **required**: refresh tokens and the token blacklist live in Redis); Secrets Manager (≈$1–2); CloudWatch (≈$2–5); Route 53 zone ($0.50) | **≈ $60–110 / month** |
 | Documented plan | ECS Fargate ×4 services, RDS `db.r6g.xlarge` Multi-AZ + replicas, ElastiCache Multi-AZ, NAT gateways, DR in us-west-2 | $1,050–2,100 / month (plan's own figure); not justified now |
 
 Other costs: API-Football Pro (≈$25–50/month per its pricing docs), e-mail provider, domain registration.
@@ -526,7 +528,7 @@ Other costs: API-Football Pro (≈$25–50/month per its pricing docs), e-mail p
 5. **Product rule for approval**: keep "experts publish their own predictions" (current behaviour) or enforce admin approval as the requirements state.
 6. **KAN-26 storage strategy**: v1 "store all sources" (implemented) vs v2 "store only expert/LLM, cache API-Football" (documented).
 7. **Fake predictions**: continue showing randomized predictions/odds for fixtures without real data (current), label them clearly, or hide them.
-8. **Deployment target and budget**: lean MVP (~$60–110/month) vs the documented architecture; App Runner vs ECS Fargate; single region `us-east-1` (matches existing buckets).
+8. **Deployment target and budget**: lean MVP (~$60–110/month) vs the documented architecture; ECS Express Mode/Fargate (App Runner is no longer available to new customers); single region `us-east-1` (matches existing buckets).
 9. **Domain name and TLS** (none exists; docs mention Namecheap).
 10. **External providers**: confirm the API-Football plan/quota; choose SES vs SendGrid vs Mailtrap for production e-mail.
 11. **IAM**: create a project-scoped deploy role (scope the existing `github-oidc` trust to `repo:fotso94/PredictionsAppsUI:*` and least-privilege policies) and retire one of the two `superadmin` access keys.
@@ -586,7 +588,7 @@ Subagents (read-only) produced the full inventories of the 109 documentation fil
 
 **Preconditions (owner):** rotate the four credential sets (§25 item 1); confirm the branch strategy (§25 item 3); answer items 5–8 of §25 or accept the defaults below.
 
-**Defaults I will assume if not told otherwise:** keep expert self-publish for now; keep the v1 "store all" storage; label fabricated predictions instead of hiding them; lean MVP on `us-east-1` with App Runner + RDS `t4g.micro` + CloudFront.
+**Defaults I will assume if not told otherwise:** keep expert self-publish for now (confirmed by the owner, Addendum C); keep the v1 "store all" storage; show "No prediction available" instead of fabricated values; lean MVP on `us-east-1` with ECS Express Mode/Fargate + RDS `t4g.micro` + ElastiCache `t4g.micro` + CloudFront.
 
 **Session 1 checklist (Phase 0):**
 1. `git switch -c develop progress`; add root `.gitignore`; move root status docs to `docs/archive/` (or delete) after scrubbing keys.
@@ -691,5 +693,22 @@ Verification: no tracked file contains any of the four secret values (API-Footba
 
 - `README.md` added at the root (`7501cc4`): overview, layout, prerequisites, local development steps, tests, secrets policy, deployment status. The Compose file needs no change: run it from the repository root with `docker compose -f docker/docker-compose.yml --project-directory . up -d` and the `docker/postgres/...` and `docker/redis/...` bind mounts resolve correctly (verified with `docker compose config`).
 - The 15 MB duplicate screenshot was deleted from the working tree (it was never tracked).
+
+---
+
+## Addendum C — Owner priorities and corrections after external review (2026-09-17)
+
+**Owner decisions (verbatim intent):** experts publish their predictions directly for now (no administrator approval gate); the only goal of the next phase is a *working* application; security hardening is deferred to a second phase and stays documented in §18 and Addendum B.2.
+
+**Corrections accepted from an independent review of this report:**
+1. AWS App Runner is closed to new customers since 2026-04-30 (service in maintenance); ECS Express Mode / Fargate is the container target. §15, §23–§25 and §27 were updated.
+2. Redis is not optional in the lean deployment: refresh-token storage and the blacklist depend on it (`backend/app/core/deps.py`). Cost table updated.
+3. "Never deployed" was stronger than the evidence; §14 now says no backend deployment exists or is recorded.
+4. `npm run lint` still fails on warnings (`--max-warnings 0`) even though ESLint reports 0 errors; the build and type-check pass. This report never claimed lint passes.
+5. Archive tags preserve old commits, including committed secrets and `node_modules`; they are a safety net, not history cleanup (already stated in A.3/B.2).
+6. Fabricated predictions, odds, H2H and statistics should be replaced by an explicit "No prediction available" state rather than a label. Adopted as a Phase 1 requirement.
+7. The review noted the migration failed on a clean database; that was fixed in `ceee14f` (Addendum B.3) after the review's snapshot.
+
+**Phase 1 ("make it work") scope derived from these priorities:** backend proxy for fixtures/leagues/teams/standings with Redis caching (frontend stops calling API-Football directly, production builds become functional); fix the functional defects on the expert and public journeys (§18 P1 items: override kwargs, `status` shadowing, `date` filter, `key_factors`, source-badge case, mock match detail page, dead links, password-change logout); expert publish as a first-class action; BTTS/Over-Under shown wherever predictions are shown; "No prediction available" instead of random values; reproducible local environment and CI. Security items (§18 P0 1–5, 8; rate limiting; e-mail verification) move to Phase 2, except credential rotation, which remains an owner action at any time.
 
 *End of report.*

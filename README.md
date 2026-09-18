@@ -73,6 +73,6 @@ before 2026-09-17 must be treated as compromised and rotated.
 
 ## Deployment
 
-Only a static frontend demo has ever been deployed (an S3 website bucket in `us-east-1`); the
-backend has not been deployed anywhere. See the status report (sections 13-15 and 23) for the
+Only a static frontend demo is deployed (an S3 website bucket in `us-east-1`); no backend
+deployment exists or is recorded. See the status report (sections 13-15 and 23) for the
 current cloud state and the deployment plan.
