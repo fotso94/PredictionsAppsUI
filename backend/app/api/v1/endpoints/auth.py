@@ -263,12 +263,20 @@ async def register(
             detail="Email already registered"
         )
     
-    # Validate role
-    valid_roles = ["regular", "expert", "admin"]
-    if register_data.role not in valid_roles:
+    # Roles a person may choose for themselves at sign-up.
+    #
+    # "admin" is deliberately NOT here. This endpoint is public and unauthenticated, so accepting it
+    # let anyone mint an administrator account and receive an admin token in the same response.
+    # Administrators are promoted by an existing administrator, never self-declared.
+    #
+    # "expert" stays self-selectable because Phase 1 has experts publish directly. Note what that
+    # does and does not mean: it grants permission to publish, not reviewed credentials.
+    SELF_SELECTABLE_ROLES = ["regular", "expert"]
+    if register_data.role not in SELF_SELECTABLE_ROLES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}"
+            detail=f"Role must be one of: {', '.join(SELF_SELECTABLE_ROLES)}. "
+                   "Administrator accounts are granted by an existing administrator."
         )
     
     # Create new user
