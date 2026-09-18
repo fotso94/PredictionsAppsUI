@@ -5,6 +5,7 @@ import MatchCard from '@/components/ui/MatchCard';
 import { footballDataService } from '@/services/football-data.service';
 import { TeamPage } from '@/services/match-data-source';
 import { describeError } from '@/services/backend-match-data.service';
+import { onTeamLogoError } from '@/components/ui/imageFallback'
 
 const TeamDetailPage: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
@@ -76,7 +77,7 @@ const TeamDetailPage: React.FC = () => {
                 src={team.logo}
                 alt={team.name}
                 className="h-24 w-24 rounded-full object-contain bg-white p-2"
-                onError={(e) => { (e.target as HTMLImageElement).src = '/teams/default.svg'; }}
+                onError={onTeamLogoError}
               />
               <div className="flex-1">
                 <h1 className="text-3xl font-bold text-white mb-2">{team.name}</h1>

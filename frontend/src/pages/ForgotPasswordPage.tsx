@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { EnvelopeIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import authService from '@/services/auth.service'
+import { getErrorMessage } from '@/utils/errors'
 
 const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('')
@@ -26,8 +27,8 @@ const ForgotPasswordPage: React.FC = () => {
       
       // Log the message for debugging
       console.log('Password reset response:', response.message)
-    } catch (error: any) {
-      console.error('Forgot password error:', error)
+    } catch (error) {
+      console.error('Forgot password error:', getErrorMessage(error, 'Request failed'))
       // Even on error, show success message for security (prevent email enumeration)
       setIsSubmitted(true)
       toast.success('If that email address is in our system, we have sent a password reset link to it.')

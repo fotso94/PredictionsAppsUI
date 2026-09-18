@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { footballDataService } from '@/services/football-data.service'
 import { ProviderStatus } from '@/services/match-data-source'
+import { forecastAvailability } from './forecastStatus'
 
 /**
  * Site-wide warning when the backend reports a data/prediction provider problem
@@ -39,14 +40,10 @@ const ProviderStatusBanner: React.FC = () => {
       problems.push(`Last ${active.name} request failed: ${active.last_error}`)
     }
   }
-  const forecasts = status.forecasts
-  if (forecasts && !forecasts.configured && forecasts.active_provider !== 'none') {
-    problems.push(`Prediction provider "${forecasts.active_provider}" is not configured; model forecasts are unavailable.`)
-  } else if (forecasts?.budget && forecasts.budget.enforced && forecasts.budget.remaining_today === 0) {
-    problems.push('Model forecast updates are paused until tomorrow (daily request allowance used); forecasts already loaded stay visible.')
-  } else if (forecasts?.cooling_down) {
-    problems.push(`Model forecast updates are paused after a provider error: ${forecasts.cooling_down}`)
-  }
+  // Paused refresh vs unavailable forecasts: one shared helper so the two never blur together here
+  // and on the match pages.
+  const forecastState = forecastAvailability(status)
+  if (forecastState) problems.push(forecastState.message)
 
   if (problems.length === 0) return null
 

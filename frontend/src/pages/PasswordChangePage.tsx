@@ -5,6 +5,7 @@ import { userService, type ChangePasswordRequest } from '@/services/user.service
 import Card from '@/components/ui/Card';
 import toast from 'react-hot-toast';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { getErrorMessage } from '@/utils/errors';
 
 const PasswordChangePage: React.FC = () => {
   const navigate = useNavigate();
@@ -44,9 +45,9 @@ const PasswordChangePage: React.FC = () => {
       setTimeout(() => {
         navigate('/login');
       }, 2000);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to change password:', error);
-      const errorMessage = error.response?.data?.detail || 'Failed to change password';
+      const errorMessage = getErrorMessage(error, 'Failed to change password');
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);

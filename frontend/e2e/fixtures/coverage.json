@@ -1,0 +1,20 @@
+{
+  "competitions_covered": 6,
+  "competition_keys": [
+    "premier_league",
+    "la_liga",
+    "serie_a",
+    "bundesliga",
+    "ligue_1",
+    "champions_league"
+  ],
+  "upcoming_matches": 48,
+  "matches_stored": 48,
+  "model_forecasts": 30,
+  "upcoming_matches_with_forecast": 30,
+  "forecast_snapshots": 60,
+  "expert_predictions_published": 0,
+  "accuracy_available": false,
+  "accuracy_unavailable_reason": "no settled results have been scored yet",
+  "measured_at": "2026-09-18T03:49:29.301539+00:00"
+}

@@ -13,6 +13,7 @@ import {
   HeadToHead,
   MatchOdds,
   MatchPredictions,
+  ConfidenceLevel,
 } from '@/types';
 import {
   APILeague,
@@ -23,8 +24,42 @@ import {
 } from './api-football.service';
 import { fakePredictionsAllowed } from './match-data-source';
 
-/** API-Football prediction payload with the source tag added by football-data.service.ts */
-type APIPredictionWithSource = APIPrediction & { source?: 'expert' | 'api-football' | 'default' };
+/**
+ * Markets and provenance the prediction pipeline attaches on top of API-Football's own payload.
+ * An expert row carries its own markets (and no `comparison` block); API-Football rows carry none
+ * of these. Everything is optional because every field is genuinely absent for one of the two.
+ */
+export interface PredictionSourceExtras {
+  source?: 'expert' | 'api-football' | 'default';
+  source_type?: string;
+  confidence_score?: number | null;
+  priority_level?: number;
+  btts_yes_prob?: number | null;
+  btts_no_prob?: number | null;
+  btts_confidence?: number | null;
+  total_goals_over_25_prob?: number | null;
+  total_goals_under_25_prob?: number | null;
+  total_goals_over_35_prob?: number | null;
+  total_goals_under_35_prob?: number | null;
+  total_goals_confidence?: number | null;
+}
+
+/**
+ * What the mapper is actually handed: API-Football's payload, or an expert prediction reshaped to
+ * look like one. `comparison`, `teams` and `league` exist only on a real API-Football response, so
+ * they are optional here rather than faked for expert rows.
+ */
+export interface MappablePrediction extends PredictionSourceExtras {
+  predictions: {
+    winner?: { id: number; name: string; comment: string } | null;
+    win_or_draw?: boolean;
+    under_over?: string | null;
+    goals?: { home: string | number | null; away: string | number | null };
+    advice?: string | null;
+    percent?: { home: string; draw: string; away: string };
+  };
+  comparison?: APIPrediction['comparison'];
+}
 
 /**
  * Map API-Football league to our League type
@@ -241,10 +276,34 @@ function generateCorrectScore(): { score: string; probability: number } {
   return { score: randomScore.score, probability: randomScore.prob };
 }
 
+/** A percentage the provider published ("62%" or 62); null when it published nothing usable. */
+function percentValue(raw: string | number | null | undefined): number | null {
+  if (raw === null || raw === undefined) return null;
+  const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw).replace('%', '').trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** 0-1 probability -> percent; null stays null. Nothing is derived from the other side of a market. */
+function probToPercent(value: number | null | undefined): number | null {
+  return value === null || value === undefined || !Number.isFinite(value) ? null : value * 100;
+}
+
+/** Display bucket from a confidence score the source published; 'medium' when it published none. */
+function confidenceFromScore(score: number | null | undefined): ConfidenceLevel {
+  if (score === null || score === undefined) return 'medium';
+  if (score >= 0.8) return 'very-high';
+  if (score >= 0.65) return 'high';
+  if (score >= 0.5) return 'medium';
+  return 'low';
+}
+
 /**
- * Map API-Football prediction to our MatchPredictions type
+ * Map an API-Football (or expert-shaped) prediction to our MatchPredictions type.
+ *
+ * Nothing here invents a number: a market the source did not publish stays null and is rendered as
+ * unavailable. Returns null when the source published no market at all.
  */
-export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions | null {
+export function mapPredictions(apiPrediction?: MappablePrediction | null): MatchPredictions | null {
   if (!apiPrediction) {
     // No prediction from any source: the UI shows "unavailable". Randomized placeholders are an
     // explicit local-demo opt-in (VITE_ALLOW_FAKE_PREDICTIONS=true) and never reach the real-data path.
@@ -283,110 +342,76 @@ export function mapPredictions(apiPrediction?: APIPrediction): MatchPredictions 
       analysis: 'Randomized placeholder prediction (local demo mode).',
       keyFactors: ['Form analysis', 'Head-to-head record', 'Team statistics'],
       source: 'default',
-      markets: { matchResult: true, btts: true, overUnder25: true, overUnder35: true },
+      markets: { matchResult: true, btts: true, overUnder25: true, overUnder35: true, exactScore: true },
     };
   }
 
-  const homePercent = parseFloat(apiPrediction.predictions.percent.home);
-  const drawPercent = parseFloat(apiPrediction.predictions.percent.draw);
-  const awayPercent = parseFloat(apiPrediction.predictions.percent.away);
+  const homePercent = percentValue(apiPrediction.predictions.percent?.home);
+  const drawPercent = percentValue(apiPrediction.predictions.percent?.draw);
+  const awayPercent = percentValue(apiPrediction.predictions.percent?.away);
 
-  // Determine confidence based on prediction strength
-  const maxPercent = Math.max(homePercent, drawPercent, awayPercent);
-  const confidence = maxPercent > 60 ? 'very-high' :
-                    maxPercent > 50 ? 'high' :
-                    maxPercent > 40 ? 'medium' : 'low';
+  // 1X2 only when all three sides were published; a partial split would have to be completed by us.
+  const outcome = homePercent !== null && drawPercent !== null && awayPercent !== null
+    ? (() => {
+        const maxPercent = Math.max(homePercent, drawPercent, awayPercent);
+        const confidence: ConfidenceLevel = maxPercent > 60 ? 'very-high' :
+          maxPercent > 50 ? 'high' :
+          maxPercent > 40 ? 'medium' : 'low';
+        return { homeWin: homePercent, draw: drawPercent, awayWin: awayPercent, confidence };
+      })()
+    : null;
 
-  // Extract source metadata
-  const source = (apiPrediction as any).source || 'api-football';
-  const source_type = (apiPrediction as any).source_type;
-  const confidence_score = (apiPrediction as any).confidence_score;
-  const priority_level = (apiPrediction as any).priority_level;
+  const source = apiPrediction.source || 'api-football';
 
-  // Extract BTTS and Total Goals data from expert predictions
-  const btts_yes_prob = (apiPrediction as any).btts_yes_prob;
-  const btts_no_prob = (apiPrediction as any).btts_no_prob;
-  const btts_confidence = (apiPrediction as any).btts_confidence;
-  const total_goals_over_25_prob = (apiPrediction as any).total_goals_over_25_prob;
-  const total_goals_under_25_prob = (apiPrediction as any).total_goals_under_25_prob;
-  const total_goals_over_35_prob = (apiPrediction as any).total_goals_over_35_prob;
-  const total_goals_under_35_prob = (apiPrediction as any).total_goals_under_35_prob;
-  const total_goals_confidence = (apiPrediction as any).total_goals_confidence;
+  // BTTS: whatever halves the source published, each on its own. "no" is never 100 - "yes".
+  const bttsYes = probToPercent(apiPrediction.btts_yes_prob);
+  const bttsNo = probToPercent(apiPrediction.btts_no_prob);
+  const bothTeamsToScore = bttsYes !== null || bttsNo !== null
+    ? { yes: bttsYes, no: bttsNo, confidence: confidenceFromScore(apiPrediction.btts_confidence) }
+    : null;
 
-  // Debug log for source metadata
-  if (source === 'expert') {
-    console.log('📊 mapPredictions - Expert prediction detected:', {
-      source,
-      source_type,
-      confidence_score,
-      priority_level,
-      advice: apiPrediction.predictions.advice,
-      btts_yes_prob,
-      btts_no_prob,
-      total_goals_over_25_prob,
-      total_goals_under_25_prob,
-    });
+  // Total goals: same rule, line by line. An absent 3.5 line stays null.
+  const over25 = probToPercent(apiPrediction.total_goals_over_25_prob);
+  const under25 = probToPercent(apiPrediction.total_goals_under_25_prob);
+  const over35 = probToPercent(apiPrediction.total_goals_over_35_prob);
+  const under35 = probToPercent(apiPrediction.total_goals_under_35_prob);
+  const totalGoals = over25 !== null || under25 !== null || over35 !== null || under35 !== null
+    ? { over25, under25, over35, under35, confidence: confidenceFromScore(apiPrediction.total_goals_confidence) }
+    : null;
+
+  // Only what the source actually said; no filler comparisons for expert rows, which carry none.
+  const keyFactors: string[] = [];
+  const winnerName = apiPrediction.predictions.winner?.name;
+  if (winnerName) keyFactors.push(`Winner prediction: ${winnerName}`);
+  const comparison = apiPrediction.comparison;
+  if (comparison) {
+    keyFactors.push(`Form comparison: Home ${comparison.form.home} vs Away ${comparison.form.away}`);
+    keyFactors.push(`Attack strength: Home ${comparison.att.home} vs Away ${comparison.att.away}`);
+    keyFactors.push(`Defense strength: Home ${comparison.def.home} vs Away ${comparison.def.away}`);
   }
 
-  // Helper function to convert confidence score to confidence level
-  const getConfidenceLevel = (score: number | null | undefined): 'low' | 'medium' | 'high' | 'very-high' => {
-    if (score === null || score === undefined) return 'medium';
-    if (score >= 0.8) return 'very-high';
-    if (score >= 0.65) return 'high';
-    if (score >= 0.5) return 'medium';
-    return 'low';
-  };
-
-  // BTTS only when the source supplied it (no invented defaults)
-  const bothTeamsToScore = (btts_yes_prob !== null && btts_yes_prob !== undefined &&
-                             btts_no_prob !== null && btts_no_prob !== undefined) ? {
-    yes: btts_yes_prob * 100,
-    no: btts_no_prob * 100,
-    confidence: getConfidenceLevel(btts_confidence),
-  } : null;
-
-  // Total goals only when the source supplied it; the 3.5 line stays null when absent
-  const totalGoals = (total_goals_over_25_prob !== null && total_goals_over_25_prob !== undefined &&
-                      total_goals_under_25_prob !== null && total_goals_under_25_prob !== undefined) ? {
-    over25: total_goals_over_25_prob * 100,
-    under25: total_goals_under_25_prob * 100,
-    over35: total_goals_over_35_prob !== null && total_goals_over_35_prob !== undefined ? total_goals_over_35_prob * 100 : null,
-    under35: total_goals_under_35_prob !== null && total_goals_under_35_prob !== undefined ? total_goals_under_35_prob * 100 : null,
-    confidence: getConfidenceLevel(total_goals_confidence),
-  } : null;
-
   return {
-    outcome: {
-      homeWin: homePercent,
-      draw: drawPercent,
-      awayWin: awayPercent,
-      confidence,
-    },
+    outcome,
     bothTeamsToScore,
     totalGoals,
-    correctScore: apiPrediction.predictions.goals.home !== null && apiPrediction.predictions.goals.home !== undefined &&
-      apiPrediction.predictions.goals.away !== null && apiPrediction.predictions.goals.away !== undefined ? {
-      mostLikely: `${apiPrediction.predictions.goals.home}-${apiPrediction.predictions.goals.away}`,
-      probability: maxPercent,
-      confidence,
-    } : null,
-    analysis: apiPrediction.predictions.advice || 'Based on recent form and statistics.',
-    keyFactors: [
-      `Winner prediction: ${apiPrediction.predictions.winner.name}`,
-      `Form comparison: Home ${apiPrediction.comparison.form.home}% vs Away ${apiPrediction.comparison.form.away}%`,
-      `Attack strength: Home ${apiPrediction.comparison.att.home}% vs Away ${apiPrediction.comparison.att.away}%`,
-      `Defense strength: Home ${apiPrediction.comparison.def.home}% vs Away ${apiPrediction.comparison.def.away}%`,
-    ],
+    // API-Football's predictions.goals is a projected goal count ("-1.5", "2.5"), not a scoreline,
+    // and it publishes no probability for one. Reusing the 1X2 maximum invented a correct-score
+    // probability the provider never produced, so this market is simply not available here.
+    correctScore: null,
+    // The provider's own advice, or nothing. A stand-in sentence would read as its analysis.
+    analysis: apiPrediction.predictions.advice || '',
+    keyFactors,
     // Preserve source metadata
     source,
-    source_type,
-    confidence_score,
-    priority_level,
+    source_type: apiPrediction.source_type,
+    confidence_score: apiPrediction.confidence_score,
+    priority_level: apiPrediction.priority_level,
     markets: {
-      matchResult: true,
+      matchResult: outcome !== null,
       btts: bothTeamsToScore !== null,
-      overUnder25: totalGoals !== null,
-      overUnder35: totalGoals !== null && totalGoals.over35 !== null,
+      overUnder25: totalGoals !== null && (totalGoals.over25 !== null || totalGoals.under25 !== null),
+      overUnder35: totalGoals !== null && (totalGoals.over35 !== null || totalGoals.under35 !== null),
+      exactScore: false,
     },
   };
 }
@@ -399,7 +424,7 @@ export function mapFixture(
   homeTeam: Team,
   awayTeam: Team,
   league: League,
-  prediction?: APIPrediction
+  prediction?: MappablePrediction | null
 ): Match {
   const date = new Date(apiFixture.fixture.date);
   
@@ -416,8 +441,8 @@ export function mapFixture(
     season: `${apiFixture.league.season}/${(apiFixture.league.season + 1).toString().slice(-2)}`,
     odds: generateMockOdds(), // null on the real-data path (no odds feed)
     predictions: mapPredictions(prediction),
-    expertPrediction: prediction && (prediction as APIPredictionWithSource).source === 'expert' ? mapPredictions(prediction) : null,
-    providerForecast: prediction && (prediction as APIPredictionWithSource).source === 'api-football' ? mapPredictions(prediction) : null,
+    expertPrediction: prediction?.source === 'expert' ? mapPredictions(prediction) : null,
+    providerForecast: prediction?.source === 'api-football' ? mapPredictions(prediction) : null,
     provider: 'api-football',
     externalId: apiFixture.fixture.id.toString(),
     kickoffUtc: date.toISOString(),

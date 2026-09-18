@@ -13,6 +13,7 @@ import {
   getMatchStatusText,
   getMatchStatusBadgeClasses
 } from '@/utils/matchFilters';
+import { onTeamLogoError } from '@/components/ui/imageFallback';
 
 const ExpertMatchSelectionPage: React.FC = () => {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ const ExpertMatchSelectionPage: React.FC = () => {
       
       setTodayMatches(today);
       setTomorrowMatches(tomorrow);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load matches:', err);
       setError(describeError(err));
     } finally {
@@ -103,9 +104,7 @@ const ExpertMatchSelectionPage: React.FC = () => {
             src={match.homeTeam.logo}
             alt={match.homeTeam.name}
             className="w-12 h-12 mx-auto mb-2"
-            onError={(e) => {
-              e.currentTarget.src = 'https://via.placeholder.com/48?text=Team';
-            }}
+            onError={onTeamLogoError}
           />
           <p className="text-sm font-semibold text-gray-900 dark:text-white">
             {match.homeTeam.name}
@@ -134,9 +133,7 @@ const ExpertMatchSelectionPage: React.FC = () => {
             src={match.awayTeam.logo}
             alt={match.awayTeam.name}
             className="w-12 h-12 mx-auto mb-2"
-            onError={(e) => {
-              e.currentTarget.src = 'https://via.placeholder.com/48?text=Team';
-            }}
+            onError={onTeamLogoError}
           />
           <p className="text-sm font-semibold text-gray-900 dark:text-white">
             {match.awayTeam.name}

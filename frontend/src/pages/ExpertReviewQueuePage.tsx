@@ -1,9 +1,14 @@
 /**
- * Expert Review Queue Page
- * Page for experts to view predictions pending review
+ * Expert Moderation Queue Page
+ *
+ * This is a POST-PUBLICATION moderation view, not an approval gate: an expert's prediction goes
+ * live on the public match pages the moment they publish it, and nothing here has to happen first.
+ * Approving marks a prediction as checked; rejecting withdraws one that is already public. The
+ * wording throughout says so, because "Review Queue / pending review / Approve" on its own reads as
+ * a gate that does not exist.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import expertPredictionService from '../services/expert-prediction.service';
 import { ExpertPredictionResponse } from '../types/expert';
@@ -12,6 +17,9 @@ import {
   PredictionStatusBadge,
   ConfidenceBadge,
 } from '../components/PredictionSourceBadge';
+import { formatUnitProbability } from '@/components/ui/probability';
+import { hideBrokenImage } from '@/components/ui/imageFallback';
+import { getErrorMessage } from '@/utils/errors';
 
 const ExpertReviewQueuePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -20,12 +28,10 @@ const ExpertReviewQueuePage: React.FC = () => {
   const [page, setPage] = useState(0);
   const [limit] = useState(20);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  /** Ids expanded in place — there is no /expert/predictions/:id route to link to. */
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    loadReviewQueue();
-  }, [page]);
-
-  const loadReviewQueue = async () => {
+  const loadReviewQueue = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -34,12 +40,22 @@ const ExpertReviewQueuePage: React.FC = () => {
         offset: page * limit,
       });
       setPredictions(data);
-    } catch (err: any) {
-      console.error('Failed to load review queue:', err);
-      setError(err.response?.data?.detail || 'Failed to load review queue');
+    } catch (err) {
+      console.error('Failed to load moderation queue:', err);
+      setError(getErrorMessage(err, 'Failed to load the moderation queue'));
     } finally {
       setLoading(false);
     }
+  }, [limit, page]);
+
+  useEffect(() => {
+    loadReviewQueue();
+  }, [loadReviewQueue]);
+
+  const toggleExpanded = (predictionId: string) => {
+    setExpandedIds(prev =>
+      prev.includes(predictionId) ? prev.filter(id => id !== predictionId) : [...prev, predictionId]
+    );
   };
 
   const handleApprove = async (predictionId: string) => {
@@ -49,9 +65,9 @@ const ExpertReviewQueuePage: React.FC = () => {
       await expertPredictionService.approvePrediction(predictionId);
       // Reload the queue
       await loadReviewQueue();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to approve prediction:', err);
-      setError(err.response?.data?.detail || 'Failed to approve prediction');
+      setError(getErrorMessage(err, 'Failed to approve prediction'));
     } finally {
       setProcessingId(null);
     }
@@ -61,13 +77,13 @@ const ExpertReviewQueuePage: React.FC = () => {
     try {
       setProcessingId(predictionId);
       setError(null);
-      const reason = prompt('Enter reason for rejection (optional):');
+      const reason = prompt('Enter reason for withdrawing this prediction (optional):');
       await expertPredictionService.rejectPrediction(predictionId, reason || undefined);
       // Reload the queue
       await loadReviewQueue();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to reject prediction:', err);
-      setError(err.response?.data?.detail || 'Failed to reject prediction');
+      setError(getErrorMessage(err, 'Failed to reject prediction'));
     } finally {
       setProcessingId(null);
     }
@@ -78,7 +94,7 @@ const ExpertReviewQueuePage: React.FC = () => {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading review queue...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading moderation queue...</p>
         </div>
       </div>
     );
@@ -95,11 +111,23 @@ const ExpertReviewQueuePage: React.FC = () => {
           ← Back to Dashboard
         </Link>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Review Queue
+          Moderation Queue
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Predictions pending review and approval
+          Predictions flagged for a moderator to look at — after they were published.
         </p>
+        <div
+          className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200"
+          role="note"
+          data-testid="no-approval-gate-notice"
+        >
+          <p className="font-semibold">Publishing does not wait for this queue.</p>
+          <p className="mt-1">
+            Experts publish directly: a prediction is live on the public match pages as soon as its author
+            publishes it, whether or not it ever appears here. Approving records that a moderator has
+            checked it; rejecting withdraws a prediction that is already public.
+          </p>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -113,18 +141,22 @@ const ExpertReviewQueuePage: React.FC = () => {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-            Pending Predictions ({predictions.length})
+            Flagged for moderation ({predictions.length})
           </h2>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            These are already visible to readers. Nothing here is waiting for permission to go live.
+          </p>
         </div>
 
         <div className="p-6">
           {predictions.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
-                📋 No predictions pending review
+                📋 Nothing waiting for moderation
               </p>
               <p className="text-gray-500 dark:text-gray-500 text-sm">
-                All predictions have been reviewed or there are no pending predictions.
+                Every flagged prediction has been dealt with. Experts&rsquo; predictions publish immediately
+                either way, so an empty queue does not hold anything back.
               </p>
             </div>
           ) : (
@@ -154,9 +186,7 @@ const ExpertReviewQueuePage: React.FC = () => {
                               src={prediction.match_details.home_team_logo}
                               alt={prediction.match_details.home_team_name}
                               className="w-6 h-6 object-contain"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
+                              onError={hideBrokenImage}
                             />
                           )}
                           <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -176,9 +206,7 @@ const ExpertReviewQueuePage: React.FC = () => {
                               src={prediction.match_details.away_team_logo}
                               alt={prediction.match_details.away_team_name}
                               className="w-6 h-6 object-contain"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
+                              onError={hideBrokenImage}
                             />
                           )}
                         </div>
@@ -213,19 +241,19 @@ const ExpertReviewQueuePage: React.FC = () => {
                     <div>
                       <p className="text-xs text-gray-600 dark:text-gray-400">Home Win</p>
                       <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {(prediction.home_win_prob * 100).toFixed(1)}%
+                        {formatUnitProbability(prediction.home_win_prob, 1)}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-600 dark:text-gray-400">Draw</p>
                       <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {(prediction.draw_prob * 100).toFixed(1)}%
+                        {formatUnitProbability(prediction.draw_prob, 1)}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-600 dark:text-gray-400">Away Win</p>
                       <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {(prediction.away_win_prob * 100).toFixed(1)}%
+                        {formatUnitProbability(prediction.away_win_prob, 1)}
                       </p>
                     </div>
                   </div>
@@ -242,28 +270,81 @@ const ExpertReviewQueuePage: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Expanded record (replaces the old /expert/predictions/:id link, which had no route) */}
+                  {expandedIds.includes(prediction.id) && (
+                    <div className="mb-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-xs" data-testid="prediction-details">
+                      <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Prediction id</dt>
+                          <dd className="font-mono text-gray-800 dark:text-gray-200 break-all">{prediction.id}</dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Match id</dt>
+                          <dd className="font-mono text-gray-800 dark:text-gray-200 break-all">{prediction.match_id}</dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Both teams to score (yes / no)</dt>
+                          <dd className="text-gray-800 dark:text-gray-200">
+                            {formatUnitProbability(prediction.btts_yes_prob, 1, 'not set')} / {formatUnitProbability(prediction.btts_no_prob, 1, 'not set')}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Over / under 2.5</dt>
+                          <dd className="text-gray-800 dark:text-gray-200">
+                            {formatUnitProbability(prediction.total_goals_over_25_prob, 1, 'not set')} / {formatUnitProbability(prediction.total_goals_under_25_prob, 1, 'not set')}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Over / under 3.5</dt>
+                          <dd className="text-gray-800 dark:text-gray-200">
+                            {formatUnitProbability(prediction.total_goals_over_35_prob, 1, 'not set')} / {formatUnitProbability(prediction.total_goals_under_35_prob, 1, 'not set')}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Published</dt>
+                          <dd className="text-gray-800 dark:text-gray-200">
+                            {prediction.published_at ? new Date(prediction.published_at).toLocaleString() : 'not published'}
+                          </dd>
+                        </div>
+                      </dl>
+                      {prediction.key_factors && Object.keys(prediction.key_factors).length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-gray-500 dark:text-gray-400 mb-1">Key factors</p>
+                          <ul className="list-disc list-inside space-y-0.5 text-gray-800 dark:text-gray-200">
+                            {Object.entries(prediction.key_factors).map(([key, value]) => (
+                              <li key={key}>{key}: {String(value)}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="flex gap-2 mt-4">
                     <button
                       onClick={() => handleApprove(prediction.id)}
                       disabled={processingId === prediction.id}
+                      title="Records that a moderator has checked this prediction. It is already public."
                       className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      {processingId === prediction.id ? 'Processing...' : 'Approve'}
+                      {processingId === prediction.id ? 'Processing...' : 'Mark as checked'}
                     </button>
                     <button
                       onClick={() => handleReject(prediction.id)}
                       disabled={processingId === prediction.id}
+                      title="Withdraws a prediction that is already visible to readers."
                       className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      {processingId === prediction.id ? 'Processing...' : 'Reject'}
+                      {processingId === prediction.id ? 'Processing...' : 'Withdraw'}
                     </button>
-                    <Link
-                      to={`/expert/predictions/${prediction.id}`}
-                      className="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors inline-block"
+                    <button
+                      onClick={() => toggleExpanded(prediction.id)}
+                      aria-expanded={expandedIds.includes(prediction.id)}
+                      className="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors"
                     >
-                      View Details
-                    </Link>
+                      {expandedIds.includes(prediction.id) ? 'Hide details' : 'View details'}
+                    </button>
                   </div>
                 </div>
               ))}

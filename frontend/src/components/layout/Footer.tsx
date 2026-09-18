@@ -15,8 +15,9 @@ const Footer: React.FC = () => {
               <span className="text-xl font-bold text-white">Soccer Predictions</span>
             </div>
             <p className="text-secondary-400 max-w-md">
-              Professional soccer predictions platform with advanced analytics and expert insights. 
-              Get accurate match predictions and betting tips from our team of experts.
+              Fixtures, results and model forecasts for Europe&rsquo;s top five leagues and the
+              Champions League, alongside predictions published by verified experts. Every
+              probability names its source. Nothing here is betting advice.
             </p>
           </div>
 
@@ -78,7 +79,7 @@ const Footer: React.FC = () => {
         <div className="mt-8 pt-8 border-t border-dark-700">
           <div className="flex flex-col sm:flex-row justify-between items-center">
             <p className="text-secondary-400 text-sm">
-              © 2024 Soccer Predictions. All rights reserved.
+              © {new Date().getFullYear()} Soccer Predictions. All rights reserved.
             </p>
             <div className="flex space-x-6 mt-4 sm:mt-0">
               <a href="#" className="text-secondary-400 hover:text-white transition-colors">

@@ -31,3 +31,8 @@ backend/.pytest_cache/
 
 # Local database backups (may contain credentials/PII) - never commit
 backups/
+
+# Playwright artifacts
+frontend/e2e/.artifacts/
+frontend/e2e/.report/
+frontend/test-results/

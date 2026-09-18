@@ -13,13 +13,14 @@
  */
 
 import { Team, League, Match, LeagueStanding } from '@/types';
-import apiFootballService from './api-football.service';
+import apiFootballService, { APIPrediction } from './api-football.service';
 import publicPredictionService, { PublicPrediction } from './public-prediction.service';
 import {
   mapLeague,
   mapTeam,
   mapFixture,
   mapHeadToHead,
+  MappablePrediction,
 } from './api-mapper.service';
 import backendMatchDataService from './backend-match-data.service';
 import {
@@ -46,6 +47,16 @@ const cache = {
 };
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+/** One row of API-Football's /standings payload (that endpoint is not typed by the client). */
+interface ApiFootballStandingRow {
+  rank: number;
+  team: { id: number; name: string; logo: string };
+  all: { played: number; win: number; draw: number; lose: number; goals: { for: number; against: number } };
+  goalsDiff: number;
+  points: number;
+  form: string | null;
+}
 
 class ApiFootballDataService implements MatchDataSource {
   readonly name = 'api-football' as const;
@@ -221,7 +232,7 @@ class ApiFootballDataService implements MatchDataSource {
    * Fetch prediction for a single fixture
    * Returns null if prediction is not available
    */
-  private async fetchPrediction(fixtureId: number): Promise<any | null> {
+  private async fetchPrediction(fixtureId: number): Promise<APIPrediction | null> {
     try {
       const response = await apiFootballService.getPredictions(fixtureId);
       if (response.response && response.response.length > 0) {
@@ -238,8 +249,8 @@ class ApiFootballDataService implements MatchDataSource {
    * Fetch predictions for multiple fixtures with rate limiting
    * Fetches predictions sequentially with delay to avoid rate limits
    */
-  private async fetchPredictionsBatch(fixtureIds: number[]): Promise<Map<number, any>> {
-    const predictions = new Map<number, any>();
+  private async fetchPredictionsBatch(fixtureIds: number[]): Promise<Map<number, APIPrediction>> {
+    const predictions = new Map<number, APIPrediction>();
 
     // Limit to first 5 fixtures to avoid excessive API calls
     const limitedIds = fixtureIds.slice(0, 5);
@@ -290,9 +301,9 @@ class ApiFootballDataService implements MatchDataSource {
    */
   private mergePredictions(
     _fixtureId: number,
-    apiFootballPrediction: any | null,
+    apiFootballPrediction: APIPrediction | null,
     expertPrediction: PublicPrediction | null
-  ): any {
+  ): MappablePrediction | null {
     // If expert prediction exists, use it (highest priority)
     if (expertPrediction) {
       const winner = this.getWinnerFromProbs(
@@ -301,28 +312,21 @@ class ApiFootballDataService implements MatchDataSource {
         expertPrediction.away_win_prob
       );
 
-      // Return in API-Football prediction format for compatibility with mapPredictions
+      // Reshaped to the API-Football payload so mapPredictions can read it. No `comparison` block:
+      // this used to carry seven 50%-vs-50% pairs that the expert never published and that surfaced
+      // on match cards as if they were measured form, attack and defence numbers.
       return {
         predictions: {
           winner: winner,
           win_or_draw: true,
           under_over: null,
           goals: { home: null, away: null },
-          advice: expertPrediction.reasoning || 'Expert prediction',
+          advice: expertPrediction.reasoning || '',
           percent: {
             home: `${Math.round(expertPrediction.home_win_prob * 100)}%`,
             draw: `${Math.round(expertPrediction.draw_prob * 100)}%`,
             away: `${Math.round(expertPrediction.away_win_prob * 100)}%`,
           },
-        },
-        comparison: {
-          form: { home: '50%', away: '50%' },
-          att: { home: '50%', away: '50%' },
-          def: { home: '50%', away: '50%' },
-          poisson_distribution: { home: '50%', away: '50%' },
-          h2h: { home: '50%', away: '50%' },
-          goals: { home: '50%', away: '50%' },
-          total: { home: '50%', away: '50%' },
         },
         // Add metadata to indicate this is an expert prediction
         source: 'expert',
@@ -565,7 +569,7 @@ class ApiFootballDataService implements MatchDataSource {
       // API-Football returns standings in a nested structure
       const standingsData = response.response[0]?.league?.standings?.[0] || [];
 
-      const standings: LeagueStanding[] = standingsData.map((standing: any) => ({
+      const standings: LeagueStanding[] = standingsData.map((standing: ApiFootballStandingRow) => ({
         position: standing.rank,
         team: this.createBasicTeam({
           id: standing.team.id,
@@ -645,7 +649,14 @@ class ApiFootballDataService implements MatchDataSource {
 
   async getFixturesByDateWithMeta(date: string): Promise<MatchListResult> {
     const matches = await this.getFixturesByDate(date);
-    return { matches, meta: { provider: 'api_football', source: 'browser', stale: false, fetchedAt: new Date().toISOString(), errors: [] } };
+    return {
+      matches,
+      meta: {
+        provider: 'api_football', source: 'browser', stale: false, fetchedAt: new Date().toISOString(), errors: [],
+        // The legacy browser path never runs the backend's forecast refresh, so there is no report.
+        forecastSync: null,
+      },
+    };
   }
 
   async getMatch(matchId: string): Promise<Match | null> {
@@ -704,6 +715,23 @@ class ApiFootballDataService implements MatchDataSource {
     cache.leagues.clear();
     cache.teams.clear();
     cache.matches.clear();
+  }
+
+  /**
+   * Drop cached entries whose key starts with `prefix` (everything when omitted).
+   * Fixture caches carry the expert predictions merged into them, so a write must evict them.
+   */
+  invalidate(prefix?: string): void {
+    const maps = [cache.leagues, cache.teams, cache.matches];
+    if (!prefix) {
+      maps.forEach(map => map.clear());
+      return;
+    }
+    maps.forEach(map => {
+      for (const key of Array.from(map.keys())) {
+        if (key.startsWith(prefix)) map.delete(key);
+      }
+    });
   }
 }
 

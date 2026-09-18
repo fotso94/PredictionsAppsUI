@@ -20,8 +20,8 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date
-from typing import Any, Dict, Iterable, List, Optional
+from datetime import date, datetime, timezone
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from app.core.config import settings
 from app.services.providers import competitions as comps
@@ -29,6 +29,7 @@ from app.services.providers.base import (
     ForecastProvider, ProviderCompetition, ProviderForecast, ProviderNotConfiguredError,
     ProviderUnavailableError, parse_utc,
 )
+from app.services.providers.base import to_probability as _to_probability
 from app.services.providers.budget import RequestBudget
 from app.services.providers.http import ProviderHttpClient
 from app.services.match_cache import MatchCache
@@ -40,6 +41,10 @@ PAGE_SIZE = 50
 MAX_PAGES = 4
 LEAGUE_STORE_KEY = "provider:gameforecast:leagues"
 LEAGUE_STORE_TTL = 30 * 24 * 3600
+#: A competition the /leagues search cannot resolve is remembered as unresolvable for this long.
+#: Each discovery attempt costs one of the 10 free requests a day, so retrying it on every sync
+#: burns the whole plan on a lookup that is already known to fail.
+UNRESOLVED_TTL = 6 * 3600
 
 # GameForecast uses ISO country codes; our competitions use football federations' names
 COUNTRY_CODES = {"premier_league": "GB", "la_liga": "ES", "serie_a": "IT", "bundesliga": "DE", "ligue_1": "FR"}
@@ -62,36 +67,53 @@ PROBABILITY_SCALE = 100.0
 SUM_TOLERANCE = 0.02
 
 
+#: Values are compared against zero with a tolerance because they arrive rounded to 4 decimals.
+ZERO_TOLERANCE = 1e-9
+
+
 def to_probability(value: Any) -> Optional[float]:
-    """Convert one provider percentage (0-100) to a 0-1 probability.
+    """Convert one GameForecastAPI percentage (0-100) to a 0-1 probability.
 
-    Returns None - meaning "market unavailable" - for anything that is not a finite number
-    inside the published range. Nothing is guessed, clamped or rescaled.
+    This is base.to_probability with this provider's documented scale bound explicitly; there is
+    exactly one conversion implementation (in base.py) and this only supplies PROBABILITY_SCALE.
+    Returns None - meaning "market unavailable" - for anything that is not a finite number inside
+    the published range. Nothing is guessed, clamped or rescaled.
     """
-    if value is None or isinstance(value, bool):
-        return None
-    if isinstance(value, str):
-        value = value.strip().rstrip("%")
-        if not value:
-            return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    if number != number or number in (float("inf"), float("-inf")):  # NaN / +-inf
-        return None
-    if number < 0 or number > PROBABILITY_SCALE:
-        return None
-    return round(number / PROBABILITY_SCALE, 4)
+    return _to_probability(value, PROBABILITY_SCALE)
 
 
-def _check_sum(anomalies: List[str], label: str, values: Iterable[Optional[float]]) -> None:
-    present = [v for v in values if v is not None]
-    if len(present) < 2:
+def _check_sum(anomalies: List[str], label: str,
+               fields: Sequence[Tuple[str, Optional[float]]], expected: int) -> None:
+    """Report a market whose probabilities do not add up - or say plainly that it is partial.
+
+    `expected` is how many outcomes the market has (3 for 1X2, 2 for a complementary pair). A
+    market the provider supplied only partially is NOT summed: two of three outcomes legitimately
+    add up to less than 100%, and reporting that as an inconsistency is a false alarm.
+    """
+    present = [(name, value) for name, value in fields if value is not None]
+    if not present:
+        return  # the provider supplied nothing for this market; it renders as unavailable
+    if len(present) < expected:
+        missing = [name for name, value in fields if value is None]
+        noun = "probability" if len(missing) == 1 else "probabilities"
+        anomalies.append(f"{label} incomplete: {', '.join(missing)} {noun} not supplied")
         return
-    total = sum(present)
+    total = sum(value for _, value in present)
     if abs(total - 1.0) > SUM_TOLERANCE:
         anomalies.append(f"{label} probabilities sum to {round(total * 100, 1)}%")
+
+
+def _all_zero(anomalies: List[str], label: str, values: Sequence[Optional[float]]) -> bool:
+    """True when the market was supplied but every value in it is zero.
+
+    A provider that publishes 0 for every outcome of a market has not forecast that market: it
+    is unavailable, and rendering it as a genuine 0% would present a non-forecast as a forecast.
+    """
+    present = [v for v in values if v is not None]
+    if not present or sum(present) > ZERO_TOLERANCE:
+        return False
+    anomalies.append(f"{label} values were all zero; treated as unavailable")
+    return True
 
 
 _SCORE_KEY = re.compile(r"^(\d+)[_\-:](\d+)$")
@@ -110,6 +132,7 @@ def _parse_exact_scores(exact: Dict[str, Any], anomalies: List[str]):
     scores: Dict[str, float] = {}
     other: Optional[float] = None
     dropped = 0
+    zeroed = 0
     for raw_key, raw_value in exact.items():
         key = str(raw_key).strip().lower()
         probability = to_probability(raw_value)
@@ -123,14 +146,24 @@ def _parse_exact_scores(exact: Dict[str, Any], anomalies: List[str]):
         if probability is None:
             dropped += 1
             continue
+        if probability <= ZERO_TOLERANCE:
+            # A 0% scoreline is not a forecast of that scoreline. Keeping it would let the
+            # "most likely score" pick a 0% entry when the provider zeroed the whole market.
+            zeroed += 1
+            continue
         scores[f"{key_match.group(1)}-{key_match.group(2)}"] = probability
     if dropped:
         anomalies.append(f"{dropped} exact-score entries were unreadable and were dropped")
-    if scores:
-        total = sum(scores.values()) + (other or 0.0)
-        if total > 1.0 + SUM_TOLERANCE:
-            anomalies.append(f"exact-score probabilities sum to {round(total * 100, 1)}%")
-    return (scores or None), other
+    if zeroed:
+        anomalies.append(f"{zeroed} exact-score entries were 0% and were dropped")
+    if not scores:
+        # Nothing survived: the market is unavailable. A remainder bucket on its own is not a
+        # scoreline forecast, so it is not carried either.
+        return None, None
+    total = sum(scores.values()) + (other or 0.0)
+    if total > 1.0 + SUM_TOLERANCE:
+        anomalies.append(f"exact-score probabilities sum to {round(total * 100, 1)}%")
+    return scores, other
 
 
 def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) -> Optional[ProviderForecast]:
@@ -156,10 +189,24 @@ def parse_event(event: Dict[str, Any], competition_key: Optional[str] = None) ->
     btts_yes, btts_no = to_probability(btts.get("yes")), to_probability(btts.get("no"))
     over_25, under_25 = to_probability(totals.get("over_2_5")), to_probability(totals.get("under_2_5"))
     over_35, under_35 = to_probability(totals.get("over_3_5")), to_probability(totals.get("under_3_5"))
-    _check_sum(anomalies, "match result", (home_prob, draw_prob, away_prob))
-    _check_sum(anomalies, "both teams to score", (btts_yes, btts_no))
-    _check_sum(anomalies, "over/under 2.5", (over_25, under_25))
-    _check_sum(anomalies, "over/under 3.5", (over_35, under_35))
+    # A market the provider published as all zeros is a market it did not forecast. It must be
+    # reported as unavailable, never rendered as a genuine 0%.
+    if _all_zero(anomalies, "match result", (home_prob, draw_prob, away_prob)):
+        home_prob = draw_prob = away_prob = None
+    if _all_zero(anomalies, "both teams to score", (btts_yes, btts_no)):
+        btts_yes = btts_no = None
+    if _all_zero(anomalies, "over/under 2.5", (over_25, under_25)):
+        over_25 = under_25 = None
+    if _all_zero(anomalies, "over/under 3.5", (over_35, under_35)):
+        over_35 = under_35 = None
+    _check_sum(anomalies, "match result",
+               (("home", home_prob), ("draw", draw_prob), ("away", away_prob)), expected=3)
+    _check_sum(anomalies, "both teams to score",
+               (("yes", btts_yes), ("no", btts_no)), expected=2)
+    _check_sum(anomalies, "over/under 2.5",
+               (("over", over_25), ("under", under_25)), expected=2)
+    _check_sum(anomalies, "over/under 3.5",
+               (("over", over_35), ("under", under_35)), expected=2)
     exact_scores, exact_other = _parse_exact_scores(exact, anomalies)
     if anomalies:
         logger.warning("GameForecastAPI event %s: %s", event.get("id"), "; ".join(anomalies))
@@ -214,6 +261,9 @@ class GameForecastProvider(ForecastProvider):
         self._league_cache: Dict[str, ProviderCompetition] = {}
         # League ids never change: keep them in Redis so the 10-requests/day free plan is spent on events
         self._store = store if store is not None else MatchCache()
+        #: Keys whose negative marker this instance has already reported, so the short-circuit
+        #: logs once instead of once per competition per sync.
+        self._unresolved_logged: set = set()
 
     def _load_store(self) -> None:
         data = self._store.get(LEAGUE_STORE_KEY) or {}
@@ -230,13 +280,33 @@ class GameForecastProvider(ForecastProvider):
         if data:
             self._store.set(LEAGUE_STORE_KEY, data, ttl=LEAGUE_STORE_TTL, stale_ttl=LEAGUE_STORE_TTL)
 
+    # -------------------------------------------------- negative league-discovery cache
+    @staticmethod
+    def unresolved_key(key: str) -> str:
+        return f"{LEAGUE_STORE_KEY}:unresolved:{key}"
+
+    def _is_unresolved(self, key: str) -> bool:
+        """True while a recent discovery attempt for this competition is known to have failed."""
+        if not self._store.get(self.unresolved_key(key)):
+            return False
+        if key not in self._unresolved_logged:
+            self._unresolved_logged.add(key)
+            logger.info("GameForecastAPI: %s is marked unresolvable for %dh; skipping the /leagues "
+                        "lookup to preserve the daily request budget", key, UNRESOLVED_TTL // 3600)
+        return True
+
+    def _mark_unresolved(self, key: str) -> None:
+        self._store.set(self.unresolved_key(key),
+                        {"key": key, "at": datetime.now(timezone.utc).isoformat()},
+                        ttl=UNRESOLVED_TTL, stale_ttl=UNRESOLVED_TTL)
+
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
-    def _get(self, path: str, **params: Any) -> Dict[str, Any]:
+    def _get(self, path: str, reason: str = "fetch", **params: Any) -> Dict[str, Any]:
         if not self.is_configured():
             raise ProviderNotConfiguredError("GameForecastAPI key not configured (GAMEFORECAST_API_KEY)", provider=self.name)
-        self.budget.consume(1)
+        self.budget.consume(1, reason=reason)
         payload = self.client.get_json(path, {k: v for k, v in params.items() if v is not None})
         if not isinstance(payload, dict) or "data" not in payload:
             raise ProviderUnavailableError("GameForecastAPI returned an unexpected payload", provider=self.name)
@@ -255,8 +325,13 @@ class GameForecastProvider(ForecastProvider):
             comp = ProviderCompetition(provider=PROVIDER_NAME, external_id=external_id, name=canonical.name, key=key,
                                        country=canonical.country, is_cup=canonical.is_cup)
         else:
+            # Discovery is the only path that can fail, and it costs one of the 10 free requests
+            # a day. A failure that is not remembered is repeated on every sync, forever.
+            if self._is_unresolved(key):
+                return None
             comp = None
-            payload = self._get("/leagues", name=canonical.aliases[0], country_code=COUNTRY_CODES.get(key), page_size=PAGE_SIZE)
+            payload = self._get("/leagues", reason="discovery", name=canonical.aliases[0],
+                                country_code=COUNTRY_CODES.get(key), page_size=PAGE_SIZE)
             for item in payload.get("data") or []:
                 if item.get("women"):
                     continue
@@ -271,7 +346,9 @@ class GameForecastProvider(ForecastProvider):
             self._league_cache[key] = comp
             self._save_store()
         else:
-            logger.warning("GameForecastAPI: league id for %s could not be resolved", key)
+            self._mark_unresolved(key)
+            logger.warning("GameForecastAPI: league id for %s could not be resolved; not retrying for %dh",
+                           key, UNRESOLVED_TTL // 3600)
         return comp
 
     def get_forecasts(self, key: str, date_from: date, date_to: date) -> List[ProviderForecast]:
@@ -281,13 +358,19 @@ class GameForecastProvider(ForecastProvider):
         forecasts: List[ProviderForecast] = []
         page = 1
         while page <= MAX_PAGES:
-            payload = self._get("/events", league_id=league.external_id,
+            payload = self._get("/events", reason="fetch" if page == 1 else "page",
+                                league_id=league.external_id,
                                 start_at_start=date_from.strftime("%Y-%m-%d"),
                                 start_at_end=date_to.strftime("%Y-%m-%d"),
                                 page=page, page_size=PAGE_SIZE)
+            # Retrieval time is stamped here, once per HTTP response, while the payload is being
+            # parsed - not when the forecast is later attached to a match. Stamping it at attach
+            # time presents an hours-old forecast as freshly retrieved.
+            fetched_at = datetime.now(timezone.utc)
             for event in payload.get("data") or []:
                 forecast = parse_event(event, competition_key=key)
                 if forecast and forecast.has_any_market():
+                    forecast.fetched_at = fetched_at
                     forecasts.append(forecast)
             pagination = payload.get("pagination") or {}
             if not pagination.get("hasMore"):

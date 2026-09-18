@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
 
 const RegisterPage: React.FC = () => {

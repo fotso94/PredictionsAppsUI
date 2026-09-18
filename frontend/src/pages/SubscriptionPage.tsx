@@ -9,6 +9,7 @@ import Card from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import toast from 'react-hot-toast';
 import { CheckIcon } from '@heroicons/react/24/outline';
+import { getErrorMessage } from '@/utils/errors';
 
 const SubscriptionPage: React.FC = () => {
   const [currentSubscription, setCurrentSubscription] = useState<SubscriptionResponse | null>(null);
@@ -52,9 +53,9 @@ const SubscriptionPage: React.FC = () => {
       });
       setCurrentSubscription(response.subscription);
       toast.success(response.message);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to update subscription:', error);
-      const errorMessage = error.response?.data?.detail || 'Failed to update subscription';
+      const errorMessage = getErrorMessage(error, 'Failed to update subscription');
       toast.error(errorMessage);
     } finally {
       setIsUpgrading(false);

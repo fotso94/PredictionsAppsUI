@@ -3,7 +3,7 @@
  * Page for experts to view their own predictions
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import expertPredictionService from '../services/expert-prediction.service';
 import { ExpertPredictionResponse, ExpertPredictionUpdateRequest } from '../types/expert';
@@ -12,6 +12,9 @@ import {
   PredictionStatusBadge,
   ConfidenceBadge,
 } from '../components/PredictionSourceBadge';
+import { formatUnitProbability } from '@/components/ui/probability';
+import { hideBrokenImage } from '@/components/ui/imageFallback';
+import { getErrorMessage } from '@/utils/errors';
 
 const ExpertMyPredictionsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -23,12 +26,10 @@ const ExpertMyPredictionsPage: React.FC = () => {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ExpertPredictionUpdateRequest | null>(null);
+  /** Ids whose full record is expanded in place — there is no separate detail route. */
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    loadMyPredictions();
-  }, [page, statusFilter]);
-
-  const loadMyPredictions = async () => {
+  const loadMyPredictions = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -38,12 +39,22 @@ const ExpertMyPredictionsPage: React.FC = () => {
         status: statusFilter === 'all' ? undefined : statusFilter,
       });
       setPredictions(data);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load predictions:', err);
-      setError(err.response?.data?.detail || 'Failed to load predictions');
+      setError(getErrorMessage(err, 'Failed to load predictions'));
     } finally {
       setLoading(false);
     }
+  }, [limit, page, statusFilter]);
+
+  useEffect(() => {
+    loadMyPredictions();
+  }, [loadMyPredictions]);
+
+  const toggleExpanded = (predictionId: string) => {
+    setExpandedIds(prev =>
+      prev.includes(predictionId) ? prev.filter(id => id !== predictionId) : [...prev, predictionId]
+    );
   };
 
   const handleEdit = (prediction: ExpertPredictionResponse) => {
@@ -86,9 +97,9 @@ const ExpertMyPredictionsPage: React.FC = () => {
       setEditForm(null);
       // Reload predictions
       await loadMyPredictions();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to update prediction:', err);
-      setError(err.response?.data?.detail || 'Failed to update prediction');
+      setError(getErrorMessage(err, 'Failed to update prediction'));
     } finally {
       setProcessingId(null);
     }
@@ -105,9 +116,9 @@ const ExpertMyPredictionsPage: React.FC = () => {
       await expertPredictionService.deletePrediction(predictionId);
       // Reload predictions
       await loadMyPredictions();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to delete prediction:', err);
-      setError(err.response?.data?.detail || 'Failed to delete prediction');
+      setError(getErrorMessage(err, 'Failed to delete prediction'));
     } finally {
       setProcessingId(null);
     }
@@ -227,9 +238,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                               src={prediction.match_details.home_team_logo}
                               alt={prediction.match_details.home_team_name}
                               className="w-6 h-6 object-contain"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
+                              onError={hideBrokenImage}
                             />
                           )}
                           <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -249,9 +258,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                               src={prediction.match_details.away_team_logo}
                               alt={prediction.match_details.away_team_name}
                               className="w-6 h-6 object-contain"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
+                              onError={hideBrokenImage}
                             />
                           )}
                         </div>
@@ -341,7 +348,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                           step="0.01"
                           min="0"
                           max="1"
-                          value={editForm.confidence_score || 0}
+                          value={editForm.confidence_score ?? ''}
                           onChange={(e) => setEditForm({ ...editForm, confidence_score: parseFloat(e.target.value) || undefined })}
                           className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                         />
@@ -503,19 +510,19 @@ const ExpertMyPredictionsPage: React.FC = () => {
                           <div>
                             <p className="text-xs text-gray-600 dark:text-gray-400">Home Win</p>
                             <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                              {(prediction.home_win_prob * 100).toFixed(1)}%
+                              {formatUnitProbability(prediction.home_win_prob, 1)}
                             </p>
                           </div>
                           <div>
                             <p className="text-xs text-gray-600 dark:text-gray-400">Draw</p>
                             <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                              {(prediction.draw_prob * 100).toFixed(1)}%
+                              {formatUnitProbability(prediction.draw_prob, 1)}
                             </p>
                           </div>
                           <div>
                             <p className="text-xs text-gray-600 dark:text-gray-400">Away Win</p>
                             <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                              {(prediction.away_win_prob * 100).toFixed(1)}%
+                              {formatUnitProbability(prediction.away_win_prob, 1)}
                             </p>
                           </div>
                         </div>
@@ -528,7 +535,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                             Both Teams to Score (BTTS)
                             {prediction.btts_confidence && (
                               <span className="ml-2 text-blue-600 dark:text-blue-400">
-                                {(prediction.btts_confidence * 100).toFixed(0)}% confidence
+                                {formatUnitProbability(prediction.btts_confidence, 0)} confidence
                               </span>
                             )}
                           </p>
@@ -536,14 +543,14 @@ const ExpertMyPredictionsPage: React.FC = () => {
                             <div>
                               <p className="text-xs text-gray-600 dark:text-gray-400">Yes</p>
                               <p className="text-base font-semibold text-gray-900 dark:text-white">
-                                {(prediction.btts_yes_prob * 100).toFixed(1)}%
+                                {formatUnitProbability(prediction.btts_yes_prob, 1)}
                               </p>
                             </div>
                             {prediction.btts_no_prob !== null && prediction.btts_no_prob !== undefined && (
                               <div>
                                 <p className="text-xs text-gray-600 dark:text-gray-400">No</p>
                                 <p className="text-base font-semibold text-gray-900 dark:text-white">
-                                  {(prediction.btts_no_prob * 100).toFixed(1)}%
+                                  {formatUnitProbability(prediction.btts_no_prob, 1)}
                                 </p>
                               </div>
                             )}
@@ -561,7 +568,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                             Total Goals
                             {prediction.total_goals_confidence && (
                               <span className="ml-2 text-green-600 dark:text-green-400">
-                                {(prediction.total_goals_confidence * 100).toFixed(0)}% confidence
+                                {formatUnitProbability(prediction.total_goals_confidence, 0)} confidence
                               </span>
                             )}
                           </p>
@@ -570,7 +577,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                               <div>
                                 <p className="text-xs text-gray-600 dark:text-gray-400">Over 2.5</p>
                                 <p className="text-base font-semibold text-gray-900 dark:text-white">
-                                  {(prediction.total_goals_over_25_prob * 100).toFixed(1)}%
+                                  {formatUnitProbability(prediction.total_goals_over_25_prob, 1)}
                                 </p>
                               </div>
                             )}
@@ -578,7 +585,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                               <div>
                                 <p className="text-xs text-gray-600 dark:text-gray-400">Under 2.5</p>
                                 <p className="text-base font-semibold text-gray-900 dark:text-white">
-                                  {(prediction.total_goals_under_25_prob * 100).toFixed(1)}%
+                                  {formatUnitProbability(prediction.total_goals_under_25_prob, 1)}
                                 </p>
                               </div>
                             )}
@@ -586,7 +593,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                               <div>
                                 <p className="text-xs text-gray-600 dark:text-gray-400">Over 3.5</p>
                                 <p className="text-base font-semibold text-gray-900 dark:text-white">
-                                  {(prediction.total_goals_over_35_prob * 100).toFixed(1)}%
+                                  {formatUnitProbability(prediction.total_goals_over_35_prob, 1)}
                                 </p>
                               </div>
                             )}
@@ -594,7 +601,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                               <div>
                                 <p className="text-xs text-gray-600 dark:text-gray-400">Under 3.5</p>
                                 <p className="text-base font-semibold text-gray-900 dark:text-white">
-                                  {(prediction.total_goals_under_35_prob * 100).toFixed(1)}%
+                                  {formatUnitProbability(prediction.total_goals_under_35_prob, 1)}
                                 </p>
                               </div>
                             )}
@@ -625,6 +632,64 @@ const ExpertMyPredictionsPage: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Expanded record (replaces the old /expert/predictions/:id link, which had no route) */}
+                  {expandedIds.includes(prediction.id) && (
+                    <div className="mb-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-xs" data-testid="prediction-details">
+                      <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Prediction id</dt>
+                          <dd className="font-mono text-gray-800 dark:text-gray-200 break-all">{prediction.id}</dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Match id</dt>
+                          <dd className="font-mono text-gray-800 dark:text-gray-200 break-all">{prediction.match_id}</dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Source</dt>
+                          <dd className="text-gray-800 dark:text-gray-200">{prediction.source}</dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Priority level</dt>
+                          <dd className="text-gray-800 dark:text-gray-200">{prediction.priority_level}</dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Confidence</dt>
+                          <dd className="text-gray-800 dark:text-gray-200">
+                            {formatUnitProbability(prediction.confidence_score, 0, 'not set')}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">BTTS confidence</dt>
+                          <dd className="text-gray-800 dark:text-gray-200">
+                            {formatUnitProbability(prediction.btts_confidence, 0, 'not set')}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Total goals confidence</dt>
+                          <dd className="text-gray-800 dark:text-gray-200">
+                            {formatUnitProbability(prediction.total_goals_confidence, 0, 'not set')}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-gray-500 dark:text-gray-400">Published</dt>
+                          <dd className="text-gray-800 dark:text-gray-200">
+                            {prediction.published_at ? new Date(prediction.published_at).toLocaleString() : 'not published'}
+                          </dd>
+                        </div>
+                      </dl>
+                      {prediction.key_factors && Object.keys(prediction.key_factors).length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-gray-500 dark:text-gray-400 mb-1">Key factors</p>
+                          <ul className="list-disc list-inside space-y-0.5 text-gray-800 dark:text-gray-200">
+                            {Object.entries(prediction.key_factors).map(([key, value]) => (
+                              <li key={key}>{key}: {String(value)}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="flex gap-2 mt-4">
                     {editingId === prediction.id ? (
@@ -646,12 +711,13 @@ const ExpertMyPredictionsPage: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <Link
-                          to={`/expert/predictions/${prediction.id}`}
-                          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors inline-block"
+                        <button
+                          onClick={() => toggleExpanded(prediction.id)}
+                          aria-expanded={expandedIds.includes(prediction.id)}
+                          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
                         >
-                          View Details
-                        </Link>
+                          {expandedIds.includes(prediction.id) ? 'Hide details' : 'View details'}
+                        </button>
                         {prediction.status === 'pending' && (
                           <>
                             <button

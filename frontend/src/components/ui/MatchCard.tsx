@@ -2,15 +2,24 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarIcon, ClockIcon, MapPinIcon, UserIcon, CpuChipIcon } from '@heroicons/react/24/outline'
 import { Match } from '@/types'
+import { ForecastSyncStatus } from '@/services/match-data-source'
 import Card from './Card'
 import { ConfidenceBadge } from './Badge'
+import { ForecastAnomalies } from './ForecastProvenance'
 import { format } from 'date-fns'
 import { isMatchLive, isMatchFinished, getMatchStatusText, getMatchStatusBadgeClasses } from '@/utils/matchFilters'
-import { predictionSourceLabel } from '@/utils/predictionLabels'
+import { predictionSourceLabel, forecastSyncMessage } from '@/utils/predictionLabels'
+import { marketLead, formatPercent, UNAVAILABLE_TEXT } from './probability'
+import { onTeamLogoError, onLeagueLogoError } from './imageFallback'
 
 interface MatchCardProps {
   match: Match
   showPredictions?: boolean
+  /**
+   * Last forecast-refresh report from the list this card came from. When refreshes are paused the
+   * empty state must say so instead of implying no forecast exists.
+   */
+  forecastSync?: ForecastSyncStatus | null
 }
 
 const forecastStateText = (state?: string | null): string | null => {
@@ -21,7 +30,12 @@ const forecastStateText = (state?: string | null): string | null => {
   }
 }
 
-const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) => {
+/** A market the source did not publish. Never rendered as 0%. */
+const Unavailable: React.FC = () => (
+  <span className="text-xs text-secondary-500">{UNAVAILABLE_TEXT}</span>
+)
+
+const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, forecastSync = null }) => {
   const formatTime = (time: string) => {
     try {
       const [hours, minutes] = time.split(':')
@@ -58,7 +72,21 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
   const prediction = match.predictions
   const isExpertPrediction = prediction?.source === 'expert'
   const hiddenForecastNote = !prediction ? forecastStateText(match.providerForecast?.state) : null
+  const pausedNote = !prediction ? forecastSyncMessage(forecastSync) : null
   const showScore = (isMatchLive(match) || isMatchFinished(match)) && match.result
+
+  /**
+   * The 1X2 market. `outcome` is null when the source published no match-result market, and
+   * `markets.matchResult === false` says the same thing explicitly — either way the row must read
+   * "Unavailable" rather than a green "Home Win (0%)" from a zero-filled block.
+   */
+  const outcome = prediction?.outcome && prediction.markets?.matchResult !== false ? prediction.outcome : null
+  const btts = prediction?.bothTeamsToScore
+    ? marketLead({ label: 'Yes', value: prediction.bothTeamsToScore.yes }, { label: 'No', value: prediction.bothTeamsToScore.no })
+    : null
+  const totals = prediction?.totalGoals
+    ? marketLead({ label: 'Over 2.5', value: prediction.totalGoals.over25 }, { label: 'Under 2.5', value: prediction.totalGoals.under25 })
+    : null
 
   return (
     <Card hover className="overflow-hidden">
@@ -71,9 +99,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
                 src={match.league.logo}
                 alt={match.league.name}
                 className="h-4 w-4"
-                onError={(e) => {
-                  e.currentTarget.src = '/leagues/default.svg'
-                }}
+                onError={onLeagueLogoError}
               />
               <span className="text-xs text-secondary-400 truncate">{match.league.name}</span>
               {prediction && (isExpertPrediction ? (
@@ -113,9 +139,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
                 src={match.homeTeam.logo} 
                 alt={match.homeTeam.name}
                 className="h-8 w-8"
-                onError={(e) => {
-                  e.currentTarget.src = '/teams/default.svg'
-                }}
+                onError={onTeamLogoError}
               />
               <div className="min-w-0">
                 <div className="font-medium text-white truncate">{match.homeTeam.name}</div>
@@ -152,9 +176,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
                 src={match.awayTeam.logo} 
                 alt={match.awayTeam.name}
                 className="h-8 w-8"
-                onError={(e) => {
-                  e.currentTarget.src = '/teams/default.svg'
-                }}
+                onError={onTeamLogoError}
               />
             </div>
           </div>
@@ -169,69 +191,78 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true }) 
             <>
               {prediction ? (
                 <div className="space-y-3" data-testid="match-prediction">
-                  {/* Outcome Prediction */}
+                  <ForecastAnomalies anomalies={prediction.anomalies} />
+
+                  {/* Outcome Prediction (1X2) */}
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-secondary-400">Most Likely:</span>
-                    <div className="flex items-center space-x-2">
-                      <span className={`text-sm font-medium ${getOutcomeColor(
-                        prediction.outcome.homeWin,
-                        prediction.outcome.draw,
-                        prediction.outcome.awayWin
-                      )}`}>
-                        {getMostLikelyOutcome(
-                          prediction.outcome.homeWin,
-                          prediction.outcome.draw,
-                          prediction.outcome.awayWin
-                        )}
-                        <span className="text-secondary-400 font-normal"> ({Math.round(Math.max(prediction.outcome.homeWin, prediction.outcome.draw, prediction.outcome.awayWin))}%)</span>
-                      </span>
-                      <ConfidenceBadge level={prediction.outcome.confidence} />
-                    </div>
+                    {outcome ? (
+                      <div className="flex items-center space-x-2" data-testid="match-outcome">
+                        <span className={`text-sm font-medium ${getOutcomeColor(outcome.homeWin, outcome.draw, outcome.awayWin)}`}>
+                          {getMostLikelyOutcome(outcome.homeWin, outcome.draw, outcome.awayWin)}
+                          <span className="text-secondary-400 font-normal"> ({formatPercent(Math.max(outcome.homeWin, outcome.draw, outcome.awayWin))})</span>
+                        </span>
+                        <ConfidenceBadge level={outcome.confidence} />
+                      </div>
+                    ) : (
+                      <span data-testid="match-outcome-unavailable"><Unavailable /></span>
+                    )}
                   </div>
 
                   {/* BTTS Prediction */}
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-secondary-400">Both Teams to Score:</span>
-                    {prediction.bothTeamsToScore ? (
+                    {btts && btts.known.length > 0 && prediction.bothTeamsToScore ? (
                       <div className="flex items-center space-x-2">
-                        <span className={`text-sm font-medium ${
-                          prediction.bothTeamsToScore.yes > prediction.bothTeamsToScore.no
-                            ? 'text-success-400'
-                            : 'text-danger-400'
-                        }`}>
-                          {prediction.bothTeamsToScore.yes > prediction.bothTeamsToScore.no ? 'Yes' : 'No'}
-                          <span className="text-secondary-400 font-normal"> ({Math.round(Math.max(prediction.bothTeamsToScore.yes, prediction.bothTeamsToScore.no))}%)</span>
-                        </span>
+                        {btts.leader ? (
+                          <span className={`text-sm font-medium ${btts.leader.label === 'Yes' ? 'text-success-400' : 'text-danger-400'}`}>
+                            {btts.leader.label}
+                            <span className="text-secondary-400 font-normal"> ({formatPercent(btts.leader.value)})</span>
+                          </span>
+                        ) : (
+                          // Only one half published: showing it as the favourite would mean inferring the other.
+                          <span className="text-sm font-medium text-secondary-300">
+                            {btts.known[0].label} {formatPercent(btts.known[0].value)}
+                            <span className="text-secondary-500 font-normal"> · other side {UNAVAILABLE_TEXT.toLowerCase()}</span>
+                          </span>
+                        )}
                         <ConfidenceBadge level={prediction.bothTeamsToScore.confidence} />
                       </div>
                     ) : (
-                      <span className="text-xs text-secondary-500">Unavailable</span>
+                      <Unavailable />
                     )}
                   </div>
 
                   {/* Over/Under Prediction */}
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-secondary-400">Total Goals:</span>
-                    {prediction.totalGoals ? (
+                    {totals && totals.known.length > 0 && prediction.totalGoals ? (
                       <div className="flex items-center space-x-2">
-                        <span className={`text-sm font-medium ${
-                          prediction.totalGoals.over25 > prediction.totalGoals.under25
-                            ? 'text-success-400'
-                            : 'text-warning-400'
-                        }`}>
-                          {prediction.totalGoals.over25 > prediction.totalGoals.under25 ? 'Over 2.5' : 'Under 2.5'}
-                          <span className="text-secondary-400 font-normal"> ({Math.round(Math.max(prediction.totalGoals.over25, prediction.totalGoals.under25))}%)</span>
-                        </span>
+                        {totals.leader ? (
+                          <span className={`text-sm font-medium ${totals.leader.label.startsWith('Over') ? 'text-success-400' : 'text-warning-400'}`}>
+                            {totals.leader.label}
+                            <span className="text-secondary-400 font-normal"> ({formatPercent(totals.leader.value)})</span>
+                          </span>
+                        ) : (
+                          <span className="text-sm font-medium text-secondary-300">
+                            {totals.known[0].label} {formatPercent(totals.known[0].value)}
+                            <span className="text-secondary-500 font-normal"> · other side {UNAVAILABLE_TEXT.toLowerCase()}</span>
+                          </span>
+                        )}
                         <ConfidenceBadge level={prediction.totalGoals.confidence} />
                       </div>
                     ) : (
-                      <span className="text-xs text-secondary-500">Unavailable</span>
+                      <Unavailable />
                     )}
                   </div>
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-dark-700 px-3 py-3 text-center" data-testid="match-prediction-unavailable">
-                  <p className="text-sm text-secondary-400">No prediction available yet</p>
+                  {/* A paused refresh is not the same as "no forecast exists" — say which it is. */}
+                  <p className="text-sm text-secondary-400">
+                    {pausedNote ? 'Forecast updates are paused' : 'No prediction available yet'}
+                  </p>
+                  {pausedNote && <p className="text-xs text-secondary-500 mt-1">{pausedNote}</p>}
                   {hiddenForecastNote && <p className="text-xs text-secondary-500 mt-1">{hiddenForecastNote}</p>}
                 </div>
               )}

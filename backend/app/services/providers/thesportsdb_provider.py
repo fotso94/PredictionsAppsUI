@@ -62,10 +62,10 @@ class TheSportsDBProvider(MatchDataProvider):
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
-    def _get(self, path: str, **params: Any) -> Dict[str, Any]:
+    def _get(self, path: str, reason: str = "fetch", **params: Any) -> Dict[str, Any]:
         if not self.is_configured():
             raise ProviderNotConfiguredError("TheSportsDB key not configured (THESPORTSDB_KEY)", provider=self.name)
-        self.budget.consume(1)
+        self.budget.consume(1, reason=reason)
         payload = self.client.get_json(path, params)
         return payload if isinstance(payload, dict) else {}
 

@@ -13,8 +13,10 @@
 import apiClient from './api-client';
 import { ConfidenceLevel, HeadToHead, League, LeagueStanding, Match, MatchPredictions, MatchStatus, Team } from '@/types';
 import {
-  CoverageSummary, DataSourceMeta, MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage, localDateString,
+  CoverageSummary, DataSourceMeta, ForecastSyncStatus, MatchDataSource, MatchListResult, ProviderStatus, SearchResults, TeamPage,
+  localDateString, timezoneOffsetMinutes,
 } from './match-data-source';
+import { getErrorMessage, getErrorStatus } from '@/utils/errors';
 
 const API = '/api/v1';
 const CACHE_TTL_MS = 60 * 1000; // the backend already caches per provider; this only de-duplicates page renders
@@ -73,18 +75,27 @@ export interface ApiForecast {
   total_goals_under_25_prob: number | null;
   total_goals_over_35_prob: number | null;
   total_goals_under_35_prob: number | null;
-  exact_score: Record<string, number> | null;
+  exact_score: Record<string, number | null> | null;
+  /** Provider remainder for every scoreline it did not list; never a scoreline itself */
+  exact_score_other_prob: number | null;
   recommended_bets: Record<string, unknown> | null;
   reasoning: string | null;
   confidence: number | null;
   match_confidence: string | null;
   matched_by: string | null;
+  /** When the provider's model ran; null when the provider did not say */
   model_run_at: string | null;
+  /** When the provider last touched the event */
   provider_updated_at: string | null;
+  /** When this installation retrieved it */
   fetched_at: string | null;
+  /** False when model_run_at is null: the generation time is genuinely unknown */
+  generated_at_known: boolean;
+  /** Consistency problems in the provider payload, reported not corrected */
+  anomalies: string[] | null;
   state: 'available' | 'stale' | 'kickoff_passed' | 'unavailable';
   state_reason: string | null;
-  markets_available: { match_result: boolean; btts: boolean; over_under_25: boolean; over_under_35: boolean };
+  markets_available: { match_result: boolean; btts: boolean; over_under_25: boolean; over_under_35: boolean; exact_score: boolean };
 }
 
 export interface ApiMatch {
@@ -116,6 +127,7 @@ export interface ApiMatchList {
   stale: boolean;
   fetched_at: string | null;
   errors: string[];
+  /** Report from ForecastService.ensure_synced(): { provider, competitions, skipped, retried, deferred, error?, synced_at } */
   forecast_sync: Record<string, unknown> | null;
   matches: ApiMatch[];
 }
@@ -168,8 +180,12 @@ export function mapApiLeague(league: ApiLeague | null): League {
   };
 }
 
-const pct = (value: number | null | undefined): number | null =>
-  value === null || value === undefined ? null : Math.round(value * 1000) / 10;
+/** Provider probabilities are 0-1 floats; the UI shows percent with one decimal. Null stays null. */
+function pct(value: number): number;
+function pct(value: number | null | undefined): number | null;
+function pct(value: number | null | undefined): number | null {
+  return value === null || value === undefined ? null : Math.round(value * 1000) / 10;
+}
 
 /** Display bucket derived from the strength of the source's own probabilities (not a generated number). */
 function levelFromProbability(max: number | null): ConfidenceLevel {
@@ -195,29 +211,68 @@ function outcomeBlock(home: number | null, draw: number | null, away: number | n
   return { homeWin: h, draw: d, awayWin: a, confidence: score === undefined ? level : levelFromScore(score, level) };
 }
 
-function bttsBlock(yes: number | null, no: number | null, score?: number | null) {
-  const y = pct(yes);
-  if (y === null) return null;
-  const n = pct(no) ?? Math.round((100 - y) * 10) / 10;
-  return { yes: y, no: n, confidence: levelFromScore(score, levelFromProbability(Math.max(y, n))) };
+/** Strongest published number among the ones the source actually supplied; null when it supplied none. */
+function strongest(...values: (number | null)[]): number | null {
+  const published = values.filter((v): v is number => v !== null);
+  return published.length > 0 ? Math.max(...published) : null;
 }
 
+/**
+ * BTTS exactly as published. A half the source omitted stays null: "no" is NOT 100 - "yes".
+ * The two are complementary in theory, but deriving one from the other publishes a number the
+ * model never produced (and hides the provider's own rounding or inconsistency).
+ */
+function bttsBlock(yes: number | null, no: number | null, score?: number | null) {
+  const y = pct(yes);
+  const n = pct(no);
+  if (y === null && n === null) return null;
+  return { yes: y, no: n, confidence: levelFromScore(score, levelFromProbability(strongest(y, n))) };
+}
+
+/** Total-goals lines exactly as published; every line the source omitted stays null. */
 function totalsBlock(o25: number | null, u25: number | null, o35: number | null, u35: number | null, score?: number | null) {
   const over25 = pct(o25);
-  if (over25 === null) return null;
-  const under25 = pct(u25) ?? Math.round((100 - over25) * 10) / 10;
+  const under25 = pct(u25);
+  const over35 = pct(o35);
+  const under35 = pct(u35);
+  if (over25 === null && under25 === null && over35 === null && under35 === null) return null;
   return {
-    over25, under25, over35: pct(o35), under35: pct(u35),
-    confidence: levelFromScore(score, levelFromProbability(Math.max(over25, under25))),
+    over25, under25, over35, under35,
+    confidence: levelFromScore(score, levelFromProbability(strongest(over25, under25))),
   };
 }
 
+/**
+ * Most likely scoreline from the provider's exact-score map.
+ *
+ * Only entries that are actually a scoreline ("2-1") carrying a published probability in (0, 1]
+ * survive: anything else (a null value, a stray key such as "other", a percentage-scaled number)
+ * would otherwise be rendered as a scoreline at 0%.
+ */
+function correctScoreBlock(exact: Record<string, number | null> | null | undefined): MatchPredictions['correctScore'] {
+  if (!exact) return null;
+  const usable = Object.entries(exact).filter(
+    (entry): entry is [string, number] =>
+      /^\d+-\d+$/.test(entry[0]) && typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] > 0 && entry[1] <= 1,
+  );
+  if (usable.length === 0) return null;
+  const [score, prob] = usable.sort((a, b) => b[1] - a[1])[0];
+  const probability = pct(prob);
+  return { mostLikely: score, probability, confidence: levelFromProbability(probability) };
+}
+
+/**
+ * An expert prediction, market by market.
+ *
+ * Each block is built independently: an expert who published only BTTS and totals still reaches the
+ * UI with those markets and a null 1X2, instead of the whole prediction being discarded.
+ */
 export function mapExpertPrediction(expert: ApiExpertPrediction): MatchPredictions | null {
   const outcome = outcomeBlock(expert.home_win_prob, expert.draw_prob, expert.away_win_prob, expert.confidence_score);
-  if (!outcome) return null;
   const btts = bttsBlock(expert.btts_yes_prob, expert.btts_no_prob, expert.btts_confidence);
   const totals = totalsBlock(expert.total_goals_over_25_prob, expert.total_goals_under_25_prob,
     expert.total_goals_over_35_prob, expert.total_goals_under_35_prob, expert.total_goals_confidence);
+  if (!outcome && !btts && !totals) return null; // nothing was published at all
   return {
     outcome,
     bothTeamsToScore: btts,
@@ -230,7 +285,13 @@ export function mapExpertPrediction(expert: ApiExpertPrediction): MatchPredictio
     confidence_score: expert.confidence_score,
     priority_level: expert.priority_level,
     state: 'available',
-    markets: { matchResult: true, btts: btts !== null, overUnder25: totals !== null, overUnder35: totals?.over35 !== null && totals?.over35 !== undefined },
+    markets: {
+      matchResult: outcome !== null,
+      btts: btts !== null,
+      overUnder25: totals !== null && (totals.over25 !== null || totals.under25 !== null),
+      overUnder35: totals !== null && (totals.over35 !== null || totals.under35 !== null),
+      exactScore: false, // experts do not publish a scoreline distribution
+    },
     publishedAt: expert.published_at,
   };
 }
@@ -241,17 +302,16 @@ export function mapForecast(forecast: ApiForecast | null, fallbackState: ApiMatc
   const btts = bttsBlock(forecast.btts_yes_prob, forecast.btts_no_prob);
   const totals = totalsBlock(forecast.total_goals_over_25_prob, forecast.total_goals_under_25_prob,
     forecast.total_goals_over_35_prob, forecast.total_goals_under_35_prob);
-  let correctScore: MatchPredictions['correctScore'] = null;
-  if (forecast.exact_score && Object.keys(forecast.exact_score).length > 0) {
-    const [score, prob] = Object.entries(forecast.exact_score).sort((a, b) => b[1] - a[1])[0];
-    correctScore = { mostLikely: score, probability: pct(prob) ?? 0, confidence: levelFromProbability(pct(prob)) };
-  }
+  const correctScore = correctScoreBlock(forecast.exact_score);
   if (!outcome && !btts && !totals && !correctScore) return null;
   return {
-    outcome: outcome || { homeWin: 0, draw: 0, awayWin: 0, confidence: 'low' },
+    // null when the provider published no 1X2 market for this event. The other markets still
+    // reach the UI; a zero-filled 1X2 block would claim a 0% home win the model never produced.
+    outcome,
     bothTeamsToScore: btts,
     totalGoals: totals,
     correctScore,
+    exactScoreOther: pct(forecast.exact_score_other_prob),
     analysis: forecast.reasoning || 'Model forecast (no written reasoning supplied by the provider).',
     keyFactors: [],
     source: 'provider',
@@ -263,10 +323,17 @@ export function mapForecast(forecast: ApiForecast | null, fallbackState: ApiMatc
     markets: {
       matchResult: forecast.markets_available?.match_result ?? outcome !== null,
       btts: forecast.markets_available?.btts ?? btts !== null,
-      overUnder25: forecast.markets_available?.over_under_25 ?? totals !== null,
-      overUnder35: forecast.markets_available?.over_under_35 ?? (totals?.over35 !== null && totals?.over35 !== undefined),
+      overUnder25: forecast.markets_available?.over_under_25 ?? (totals !== null && (totals.over25 !== null || totals.under25 !== null)),
+      overUnder35: forecast.markets_available?.over_under_35 ?? (totals !== null && (totals.over35 !== null || totals.under35 !== null)),
+      exactScore: forecast.markets_available?.exact_score ?? correctScore !== null,
     },
-    generatedAt: forecast.model_run_at || forecast.provider_updated_at || forecast.fetched_at,
+    // Kept apart on purpose: only model_run_at is the generation time. When the provider did not
+    // publish one, generationTimeKnown is false and the UI must not pass off a fetch time for it.
+    modelRunAt: forecast.model_run_at,
+    providerUpdatedAt: forecast.provider_updated_at,
+    fetchedAt: forecast.fetched_at,
+    generationTimeKnown: forecast.generated_at_known ?? forecast.model_run_at !== null,
+    anomalies: forecast.anomalies || [],
     recommendedBets: forecast.recommended_bets,
     matchConfidence: forecast.match_confidence,
   };
@@ -332,24 +399,69 @@ export function mapApiStanding(row: ApiStanding): LeagueStanding {
   };
 }
 
-function metaOf(list: ApiMatchList): DataSourceMeta {
-  return { provider: list.provider, source: list.source, stale: list.stale, fetchedAt: list.fetched_at, errors: list.errors || [] };
+const stringsOf = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+
+/**
+ * Read the backend's forecast-refresh report.
+ *
+ * The backend reports a paused refresh two ways: a top-level `error` (no provider configured, a
+ * cooldown after a failure, or the daily allowance already spent) and/or a non-empty `deferred`
+ * list when it stopped part-way. Either means "not refreshed right now" — which the UI must be
+ * able to distinguish from "this fixture has no forecast".
+ */
+export function parseForecastSync(raw: Record<string, unknown> | null | undefined): ForecastSyncStatus | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const provider = typeof raw.provider === 'string' ? raw.provider : null;
+  const topLevelError = typeof raw.error === 'string' && raw.error.trim() ? raw.error : null;
+  const competitions = (raw.competitions && typeof raw.competitions === 'object' ? raw.competitions : {}) as Record<string, unknown>;
+  const competitionError = Object.values(competitions)
+    .map(entry => (entry && typeof entry === 'object' ? (entry as { error?: unknown }).error : null))
+    .find((message): message is string => typeof message === 'string' && message.trim().length > 0) ?? null;
+  const deferred = stringsOf(raw.deferred);
+  const reason = topLevelError ?? competitionError;
+  return {
+    provider,
+    paused: reason !== null || deferred.length > 0,
+    reason,
+    deferred,
+    syncedAt: typeof raw.synced_at === 'string' ? raw.synced_at : null,
+  };
 }
 
+function metaOf(list: ApiMatchList): DataSourceMeta {
+  return {
+    provider: list.provider,
+    source: list.source,
+    stale: list.stale,
+    fetchedAt: list.fetched_at,
+    errors: list.errors || [],
+    forecastSync: parseForecastSync(list.forecast_sync),
+  };
+}
+
+/** The backend's own wording where it gave one, with a match-data specific default for a bare 503. */
 export function describeError(error: unknown): string {
-  const err = error as { response?: { status?: number; data?: { detail?: unknown } }; message?: string };
-  const detail = err?.response?.data?.detail;
-  if (typeof detail === 'string') return detail;
-  if (detail && typeof detail === 'object' && 'message' in detail) {
-    const d = detail as { message?: string; errors?: string[] };
-    return [d.message, ...(d.errors || [])].filter(Boolean).join(' — ');
-  }
-  if (err?.response?.status === 503) return 'Match data is temporarily unavailable.';
-  return err?.message || 'Request failed';
+  const message = getErrorMessage(error, '');
+  if (message && message !== 'The service is temporarily unavailable.') return message;
+  return getErrorStatus(error) === 503 ? 'Match data is temporarily unavailable.' : (message || 'Request failed');
 }
 
 // ----------------------------------------------------------------------------- service
 type CacheEntry<T> = { value: T; timestamp: number };
+
+/** Cache-key prefixes, so writes can invalidate exactly what they changed. */
+export const CACHE_KEYS = {
+  leagues: 'leagues',
+  standings: 'standings-',
+  /** fixtures for a date: the lists that carry expert predictions and forecasts */
+  matchesByDate: 'matches-',
+  /** fixtures of one competition: also carries expert predictions */
+  matchesByLeague: 'league-matches-',
+} as const;
+
+/** Every cached response whose content can change when an expert publishes, edits or removes one. */
+export const PREDICTION_CACHE_PREFIXES = [CACHE_KEYS.matchesByDate, CACHE_KEYS.matchesByLeague];
 
 class BackendMatchDataService implements MatchDataSource {
   readonly name = 'backend' as const;
@@ -364,7 +476,7 @@ class BackendMatchDataService implements MatchDataSource {
   }
 
   async getTopLeagues(): Promise<League[]> {
-    return this.cached('leagues', async () => {
+    return this.cached(CACHE_KEYS.leagues, async () => {
       const { data } = await apiClient.get<{ provider: string | null; competitions: ApiLeague[] }>(`${API}/leagues`);
       return data.competitions.map(mapApiLeague);
     });
@@ -384,7 +496,7 @@ class BackendMatchDataService implements MatchDataSource {
   }
 
   async getStandings(leagueId: string): Promise<LeagueStanding[]> {
-    return this.cached(`standings-${leagueId}`, async () => {
+    return this.cached(`${CACHE_KEYS.standings}${leagueId}`, async () => {
       const { data } = await apiClient.get<{ standings: ApiStanding[] }>(`${API}/leagues/${encodeURIComponent(leagueId)}/standings`);
       return data.standings.map(mapApiStanding);
     });
@@ -403,17 +515,21 @@ class BackendMatchDataService implements MatchDataSource {
   }
 
   async getFixturesByLeague(leagueId: string): Promise<Match[]> {
-    return this.cached(`league-matches-${leagueId}`, async () => {
+    return this.cached(`${CACHE_KEYS.matchesByLeague}${leagueId}`, async () => {
       const { data } = await apiClient.get<{ matches: ApiMatch[] }>(`${API}/leagues/${encodeURIComponent(leagueId)}/matches`, {
-        params: { days_ahead: 14, days_back: 7 },
+        params: { days_ahead: 14, days_back: 7, tz_offset: timezoneOffsetMinutes() },
       });
       return data.matches.map(mapApiMatch);
     });
   }
 
   async getFixturesByDateWithMeta(date: string): Promise<MatchListResult> {
-    return this.cached(`matches-${date}`, async () => {
-      const { data } = await apiClient.get<ApiMatchList>(`${API}/matches`, { params: { date } });
+    return this.cached(`${CACHE_KEYS.matchesByDate}${date}`, async () => {
+      // The viewer's calendar day, not the UTC one: a 21:00 kickoff in New York is 01:00 the next
+      // day in UTC, and bucketing it by the UTC day would hide tonight's match from Today.
+      const { data } = await apiClient.get<ApiMatchList>(`${API}/matches`, {
+        params: { date, tz_offset: timezoneOffsetMinutes(date) },
+      });
       return { matches: data.matches.map(mapApiMatch), meta: metaOf(data) };
     });
   }
@@ -488,6 +604,27 @@ class BackendMatchDataService implements MatchDataSource {
 
   clearCache(): void {
     this.cache.clear();
+  }
+
+  /**
+   * Drop cached responses whose key starts with `prefix` (everything when omitted).
+   *
+   * Without this, a public list keeps its in-memory copy for the rest of the 60 s TTL after an
+   * expert publishes, edits, unpublishes or deletes a prediction, so the change looks lost.
+   */
+  invalidate(prefix?: string): void {
+    if (!prefix) {
+      this.cache.clear();
+      return;
+    }
+    for (const key of Array.from(this.cache.keys())) {
+      if (key.startsWith(prefix)) this.cache.delete(key);
+    }
+  }
+
+  /** Forget every cached list whose content depends on published expert predictions. */
+  invalidatePredictionCaches(): void {
+    PREDICTION_CACHE_PREFIXES.forEach(prefix => this.invalidate(prefix));
   }
 }
 

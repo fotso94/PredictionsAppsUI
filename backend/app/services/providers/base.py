@@ -156,6 +156,10 @@ class ProviderForecast:
     confidence: Optional[float] = None
     model_run_at: Optional[datetime] = None
     provider_updated_at: Optional[datetime] = None
+    #: When WE retrieved this forecast from the provider (UTC), stamped at parse time by the
+    #: provider itself. It must never be taken at attach/persist time: doing so stamps a forecast
+    #: that was read from a cache minutes or hours ago as freshly retrieved.
+    fetched_at: Optional[datetime] = None
     #: Consistency problems detected in the provider payload (sums out of tolerance,
     #: values dropped because they were out of bounds). Reported, never silently fixed.
     anomalies: List[str] = field(default_factory=list)
@@ -245,31 +249,39 @@ class ForecastProvider(ABC):
 # Helpers shared by providers
 # ---------------------------------------------------------------------------
 
-def to_probability(value: Any) -> Optional[float]:
-    """
-    Convert a provider probability to a 0-1 float.
+#: Default scale for provider probabilities: percentages (0-100). Providers publishing unit
+#: fractions pass scale=1.0 explicitly.
+PERCENT_SCALE = 100.0
 
-    Accepts fractions (0.65), percentages (65 or "65%") and strings. Values outside
-    0-100 or non-numeric values return None so they are reported as unavailable instead
-    of being guessed.
+
+def to_probability(value: Any, scale: float = PERCENT_SCALE) -> Optional[float]:
     """
-    if value is None:
+    Convert one provider probability to a 0-1 float on an EXPLICIT scale.
+
+    `scale` is the caller's documented contract with the provider (100.0 for percentages,
+    1.0 for unit fractions). It is never inferred from the magnitude of the value: inferring
+    it silently turns a genuine 1% into 100% certainty.
+
+    Returns None - meaning "market unavailable" - for anything that is not a finite number
+    inside 0..scale. Nothing is guessed, clamped or rescaled.
+    """
+    if value is None or isinstance(value, bool):
         return None
     if isinstance(value, str):
-        value = value.strip().rstrip("%")
+        value = value.strip()
+        if value.endswith("%"):
+            value = value[:-1].strip()
         if not value:
             return None
     try:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    if number < 0:
+    if number != number or number in (float("inf"), float("-inf")):  # NaN / +-inf
         return None
-    if number <= 1.0:
-        return round(number, 4)
-    if number <= 100.0:
-        return round(number / 100.0, 4)
-    return None
+    if number < 0 or number > scale:
+        return None
+    return round(number / scale, 4)
 
 
 def parse_utc(value: Any) -> Optional[datetime]:

@@ -457,7 +457,10 @@ class ExpertPredictionService:
         expert_user: User
     ) -> Prediction:
         """
-        Update an existing prediction (Expert can only update their own pending predictions).
+        Update one of the expert's own predictions.
+
+        Experts publish directly, so a PUBLISHED (or ARCHIVED) prediction stays editable; the edit
+        keeps the current status and published_at and only refreshes updated_at.
 
         Args:
             prediction_id: Prediction ID
@@ -481,9 +484,21 @@ class ExpertPredictionService:
         if prediction.created_by != expert_user.id:
             raise ValueError("You can only update your own predictions")
 
-        # Check if prediction is editable (only PENDING predictions can be edited)
-        if prediction.status not in [PredictionStatus.PENDING]:
-            raise ValueError(f"Cannot edit prediction with status {prediction.status}. Only PENDING predictions can be edited.")
+        # Experts publish directly (there is no admin approval step), so a PUBLISHED prediction is
+        # the normal state of an expert's own work and must stay editable - otherwise a typo can
+        # never be corrected. ARCHIVED (unpublished) predictions are editable for the same reason.
+        # REJECTED predictions are not: they are a moderation outcome, not a draft.
+        editable_statuses = [
+            PredictionStatus.PENDING,
+            PredictionStatus.APPROVED,
+            PredictionStatus.PUBLISHED,
+            PredictionStatus.ARCHIVED,
+        ]
+        if prediction.status not in editable_statuses:
+            raise ValueError(
+                f"Cannot edit prediction with status {prediction.status}. "
+                f"Editable statuses: {', '.join(s.value for s in editable_statuses)}."
+            )
 
         # Update Match Outcome fields
         prediction.home_win_prob = Decimal(str(data.home_win_prob))
@@ -521,12 +536,14 @@ class ExpertPredictionService:
             metadata['key_factors'] = data.key_factors
             prediction.prediction_metadata = metadata
 
+        # Only updated_at moves: status and published_at are left exactly as they were, so editing a
+        # published prediction does not unpublish it or restamp its publication time.
         prediction.updated_at = datetime.utcnow()
 
         self.db.commit()
         self.db.refresh(prediction)
 
-        logger.info(f"Updated prediction {prediction_id} by expert {expert_user.id}")
+        logger.info(f"Updated prediction {prediction_id} (status {prediction.status}) by expert {expert_user.id}")
 
         # Invalidate cache
         self._invalidate_match_cache(str(prediction.match_id))

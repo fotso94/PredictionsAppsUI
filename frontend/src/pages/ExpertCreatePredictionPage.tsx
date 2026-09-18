@@ -10,6 +10,8 @@ import {
   ExpertPredictionCreateRequest,
   validateProbabilities,
 } from '../types/expert';
+import { formatUnitProbability } from '@/components/ui/probability';
+import { getErrorMessage } from '@/utils/errors';
 
 const ExpertCreatePredictionPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -97,9 +99,9 @@ const ExpertCreatePredictionPage: React.FC = () => {
       setTimeout(() => {
         navigate('/expert/dashboard');
       }, 1500);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to create prediction:', err);
-      setError(err.response?.data?.detail || 'Failed to create prediction');
+      setError(getErrorMessage(err, 'Failed to create prediction'));
     } finally {
       setLoading(false);
     }
@@ -124,7 +126,8 @@ const ExpertCreatePredictionPage: React.FC = () => {
           Create Manual Prediction
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Create a new expert prediction for a match
+          Create a new expert prediction for a match. It publishes straight away — there is no
+          approval step, and the optional markets you leave blank stay blank rather than defaulting to zero.
         </p>
       </div>
 
@@ -183,7 +186,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
                   required
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {(formData.home_win_prob * 100).toFixed(1)}%
+                  {formatUnitProbability(formData.home_win_prob, 1)}
                 </p>
               </div>
 
@@ -203,7 +206,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
                   required
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {(formData.draw_prob * 100).toFixed(1)}%
+                  {formatUnitProbability(formData.draw_prob, 1)}
                 </p>
               </div>
 
@@ -223,7 +226,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
                   required
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {(formData.away_win_prob * 100).toFixed(1)}%
+                  {formatUnitProbability(formData.away_win_prob, 1)}
                 </p>
               </div>
             </div>
@@ -248,7 +251,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
             />
             <p className="text-xs text-gray-500 mt-1">
-              {((formData.confidence_score || 0) * 100).toFixed(0)}% confidence
+              {formatUnitProbability(formData.confidence_score, 0)} confidence
             </p>
           </div>
 
@@ -275,7 +278,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
                   placeholder="0.50"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.btts_yes_prob ? (formData.btts_yes_prob * 100).toFixed(1) + '%' : '-'}
+                  {formatUnitProbability(formData.btts_yes_prob, 1, 'not set')}
                 </p>
               </div>
 
@@ -295,7 +298,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
                   placeholder="0.50"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.btts_no_prob ? (formData.btts_no_prob * 100).toFixed(1) + '%' : '-'}
+                  {formatUnitProbability(formData.btts_no_prob, 1, 'not set')}
                 </p>
               </div>
             </div>
@@ -325,7 +328,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
                 placeholder="0.75"
               />
               <p className="text-xs text-gray-500 mt-1">
-                {formData.btts_confidence ? (formData.btts_confidence * 100).toFixed(0) + '% confidence' : '-'}
+                {formatUnitProbability(formData.btts_confidence, 0, 'not set')} confidence
               </p>
             </div>
           </div>
@@ -353,7 +356,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
                   placeholder="0.50"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.total_goals_over_25_prob ? (formData.total_goals_over_25_prob * 100).toFixed(1) + '%' : '-'}
+                  {formatUnitProbability(formData.total_goals_over_25_prob, 1, 'not set')}
                 </p>
               </div>
 
@@ -373,7 +376,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
                   placeholder="0.50"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.total_goals_under_25_prob ? (formData.total_goals_under_25_prob * 100).toFixed(1) + '%' : '-'}
+                  {formatUnitProbability(formData.total_goals_under_25_prob, 1, 'not set')}
                 </p>
               </div>
 
@@ -393,7 +396,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
                   placeholder="0.30"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.total_goals_over_35_prob ? (formData.total_goals_over_35_prob * 100).toFixed(1) + '%' : '-'}
+                  {formatUnitProbability(formData.total_goals_over_35_prob, 1, 'not set')}
                 </p>
               </div>
 
@@ -413,7 +416,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
                   placeholder="0.70"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.total_goals_under_35_prob ? (formData.total_goals_under_35_prob * 100).toFixed(1) + '%' : '-'}
+                  {formatUnitProbability(formData.total_goals_under_35_prob, 1, 'not set')}
                 </p>
               </div>
             </div>
@@ -434,7 +437,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
                 placeholder="0.75"
               />
               <p className="text-xs text-gray-500 mt-1">
-                {formData.total_goals_confidence ? (formData.total_goals_confidence * 100).toFixed(0) + '% confidence' : '-'}
+                {formatUnitProbability(formData.total_goals_confidence, 0, 'not set')} confidence
               </p>
             </div>
           </div>

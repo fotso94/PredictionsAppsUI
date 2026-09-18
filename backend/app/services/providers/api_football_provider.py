@@ -23,7 +23,7 @@ from app.services.providers.base import (
     STATUS_SCHEDULED, STATUS_UNKNOWN,
     ForecastProvider, MatchDataProvider, ProviderCompetition, ProviderFixture, ProviderForecast,
     ProviderNotConfiguredError, ProviderStanding, ProviderTeam, ProviderUnavailableError,
-    parse_utc, to_probability,
+    PERCENT_SCALE, parse_utc, to_probability,
 )
 from app.services.providers.budget import RequestBudget
 from app.services.providers.http import ProviderHttpClient
@@ -58,10 +58,10 @@ class _APIFootballBase:
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
-    def _get(self, path: str, **params: Any) -> List[Dict[str, Any]]:
+    def _get(self, path: str, reason: str = "fetch", **params: Any) -> List[Dict[str, Any]]:
         if not self.is_configured():
             raise ProviderNotConfiguredError("API-Football key not configured (API_FOOTBALL_KEY)", provider=PROVIDER_NAME)
-        self.budget.consume(1)
+        self.budget.consume(1, reason=reason)
         payload = self.client.get_json(path, {k: v for k, v in params.items() if v is not None})
         if not isinstance(payload, dict):
             raise ProviderUnavailableError("API-Football returned a non-object payload", provider=PROVIDER_NAME)
@@ -191,6 +191,7 @@ class APIFootballForecastProvider(_APIFootballBase, ForecastProvider):
                 if fixture.status != STATUS_SCHEDULED:
                     continue
                 items = self._get("/predictions", fixture=fixture.external_id)
+                fetched_at = datetime.now(timezone.utc)
                 if not items:
                     continue
                 pred = (items[0].get("predictions") or {})
@@ -200,9 +201,12 @@ class APIFootballForecastProvider(_APIFootballBase, ForecastProvider):
                     home_name=fixture.home.name, away_name=fixture.away.name, kickoff_utc=fixture.kickoff_utc,
                     competition_name=fixture.competition.name, competition_external_id=fixture.competition.external_id,
                     competition_key=key, home_external_id=fixture.home.external_id, away_external_id=fixture.away.external_id,
-                    home_prob=to_probability(percent.get("home")), draw_prob=to_probability(percent.get("draw")),
-                    away_prob=to_probability(percent.get("away")),
-                    reasoning=pred.get("advice"), model_run_at=datetime.now(timezone.utc), raw=items[0],
+                    # API-Football publishes /predictions percentages on a 0-100 scale ("45%").
+                    # The scale is passed explicitly and never inferred from the value.
+                    home_prob=to_probability(percent.get("home"), PERCENT_SCALE),
+                    draw_prob=to_probability(percent.get("draw"), PERCENT_SCALE),
+                    away_prob=to_probability(percent.get("away"), PERCENT_SCALE),
+                    reasoning=pred.get("advice"), model_run_at=None, fetched_at=fetched_at, raw=items[0],
                 ))
             day += timedelta(days=1)
         return forecasts

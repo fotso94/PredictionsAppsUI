@@ -4,6 +4,7 @@
  */
 
 import apiClient from './api-client';
+import backendMatchDataService from './backend-match-data.service';
 import {
   ExpertPredictionCreateRequest,
   ExpertPredictionOverrideRequest,
@@ -13,6 +14,17 @@ import {
 } from '../types/expert';
 
 const EXPERT_BASE_URL = '/api/v1/expert';
+
+/**
+ * Forget the cached public lists after a write.
+ *
+ * Experts publish directly, so a create / update / publish toggle / delete changes what the public
+ * endpoints return immediately. Without this the in-memory lists keep serving the pre-write copy
+ * for the rest of their TTL and the expert's own change looks like it never happened.
+ */
+function invalidatePublicCaches(): void {
+  backendMatchDataService.invalidatePredictionCaches();
+}
 
 /**
  * Expert Prediction Service
@@ -32,6 +44,7 @@ export const expertPredictionService = {
       `${EXPERT_BASE_URL}/predictions/manual`,
       data
     );
+    invalidatePublicCaches();
     return response.data;
   },
 
@@ -48,6 +61,7 @@ export const expertPredictionService = {
       `${EXPERT_BASE_URL}/predictions/override`,
       data
     );
+    invalidatePublicCaches();
     return response.data;
   },
 
@@ -110,7 +124,7 @@ export const expertPredictionService = {
     dashboard_data: {
       total_predictions: number;
       accuracy_rate: number;
-      recent_predictions: any[];
+      recent_predictions: Record<string, unknown>[];
     };
   }> => {
     const response = await apiClient.get(
@@ -154,7 +168,7 @@ export const expertPredictionService = {
       prediction_accuracy_by_league: Record<string, number>;
       confidence_calibration: Record<string, number>;
       feature_importance: Record<string, number>;
-      model_performance_trends: any[];
+      model_performance_trends: Record<string, unknown>[];
     };
   }> => {
     const response = await apiClient.get(
@@ -193,6 +207,7 @@ export const expertPredictionService = {
     const response = await apiClient.post<ExpertPredictionResponse>(
       `${EXPERT_BASE_URL}/predictions/${predictionId}/approve`
     );
+    invalidatePublicCaches();
     return response.data;
   },
 
@@ -208,6 +223,7 @@ export const expertPredictionService = {
       `${EXPERT_BASE_URL}/predictions/${predictionId}/reject`,
       { reason }
     );
+    invalidatePublicCaches();
     return response.data;
   },
 
@@ -226,6 +242,7 @@ export const expertPredictionService = {
       `${EXPERT_BASE_URL}/predictions/${predictionId}`,
       data
     );
+    invalidatePublicCaches();
     return response.data;
   },
 
@@ -239,6 +256,7 @@ export const expertPredictionService = {
     const response = await apiClient.delete(
       `${EXPERT_BASE_URL}/predictions/${predictionId}`
     );
+    invalidatePublicCaches();
     return response.data;
   },
 
@@ -252,6 +270,7 @@ export const expertPredictionService = {
     const response = await apiClient.post<ExpertPredictionResponse>(
       `${EXPERT_BASE_URL}/predictions/${predictionId}/toggle-publish`
     );
+    invalidatePublicCaches();
     return response.data;
   },
 };

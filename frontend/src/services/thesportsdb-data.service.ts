@@ -316,7 +316,7 @@ export default theSportsDBDataService;
 
 // Expose cache clearing function to window for debugging
 if (typeof window !== 'undefined') {
-  (window as any).clearSportsDBCache = () => {
+  (window as unknown as { clearSportsDBCache: () => void }).clearSportsDBCache = () => {
     theSportsDBDataService.clearCache();
     console.log('✅ TheSportsDB cache cleared! Refresh the page to see updated data.');
   };

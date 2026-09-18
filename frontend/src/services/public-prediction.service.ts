@@ -4,6 +4,7 @@
  */
 
 import apiClient from './api-client';
+import { getErrorMessage, getErrorStatus } from '@/utils/errors';
 
 const PREDICTIONS_BASE_URL = '/api/v1/predictions';
 
@@ -71,7 +72,7 @@ export const publicPredictionService = {
       );
       return response.data;
     } catch (error) {
-      console.error('Error fetching published predictions:', error);
+      console.error('Error fetching published predictions:', getErrorMessage(error, 'Request failed'));
       return [];
     }
   },
@@ -91,7 +92,11 @@ export const publicPredictionService = {
       );
       return response.data;
     } catch (error) {
-      // Return null if no prediction found (404) or other errors
+      // 404 simply means no expert has published for this fixture: not an error worth logging.
+      if (getErrorStatus(error) !== 404) {
+        console.warn(`Published prediction lookup failed for ${externalMatchId}:`,
+          getErrorMessage(error, 'Request failed'));
+      }
       return null;
     }
   },

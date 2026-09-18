@@ -158,7 +158,7 @@ class TheSportsDBService {
   private handleError(error: AxiosError): Error {
     if (error.response) {
       const status = error.response.status;
-      const data = error.response.data as any;
+      const data = error.response.data as { message?: string; Message?: string } | undefined;
       
       if (status === 429) {
         return new Error('API rate limit exceeded (100 req/min). Please try again later.');

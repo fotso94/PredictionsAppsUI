@@ -1,0 +1,130 @@
+{
+  "active_provider": "livescore",
+  "configured_fallbacks": [
+    "api_football",
+    "thesportsdb"
+  ],
+  "covered_competitions": [
+    "premier_league",
+    "la_liga",
+    "serie_a",
+    "bundesliga",
+    "ligue_1",
+    "champions_league"
+  ],
+  "cache_available": true,
+  "chain": [
+    {
+      "name": "livescore",
+      "integration_status": "primary",
+      "configured": true,
+      "budget": {
+        "provider": "livescore",
+        "daily_limit": 1200,
+        "used_today": 67,
+        "refused_today": 0,
+        "remaining_today": 1133,
+        "enforced": true
+      },
+      "cooling_down": null,
+      "last_success_at": "2026-09-18T03:44:47.106638+00:00",
+      "last_error": null
+    },
+    {
+      "name": "api_football",
+      "integration_status": "retained (free plan: current season restricted)",
+      "configured": true,
+      "budget": {
+        "provider": "api_football",
+        "daily_limit": 90,
+        "used_today": 3,
+        "refused_today": 0,
+        "remaining_today": 87,
+        "enforced": true
+      },
+      "cooling_down": null
+    },
+    {
+      "name": "thesportsdb",
+      "integration_status": "retained (v1 API, untested, no live scores)",
+      "configured": true,
+      "budget": {
+        "provider": "thesportsdb",
+        "daily_limit": 1000,
+        "used_today": 3,
+        "refused_today": 0,
+        "remaining_today": 997,
+        "enforced": true
+      },
+      "cooling_down": null
+    }
+  ],
+  "forecasts": {
+    "active_provider": "gameforecast",
+    "configured": true,
+    "integration_status": "primary",
+    "budget": {
+      "provider": "gameforecast",
+      "daily_limit": 8,
+      "used_today": 9,
+      "refused_today": 0,
+      "remaining_today": 0,
+      "enforced": true
+    },
+    "last_sync": {
+      "provider": "gameforecast",
+      "competitions": {
+        "premier_league": {
+          "fetched": 9,
+          "attached": 9,
+          "ambiguous": 0,
+          "unmatched": 0,
+          "without_markets": 0,
+          "details": []
+        },
+        "la_liga": {
+          "fetched": 5,
+          "attached": 5,
+          "ambiguous": 0,
+          "unmatched": 0,
+          "without_markets": 0,
+          "details": []
+        },
+        "serie_a": {
+          "fetched": 10,
+          "attached": 10,
+          "ambiguous": 0,
+          "unmatched": 0,
+          "without_markets": 0,
+          "details": []
+        },
+        "bundesliga": {
+          "fetched": 6,
+          "attached": 5,
+          "ambiguous": 0,
+          "unmatched": 1,
+          "without_markets": 0,
+          "details": [
+            {
+              "event": "26689",
+              "home": "Borussia Monchengladbach",
+              "away": "FSV Mainz 05",
+              "kickoff_utc": "2026-09-19T13:30:00+00:00",
+              "reason": "no candidate with matching team names",
+              "candidates": [],
+              "result": "unmatched"
+            }
+          ]
+        },
+        "ligue_1": {
+          "error": "Daily request budget for gameforecast exhausted (8/8 used)"
+        }
+      },
+      "skipped": [],
+      "retried": {},
+      "synced_at": "2026-09-18T03:13:21.067448+00:00"
+    },
+    "cooling_down": "Daily request budget for gameforecast exhausted (8/8 used)"
+  },
+  "checked_at": "2026-09-18T03:49:20.570433+00:00"
+}

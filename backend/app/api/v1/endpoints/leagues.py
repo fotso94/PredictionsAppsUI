@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.v1.endpoints.matches import _league_refs, build_match_payloads
+from app.api.v1.endpoints.matches import (
+    TZ_OFFSET_MAX_MINUTES,
+    TZ_OFFSET_MIN_MINUTES,
+    _league_refs,
+    build_match_payloads,
+    local_day_window,
+)
 from app.db.session import get_db
 from app.models.predictions import League, Team
 from app.models.provider_data import ProviderEntityRef
@@ -69,14 +76,31 @@ async def league_standings(league_id: str, db: Session = Depends(get_db)):
 
 @router.get("/{league_id}/matches", summary="Upcoming and recent matches of a competition")
 async def league_matches(league_id: str, days_ahead: int = Query(14, ge=1, le=60), days_back: int = Query(7, ge=0, le=60),
-                         refresh: bool = Query(True), db: Session = Depends(get_db)):
+                         refresh: bool = Query(True),
+                         tz_offset: Optional[int] = Query(None, ge=TZ_OFFSET_MIN_MINUTES, le=TZ_OFFSET_MAX_MINUTES,
+                                                          description="Caller's UTC offset in MINUTES east of UTC (e.g. 120 "
+                                                                      "for UTC+2, -300 for UTC-5; that is "
+                                                                      "-Date.getTimezoneOffset()). When sent, the window is "
+                                                                      "aligned to the caller's local calendar days: "
+                                                                      "[local midnight - days_back, local midnight + "
+                                                                      "days_ahead + 1). When omitted, the window runs from "
+                                                                      "the current instant, exactly as before."),
+                         db: Session = Depends(get_db)):
     league = _league_or_404(db, league_id)
     key = _key(league)
     service = MatchDataService(db)
     forecasts = ForecastService(db)
     meta = service.sync_upcoming(key, days_ahead) if refresh else None
     now = datetime.now(timezone.utc)
-    matches = service.registry.matches_between(now - timedelta(days=days_back), now + timedelta(days=days_ahead + 1), [league.id])
+    if tz_offset is None:
+        start, end = now - timedelta(days=days_back), now + timedelta(days=days_ahead + 1)
+    else:
+        # Same rule as /matches: a calendar day is the caller's, not UTC's, so the first and last day
+        # of the range are whole local days rather than a window cut at the current UTC instant.
+        local_midnight, _ = local_day_window((now + timedelta(minutes=tz_offset)).date(), tz_offset)
+        start, end = local_midnight - timedelta(days=days_back), local_midnight + timedelta(days=days_ahead + 1)
+    matches = service.registry.matches_between(start, end, [league.id])
     return {"league_id": str(league.id), "key": key, "provider": meta.provider if meta else None, "source": meta.source if meta else "database",
-            "stale": meta.stale if meta else False, "errors": meta.errors if meta else [],
+            "stale": meta.stale if meta else False, "errors": meta.errors if meta else [], "tz_offset": tz_offset,
+            "window_utc": {"start": start.isoformat().replace("+00:00", "Z"), "end": end.isoformat().replace("+00:00", "Z")},
             "matches": build_match_payloads(db, matches, service, forecasts)}

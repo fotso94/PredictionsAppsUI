@@ -11,7 +11,7 @@ import { Menu, Transition } from '@headlessui/react'
 import { Fragment } from 'react'
 import clsx from 'clsx'
 import { NavItem } from '@/types'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/useAuth'
 import SearchDropdown from './SearchDropdown'
 
 const navigation: NavItem[] = [
@@ -264,6 +264,11 @@ const Header: React.FC = () => {
         {mobileMenuOpen && (
           <div className="md:hidden">
             <div className="space-y-1 px-2 pb-3 pt-2">
+              {/* The header search is hidden below the sm breakpoint, so a phone would otherwise
+                  have no way to search for a team or a competition at all. */}
+              <div className="px-1 pb-3 sm:hidden">
+                <SearchDropdown className="block" />
+              </div>
               {navigation.map((item) => (
                 <Link
                   key={item.name}

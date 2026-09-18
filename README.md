@@ -75,13 +75,64 @@ UTC kickoff, never by numeric ids (`backend/app/services/match_matching.py`).
 | Forecasts (retained fallback) | API-Football `/predictions` (1X2 only) | `PREDICTION_PROVIDER=api_football` | retained integration |
 | Local development | deterministic sample data (clearly labelled "not real") | `DATA_PROVIDER=sample`, `PREDICTION_PROVIDER=sample` | for running the UI without any key |
 
-Quota protection: every provider call goes through a per-day request budget in Redis
-(`LIVESCORE_DAILY_REQUEST_BUDGET`, `GAMEFORECAST_DAILY_REQUEST_BUDGET`), responses are cached
-(`MATCH_CACHE_TTL_*`), live scores are only polled while a covered match is within its live window,
-and a stale cached copy is served (and flagged) when a provider fails. Forecasts are synced at most
-once per `GAMEFORECAST_SYNC_INTERVAL_HOURS` per competition and stored separately from expert
-predictions (`predictions.provider_forecasts`); a forecast older than `FORECAST_MAX_AGE_HOURS` or for
-a match that already kicked off is reported as `stale` / `kickoff_passed`, never as current.
+### Probabilities
+
+GameForecastAPI publishes every probability on a fixed **0-100 percentage scale**. That scale is
+applied explicitly and unconditionally (`PROBABILITY_SCALE` in
+`backend/app/services/providers/gameforecast.py`), never inferred from whether a value happens to
+exceed 1 — inferring it turns a genuine 1% into 100% certainty. Values that are not finite numbers
+inside the published range are dropped, and a market whose values are all zero is treated as
+unavailable rather than shown as 0%. Complementary pairs (yes/no, over/under) and the 1X2 outcomes
+are checked against a tolerance; a payload that fails the check is flagged in `anomalies` and shown
+with a caution, never silently corrected. Exact scores keep the provider's own "other scorelines"
+remainder in a separate field, so a partial list is never renormalised to imply certainty.
+
+A market the provider did not supply is `null` end to end and renders as **Unavailable**. Nothing in
+the real-data path generates, interpolates or derives a probability.
+
+### Quota protection
+
+Every provider call goes through a per-day request budget in Redis
+(`LIVESCORE_DAILY_REQUEST_BUDGET`, `GAMEFORECAST_DAILY_REQUEST_BUDGET`). The counter records
+**outbound requests only**: a reservation refused because the allowance is already spent never
+reaches the provider and is counted separately under `refused_today`, so it cannot silently steal a
+real request. A request that was sent and then failed still counts, because the provider charged it.
+Counters are keyed by UTC day, which is when both plans reset, and are never reset by hand.
+For a small plan (100 requests/day or fewer) the budget **fails closed**: if Redis is unavailable the
+backend refuses to call the provider rather than spending blind.
+
+Responses are cached (`MATCH_CACHE_TTL_*`), live scores are only polled while a covered match is
+within its live window, and a stale cached copy is served (and flagged) when a provider fails.
+Forecasts are synced at most once per `GAMEFORECAST_SYNC_INTERVAL_HOURS` per competition, and the
+competitions are visited **least-recently-synced first**, so an allowance too small for all six
+stops starving the tail of the list. Competitions that did not get their turn are reported under
+`deferred` and lead the next run. A Redis lock stops two workers paying for the same competition.
+
+A forecast older than `FORECAST_MAX_AGE_HOURS` or for a match that already kicked off is reported as
+`stale` / `kickoff_passed`, never as current. A spent allowance is reported separately, as
+`refresh_blocked`: "we cannot refresh this right now" is a different statement from "this does not
+exist", and only one of them is a reason to distrust what is on screen.
+
+### Forecast evidence
+
+A forecast is the record of what a model said **before** a match was played, so updating a row in
+place would destroy the only evidence. `predictions.provider_forecasts` holds the current forecast
+per match and provider (one indexed lookup for a page render);
+`predictions.provider_forecast_snapshots` is an append-only history, one row per distinct forecast
+content, with the provider's own model-run time, the provider's update time, our retrieval time, the
+kickoff known at capture, and whether the capture really was prematch (`NULL` when the kickoff was
+not known — a stored `false` would assert something we cannot know). Re-fetching unchanged content
+only moves `last_fetched_at`. Forecasts are stored separately from expert predictions throughout.
+
+No accuracy figure is published anywhere. Scoring a forecast needs settled results, none have been
+scored, and `/api/v1/data-providers/coverage` reports `accuracy_available: false` with the reason
+rather than a number. The home page shows counts measured from that endpoint.
+
+After a parser fix, `python backend/scripts/repair_forecasts.py --dry-run` reports what would change
+and `python backend/scripts/repair_forecasts.py` applies it, re-deriving every stored forecast from
+the raw payload saved with it. It makes no provider request, is idempotent, preserves provider
+timestamps and expert data, appends the corrected reading to the history rather than overwriting it,
+and clears the caches that held the old numbers.
 
 Failures back off automatically: rejected credentials pause a provider for 30 minutes, an exhausted
 quota until UTC midnight, other errors 2 minutes (`cooling_down` in `/api/v1/data-providers/status`).
@@ -102,9 +153,19 @@ to `false` to restore the review queue and admin verification.
 
 ## Tests and checks
 
-- Backend: `cd backend && pytest` — most tests are pure unit tests; `tests/test_cache_services.py`
-  needs Redis and `tests/test_health.py` needs PostgreSQL (`soccer_predictions_test`).
+- Backend: `cd backend && ./venv/bin/python -m pytest -o addopts="" -q` — most tests are pure unit
+  tests; `tests/test_cache_services.py` needs Redis and the database-backed tests need PostgreSQL
+  (`TEST_DATABASE_URL`, default `soccer_predictions_test`). No test makes a real provider request:
+  `tests/conftest.py` blanks every provider credential and providers are driven through
+  `httpx.MockTransport`.
 - Frontend: `npm run type-check`, `npm run lint`, `npm run build`.
+- Browser: `npm run e2e:mocked` runs the deterministic Playwright suite (desktop and mobile) against
+  captured, sanitised payloads in `frontend/e2e/fixtures` — it stubs every backend call, so it spends
+  no provider allowance and covers the edge cases that are hard to produce on demand (missing
+  markets, 1% probabilities, exhausted quota, expired trial, empty days, backend failures, timezone
+  boundaries). `npm run e2e:live` runs the expert publishing flow against the local backend, creating
+  and removing only its own clearly-marked QA records and never triggering a provider refresh.
+  Both need the local stack running (see below).
 
 ## Secrets
 

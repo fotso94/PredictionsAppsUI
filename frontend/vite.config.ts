@@ -19,7 +19,8 @@ export default defineConfig(({ mode }) => {
         '@services': '/src/services',
         '@utils': '/src/utils',
         '@hooks': '/src/hooks',
-        '@data': '/src/data',
+        // '@data' removed with src/data/mockData.ts: it held a hard-coded user record and a
+        // Math.random() prediction generator that were bundled into the production app.
         '@assets': '/src/assets'
       }
     },
@@ -47,7 +48,9 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: 'dist',
-      sourcemap: true
+      // Never in production: a published .map exposes the complete frontend source (~2.6 MB here)
+      // to anyone who opens the site. Dev and preview builds keep them for debugging.
+      sourcemap: mode !== 'production'
     },
     base: './'
   }

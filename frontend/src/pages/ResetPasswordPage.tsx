@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { LockClosedIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import authService from '@/services/auth.service'
+import { getErrorMessage } from '@/utils/errors'
 
 const ResetPasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams()
@@ -100,9 +101,9 @@ const ResetPasswordPage: React.FC = () => {
       setTimeout(() => {
         navigate('/login')
       }, 2000)
-    } catch (error: any) {
+    } catch (error) {
       console.error('Reset password error:', error)
-      const errorMessage = error.response?.data?.detail || 'Failed to reset password. Please try again.'
+      const errorMessage = getErrorMessage(error, 'Failed to reset password. Please try again.')
       toast.error(errorMessage)
     } finally {
       setIsSubmitting(false)

@@ -1,7 +1,12 @@
 /**
  * TheSportsDB Mapper Service
- * 
- * Maps TheSportsDB V1 API data structures to our frontend types
+ *
+ * Maps TheSportsDB V1 API data structures to our frontend types.
+ *
+ * TheSportsDB's V1 API publishes neither bookmaker odds nor forecasts. This mapper used to invent
+ * both with Math.random(); randomised numbers are indistinguishable from a real forecast once they
+ * reach a match card, so they are gone. Odds and predictions map to null and the UI renders them as
+ * unavailable. Nothing here may derive a probability the source never published.
  */
 
 import {
@@ -11,8 +16,6 @@ import {
   MatchStatus,
   TeamStats,
   LeagueStanding,
-  MatchOdds,
-  MatchPredictions,
 } from '@/types';
 import {
   DBLeague,
@@ -99,72 +102,6 @@ export function mapMatchStatus(dbStatus: string): MatchStatus {
   }
   
   return 'scheduled';
-}
-
-/**
- * Generate mock odds (TheSportsDB doesn't provide odds in V1 API)
- */
-function generateMockOdds(): MatchOdds {
-  return {
-    homeWin: 2.1 + Math.random() * 2,
-    draw: 3.2 + Math.random() * 1.5,
-    awayWin: 2.8 + Math.random() * 2.5,
-    bothTeamsToScore: {
-      yes: 1.7 + Math.random() * 0.6,
-      no: 2.0 + Math.random() * 0.8,
-    },
-    overUnder: {
-      over25: 1.8 + Math.random() * 0.5,
-      under25: 1.9 + Math.random() * 0.5,
-      over35: 2.4 + Math.random() * 0.8,
-      under35: 1.5 + Math.random() * 0.4,
-    },
-    correctScore: {
-      '1-0': 8.5,
-      '2-0': 12.0,
-      '2-1': 9.5,
-      '1-1': 6.5,
-      '0-0': 11.0,
-      '3-1': 18.0,
-    },
-  };
-}
-
-/**
- * Generate mock predictions (TheSportsDB doesn't provide predictions)
- */
-function generateMockPredictions(): MatchPredictions {
-  const homeWin = 30 + Math.random() * 40;
-  const draw = 20 + Math.random() * 20;
-  const awayWin = 100 - homeWin - draw;
-
-  return {
-    outcome: {
-      homeWin: Math.round(homeWin),
-      draw: Math.round(draw),
-      awayWin: Math.round(awayWin),
-      confidence: homeWin > 50 ? 'high' : homeWin > 40 ? 'medium' : 'low',
-    },
-    bothTeamsToScore: {
-      yes: 55 + Math.random() * 20,
-      no: 25 + Math.random() * 20,
-      confidence: 'medium',
-    },
-    totalGoals: {
-      over25: 60 + Math.random() * 20,
-      under25: 20 + Math.random() * 20,
-      over35: 35 + Math.random() * 20,
-      under35: 45 + Math.random() * 20,
-      confidence: 'high',
-    },
-    correctScore: {
-      mostLikely: '2-1',
-      probability: 15,
-      confidence: 'medium',
-    },
-    analysis: 'Prediction based on team form and historical data. Expert analysis available for premium users.',
-    keyFactors: ['Recent form', 'Head-to-head record', 'Home advantage'],
-  };
 }
 
 /**
@@ -270,8 +207,8 @@ export function mapEvent(
     venue: dbEvent.strVenue || home.venue,
     round: `Round ${dbEvent.intRound || '1'}`,
     season: dbEvent.strSeason || '2024-2025',
-    odds: generateMockOdds(),
-    predictions: generateMockPredictions(),
+    odds: null, // TheSportsDB V1 publishes no odds feed
+    predictions: null, // TheSportsDB V1 publishes no forecast: shown as unavailable, never invented
     headToHead: {
       totalMatches: 0,
       homeTeamWins: 0,

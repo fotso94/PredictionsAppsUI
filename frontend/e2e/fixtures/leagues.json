@@ -1,0 +1,75 @@
+{
+  "provider": "livescore",
+  "competitions": [
+    {
+      "id": "6a327af8-6d2e-4bc4-b325-0e7106884f35",
+      "key": "premier_league",
+      "name": "Premier League",
+      "country": "England",
+      "country_code": "ENG",
+      "logo": "/leagues/default.svg",
+      "is_cup": false,
+      "providers": {
+        "livescore": "2"
+      }
+    },
+    {
+      "id": "81bc9d69-1db7-4e50-ba8e-220c93f63d46",
+      "key": "la_liga",
+      "name": "La Liga",
+      "country": "Spain",
+      "country_code": "ESP",
+      "logo": "/leagues/default.svg",
+      "is_cup": false,
+      "providers": {
+        "livescore": "3"
+      }
+    },
+    {
+      "id": "a4a90e51-2a1d-4b69-977a-ae41cc0f386e",
+      "key": "serie_a",
+      "name": "Serie A",
+      "country": "Italy",
+      "country_code": "ITA",
+      "logo": "/leagues/default.svg",
+      "is_cup": false,
+      "providers": {
+        "livescore": "4"
+      }
+    },
+    {
+      "id": "652c64e7-84d5-472f-86d3-0d3b87a983a6",
+      "key": "bundesliga",
+      "name": "Bundesliga",
+      "country": "Germany",
+      "country_code": "GER",
+      "logo": "/leagues/default.svg",
+      "is_cup": false,
+      "providers": {
+        "livescore": "1"
+      }
+    },
+    {
+      "id": "3625e042-b4e6-46cd-bb68-8f48c3dd81fe",
+      "key": "ligue_1",
+      "name": "Ligue 1",
+      "country": "France",
+      "country_code": "FRA",
+      "logo": "/leagues/default.svg",
+      "is_cup": false,
+      "providers": {
+        "livescore": "5"
+      }
+    },
+    {
+      "id": "4ab9daa1-ca68-4ce9-8dbb-d9b8575077f1",
+      "key": "champions_league",
+      "name": "UEFA Champions League",
+      "country": "Europe",
+      "country_code": "EUR",
+      "logo": "/leagues/default.svg",
+      "is_cup": true,
+      "providers": {}
+    }
+  ]
+}

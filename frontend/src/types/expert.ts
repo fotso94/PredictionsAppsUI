@@ -54,7 +54,7 @@ export interface ExpertPredictionCreateRequest {
 
   // Reasoning & Metadata
   reasoning?: string;
-  key_factors?: Record<string, any>;
+  key_factors?: Record<string, unknown>;
 }
 
 /**
@@ -83,7 +83,7 @@ export interface ExpertPredictionOverrideRequest {
 
   // Reasoning & Metadata
   reasoning: string; // Required, min 10 chars
-  key_factors?: Record<string, any>;
+  key_factors?: Record<string, unknown>;
 }
 
 /**
@@ -110,7 +110,7 @@ export interface ExpertPredictionUpdateRequest {
 
   // Reasoning & Metadata
   reasoning?: string;
-  key_factors?: Record<string, any>;
+  key_factors?: Record<string, unknown>;
 }
 
 /**
@@ -164,7 +164,7 @@ export interface ExpertPredictionResponse {
 
   // Reasoning & Metadata
   reasoning: string | null;
-  key_factors: Record<string, any> | null;
+  key_factors: Record<string, unknown> | null;
 
   // Status & Timestamps
   status: PredictionStatus;
@@ -222,7 +222,8 @@ export interface ExpertPerformanceMetrics {
  * Prediction source display info
  */
 export interface PredictionSourceInfo {
-  source: PredictionSource;
+  /** 'unknown' when the API reported a source this build does not have a mapping for */
+  source: PredictionSource | 'unknown';
   label: string;
   icon: string; // Emoji or icon name
   color: string; // Tailwind color class
@@ -293,12 +294,28 @@ export const PREDICTION_SOURCE_INFO: Record<PredictionSource, PredictionSourceIn
 };
 
 /**
+ * Shown for a source value this build has no mapping for.
+ *
+ * It must NOT fall back to the "Randomized" entry: that entry describes one specific backend value
+ * (default_randomized), and using it as the catch-all told users a prediction was randomly generated
+ * whenever a new or misspelled source arrived. Saying the source is unrecognised is the honest answer.
+ */
+export const UNRECOGNISED_SOURCE_INFO: PredictionSourceInfo = {
+  source: 'unknown',
+  label: 'Source not recognised',
+  icon: '❓',
+  color: 'text-gray-600',
+  priority: 0,
+  description: 'This build does not recognise the prediction source reported by the API',
+};
+
+/**
  * Get prediction source display info
  */
 export function getPredictionSourceInfo(source: string): PredictionSourceInfo {
   // Enum values are lower-case ("expert_manual"); accept either casing from the API
   const sourceEnum = (source || '').toLowerCase() as PredictionSource;
-  return PREDICTION_SOURCE_INFO[sourceEnum] || PREDICTION_SOURCE_INFO[PredictionSource.DEFAULT_RANDOMIZED];
+  return PREDICTION_SOURCE_INFO[sourceEnum] || UNRECOGNISED_SOURCE_INFO;
 }
 
 /**

@@ -22,8 +22,9 @@ const API_CONFIG = {
 // API-Football Response Types
 export interface APIFootballResponse<T> {
   get: string;
-  parameters: Record<string, any>;
-  errors: any[];
+  parameters: Record<string, unknown>;
+  /** API-Football returns either an empty array or an object keyed by field name */
+  errors: unknown[] | Record<string, string>;
   results: number;
   paging: {
     current: number;
@@ -357,7 +358,7 @@ class APIFootballService {
             }
           });
 
-          config.headers = cleanHeaders as any;
+          config.headers = cleanHeaders as typeof config.headers;
         }
 
         return config;
@@ -381,8 +382,8 @@ class APIFootballService {
     if (error.response) {
       // Server responded with error status
       const status = error.response.status;
-      const data = error.response.data as any;
-      
+      const data = error.response.data as { message?: string; errors?: unknown } | undefined;
+
       if (status === 429) {
         return new Error('API rate limit exceeded. Please try again later.');
       } else if (status === 401 || status === 403) {

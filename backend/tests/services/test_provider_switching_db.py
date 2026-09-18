@@ -369,7 +369,8 @@ def test_matches_endpoint_serves_sample_provider_with_forecasts_and_expert_predi
     assert first["competition"]["key"] in ("premier_league", "la_liga")
     assert first["expert_prediction"] is None
     assert first["forecast"]["provider"] == "sample" and first["forecast_state"] == "available"
-    assert first["forecast"]["markets_available"] == {"match_result": True, "btts": True, "over_under_25": True, "over_under_35": False}
+    assert first["forecast"]["markets_available"] == {"match_result": True, "btts": True, "over_under_25": True,
+                                                      "over_under_35": False, "exact_score": False}
     assert first["forecast"]["total_goals_over_35_prob"] is None and first["forecast"]["confidence"] is None
 
     user = _expert(db)
@@ -421,3 +422,90 @@ def test_unconfigured_primary_without_fallback_returns_503(client, monkeypatch):
     response = client.get(f"/api/v1/matches?date={(DAY + timedelta(days=20)).isoformat()}")
     assert response.status_code == 503
     assert "no match-data provider is configured" in str(response.json()["detail"]).lower()
+
+
+# ----------------------------------------------------------------------------- forecast evidence
+def test_a_changed_forecast_leaves_both_readings_in_the_history(db):
+    """Updating the current row must never be the only record of what the model said before kickoff."""
+    registry, fixtures, matches = sample_day(db)
+    service = ForecastService(db, provider=SampleForecastProvider(), cache=MatchCache(client=FakeRedis()),
+                              now=NOW, keys=KEYS, sync_fixtures=False)
+    league_id = matches[0].league_id
+
+    first = forecast(fixtures[0], home_prob=0.50, draw_prob=0.30, away_prob=0.20)
+    assert service.attach_forecast(first, "premier_league", league_id)["result"] == "attached"
+    db.flush()
+
+    revised = forecast(fixtures[0], home_prob=0.62, draw_prob=0.24, away_prob=0.14,
+                       model_run_at=NOW + timedelta(hours=3))
+    assert service.attach_forecast(revised, "premier_league", league_id)["result"] == "attached"
+    db.flush()
+
+    # one current row, two pieces of evidence
+    assert db.query(ProviderForecastRecord).filter(ProviderForecastRecord.match_id == matches[0].id).count() == 1
+    history = service.snapshots_for_match(matches[0].id, "gameforecast")
+    assert [float(s.home_win_prob) for s in history] == [0.5, 0.62]
+    assert float(service.forecast_for_match(matches[0], "gameforecast").home_win_prob) == 0.62
+
+
+def test_refetching_an_unchanged_forecast_adds_no_new_evidence(db):
+    registry, fixtures, matches = sample_day(db)
+    service = ForecastService(db, provider=SampleForecastProvider(), cache=MatchCache(client=FakeRedis()),
+                              now=NOW, keys=KEYS, sync_fixtures=False)
+    league_id = matches[0].league_id
+    same = forecast(fixtures[0])
+
+    for _ in range(3):
+        service.attach_forecast(same, "premier_league", league_id)
+    db.flush()
+    assert len(service.snapshots_for_match(matches[0].id, "gameforecast")) == 1
+
+
+def test_a_prematch_snapshot_is_marked_as_such(db):
+    registry, fixtures, matches = sample_day(db)
+    service = ForecastService(db, provider=SampleForecastProvider(), cache=MatchCache(client=FakeRedis()),
+                              now=NOW, keys=KEYS, sync_fixtures=False)
+    service.attach_forecast(forecast(fixtures[0]), "premier_league", matches[0].league_id)
+    db.flush()
+    snapshot = service.snapshots_for_match(matches[0].id, "gameforecast")[0]
+    # DAY is two days out, so this really is a prematch forecast
+    assert snapshot.captured_before_kickoff is True
+    assert snapshot.kickoff_at_capture == fixtures[0].kickoff_utc.replace(tzinfo=None)
+
+
+def test_a_recycled_provider_event_id_does_not_move_a_forecast_to_the_wrong_match(db):
+    """Provider event ids are small integers and get reused between seasons."""
+    registry, fixtures, matches = sample_day(db)
+    service = ForecastService(db, provider=SampleForecastProvider(), cache=MatchCache(client=FakeRedis()),
+                              now=NOW, keys=KEYS, sync_fixtures=False)
+    league_id = matches[0].league_id
+    service.attach_forecast(forecast(fixtures[0], event_id="777"), "premier_league", league_id)
+    db.flush()
+
+    # the same event id comes back naming a completely different pair of teams
+    recycled = forecast(fixtures[0], event_id="777", home_name="Sporting CP", away_name="Benfica")
+    outcome = service.attach_forecast(recycled, "premier_league", league_id)
+    assert outcome["result"] == "ambiguous"
+    assert "no longer names the same teams" in outcome["reason"]
+
+
+def test_expert_predictions_survive_a_forecast_provider_change(db):
+    registry, fixtures, matches = sample_day(db)
+    user = _expert(db)
+    prediction = _publish(db, matches[0], user)
+    service = ForecastService(db, provider=SampleForecastProvider(), cache=MatchCache(client=FakeRedis()),
+                              now=NOW, keys=KEYS, sync_fixtures=False)
+    league_id = matches[0].league_id
+
+    service.attach_forecast(forecast(fixtures[0], event_id="G1"), "premier_league", league_id)
+    other = forecast(fixtures[0], event_id="A1", home_prob=0.4, draw_prob=0.35, away_prob=0.25)
+    other.provider = "api_football"
+    service.attach_forecast(other, "premier_league", league_id)
+    db.flush()
+
+    # two providers, two current rows, one untouched expert prediction
+    assert db.query(ProviderForecastRecord).filter(ProviderForecastRecord.match_id == matches[0].id).count() == 2
+    kept = db.query(Prediction).filter(Prediction.match_id == matches[0].id).one()
+    assert kept.id == prediction.id and kept.status == PredictionStatus.PUBLISHED
+    assert float(service.forecast_for_match(matches[0], "gameforecast").home_win_prob) == 0.5
+    assert float(service.forecast_for_match(matches[0], "api_football").home_win_prob) == 0.4

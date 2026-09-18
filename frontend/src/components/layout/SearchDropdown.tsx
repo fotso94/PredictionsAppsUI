@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import searchService, { SearchResults } from '@/services/search.service';
+import { onTeamLogoError, onLeagueLogoError } from '@/components/ui/imageFallback';
 import clsx from 'clsx';
 
 interface SearchDropdownProps {
@@ -62,6 +63,25 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handleSelectResult = useCallback((index: number) => {
+    const teamCount = results.teams.length;
+
+    if (index < teamCount) {
+      // Team selected
+      const team = results.teams[index];
+      navigate(`/teams/${team.id}`);
+    } else {
+      // League selected
+      const league = results.leagues[index - teamCount];
+      navigate(`/leagues/${league.id}`);
+    }
+
+    // Clear search and close dropdown
+    setQuery('');
+    setIsOpen(false);
+    inputRef.current?.blur();
+  }, [results, navigate]);
+
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     const totalResults = results.teams.length + results.leagues.length;
@@ -79,26 +99,7 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
       e.preventDefault();
       handleSelectResult(selectedIndex);
     }
-  }, [results, selectedIndex]);
-
-  const handleSelectResult = (index: number) => {
-    const teamCount = results.teams.length;
-    
-    if (index < teamCount) {
-      // Team selected
-      const team = results.teams[index];
-      navigate(`/teams/${team.id}`);
-    } else {
-      // League selected
-      const league = results.leagues[index - teamCount];
-      navigate(`/leagues/${league.id}`);
-    }
-    
-    // Clear search and close dropdown
-    setQuery('');
-    setIsOpen(false);
-    inputRef.current?.blur();
-  };
+  }, [results, selectedIndex, handleSelectResult]);
 
   const handleClearSearch = () => {
     setQuery('');
@@ -190,9 +191,7 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
                           src={team.logo}
                           alt={team.name}
                           className="h-8 w-8 rounded-full object-cover bg-white"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/32?text=T';
-                          }}
+                          onError={onTeamLogoError}
                         />
                         <div className="flex-1 text-left">
                           <p className="text-sm font-medium text-white">{team.name}</p>
@@ -226,9 +225,7 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
                           src={league.logo}
                           alt={league.name}
                           className="h-8 w-8 rounded-full object-cover bg-white"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/32?text=L';
-                          }}
+                          onError={onLeagueLogoError}
                         />
                         <div className="flex-1 text-left">
                           <p className="text-sm font-medium text-white">{league.name}</p>

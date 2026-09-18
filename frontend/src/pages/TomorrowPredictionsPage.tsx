@@ -11,6 +11,9 @@ import { footballDataService } from '@/services/football-data.service'
 import { DataSourceMeta, localDateString } from '@/services/match-data-source'
 import { describeError } from '@/services/backend-match-data.service'
 import DataSourceNotice from '@/components/ui/DataSourceNotice'
+import ForecastSyncNotice from '@/components/ui/ForecastSyncNotice'
+import { hasMarket, hasAnyConfidence, isHighConfidence } from '@/components/ui/predictionMarkets'
+import { filterLiveAndScheduledMatches } from '@/utils/matchFilters'
 
 const TomorrowPredictionsPage: React.FC = () => {
   // API Data State
@@ -74,21 +77,22 @@ const TomorrowPredictionsPage: React.FC = () => {
     { value: 'very-high', label: 'Very High' },
   ]
 
-  const filteredMatches = matches.filter(match => {
+  // Filter matches: first drop finished / postponed / cancelled matches, then apply user filters.
+  const filteredMatches = filterLiveAndScheduledMatches(matches).filter(match => {
     if (selectedLeagues.length > 0 && !selectedLeagues.includes(match.league.id)) {
       return false
     }
-    
-    if (selectedConfidence.length > 0) {
-      const prediction = match.predictions
-      const hasMatchingConfidence = prediction !== null && (
-        selectedConfidence.includes(prediction.outcome.confidence) ||
-        (prediction.bothTeamsToScore !== null && selectedConfidence.includes(prediction.bothTeamsToScore.confidence)) ||
-        (prediction.totalGoals !== null && selectedConfidence.includes(prediction.totalGoals.confidence)))
-      
-      if (!hasMatchingConfidence) return false
+
+    // Markets: keep only matches whose prediction offers EVERY selected market. A market the source
+    // did not publish is absent — never a 0% probability — so it never satisfies this filter.
+    if (selectedMarkets.length > 0 && !selectedMarkets.every(market => hasMarket(match.predictions, market))) {
+      return false
     }
-    
+
+    if (selectedConfidence.length > 0 && !hasAnyConfidence(match.predictions, selectedConfidence)) {
+      return false
+    }
+
     return true
   })
 
@@ -155,7 +159,7 @@ const TomorrowPredictionsPage: React.FC = () => {
             <div className="mt-4 flex items-center space-x-4">
               <Badge variant="info">{filteredMatches.length} matches</Badge>
               <Badge variant="success">
-                {filteredMatches.filter(m => m.predictions?.outcome.confidence === 'high' || m.predictions?.outcome.confidence === 'very-high').length} high confidence
+                {filteredMatches.filter(m => isHighConfidence(m.predictions)).length} high confidence
               </Badge>
               {usingMockData && (
                 <Badge variant="warning">⚠️ Using Mock Data</Badge>
@@ -209,7 +213,8 @@ const TomorrowPredictionsPage: React.FC = () => {
 
                   {/* Markets Filter */}
                   <div>
-                    <h4 className="text-sm font-medium text-white mb-3">Markets</h4>
+                    <h4 className="text-sm font-medium text-white mb-1">Markets</h4>
+                    <p className="text-xs text-secondary-500 mb-3">Show only matches offering every market you tick.</p>
                     <div className="space-y-2">
                       {markets.map(market => (
                         <label key={market.value} className="flex items-center">
@@ -250,6 +255,7 @@ const TomorrowPredictionsPage: React.FC = () => {
             <div className="lg:col-span-3">
               {/* Loading State */}
               <DataSourceNotice meta={meta} className="mb-6" />
+              <ForecastSyncNotice sync={meta?.forecastSync} className="mb-6" />
               {loading ? (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -284,7 +290,7 @@ const TomorrowPredictionsPage: React.FC = () => {
                       ? 'No matches scheduled for tomorrow'
                       : 'No matches found with current filters'}
                   </div>
-                  {selectedLeagues.length > 0 || selectedConfidence.length > 0 ? (
+                  {selectedLeagues.length > 0 || selectedMarkets.length > 0 || selectedConfidence.length > 0 ? (
                     <Button onClick={clearFilters}>Clear Filters</Button>
                   ) : null}
                 </motion.div>
@@ -302,7 +308,7 @@ const TomorrowPredictionsPage: React.FC = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, delay: 0.1 * index }}
                     >
-                      <MatchCard match={match} />
+                      <MatchCard match={match} forecastSync={meta?.forecastSync} />
                     </motion.div>
                   ))}
                 </motion.div>

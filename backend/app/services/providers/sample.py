@@ -120,6 +120,7 @@ class SampleForecastProvider(ForecastProvider):
 
     def get_forecasts(self, key: str, date_from: date, date_to: date) -> List[ProviderForecast]:
         forecasts: List[ProviderForecast] = []
+        retrieved_at = datetime.now(timezone.utc)   # one retrieval time for the whole response
         day = date_from
         while day <= date_to:
             for index, fixture in enumerate(sample_fixtures(day, [key])):
@@ -133,7 +134,7 @@ class SampleForecastProvider(ForecastProvider):
                     home_prob=home, draw_prob=0.25, away_prob=round(1 - home - 0.25, 4),
                     btts_yes_prob=0.52, btts_no_prob=0.48, over_25_prob=0.57, under_25_prob=0.43,
                     reasoning="Sample forecast for local development; not a real model output.",
-                    model_run_at=datetime.now(timezone.utc), provider_updated_at=datetime.now(timezone.utc),
+                    model_run_at=retrieved_at, provider_updated_at=retrieved_at, fetched_at=retrieved_at,
                 ))
             day += timedelta(days=1)
         return forecasts

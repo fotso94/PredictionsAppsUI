@@ -23,6 +23,7 @@ from app.core.permissions import (
 from app.models.users import User
 from app.models.predictions import PredictionStatus
 from app.schemas.predictions import (
+    to_utc_iso_z,
     ExpertPredictionCreate,
     ExpertPredictionOverride,
     ExpertPredictionUpdate,
@@ -137,6 +138,11 @@ async def create_manual_prediction(
         )
 
         return prediction
+    except HTTPException:
+        # An HTTPException raised inside the block already carries its own status and detail
+        # (404, 403, ...). Letting the catch-all below swallow it turns it into a 400 with a
+        # meaningless message.
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -202,6 +208,10 @@ async def override_prediction(
         )
 
         return override_prediction
+    except HTTPException:
+        # The 404 raised above for an unknown prediction must reach the client as a 404; the
+        # catch-all below would otherwise report it as a 400 with an empty detail.
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -278,8 +288,10 @@ async def get_my_predictions(
         try:
             status_filter = PredictionStatus[status.upper()]
         except KeyError:
+            # NB: the `status` query parameter shadows fastapi.status inside this function, so the
+            # numeric code is used directly here instead of status.HTTP_400_BAD_REQUEST.
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=400,
                 detail=f"Invalid status: {status}. Valid values: pending, approved, published, rejected"
             )
 
@@ -406,8 +418,9 @@ async def update_prediction(
 
     **Permission**: Expert or Admin (can only update own predictions)
 
-    Allows experts to update their own PENDING predictions.
-    Once a prediction is APPROVED or PUBLISHED, it cannot be edited.
+    Allows experts to update their own predictions. Because experts publish directly, PUBLISHED and
+    ARCHIVED predictions stay editable as well: an edit keeps the current status and published_at and
+    only refreshes updated_at. REJECTED predictions cannot be edited.
 
     **Request Body**:
     - home_win_prob: Home win probability (0-1)
@@ -718,8 +731,9 @@ async def get_verification_status(
         "role": "expert",
         "is_verified": expert_profile.is_verified,
         "verification_status": "verified" if expert_profile.is_verified else "pending",
-        "application_date": expert_profile.created_at.isoformat() if expert_profile.created_at else None,
-        "verified_date": expert_profile.verified_at.isoformat() if expert_profile.verified_at else None,
+        # UTC ISO-8601 with a trailing Z, like every other timestamp leaving the expert endpoints
+        "application_date": to_utc_iso_z(expert_profile.created_at),
+        "verified_date": to_utc_iso_z(expert_profile.verified_at),
         "verified_by": str(expert_profile.verified_by_admin_id) if expert_profile.verified_by_admin_id else None
     }
 

@@ -3,6 +3,8 @@ Public Predictions Endpoints
 Endpoints for retrieving published predictions (no authentication required)
 """
 
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -10,7 +12,7 @@ import uuid
 
 from app.db.session import get_db
 from app.models.predictions import Prediction, PredictionStatus, Match, Team, League
-from app.schemas.predictions import PublicPredictionResponse
+from app.schemas.predictions import PublicPredictionResponse, to_utc_iso_z
 
 router = APIRouter()
 
@@ -101,27 +103,27 @@ async def get_published_predictions(
     
     # Filter by date if provided
     if date:
-        # Find matches on this date
-        from datetime import datetime
         try:
-            date_obj = datetime.strptime(date, "%Y-%m-%d")
-            # Get matches on this date (ignoring time)
-            matches = db.query(Match).filter(
-                db.func.date(Match.match_date) == date_obj.date()
-            ).all()
-            
-            if matches:
-                match_ids = [m.id for m in matches]
-                query = query.filter(Prediction.match_id.in_(match_ids))
-            else:
-                # No matches found on this date, return empty list
-                return []
+            day_start = datetime.strptime(date, "%Y-%m-%d")
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid date format: {date}. Use YYYY-MM-DD format."
             )
-    
+
+        # Half-open UTC window [00:00, next 00:00): sargable, so the index on match_date is used.
+        # (The previous `db.func.date(...)` was both a 500 - Session has no `func` - and unindexable.)
+        day_end = day_start + timedelta(days=1)
+        matches = db.query(Match).filter(
+            Match.match_date >= day_start,
+            Match.match_date < day_end
+        ).all()
+
+        if not matches:
+            # No matches kick off on this date, so there is nothing to return
+            return []
+        query = query.filter(Prediction.match_id.in_([m.id for m in matches]))
+
     # Order by priority (highest first), then by published_at (newest first)
     query = query.order_by(
         Prediction.priority_level.desc(),
@@ -164,14 +166,15 @@ async def get_published_predictions(
             "total_goals_over_35_prob": _optional_float(prediction.total_goals_over_35_prob),
             "total_goals_under_35_prob": _optional_float(prediction.total_goals_under_35_prob),
             "total_goals_confidence": _optional_float(prediction.total_goals_confidence),
-            "published_at": prediction.published_at.isoformat() if prediction.published_at else None,
+            # UTC ISO-8601 with a trailing Z: without it the browser reads the timestamp as local time.
+            "published_at": to_utc_iso_z(prediction.published_at),
             "match_details": {
                 "home_team_name": home_team.name if home_team else "Unknown",
                 "away_team_name": away_team.name if away_team else "Unknown",
                 "home_team_logo": home_team.logo_url if home_team else None,
                 "away_team_logo": away_team.logo_url if away_team else None,
                 "league_name": league.display_name if league else None,
-                "match_date": match.match_date.isoformat() if match.match_date else None,
+                "match_date": to_utc_iso_z(match.match_date),
             }
         })
     
@@ -250,14 +253,15 @@ async def get_published_prediction_by_match(
         "total_goals_over_35_prob": _optional_float(prediction.total_goals_over_35_prob),
         "total_goals_under_35_prob": _optional_float(prediction.total_goals_under_35_prob),
         "total_goals_confidence": _optional_float(prediction.total_goals_confidence),
-        "published_at": prediction.published_at.isoformat() if prediction.published_at else None,
+        # UTC ISO-8601 with a trailing Z: without it the browser reads the timestamp as local time.
+        "published_at": to_utc_iso_z(prediction.published_at),
         "match_details": {
             "home_team_name": home_team.name if home_team else "Unknown",
             "away_team_name": away_team.name if away_team else "Unknown",
             "home_team_logo": home_team.logo_url if home_team else None,
             "away_team_logo": away_team.logo_url if away_team else None,
             "league_name": league.display_name if league else None,
-            "match_date": match.match_date.isoformat() if match.match_date else None,
+            "match_date": to_utc_iso_z(match.match_date),
         }
     }
 

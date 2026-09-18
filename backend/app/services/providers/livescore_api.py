@@ -80,7 +80,13 @@ class LiveScoreAPIProvider(MatchDataProvider):
         self._store = store if store is not None else MatchCache()
 
     def _load_store(self) -> None:
-        data = self._store.get(COMPETITION_STORE_KEY) or {}
+        # The fresh copy expires after MATCH_CACHE_TTL_COMPETITIONS while a 30-day stale copy is
+        # kept alongside it. Competition ids are immutable, so once the fresh copy has expired the
+        # stale one is still exactly right - and reading it is what stops a new provider instance
+        # from re-downloading up to 40 pages of the competition list.
+        data = self._store.get(COMPETITION_STORE_KEY)
+        if not data:
+            data = self._store.get_stale(COMPETITION_STORE_KEY) or {}
         for key, item in data.items():
             if key in self._competition_cache or not isinstance(item, dict) or not item.get("external_id"):
                 continue
@@ -116,13 +122,15 @@ class LiveScoreAPIProvider(MatchDataProvider):
                 time.sleep(wait)
             _last_request_at = time.monotonic()
 
-    def _get(self, path: str, **params: Any) -> Dict[str, Any]:
+    def _get(self, path: str, reason: str = "fetch", **params: Any) -> Dict[str, Any]:
         params = self._params(**params)
         attempts = 0
         while True:
             attempts += 1
             self._throttle()
-            self.budget.consume(1)
+            # The burst retry below is a second outbound request: the provider charges it, so it
+            # is consumed and attributed as a retry rather than hidden inside the first one.
+            self.budget.consume(1, reason=reason if attempts == 1 else "retry")
             try:
                 payload = self.client.get_json(path, params)
                 break
@@ -145,11 +153,13 @@ class LiveScoreAPIProvider(MatchDataProvider):
             raise ProviderUnavailableError(f"Live Score API: {message}", provider=self.name)
         return payload.get("data") or {}
 
-    def _paginate(self, path: str, list_key: str, max_pages: int = MAX_PAGES, **params: Any) -> List[Dict[str, Any]]:
+    def _paginate(self, path: str, list_key: str, max_pages: int = MAX_PAGES, reason: str = "fetch",
+                  **params: Any) -> List[Dict[str, Any]]:
         items: List[Dict[str, Any]] = []
         page = 1
         while page <= max_pages:
-            data = self._get(path, page=page if page > 1 else None, **params)
+            data = self._get(path, reason=reason if page == 1 else "page",
+                             page=page if page > 1 else None, **params)
             chunk = data.get(list_key) or []
             items.extend(chunk)
             if not data.get("next_page") or not chunk:
@@ -263,7 +273,8 @@ class LiveScoreAPIProvider(MatchDataProvider):
         if missing:
             # The full competition list is fetched at most once a day (persisted in Redis), so a deep
             # pagination cap is affordable here even though the endpoint may return many pages.
-            items = self._paginate("competitions/list.json", "competition", max_pages=COMPETITION_LIST_MAX_PAGES)
+            items = self._paginate("competitions/list.json", "competition", reason="discovery",
+                                   max_pages=COMPETITION_LIST_MAX_PAGES)
             parsed = [self._competition_from_payload(item) for item in items]
             resolved = comps.resolve_competitions(
                 [(i, c.name, c.country, c.is_cup or None) for i, c in enumerate(parsed)], missing)
@@ -272,7 +283,10 @@ class LiveScoreAPIProvider(MatchDataProvider):
                 comp.key = key
                 self._competition_cache[key] = comp
                 logger.info("Live Score API: resolved %s -> id %s (%s, %s)", key, comp.external_id, comp.name, comp.country)
-            self._save_store()
+        # Persist unconditionally, not only after a network lookup: ids that came from the static
+        # defaults or from LIVESCORE_COMPETITION_IDS belong in the store too. Without them a key
+        # this provider cannot resolve sends the next instance back through the paginated list.
+        self._save_store()
         unresolved = [k for k in keys if k not in self._competition_cache]
         if unresolved:
             logger.warning("Live Score API: could not resolve competition ids for %s", unresolved)
@@ -311,7 +325,8 @@ class LiveScoreAPIProvider(MatchDataProvider):
         fixtures = []
         page = 1
         while page <= MAX_PAGES:
-            data = self._get("fixtures/list.json", page=page if page > 1 else None, competition_id=comp.external_id)
+            data = self._get("fixtures/list.json", reason="fetch" if page == 1 else "page",
+                             page=page if page > 1 else None, competition_id=comp.external_id)
             chunk = data.get("fixtures") or []
             if page == 1:
                 self._check_competition_name(comp, chunk)

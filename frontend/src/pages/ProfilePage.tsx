@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { userService, type UserProfile, type UpdateProfileRequest } from '@/services/user.service';
 import Card from '@/components/ui/Card';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '@/utils/errors';
 
 const ProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -49,9 +50,9 @@ const ProfilePage: React.FC = () => {
       setProfile(updatedProfile);
       setIsEditing(false);
       toast.success('Profile updated successfully');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to update profile:', error);
-      const errorMessage = error.response?.data?.detail || 'Failed to update profile';
+      const errorMessage = getErrorMessage(error, 'Failed to update profile');
       toast.error(errorMessage);
     } finally {
       setIsSaving(false);

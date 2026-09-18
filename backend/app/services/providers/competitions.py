@@ -32,6 +32,10 @@ class CanonicalCompetition:
     livescore_id: Optional[int] = None
 
 
+#: Provider ids confirmed against live responses, so a cache flush never re-pays discovery out of a
+#: ten-request daily allowance. GameForecastAPI ids verified 2026-09-17/18: Premier League 15,
+#: La Liga 13, Serie A 3, Bundesliga 14, Ligue 1 4. The Champions League id is still unknown - it is
+#: resolved by name on first use, which is why it carries no gameforecast_id here.
 COMPETITIONS: Dict[str, CanonicalCompetition] = {
     "premier_league": CanonicalCompetition(
         key="premier_league", name="Premier League", country="England", country_code="ENG", is_cup=False,
@@ -40,19 +44,19 @@ COMPETITIONS: Dict[str, CanonicalCompetition] = {
     "la_liga": CanonicalCompetition(
         key="la_liga", name="La Liga", country="Spain", country_code="ESP", is_cup=False,
         aliases=("la liga", "laliga", "primera division", "primera división", "liga ea sports"),
-        api_football_id=140, thesportsdb_id=4335, livescore_id=3,
+        api_football_id=140, thesportsdb_id=4335, gameforecast_id=13, livescore_id=3,
     ),
     "serie_a": CanonicalCompetition(
         key="serie_a", name="Serie A", country="Italy", country_code="ITA", is_cup=False,
-        aliases=("serie a",), api_football_id=135, thesportsdb_id=4332, livescore_id=4,
+        aliases=("serie a",), api_football_id=135, thesportsdb_id=4332, gameforecast_id=3, livescore_id=4,
     ),
     "bundesliga": CanonicalCompetition(
         key="bundesliga", name="Bundesliga", country="Germany", country_code="GER", is_cup=False,
-        aliases=("bundesliga",), api_football_id=78, thesportsdb_id=4331, livescore_id=1,
+        aliases=("bundesliga",), api_football_id=78, thesportsdb_id=4331, gameforecast_id=14, livescore_id=1,
     ),
     "ligue_1": CanonicalCompetition(
         key="ligue_1", name="Ligue 1", country="France", country_code="FRA", is_cup=False,
-        aliases=("ligue 1", "ligue1"), api_football_id=61, thesportsdb_id=4334, livescore_id=5,
+        aliases=("ligue 1", "ligue1"), api_football_id=61, thesportsdb_id=4334, gameforecast_id=4, livescore_id=5,
     ),
     "champions_league": CanonicalCompetition(
         key="champions_league", name="UEFA Champions League", country="Europe", country_code="EUR", is_cup=True,

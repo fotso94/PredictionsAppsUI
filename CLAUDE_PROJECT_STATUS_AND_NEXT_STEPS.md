@@ -729,6 +729,124 @@ Verification: no tracked file contains any of the four secret values (API-Footba
 
 **Known gaps carried forward:** no bookmaker odds feed (shown as unavailable); GameForecast free plan (10 requests/day) only allows one forecast sync per day for six competitions; Champions League ids for Live Score API are resolved by name (id 244 recorded) and should be confirmed on the first live run; the legacy API-Football browser path is retained but limited by the free plan; `npm run lint` still fails on pre-existing warnings.
 
+## Addendum E — Phase 1 correctness pass (2026-09-18, autonomous run)
+
+Scope: the six priorities the owner set for the overnight run — correct forecast values and repair
+stored data, complete coverage within trial limits, reliable match identity, finish the user
+experience, preserve forecast evidence, and test/fix/retest. No deployment, AWS change, purchase or
+remote push was made; the GameForecastAPI and Live Score API trial allowances were not spent on
+testing (every test drives the providers through mocked transports, and the browser suite stubs the
+backend or reads only what the local database already holds).
+
+### Priority 1 — forecast values and stored data
+
+The parser inferred GameForecastAPI's 0-100 scale from whether a value exceeded 1, so a genuine 1%
+would have been read as 100% certainty. The scale is now the provider's documented contract, applied
+explicitly and unconditionally (`PROBABILITY_SCALE`), with one shared implementation in
+`providers/base.to_probability(value, scale)` that the API-Football path also uses with its own
+documented scale — that path had the same inference bug and is fixed with it. Values that are not
+finite numbers inside the published range are dropped rather than clamped; a market whose values are
+all zero is reported as unavailable rather than as 0%; complementary pairs and the 1X2 outcomes are
+checked against a tolerance only when the whole market is present, and a failure is recorded in a new
+`anomalies` field rather than silently corrected. Exact scores keep the provider's "other scorelines"
+remainder in its own column so a partial list is never renormalised, and zero-probability scorelines
+can never be selected as the most likely.
+
+`backend/scripts/repair_forecasts.py` replaces `reparse_forecasts.py`: it re-derives every stored
+forecast from the raw payload saved with it, makes no provider request, is idempotent, has a
+`--dry-run` that reports every field it would change, preserves provider timestamps and expert data,
+appends the corrected reading to the evidence history rather than overwriting it, and clears the
+caches that held the old numbers. Run against the 30 stored forecasts it reported 30 corrected
+(the `exact_score_other_prob` remainder, absent before) and, on a second run, 30 already correct and
+0 changed. No stored probability changed, which confirms the explicit scale reproduces what the
+inference happened to produce for this data while removing the 1% failure mode.
+
+### Priority 2 — coverage within the trial limits
+
+The request budget counted reservations, not requests: `consume()` incremented and then raised, so a
+refusal inflated the counter and silently stole a real request (live Redis showed 9 used against a
+limit of 8). Reservation is now atomic in Redis and the counter only advances when the request is
+actually allowed out; refusals are counted separately as `refused_today`; a request that was sent and
+then failed still counts, because the provider charged it. For a plan of 100 requests/day or fewer the
+budget fails closed when Redis is unavailable, rather than spending blind. Spending is attributed by
+reason (discovery, fetch, page, retry). No counter was reset.
+
+Competitions are now synced least-recently-synced first. With the previous fixed order, a daily
+allowance too small for six competitions spent itself on the same leagues every day and never reached
+the tail — which is exactly why Ligue 1 and the Champions League had no forecasts. Competitions that
+did not get their turn are reported under `deferred` and lead the next run; verified from the live
+database, the next run's order is Ligue 1, Champions League, then the four already done. A Redis lock
+stops two workers paying for the same competition. GameForecast league ids verified live are now
+recorded in code (Premier League 15, La Liga 13, Serie A 3, Bundesliga 14, Ligue 1 4), so a cache
+flush no longer re-pays discovery; an unresolvable competition is remembered for six hours instead of
+being retried on every sync. Live Score's competition store falls back to its 30-day stale copy and
+persists ids derived from defaults. A measured test prices a full run: one events request per
+competition plus discovery only for a competition whose id is not already known, which today is the
+Champions League alone — six competitions for seven requests cold, six warm.
+
+### Priority 3 — match identity
+
+Legacy matches that predate the provider-reference table were invisible to the fixture upsert, so the
+next sync created a duplicate and orphaned the expert prediction attached to the original; they are
+now recovered by their `external_api_id` and only after the team names and kickoff are verified.
+Team lookup normalised the search term but matched it against the raw column, so "Borussia
+Moenchengladbach" and "FC Cologne" could never be found and a provider switch would have split them
+across duplicate rows. Only the provider that owns a match may move its kickoff, and terminal
+statuses no longer move backwards. An ambiguous or home/away-swapped fixture is refused rather than
+duplicated, and the refusal is counted. The candidate window was widened so a fixture postponed by
+more than 36 hours is recognised as a possible reschedule rather than silently duplicated, while the
+thresholds that allow an attach are unchanged. A provider event id that no longer names the same
+teams — these ids are small integers and get recycled between seasons — no longer moves a forecast to
+the wrong match. Unmatched forecasts are retried from the pending store on every path, including the
+one where the allowance ran out, which is exactly when the cache is all there is, and the pending
+store now merges rather than replaces, so a shorter window no longer discards a forecast already paid
+for. All 22 of the owner's named transliteration pairs behave correctly, including the false
+positives that had to be refused.
+
+### Priority 4 — user experience
+
+The frontend fabricated a zero-filled 1X2 block whenever the source published none, which is where
+"Home Win (0%)" came from; the market is now nullable end to end and renders as unavailable. An
+expert prediction with no 1X2 market is no longer discarded whole. The mapper no longer invents the
+missing half of a complementary pair. Exact scores are validated before display. The home page's
+invented accuracy rate, success rate, active users and total predictions are replaced with counts
+measured from a new `/api/v1/data-providers/coverage` endpoint, which reports
+`accuracy_available: false` with a reason instead of a number, because no result has been scored. The
+dashboard's mock user statistics and the random prediction generator behind them are gone, as are the
+randomised probabilities and bookmaker odds in the TheSportsDB mapper (the integration itself is
+retained as a fallback, as instructed). Provider-generated, provider-updated and locally-fetched
+times are kept distinct, with an explicit unknown state. A spent allowance reads as a paused refresh,
+never as an unavailable forecast. Today and tomorrow now send the viewer's UTC offset and the backend
+selects the viewer's local calendar day.
+
+Two application bugs were found and fixed along the way: `GET /api/v1/predictions/published?date=`
+always returned HTTP 500, and an expert could never edit a prediction once it was published, which
+contradicts the direct-publishing decision. Naive UTC timestamps were being serialised without a Z,
+so a browser read them as local time and could show a kickoff on the wrong day.
+
+### Priority 5 — forecast evidence
+
+`predictions.provider_forecasts` was updated in place, so each sync destroyed the only record of what
+the model had said before kickoff. `predictions.provider_forecast_snapshots` (migrations
+`e5f6a7b8c9d0` and `f6a7b8c9d0e1`) is an append-only history, one row per distinct forecast content,
+recording the provider's own model-run time, the provider's update time, our retrieval time, the
+kickoff known at capture and whether the capture was prematch — left NULL when the kickoff was
+unknown, because a stored false would assert something we cannot know. Re-fetching unchanged content
+only moves `last_fetched_at`. The current forecast stays a single indexed lookup. The 30 existing
+forecasts were backfilled as prematch snapshots before anything was rewritten, and the repair added
+its corrected reading alongside rather than over them: 60 snapshots for 30 matches. Retrieval time is
+now stamped when the provider response is parsed, not when the forecast is attached, so a forecast
+replayed from the pending cache two days later is not mistaken for a fresh one. No accuracy claim is
+published anywhere.
+
+### Priority 6 — tests, lint, type-check, build
+
+The eight long-standing backend failures were traced to a test that patched a module attribute where
+a FastAPI dependency override was needed: the real authentication ran and rejected the mock token
+exactly as it should. They are fixed with `app.dependency_overrides`, with no change to production
+authentication and no test skipped or deleted. A test that slept three seconds and still failed
+intermittently now asserts the TTL Redis actually recorded.
+
 ---
 
 *End of report.*

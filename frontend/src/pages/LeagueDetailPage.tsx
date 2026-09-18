@@ -9,6 +9,7 @@ import MatchCard from '@/components/ui/MatchCard'
 import { footballDataService } from '@/services/football-data.service'
 import { describeError } from '@/services/backend-match-data.service'
 import { localDateString } from '@/services/match-data-source'
+import { onTeamLogoError, onLeagueLogoError } from '@/components/ui/imageFallback'
 
 const LeagueDetailPage: React.FC = () => {
   // Support both route patterns: /league/:id and /leagues/:leagueId
@@ -125,9 +126,7 @@ const LeagueDetailPage: React.FC = () => {
                 src={league.logo}
                 alt={league.name}
                 className="h-16 w-16 object-contain"
-                onError={(e) => {
-                  e.currentTarget.src = '/leagues/default.svg'
-                }}
+                onError={onLeagueLogoError}
               />
               <div>
                 <h1 className="text-3xl font-bold text-white">{league.name}</h1>
@@ -200,9 +199,7 @@ const LeagueDetailPage: React.FC = () => {
                                     src={standing.team.logo}
                                     alt={standing.team.name}
                                     className="h-6 w-6 object-contain"
-                                    onError={(e) => {
-                                      e.currentTarget.src = '/teams/default.svg'
-                                    }}
+                                    onError={onTeamLogoError}
                                   />
                                   <span className="text-white">{standing.team.name}</span>
                                 </div>
@@ -238,9 +235,7 @@ const LeagueDetailPage: React.FC = () => {
                             src={team.logo}
                             alt={team.name}
                             className="h-8 w-8 object-contain"
-                            onError={(e) => {
-                              e.currentTarget.src = '/teams/default.svg'
-                            }}
+                            onError={onTeamLogoError}
                           />
                           <span className="text-sm text-white truncate">{team.name}</span>
                         </div>

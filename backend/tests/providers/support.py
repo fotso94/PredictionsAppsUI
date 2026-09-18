@@ -32,12 +32,27 @@ class FakeRedis:
         self.store[key] = int(self.store.get(key) or 0) + int(amount)
         return self.store[key]
 
+    def hincrby(self, key, field, amount):
+        bucket = self.store.setdefault(key, {})
+        bucket[field] = int(bucket.get(field) or 0) + int(amount)
+        return bucket[field]
+
+    def hgetall(self, key):
+        value = self.store.get(key)
+        return dict(value) if isinstance(value, dict) else {}
+
     def expire(self, key, ttl):
         self.ttls[key] = ttl
 
     def delete(self, *keys):
         for key in keys:
             self.store.pop(key, None)
+
+    def expire_now(self, *keys):
+        """Test helper: drop a key as if its TTL had elapsed (the `:stale` copy is left alone)."""
+        for key in keys:
+            self.store.pop(key, None)
+            self.ttls.pop(key, None)
 
 
 class Recorder:

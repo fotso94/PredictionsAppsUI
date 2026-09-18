@@ -11,6 +11,26 @@ import { League, LeagueStanding, Match, Team } from '@/types';
 
 export type DataSourceName = 'backend' | 'api-football';
 
+/**
+ * What the backend's last forecast refresh did.
+ *
+ * A paused refresh (daily allowance spent, or a cooldown after a provider failure) is not the same
+ * thing as "this fixture has no forecast": the UI must be able to say "refresh paused until the
+ * daily allowance resets" instead of a flat "unavailable".
+ */
+export interface ForecastSyncStatus {
+  /** Forecast provider the backend tried to refresh; null when none is configured */
+  provider: string | null;
+  /** True when the refresh made no provider call, or stopped early and deferred competitions */
+  paused: boolean;
+  /** The backend's own wording for why, verbatim; null when the refresh ran normally */
+  reason: string | null;
+  /** Competition keys whose refresh was postponed to the next allowance reset */
+  deferred: string[];
+  /** When the backend last ran the refresh */
+  syncedAt: string | null;
+}
+
 export interface DataSourceMeta {
   /** Upstream provider that produced the data (livescore, api_football, thesportsdb, sample, ...) */
   provider: string | null;
@@ -20,6 +40,8 @@ export interface DataSourceMeta {
   stale: boolean;
   fetchedAt: string | null;
   errors: string[];
+  /** Report from the backend's forecast refresh; null when the endpoint did not run one */
+  forecastSync: ForecastSyncStatus | null;
 }
 
 export interface MatchListResult {
@@ -129,6 +151,12 @@ export interface MatchDataSource {
   getProviderStatus(): Promise<ProviderStatus | null>;
   getCoverage(): Promise<CoverageSummary | null>;
   clearCache(): void;
+  /**
+   * Drop cached responses whose key starts with `prefix` (everything when omitted).
+   * Call it after a write that changes what the public endpoints return, so the next read is fresh
+   * instead of serving the in-memory copy for the rest of its TTL.
+   */
+  invalidate(prefix?: string): void;
 }
 
 export function configuredDataSource(): DataSourceName {
@@ -153,6 +181,18 @@ export function localDateString(offsetDays = 0, from: Date = new Date()): string
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+/**
+ * Minutes east of UTC for a given local calendar day, for the backend's `tz_offset` parameter.
+ *
+ * The offset is taken from noon on that day rather than from "now", so a daylight-saving transition
+ * cannot hand back the neighbouring day's offset and shift the window by an hour.
+ */
+export function timezoneOffsetMinutes(isoDate?: string): number {
+  const reference = isoDate ? new Date(`${isoDate}T12:00:00`) : new Date();
+  const at = Number.isNaN(reference.getTime()) ? new Date() : reference;
+  return -at.getTimezoneOffset();
 }
 
 /** @deprecated use localDateString; kept for the legacy API-Football path */

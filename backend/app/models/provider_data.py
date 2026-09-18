@@ -117,6 +117,6 @@ class ProviderForecastSnapshot(Base, UUIDMixin, TimestampMixin):
     first_fetched_at = Column(DateTime, nullable=False, comment="When this content was first retrieved (UTC)")
     last_fetched_at = Column(DateTime, nullable=False, comment="When this content was last seen unchanged (UTC)")
     kickoff_at_capture = Column(DateTime, comment="Fixture kickoff known when this snapshot was captured (UTC)")
-    captured_before_kickoff = Column(Boolean, nullable=False, default=False,
-                                     comment="True when retrieved before kickoff: only these are prematch evidence")
+    captured_before_kickoff = Column(Boolean,
+                                     comment="True/false only when the kickoff was known at capture; NULL when it was not")
     raw_payload = Column(JSONB)

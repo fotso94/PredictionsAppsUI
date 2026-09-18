@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.predictions import Match, MatchStatus
+from app.models.predictions import Match, MatchStatus, Team
 from app.models.provider_data import ProviderForecastRecord, ProviderForecastSnapshot
 from app.services import match_matching
 from app.services.match_cache import MatchCache
@@ -44,6 +44,10 @@ LAST_SYNC_KEY = "forecast:last_sync:{provider}:{key}"
 STATUS_KEY = "forecast:status:{provider}"
 PENDING_KEY = "forecast:pending:{provider}:{key}"
 COOLDOWN_KEY = "forecast:cooldown:{provider}"
+SYNC_LOCK_KEY = "forecast:sync_lock:{provider}"
+SYNC_LOCK_TTL_SECONDS = 300
+
+_UNSET = object()
 AUTH_COOLDOWN_SECONDS = 30 * 60
 UNAVAILABLE_COOLDOWN_SECONDS = 2 * 60
 
@@ -53,7 +57,7 @@ def _seconds_until_utc_midnight(now: datetime) -> int:
     return max(int((tomorrow - now).total_seconds()), 60)
 PENDING_TTL_SECONDS = 48 * 3600
 
-_DATETIME_FIELDS = ("kickoff_utc", "model_run_at", "provider_updated_at")
+_DATETIME_FIELDS = ("kickoff_utc", "model_run_at", "provider_updated_at", "fetched_at")
 
 
 def _forecast_to_dict(forecast: ProviderForecast) -> Dict[str, Any]:
@@ -90,6 +94,15 @@ def content_hash(forecast: ProviderForecast) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
 
 
+def _retrieved_at(forecast: ProviderForecast, fallback: datetime) -> datetime:
+    """When this forecast actually came off the wire.
+
+    Stamping the attach moment instead would make a forecast replayed from the pending cache two
+    days later look like it was just retrieved, and freshness is judged on this value.
+    """
+    return getattr(forecast, "fetched_at", None) or fallback
+
+
 def _naive(dt: Optional[datetime]) -> Optional[datetime]:
     if dt is None:
         return None
@@ -109,6 +122,8 @@ class ForecastService:
         self.keys = keys or comps.covered_keys(settings.COVERED_COMPETITIONS)
         self._fixtures = fixtures
         self._sync_fixtures = sync_fixtures
+        self._lock_token = uuid.uuid4().hex
+        self._cooldown_cache: Any = _UNSET
 
     @property
     def fixtures(self) -> Optional["MatchDataService"]:
@@ -175,63 +190,124 @@ class ForecastService:
         days_ahead = days_ahead or settings.GAMEFORECAST_SYNC_DAYS_AHEAD
         report["retried"] = {}
         report["deferred"] = []
-        cooling = self.cache.get(COOLDOWN_KEY.format(provider=self.provider.name))
-        if isinstance(cooling, dict) and cooling.get("reason"):
+        # The memo exists so one page render does not ask Redis the same question thirty times.
+        # A sync is a new operation, so it re-reads: another worker may have paused the provider since.
+        self._cooldown_cache = _UNSET
+        cooling = self._cooldown_reason()
+        if cooling:
             # No provider calls while paused, but forecasts fetched earlier can still be attached to
             # fixtures that appeared (or became matchable) since.
-            for key in self.keys:
-                retried = self._retry_pending(key)
-                if retried:
-                    report["retried"][key] = retried
-            report["error"] = f"skipped (recent failure: {cooling['reason']})"
+            self._retry_all_pending(self.keys, report)
+            report["error"] = f"skipped (recent failure: {cooling})"
+            report["paused"] = True
             report["synced_at"] = self.now.isoformat()
+            self._record_status(report)
             return report
         order = self.sync_order()
         report["order"] = order
-        for key in order:
-            last = self._last_sync(key)
-            if not force and last and self.now - last < interval:
-                report["skipped"].append(key)
-                # fixtures may have appeared since the last provider call: re-attach pending forecasts for free
-                retried = self._retry_pending(key)
-                if retried:
-                    report["retried"][key] = retried
-                continue
-            remaining = self._budget_remaining()
-            if remaining is not None and remaining < 1:
-                # Stop before reserving: the request would be refused anyway, and the remaining
-                # competitions keep their place at the head of tomorrow's order.
-                report["deferred"] = [k for k in order[order.index(key):] if k not in report["skipped"]]
-                report["error"] = f"daily request allowance for {self.provider.name} is spent; " \
-                                  f"{len(report['deferred'])} competition(s) deferred to the next reset"
-                seconds = _seconds_until_utc_midnight(self.now)
-                self.cache.set(COOLDOWN_KEY.format(provider=self.provider.name),
-                               {"reason": report["error"]}, ttl=seconds, stale_ttl=seconds)
-                break
-            try:
-                # Forecasts can only be attached to fixtures we know about: fill the calendar first (cached,
-                # one provider request per competition at most every few hours).
-                fixture_errors = self._ensure_fixtures(key, days_ahead)
-                report["competitions"][key] = self.sync_competition(key, self.now.date(), self.now.date() + timedelta(days=days_ahead))
-                if fixture_errors:
-                    report["competitions"][key]["fixture_errors"] = fixture_errors
-                self._mark_synced(key)
-            except ProviderNotConfiguredError as exc:
-                report["error"] = str(exc)
-                break
-            except ProviderError as exc:
-                report["competitions"][key] = {"error": str(exc)}
-                report["deferred"] = [k for k in order[order.index(key):]
-                                      if k not in report["skipped"] and k not in report["competitions"]]
-                logger.warning("Forecast sync for %s failed: %s", key, exc)
-                # quota/auth failures affect every competition: stop here and back off
-                seconds = _seconds_until_utc_midnight(self.now) if isinstance(exc, ProviderQuotaError) else (
-                    AUTH_COOLDOWN_SECONDS if isinstance(exc, ProviderAuthError) else UNAVAILABLE_COOLDOWN_SECONDS)
-                self.cache.set(COOLDOWN_KEY.format(provider=self.provider.name), {"reason": str(exc)}, ttl=seconds, stale_ttl=seconds)
-                break
+        if not self._acquire_sync_lock():
+            # Another worker is already spending the allowance. Attaching cached forecasts is free,
+            # so that still runs; nothing is fetched twice.
+            report["error"] = f"a {self.provider.name} sync is already running"
+            self._retry_all_pending(order, report)
+            report["synced_at"] = self.now.isoformat()
+            return report
+        stop_reason: Optional[str] = None
+        try:
+            for key in order:
+                last = self._last_sync(key)
+                if not force and last and self.now - last < interval:
+                    report["skipped"].append(key)
+                    continue
+                remaining = self._budget_remaining()
+                if remaining is not None and remaining < 1:
+                    # Stop before reserving: the request would be refused anyway, and the remaining
+                    # competitions keep their place at the head of tomorrow's order.
+                    stop_reason = f"daily request allowance for {self.provider.name} is spent"
+                    self._pause(stop_reason, _seconds_until_utc_midnight(self.now))
+                    break
+                try:
+                    # Forecasts can only be attached to fixtures we know about: fill the calendar first
+                    # (cached, one provider request per competition at most every few hours).
+                    fixture_errors = self._ensure_fixtures(key, days_ahead)
+                    report["competitions"][key] = self.sync_competition(
+                        key, self.now.date(), self.now.date() + timedelta(days=days_ahead))
+                    if fixture_errors:
+                        report["competitions"][key]["fixture_errors"] = fixture_errors
+                    self._mark_synced(key)
+                except ProviderNotConfiguredError as exc:
+                    stop_reason = str(exc)
+                    break
+                except ProviderError as exc:
+                    report["competitions"][key] = {"error": str(exc)}
+                    logger.warning("Forecast sync for %s failed: %s", key, exc)
+                    # quota/auth failures affect every competition: stop here and back off
+                    seconds = _seconds_until_utc_midnight(self.now) if isinstance(exc, ProviderQuotaError) else (
+                        AUTH_COOLDOWN_SECONDS if isinstance(exc, ProviderAuthError) else UNAVAILABLE_COOLDOWN_SECONDS)
+                    stop_reason = str(exc)
+                    self._pause(stop_reason, seconds)
+                    break
+        finally:
+            self._release_sync_lock()
+        # Whatever stopped the run, forecasts already paid for can still be attached to fixtures that
+        # exist now. This costs no provider request, so it must happen on every path - especially the
+        # path where the allowance ran out, which is exactly when the cache is all there is.
+        self._retry_all_pending(order, report)
+        if stop_reason:
+            # A competition whose own request failed was not synced either: it belongs at the head of
+            # the next run just like the ones that were never reached.
+            succeeded = {k for k, v in report["competitions"].items() if not (isinstance(v, dict) and v.get("error"))}
+            deferred = [k for k in order if k not in succeeded and k not in report["skipped"]]
+            report["deferred"] = deferred
+            report["error"] = stop_reason + (
+                f"; {len(deferred)} competition(s) deferred to the next reset" if deferred else "")
         report["synced_at"] = self.now.isoformat()
         self._record_status(report)
         return report
+
+    def _retry_all_pending(self, keys: List[str], report: Dict[str, Any]) -> None:
+        """Attach every cached unmatched forecast we already paid for. Makes no provider request."""
+        for key in keys:
+            try:
+                retried = self._retry_pending(key)
+            except Exception as exc:  # a broken cache entry must not abort the whole run
+                logger.warning("Retrying pending forecasts for %s failed: %s", key, exc)
+                continue
+            if retried:
+                report.setdefault("retried", {})[key] = retried
+
+    def _pause(self, reason: str, seconds: int) -> None:
+        self.cache.set(COOLDOWN_KEY.format(provider=self.provider.name), {"reason": reason},
+                       ttl=seconds, stale_ttl=seconds)
+        self._cooldown_cache = reason
+
+    # ------------------------------------------------------------------ concurrency
+    def _acquire_sync_lock(self) -> bool:
+        """Stop two workers both deciding a competition is due and each paying for it.
+
+        Best effort: without Redis there is nothing to coordinate through and the sync proceeds.
+        """
+        client = getattr(self.cache, "_redis", lambda: None)()
+        if client is None or not self.provider:
+            return True
+        try:
+            return bool(client.set(SYNC_LOCK_KEY.format(provider=self.provider.name),
+                                   self._lock_token, nx=True, ex=SYNC_LOCK_TTL_SECONDS))
+        except Exception as exc:  # pragma: no cover - depends on environment
+            logger.debug("Sync lock unavailable (%s); proceeding without it", exc)
+            return True
+
+    def _release_sync_lock(self) -> None:
+        client = getattr(self.cache, "_redis", lambda: None)()
+        if client is None or not self.provider:
+            return
+        key = SYNC_LOCK_KEY.format(provider=self.provider.name)
+        try:
+            # compare-and-delete so a lock that already expired and was retaken is not released here
+            if client.get(key) in (self._lock_token, self._lock_token.encode("utf-8")):
+                client.delete(key)
+        except Exception:  # pragma: no cover
+            pass
 
     def _ensure_fixtures(self, key: str, days_ahead: int) -> List[str]:
         fixtures = self.fixtures
@@ -246,9 +322,15 @@ class ForecastService:
 
     def sync_competition(self, key: str, date_from: date, date_to: date) -> Dict[str, Any]:
         assert self.provider is not None
+        # Free first: fixtures may have appeared since the last run, so attach what we already paid for
+        # before spending anything. Without this the retry never runs on the path that actually fetches.
+        retried = self._retry_pending(key)
         forecasts = self.provider.get_forecasts(key, date_from, date_to)
         league = self.registry.ensure_canonical_league(key)
-        stats = {"fetched": len(forecasts), "attached": 0, "ambiguous": 0, "unmatched": 0, "without_markets": 0, "details": []}
+        stats: Dict[str, Any] = {"fetched": len(forecasts), "attached": 0, "ambiguous": 0, "unmatched": 0,
+                                 "without_markets": 0, "details": []}
+        if retried:
+            stats["retried"] = retried
         pending: List[Dict[str, Any]] = []
         for forecast in forecasts:
             outcome = self.attach_forecast(forecast, key, league.id)
@@ -266,11 +348,26 @@ class ForecastService:
     def _pending_key(self, key: str) -> str:
         return PENDING_KEY.format(provider=self.provider.name if self.provider else "none", key=key)
 
-    def _store_pending(self, key: str, pending: List[Dict[str, Any]]) -> None:
-        if pending:
-            self.cache.set(self._pending_key(key), pending, ttl=PENDING_TTL_SECONDS, stale_ttl=PENDING_TTL_SECONDS)
+    def _store_pending(self, key: str, pending: List[Dict[str, Any]], replace: bool = False) -> None:
+        """Keep unmatched forecasts so they can be attached later without paying for them again.
+
+        Merged by provider event id rather than replaced: a fetch that covers the next seven days
+        must not discard a forecast for day eight that an earlier fetch already paid for out of a
+        ten-request daily allowance.
+        """
+        pending_key = self._pending_key(key)
+        merged: Dict[str, Dict[str, Any]] = {}
+        if not replace:
+            for item in (self.cache.get(pending_key) or []):
+                if isinstance(item, dict) and item.get("external_event_id"):
+                    merged[str(item["external_event_id"])] = item
+        for item in pending:
+            if item.get("external_event_id"):
+                merged[str(item["external_event_id"])] = item
+        if merged:
+            self.cache.set(pending_key, list(merged.values()), ttl=PENDING_TTL_SECONDS, stale_ttl=PENDING_TTL_SECONDS)
         else:
-            self.cache.delete(self._pending_key(key))
+            self.cache.delete(pending_key)
 
     def _retry_pending(self, key: str) -> Optional[Dict[str, int]]:
         """Attach previously unmatched forecasts to fixtures that exist now. No provider request is made."""
@@ -288,7 +385,8 @@ class ForecastService:
             elif outcome["result"] in ("unmatched", "ambiguous"):
                 still_pending.append(item)
         self.db.commit()
-        self._store_pending(key, still_pending)
+        # `still_pending` is the full remaining set, so this call replaces rather than merges
+        self._store_pending(key, still_pending, replace=True)
         return counts
 
     def attach_forecast(self, forecast: ProviderForecast, key: str, league_id) -> Dict[str, Any]:
@@ -297,6 +395,16 @@ class ForecastService:
         # 1. previously linked event id -> same match (survives rescheduling)
         match = self.registry.match_by_ref(forecast.provider, forecast.external_event_id)
         confidence, matched_by = "exact", "provider_id"
+        if match is not None and not self._ref_still_describes(match, forecast):
+            # Provider event ids are small integers and get recycled between seasons. A ref that no
+            # longer names the same teams is not evidence, so the forecast is refused rather than
+            # attached to whatever match happens to hold that id.
+            logger.warning("Forecast %s claims match %s but names %s vs %s; refusing to attach",
+                           forecast.external_event_id, match.id, forecast.home_name, forecast.away_name)
+            return {"result": "ambiguous", "event": forecast.external_event_id, "home": forecast.home_name,
+                    "away": forecast.away_name,
+                    "kickoff_utc": forecast.kickoff_utc.isoformat() if forecast.kickoff_utc else None,
+                    "reason": "provider event id no longer names the same teams", "candidates": [str(match.id)]}
         if match is None:
             # 2. competition + teams + kickoff
             candidates = self.registry.candidates_for(league_id, forecast.kickoff_utc, competition_key=key) if forecast.kickoff_utc else []
@@ -316,13 +424,29 @@ class ForecastService:
         self._upsert_record(match, forecast, confidence, matched_by)
         return {"result": "attached", "event": forecast.external_event_id, "match_id": str(match.id)}
 
+    def _ref_still_describes(self, match: Match, forecast: ProviderForecast) -> bool:
+        """Does the match a provider id points at still have the teams the provider just named?"""
+        if not forecast.home_name or not forecast.away_name:
+            return True  # nothing to check against; the ref stands
+        home = self.db.query(Team).filter(Team.id == match.home_team_id).first()
+        away = self.db.query(Team).filter(Team.id == match.away_team_id).first()
+        if home is None or away is None:
+            return True
+        if match_matching.team_names_match(forecast.home_name, home.name) and \
+                match_matching.team_names_match(forecast.away_name, away.name):
+            return True
+        # a provider that lists the fixture the other way round is still the same fixture
+        return match_matching.team_names_match(forecast.home_name, away.name) and \
+            match_matching.team_names_match(forecast.away_name, home.name)
+
     def _upsert_record(self, match: Match, forecast: ProviderForecast, confidence: str, matched_by: str) -> ProviderForecastRecord:
         record = self.db.query(ProviderForecastRecord).filter(
             ProviderForecastRecord.match_id == match.id, ProviderForecastRecord.provider == forecast.provider).first()
         if record is None:
             record = ProviderForecastRecord(id=uuid.uuid4(), match_id=match.id, provider=forecast.provider,
                                             external_event_id=forecast.external_event_id, match_confidence=confidence,
-                                            matched_by=matched_by, fetched_at=_naive(self.now))
+                                            matched_by=matched_by,
+                                            fetched_at=_naive(_retrieved_at(forecast, self.now)))
             self.db.add(record)
         record.external_event_id = forecast.external_event_id
         record.home_win_prob = _dec(forecast.home_prob)
@@ -344,7 +468,7 @@ class ForecastService:
         record.matched_by = matched_by
         record.model_run_at = _naive(forecast.model_run_at)
         record.provider_updated_at = _naive(forecast.provider_updated_at)
-        record.fetched_at = _naive(self.now)
+        record.fetched_at = _naive(_retrieved_at(forecast, self.now))
         record.raw_payload = forecast.raw or None
         self._record_snapshot(match, forecast, confidence, matched_by)
         self.db.flush()
@@ -359,6 +483,7 @@ class ForecastService:
         keeps the table proportional to how often the model actually changes its mind.
         """
         digest = content_hash(forecast)
+        retrieved = _naive(_retrieved_at(forecast, self.now))
         latest = (self.db.query(ProviderForecastSnapshot)
                   .filter(ProviderForecastSnapshot.match_id == match.id,
                           ProviderForecastSnapshot.provider == forecast.provider)
@@ -368,7 +493,7 @@ class ForecastService:
         now = _naive(self.now)
         if latest is not None and self._same_content(latest, forecast, digest):
             latest.content_hash = digest  # backfilled rows carry no hash until they are seen again
-            latest.last_fetched_at = now
+            latest.last_fetched_at = retrieved or now
             return latest
         kickoff = _naive(_aware_utc(match.match_date)) if match.match_date else None
         snapshot = ProviderForecastSnapshot(
@@ -388,8 +513,10 @@ class ForecastService:
             match_confidence=confidence, matched_by=matched_by,
             model_run_at=_naive(forecast.model_run_at),
             provider_updated_at=_naive(forecast.provider_updated_at),
-            first_fetched_at=now, last_fetched_at=now, kickoff_at_capture=kickoff,
-            captured_before_kickoff=bool(kickoff and now < kickoff),
+            first_fetched_at=retrieved or now, last_fetched_at=retrieved or now, kickoff_at_capture=kickoff,
+            # NULL when the kickoff was not known: a stored False would assert "not prematch",
+            # which is a claim we cannot make.
+            captured_before_kickoff=((retrieved or now) < kickoff) if kickoff else None,
             raw_payload=forecast.raw or None,
         )
         self.db.add(snapshot)
@@ -434,22 +561,54 @@ class ForecastService:
             query = query.filter(ProviderForecastRecord.provider == name)
         return query.order_by(ProviderForecastRecord.fetched_at.desc()).first()
 
+    def _cooldown_reason(self) -> Optional[str]:
+        """Why forecast refreshes are paused, or None. Read once per service instance.
+
+        A page renders thirty matches; each one must not hit Redis for the same answer.
+        """
+        if self._cooldown_cache is _UNSET:
+            reason = None
+            if self.provider:
+                cooling = self.cache.get(COOLDOWN_KEY.format(provider=self.provider.name))
+                if isinstance(cooling, dict):
+                    reason = cooling.get("reason")
+            self._cooldown_cache = reason
+        return self._cooldown_cache
+
     def freshness(self, record: Optional[ProviderForecastRecord], match: Match) -> Dict[str, Any]:
-        """Never present an old forecast as current: report stale/kickoff_passed explicitly."""
+        """Never present an old forecast as current: report stale/kickoff_passed explicitly.
+
+        A paused refresh is reported separately from an absent forecast. "We cannot refresh this
+        right now" and "no such forecast exists" are different statements, and only one of them is
+        a reason to distrust the number on screen.
+        """
+        paused = self._cooldown_reason()
         if record is None:
-            return {"state": "unavailable", "reason": "no forecast for this match"}
+            if paused:
+                return {"state": "unavailable", "reason": "no forecast for this match",
+                        "refresh_blocked": True, "refresh_blocked_reason": paused}
+            return {"state": "unavailable", "reason": "no forecast for this match", "refresh_blocked": False}
+        extra: Dict[str, Any] = {"refresh_blocked": bool(paused)}
+        if paused:
+            extra["refresh_blocked_reason"] = paused
         now = self.now
         kickoff = _aware_utc(match.match_date)
         if match.status == MatchStatus.FINISHED or (kickoff + timedelta(minutes=150) < now):
-            return {"state": "kickoff_passed", "reason": "match already played; forecast shown for reference only"}
+            return {"state": "kickoff_passed",
+                    "reason": "match already played; forecast shown for reference only", **extra}
         generated = record.model_run_at or record.provider_updated_at or record.fetched_at
         if generated is not None:
             age = now - _aware_utc(generated)
             if age > timedelta(hours=settings.FORECAST_MAX_AGE_HOURS):
-                return {"state": "stale", "reason": f"forecast generated {int(age.total_seconds() // 3600)} h ago"}
-        return {"state": "available", "reason": None}
+                hours = int(age.total_seconds() // 3600)
+                reason = f"forecast generated {hours} h ago"
+                if paused:
+                    reason += "; refresh is paused, so it cannot be updated yet"
+                return {"state": "stale", "reason": reason, **extra}
+        return {"state": "available", "reason": None, **extra}
 
     def clear_cooldown(self) -> None:
+        self._cooldown_cache = _UNSET
         if self.provider:
             self.cache.delete(COOLDOWN_KEY.format(provider=self.provider.name))
 
@@ -461,6 +620,5 @@ class ForecastService:
             budget = getattr(provider, "budget", None)
             payload["budget"] = budget.snapshot() if budget else None
             payload["last_sync"] = self.cache.get(STATUS_KEY.format(provider=provider.name))
-            cooling = self.cache.get(COOLDOWN_KEY.format(provider=provider.name))
-            payload["cooling_down"] = cooling.get("reason") if isinstance(cooling, dict) else None
+            payload["cooling_down"] = self._cooldown_reason()
         return payload

@@ -3,10 +3,18 @@ Prediction Schemas
 Pydantic models for prediction-related API requests and responses
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_serializer, validator
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
+
+from app.schemas.matches import iso_utc
+
+
+#: Serialise a datetime as UTC ISO-8601 with a trailing Z. Stored timestamps are naive UTC, and a
+#: value serialised without an offset is parsed by the browser as LOCAL time, which can move a
+#: kickoff to the wrong day on the expert pages. One implementation, shared with the match payloads.
+to_utc_iso_z = iso_utc
 
 
 class PredictionBase(BaseModel):
@@ -43,6 +51,11 @@ class PredictionResponse(BaseModel):
         if isinstance(v, Decimal):
             return float(v)
         return v
+
+    @field_serializer('match_date', 'created_at')
+    def serialize_datetimes(self, value: Optional[datetime]) -> Optional[str]:
+        """UTC ISO-8601 with a trailing Z (see to_utc_iso_z)."""
+        return to_utc_iso_z(value)
 
 
 class PredictionDetailResponse(PredictionResponse):
@@ -88,6 +101,11 @@ class FeedbackResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, value: Optional[datetime]) -> Optional[str]:
+        """UTC ISO-8601 with a trailing Z (see to_utc_iso_z)."""
+        return to_utc_iso_z(value)
 
 
 class FeedbackListResponse(BaseModel):
@@ -243,6 +261,11 @@ class MatchDetails(BaseModel):
     match_date: Optional[datetime] = None
     external_match_id: Optional[str] = None
 
+    @field_serializer('match_date')
+    def serialize_match_date(self, value: Optional[datetime]) -> Optional[str]:
+        """Kickoff as UTC ISO-8601 with a trailing Z, so the browser never reads it as local time."""
+        return to_utc_iso_z(value)
+
 
 class PublicPredictionResponse(BaseModel):
     """Public prediction response for published predictions (no authentication required)"""
@@ -349,6 +372,11 @@ class ExpertPredictionResponse(BaseModel):
             return float(v)
         return v
 
+    @field_serializer('created_at', 'published_at')
+    def serialize_datetimes(self, value: Optional[datetime]) -> Optional[str]:
+        """UTC ISO-8601 with a trailing Z (see to_utc_iso_z)."""
+        return to_utc_iso_z(value)
+
 
 class ReviewQueueItem(BaseModel):
     """Schema for review queue items"""
@@ -364,6 +392,11 @@ class ReviewQueueItem(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, value: Optional[datetime]) -> Optional[str]:
+        """UTC ISO-8601 with a trailing Z (see to_utc_iso_z)."""
+        return to_utc_iso_z(value)
 
 
 class ExpertPerformanceMetrics(BaseModel):

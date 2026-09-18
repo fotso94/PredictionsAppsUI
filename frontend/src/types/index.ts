@@ -83,6 +83,8 @@ export interface PredictionMarkets {
   btts: boolean;
   overUnder25: boolean;
   overUnder35: boolean;
+  /** The source published an exact-score distribution */
+  exactScore: boolean;
 }
 
 export interface MatchResult {
@@ -152,33 +154,48 @@ export interface MatchOdds {
 }
 
 export interface MatchPredictions {
-  /** 1X2 probabilities in percent (0-100) */
+  /**
+   * 1X2 probabilities in percent (0-100).
+   * null means the source published no 1X2 market for this fixture. It must be rendered as
+   * unavailable — never as 0% / 0% / 0%, and never filled in from odds, history or any other market.
+   */
   outcome: {
     homeWin: number;
     draw: number;
     awayWin: number;
     confidence: ConfidenceLevel;
-  };
-  /** Null when the source did not supply this market */
+  } | null;
+  /**
+   * Null when the source did not supply this market. A half the source omitted stays null: it is
+   * never derived as 100 - the other half, because the two need not be complementary.
+   */
   bothTeamsToScore: {
-    yes: number;
-    no: number;
+    yes: number | null;
+    no: number | null;
     confidence: ConfidenceLevel;
   } | null;
-  /** Null when the source did not supply this market; over35/under35 null when only the 2.5 line exists */
+  /**
+   * Null when the source did not supply this market. Each line the source omitted stays null
+   * (only the 2.5 line is common; 3.5 is often absent, and neither half is ever inferred).
+   */
   totalGoals: {
-    over25: number;
-    under25: number;
+    over25: number | null;
+    under25: number | null;
     over35: number | null;
     under35: number | null;
     confidence: ConfidenceLevel;
   } | null;
-  /** Null when the source did not supply an exact-score market */
+  /** Null when the source did not supply a usable exact-score market */
   correctScore: {
     mostLikely: string;
     probability: number;
     confidence: ConfidenceLevel;
   } | null;
+  /**
+   * Probability (percent) the provider assigned to every scoreline it did not list — its "other"
+   * remainder bucket. Never a scoreline, and never used to renormalise the listed ones.
+   */
+  exactScoreOther?: number | null;
   analysis: string;
   keyFactors: string[];
   // Metadata for prediction source
@@ -193,9 +210,21 @@ export interface MatchPredictions {
   stateReason?: string | null;
   /** Which markets the source actually supplied */
   markets?: PredictionMarkets;
-  /** When the model run / expert publication happened */
-  generatedAt?: string | null;
+  /**
+   * Three distinct provider timestamps, deliberately NOT collapsed into one "generated at":
+   *  - modelRunAt: when the provider says its model ran. Null when the provider never said.
+   *  - providerUpdatedAt: when the provider last touched the event record.
+   *  - fetchedAt: when this installation retrieved it.
+   * Presenting any of the last two as the generation time would be a claim the provider never made.
+   */
+  modelRunAt?: string | null;
+  providerUpdatedAt?: string | null;
+  fetchedAt?: string | null;
+  /** False when the provider published no model-run time: the UI must say the generation time is unknown. */
+  generationTimeKnown?: boolean;
   publishedAt?: string | null;
+  /** Consistency problems found in the provider payload, reported verbatim and never corrected */
+  anomalies?: string[];
   /** Provider-reported recommended bets, verbatim */
   recommendedBets?: Record<string, unknown> | null;
   /** How confidently the forecast was linked to this fixture (exact | high) */

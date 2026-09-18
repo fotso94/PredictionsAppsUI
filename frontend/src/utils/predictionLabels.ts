@@ -1,4 +1,5 @@
 import { MatchPredictions } from '@/types'
+import { ForecastSyncStatus } from '@/services/match-data-source'
 
 /** Human label for a prediction provider name reported by the backend. */
 export const providerLabel = (name?: string | null): string => {
@@ -44,4 +45,33 @@ export const betLabels = (bets: Record<string, unknown> | unknown[] | null | und
   if (!bets) return []
   const values = Array.isArray(bets) ? bets : Object.keys(bets).sort().map(k => (bets as Record<string, unknown>)[k])
   return Array.from(new Set(values.map(betLabel).filter(Boolean)))
+}
+
+/**
+ * Why the forecast refresh is not running, in the backend's own terms.
+ *
+ * A paused refresh is not the same as "no forecast exists": the reader needs to know the numbers
+ * are simply not being updated right now. Returns null when the refresh ran normally.
+ */
+export const forecastSyncMessage = (sync: ForecastSyncStatus | null | undefined): string | null => {
+  if (!sync || !sync.paused) return null
+  const provider = sync.provider ? providerLabel(sync.provider) : 'The forecast provider'
+  if (sync.reason) return `${provider} refresh is paused: ${sync.reason}`
+  return `${provider} refresh is paused; ${sync.deferred.length} competition(s) wait for the next allowance reset`
+}
+
+/**
+ * How to describe when a forecast was produced, without passing off a fetch time as a model run.
+ * Returns null when nothing datable is known.
+ */
+export const generationTimeLabel = (prediction: MatchPredictions | null | undefined): string | null => {
+  if (!prediction) return null
+  if (prediction.generationTimeKnown && prediction.modelRunAt) {
+    return `Model run ${new Date(prediction.modelRunAt).toLocaleString()}`
+  }
+  if (prediction.fetchedAt) {
+    // Explicitly NOT "generated": the provider never published a model-run time for this forecast.
+    return `Generation time not published; retrieved ${new Date(prediction.fetchedAt).toLocaleString()}`
+  }
+  return prediction.publishedAt ? `Published ${new Date(prediction.publishedAt).toLocaleString()}` : null
 }

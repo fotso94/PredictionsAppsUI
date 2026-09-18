@@ -19,12 +19,21 @@ def _f(value) -> Optional[float]:
     return float(value) if value is not None else None
 
 
-def _iso(dt: Optional[datetime]) -> Optional[str]:
+def iso_utc(dt: Optional[datetime]) -> Optional[str]:
+    """UTC ISO-8601 with an explicit Z.
+
+    Stored datetimes are naive UTC. Serialising one without the Z makes the browser read it as
+    local time, which moves a kickoff by the viewer's offset and can show the wrong day.
+    """
     if dt is None:
         return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+#: Kept as the short internal spelling used throughout this module.
+_iso = iso_utc
 
 
 def status_label(match: Match) -> str:
@@ -93,6 +102,10 @@ def serialize_forecast(record: Optional[ProviderForecastRecord], freshness: Dict
         "generated_at_known": record.model_run_at is not None,
         "anomalies": record.anomalies or [],
         "state": freshness.get("state"), "state_reason": freshness.get("reason"),
+        # "we cannot refresh this right now" is a different statement from "this does not exist",
+        # and only one of them is a reason to distrust the number on screen
+        "refresh_blocked": bool(freshness.get("refresh_blocked")),
+        "refresh_blocked_reason": freshness.get("refresh_blocked_reason"),
         # A market is available only when the provider supplied a value for it. Anything false must be
         # rendered as unavailable, never as 0%.
         "markets_available": {

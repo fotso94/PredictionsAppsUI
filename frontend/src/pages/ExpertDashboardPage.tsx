@@ -3,7 +3,7 @@
  * Dashboard for expert users to manage predictions (KAN-156)
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import expertPredictionService from '../services/expert-prediction.service';
 import {
@@ -15,6 +15,9 @@ import {
   PredictionStatusBadge,
   ConfidenceBadge,
 } from '../components/PredictionSourceBadge';
+import { formatUnitProbability } from '@/components/ui/probability';
+import { hideBrokenImage } from '@/components/ui/imageFallback';
+import { getErrorMessage } from '@/utils/errors';
 
 /**
  * Expert Dashboard Page Component
@@ -27,11 +30,7 @@ const ExpertDashboardPage: React.FC = () => {
   const [reviewQueue, setReviewQueue] = useState<ExpertPredictionResponse[]>([]);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -41,16 +40,20 @@ const ExpertDashboardPage: React.FC = () => {
       setMetrics(metricsData);
       setRecentPredictions(metricsData.recent_predictions || []);
 
-      // Load review queue
+      // Load the post-publication moderation queue
       const queueData = await expertPredictionService.getReviewQueue({ limit: 5 });
       setReviewQueue(queueData);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load dashboard data:', err);
-      setError(err.response?.data?.detail || 'Failed to load dashboard data');
+      setError(getErrorMessage(err, 'Failed to load dashboard data'));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const handleTogglePublish = async (predictionId: string) => {
     try {
@@ -59,9 +62,9 @@ const ExpertDashboardPage: React.FC = () => {
       await expertPredictionService.togglePublishStatus(predictionId);
       // Reload dashboard data
       await loadDashboardData();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to toggle publish status:', err);
-      setError(err.response?.data?.detail || 'Failed to toggle publish status');
+      setError(getErrorMessage(err, 'Failed to toggle publish status'));
     } finally {
       setProcessingId(null);
     }
@@ -78,9 +81,9 @@ const ExpertDashboardPage: React.FC = () => {
       await expertPredictionService.deletePrediction(predictionId);
       // Reload dashboard data
       await loadDashboardData();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to delete prediction:', err);
-      setError(err.response?.data?.detail || 'Failed to delete prediction');
+      setError(getErrorMessage(err, 'Failed to delete prediction'));
     } finally {
       setProcessingId(null);
     }
@@ -174,10 +177,13 @@ const ExpertDashboardPage: React.FC = () => {
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Accuracy</p>
                 <p className="text-3xl font-bold text-blue-600 mt-2">
-                  {metrics.accuracy_rate !== null
-                    ? `${(metrics.accuracy_rate * 100).toFixed(1)}%`
-                    : 'N/A'}
+                  {formatUnitProbability(metrics.accuracy_rate, 1, 'Not scored')}
                 </p>
+                {metrics.accuracy_rate === null && (
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                    No predictions have been settled against final results yet.
+                  </p>
+                )}
               </div>
               <div className="text-4xl">🎯</div>
             </div>
@@ -203,8 +209,10 @@ const ExpertDashboardPage: React.FC = () => {
           className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow p-6 flex items-center justify-between transition-colors"
         >
           <div>
-            <h3 className="text-lg font-semibold mb-1">Review Queue</h3>
-            <p className="text-sm text-blue-100">{reviewQueue.length} pending review</p>
+            <h3 className="text-lg font-semibold mb-1">Moderation Queue</h3>
+            <p className="text-sm text-blue-100">
+              {reviewQueue.length} flagged for review — your predictions publish without waiting for it
+            </p>
           </div>
           <div className="text-3xl">📋</div>
         </Link>
@@ -258,9 +266,7 @@ const ExpertDashboardPage: React.FC = () => {
                             src={prediction.match_details.home_team_logo}
                             alt={prediction.match_details.home_team_name}
                             className="w-5 h-5 object-contain"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                            }}
+                            onError={hideBrokenImage}
                           />
                         )}
                         <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
@@ -280,9 +286,7 @@ const ExpertDashboardPage: React.FC = () => {
                             src={prediction.match_details.away_team_logo}
                             alt={prediction.match_details.away_team_name}
                             className="w-5 h-5 object-contain"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                            }}
+                            onError={hideBrokenImage}
                           />
                         )}
                       </div>
@@ -296,19 +300,19 @@ const ExpertDashboardPage: React.FC = () => {
                       <div>
                         <p className="text-xs text-gray-600 dark:text-gray-400">Home Win</p>
                         <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {(prediction.home_win_prob * 100).toFixed(1)}%
+                          {formatUnitProbability(prediction.home_win_prob, 1)}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-600 dark:text-gray-400">Draw</p>
                         <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {(prediction.draw_prob * 100).toFixed(1)}%
+                          {formatUnitProbability(prediction.draw_prob, 1)}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-600 dark:text-gray-400">Away Win</p>
                         <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {(prediction.away_win_prob * 100).toFixed(1)}%
+                          {formatUnitProbability(prediction.away_win_prob, 1)}
                         </p>
                       </div>
                     </div>
@@ -321,7 +325,7 @@ const ExpertDashboardPage: React.FC = () => {
                         Both Teams to Score (BTTS)
                         {prediction.btts_confidence && (
                           <span className="ml-2 text-blue-600 dark:text-blue-400">
-                            {(prediction.btts_confidence * 100).toFixed(0)}% confidence
+                            {formatUnitProbability(prediction.btts_confidence, 0)} confidence
                           </span>
                         )}
                       </p>
@@ -329,14 +333,14 @@ const ExpertDashboardPage: React.FC = () => {
                         <div>
                           <p className="text-xs text-gray-600 dark:text-gray-400">Yes</p>
                           <p className="text-base font-semibold text-gray-900 dark:text-white">
-                            {(prediction.btts_yes_prob * 100).toFixed(1)}%
+                            {formatUnitProbability(prediction.btts_yes_prob, 1)}
                           </p>
                         </div>
                         {prediction.btts_no_prob !== null && prediction.btts_no_prob !== undefined && (
                           <div>
                             <p className="text-xs text-gray-600 dark:text-gray-400">No</p>
                             <p className="text-base font-semibold text-gray-900 dark:text-white">
-                              {(prediction.btts_no_prob * 100).toFixed(1)}%
+                              {formatUnitProbability(prediction.btts_no_prob, 1)}
                             </p>
                           </div>
                         )}
@@ -354,7 +358,7 @@ const ExpertDashboardPage: React.FC = () => {
                         Total Goals
                         {prediction.total_goals_confidence && (
                           <span className="ml-2 text-green-600 dark:text-green-400">
-                            {(prediction.total_goals_confidence * 100).toFixed(0)}% confidence
+                            {formatUnitProbability(prediction.total_goals_confidence, 0)} confidence
                           </span>
                         )}
                       </p>
@@ -363,7 +367,7 @@ const ExpertDashboardPage: React.FC = () => {
                           <div>
                             <p className="text-xs text-gray-600 dark:text-gray-400">Over 2.5</p>
                             <p className="text-base font-semibold text-gray-900 dark:text-white">
-                              {(prediction.total_goals_over_25_prob * 100).toFixed(1)}%
+                              {formatUnitProbability(prediction.total_goals_over_25_prob, 1)}
                             </p>
                           </div>
                         )}
@@ -371,7 +375,7 @@ const ExpertDashboardPage: React.FC = () => {
                           <div>
                             <p className="text-xs text-gray-600 dark:text-gray-400">Under 2.5</p>
                             <p className="text-base font-semibold text-gray-900 dark:text-white">
-                              {(prediction.total_goals_under_25_prob * 100).toFixed(1)}%
+                              {formatUnitProbability(prediction.total_goals_under_25_prob, 1)}
                             </p>
                           </div>
                         )}
@@ -379,7 +383,7 @@ const ExpertDashboardPage: React.FC = () => {
                           <div>
                             <p className="text-xs text-gray-600 dark:text-gray-400">Over 3.5</p>
                             <p className="text-base font-semibold text-gray-900 dark:text-white">
-                              {(prediction.total_goals_over_35_prob * 100).toFixed(1)}%
+                              {formatUnitProbability(prediction.total_goals_over_35_prob, 1)}
                             </p>
                           </div>
                         )}
@@ -387,7 +391,7 @@ const ExpertDashboardPage: React.FC = () => {
                           <div>
                             <p className="text-xs text-gray-600 dark:text-gray-400">Under 3.5</p>
                             <p className="text-base font-semibold text-gray-900 dark:text-white">
-                              {(prediction.total_goals_under_35_prob * 100).toFixed(1)}%
+                              {formatUnitProbability(prediction.total_goals_under_35_prob, 1)}
                             </p>
                           </div>
                         )}
@@ -451,9 +455,14 @@ const ExpertDashboardPage: React.FC = () => {
       {reviewQueue.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              Pending Review
-            </h2>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Flagged for moderation
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Already published — moderation happens after publication, it is not an approval gate.
+              </p>
+            </div>
             <Link
               to="/expert/predictions/review-queue"
               className="text-blue-600 hover:text-blue-700 text-sm font-medium"
@@ -478,9 +487,7 @@ const ExpertDashboardPage: React.FC = () => {
                               src={prediction.match_details.home_team_logo}
                               alt={prediction.match_details.home_team_name}
                               className="w-4 h-4 object-contain flex-shrink-0"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
+                              onError={hideBrokenImage}
                             />
                           )}
                           <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
@@ -491,9 +498,7 @@ const ExpertDashboardPage: React.FC = () => {
                               src={prediction.match_details.away_team_logo}
                               alt={prediction.match_details.away_team_name}
                               className="w-4 h-4 object-contain flex-shrink-0"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
+                              onError={hideBrokenImage}
                             />
                           )}
                         </div>

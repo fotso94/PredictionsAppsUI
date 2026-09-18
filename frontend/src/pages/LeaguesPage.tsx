@@ -6,6 +6,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { footballDataService } from '@/services/football-data.service'
+import { onLeagueLogoError } from '@/components/ui/imageFallback'
 
 const LeaguesPage: React.FC = () => {
   const [leagues, setLeagues] = useState<League[]>([])
@@ -94,9 +95,7 @@ const LeaguesPage: React.FC = () => {
                           src={league.logo}
                           alt={league.name}
                           className="h-12 w-12 object-contain"
-                          onError={(e) => {
-                            e.currentTarget.src = '/leagues/default.svg'
-                          }}
+                          onError={onLeagueLogoError}
                         />
                         <div>
                           <h3 className="text-lg font-semibold text-white">{league.name}</h3>

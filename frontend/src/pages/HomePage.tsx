@@ -13,16 +13,22 @@ import { Match } from '@/types'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import MatchCard from '@/components/ui/MatchCard'
+import ForecastSyncNotice from '@/components/ui/ForecastSyncNotice'
+import { isHighConfidence } from '@/components/ui/predictionMarkets'
 import { motion } from 'framer-motion'
 import { footballDataService } from '@/services/football-data.service'
-import { CoverageSummary } from '@/services/match-data-source'
+import { describeError } from '@/services/backend-match-data.service'
+import { CoverageSummary, DataSourceMeta, localDateString } from '@/services/match-data-source'
 import { filterLiveAndScheduledMatches, filterLiveAndUpcomingMatches } from '@/utils/matchFilters'
 
 const HomePage: React.FC = () => {
   const [todayMatches, setTodayMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [meta, setMeta] = useState<DataSourceMeta | null>(null)
   const [coverage, setCoverage] = useState<CoverageSummary | null>(null)
   const [coverageLoading, setCoverageLoading] = useState(true)
+  const [reloadToken, setReloadToken] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -30,11 +36,21 @@ const HomePage: React.FC = () => {
     async function fetchTodayMatches() {
       try {
         setLoading(true)
-        const matches = await footballDataService.getTodayFixtures()
-        if (!cancelled) setTodayMatches(matches)
-      } catch (error) {
-        console.error('Error fetching today\'s matches:', error)
-        if (!cancelled) setTodayMatches([])
+        setError(null)
+        // With meta: the forecast-refresh report is what tells a paused refresh apart from "none exist".
+        const result = await footballDataService.getFixturesByDateWithMeta(localDateString(0))
+        if (!cancelled) {
+          setTodayMatches(result.matches)
+          setMeta(result.meta)
+        }
+      } catch (err) {
+        console.error('Error fetching today\'s matches:', err)
+        if (!cancelled) {
+          // A failed request is NOT "no matches today"; say the request failed and offer a retry.
+          setError(describeError(err))
+          setTodayMatches([])
+          setMeta(null)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -52,7 +68,9 @@ const HomePage: React.FC = () => {
     fetchTodayMatches()
     fetchCoverage()
     return () => { cancelled = true }
-  }, [])
+  }, [reloadToken])
+
+  const retry = () => setReloadToken(token => token + 1)
 
   /**
    * Measured from the data this installation actually holds. There is deliberately no accuracy,
@@ -86,10 +104,14 @@ const HomePage: React.FC = () => {
     },
   ]
 
-  // Get featured matches (high confidence predictions, live and upcoming only)
+  // Featured: live/upcoming matches where a published market is rated high or very high. A match
+  // whose source published no 1X2 market can still qualify on BTTS or totals — and one with no
+  // published market at all never qualifies.
   const featuredMatches = filterLiveAndUpcomingMatches(todayMatches, true)
-    .filter(m => m.predictions?.outcome.confidence === 'high' || m.predictions?.outcome.confidence === 'very-high')
+    .filter(m => isHighConfidence(m.predictions))
     .slice(0, 3)
+
+  const scheduledToday = filterLiveAndScheduledMatches(todayMatches)
 
   return (
     <>
@@ -191,11 +213,26 @@ const HomePage: React.FC = () => {
                 </Button>
               </div>
 
+              <ForecastSyncNotice sync={meta?.forecastSync} className="mb-6" />
+
               {loading ? (
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
                   <div className="text-secondary-400">Loading featured predictions...</div>
                 </div>
+              ) : error ? (
+                <Card data-testid="home-matches-error">
+                  <Card.Body>
+                    <div className="text-center py-12">
+                      <p className="text-lg font-medium text-red-400">Today&rsquo;s matches could not be loaded.</p>
+                      <p className="mt-2 text-sm text-secondary-400">{error}</p>
+                      <p className="mt-1 text-xs text-secondary-500">
+                        This is a problem reaching our own service — it does not mean there are no matches today.
+                      </p>
+                      <Button className="mt-4" onClick={retry}>Try again</Button>
+                    </div>
+                  </Card.Body>
+                </Card>
               ) : featuredMatches.length > 0 ? (
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   {featuredMatches.map((match, index) => (
@@ -205,7 +242,7 @@ const HomePage: React.FC = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, delay: 0.1 * index }}
                     >
-                      <MatchCard match={match} />
+                      <MatchCard match={match} forecastSync={meta?.forecastSync} />
                     </motion.div>
                   ))}
                 </div>
@@ -250,16 +287,26 @@ const HomePage: React.FC = () => {
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
                   <div className="text-secondary-400">Loading today's matches...</div>
                 </div>
-              ) : filterLiveAndScheduledMatches(todayMatches).length > 0 ? (
+              ) : error ? (
+                <Card>
+                  <Card.Body>
+                    <div className="text-center py-12">
+                      <p className="text-lg font-medium text-red-400">Today&rsquo;s matches could not be loaded.</p>
+                      <p className="mt-2 text-sm text-secondary-400">{error}</p>
+                      <Button className="mt-4" onClick={retry}>Try again</Button>
+                    </div>
+                  </Card.Body>
+                </Card>
+              ) : scheduledToday.length > 0 ? (
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                  {filterLiveAndScheduledMatches(todayMatches).slice(0, 6).map((match, index) => (
+                  {scheduledToday.slice(0, 6).map((match, index) => (
                     <motion.div
                       key={match.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, delay: 0.1 * index }}
                     >
-                      <MatchCard match={match} />
+                      <MatchCard match={match} forecastSync={meta?.forecastSync} />
                     </motion.div>
                   ))}
                 </div>

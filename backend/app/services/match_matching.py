@@ -21,7 +21,7 @@ from app.services.providers.base import strip_accents
 _NOISE_TOKENS = {
     "fc", "cf", "sc", "afc", "ac", "as", "ss", "us", "club", "de", "cd", "ud", "sd", "rc", "rcd", "calcio",
     "bc", "fk", "sv", "tsg", "vfb", "vfl", "bsc", "sport", "football", "the", "1", "1899", "1900", "1904", "1909",
-    "05", "04", "96", "98", "ssc", "cp", "ssd", "asd", "cfc",
+    "05", "04", "96", "98", "ssc", "cp", "ssd", "asd", "cfc", "sk",
 }
 # Tokens shared by several clubs (cities, generic prefixes): a single one of them never identifies a team
 _SHARED_TOKENS = {
@@ -36,6 +36,19 @@ _LETTER_MAP = str.maketrans({"ø": "o", "Ø": "O", "æ": "ae", "Æ": "AE", "ß":
                              "þ": "th", "Þ": "Th", "ı": "i", "œ": "oe", "Œ": "OE"})
 # Tokens that DO carry identity even though they look generic
 _KEEP_TOKENS = {"real", "inter", "united", "city", "rovers", "wanderers", "hotspur", "albion", "villa", "town"}
+
+# German transliterations: providers write "Moenchengladbach"/"Koeln"/"Muenchen" for ö/ü/ä.
+# The fold must never touch unrelated words, so it only fires on a real umlaut context:
+#   * preceded by a consonant inside the same token (never token-initial: "AEK" stays "aek"),
+#   * followed by a consonant or the end of the token ("Piraeus", "Nueva" keep their vowel run),
+#   * "cue"/"gue"/"pue"/"que" are excluded ("Prague", "league", "Queretaro", "Puebla", "Cuenca" must
+#     survive); German umlaut spellings never need them, while "goe"/"gae" stay folded because
+#     "Goeteborg" (Göteborg) is a real club spelling.
+_UMLAUT_FOLD = re.compile(
+    r"(?<=[bdfhjklmnrstvwxz])ue(?=[^aeiouy]|$)"
+    r"|(?<=[bcdfghjklmnpqrstvwxz])(ae|oe)(?=[^aeiouy]|$)"
+)
+_UMLAUT_TARGET = {"ae": "a", "oe": "o", "ue": "u"}
 
 # Canonical aliases (normalised form -> canonical normalised form)
 _ALIASES = {
@@ -84,22 +97,30 @@ _ALIASES = {
 }
 
 
+def _fold_umlaut_digraphs(text: str) -> str:
+    return _UMLAUT_FOLD.sub(lambda m: _UMLAUT_TARGET[m.group(0)], text)
+
+
 def normalize_team_name(name: Optional[str]) -> str:
     """Lower-case, accent-free, punctuation-free, noise-token-free team name with aliases applied."""
     if not name:
         return ""
     text = strip_accents(name.translate(_LETTER_MAP)).lower()
-    # German transliterations: providers write "Moenchengladbach"/"Koeln"/"Muenchen" for ö/ü; fold both spellings
-    text = text.replace("oe", "o").replace("ae", "a").replace("ue", "u")
     text = text.replace("&", " and ").replace("-", " ").replace("/", " ")
     text = re.sub(r"[^a-z0-9 ]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
+    text = _fold_umlaut_digraphs(text)
     if text in _ALIASES:
         return _ALIASES[text]
     # founding years and squad numbers ("Bologna FC 1909", "Stade Brestois 29", "Mainz 05") never carry identity
     tokens = [t for t in text.split(" ") if t and (t in _KEEP_TOKENS or (t not in _NOISE_TOKENS and not t.isdigit()))]
     cleaned = " ".join(tokens).strip() or text
     return _ALIASES.get(cleaned, cleaned)
+
+
+def _is_generic_token(token: str) -> bool:
+    """A token that cannot identify a club on its own: a city/prefix or a club-type initialism (CA, AJ, JK)."""
+    return token in _SHARED_TOKENS or token in _NOISE_TOKENS or len(token) <= 2
 
 
 def team_names_match(a: Optional[str], b: Optional[str]) -> bool:
@@ -113,10 +134,45 @@ def team_names_match(a: Optional[str], b: Optional[str]) -> bool:
     # A single shared city/generic token ("madrid", "paris", "united") is never enough on its own:
     # "Real Madrid" must not swallow "Atletico Madrid" and "Paris Saint-Germain" must not swallow "Paris FC".
     if ta and tb and (ta <= tb or tb <= ta):
-        shorter = ta if len(ta) <= len(tb) else tb
-        if len(shorter) >= 2 or (len(shorter) == 1 and next(iter(shorter)) not in _SHARED_TOKENS and len(next(iter(shorter))) >= 4):
+        shorter, longer = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
+        if len(shorter) >= 2:
             return True
+        if len(shorter) == 1:
+            token = next(iter(shorter))
+            # A one-token subset is never accepted on the name alone: the longer name may only add
+            # generic decoration ("Deportivo Alaves", "CA Osasuna", "Besiktas JK"). Anything that adds
+            # a real identifying word is a different club ("Grasshopper Zurich" is not "Zurich",
+            # "Lokomotive Leipzig" is not "Leipzig").
+            if (token not in _SHARED_TOKENS and len(token) >= 4
+                    and all(_is_generic_token(extra) for extra in longer - shorter)):
+                return True
     return SequenceMatcher(None, na, nb).ratio() >= 0.9
+
+
+def _freeze_aliases() -> None:
+    """
+    Make every alias VALUE its own normalised fixed point.
+
+    A value that is not normalised is unreachable: "slavia praha" -> "slavia prague" only helps when
+    normalize_team_name("Slavia Prague") produces exactly "slavia prague" as well. The table is
+    rewritten once at import and then verified, so a future edit cannot reintroduce the defect.
+    """
+    for key, value in list(_ALIASES.items()):
+        canonical = value
+        for _ in range(8):
+            nxt = normalize_team_name(canonical)
+            if nxt == canonical:
+                break
+            canonical = nxt
+        else:  # pragma: no cover - a cyclic alias table is a programming error
+            raise AssertionError(f"alias {key!r} -> {value!r} does not converge under normalisation")
+        _ALIASES[key] = canonical
+    broken = {k: v for k, v in _ALIASES.items() if normalize_team_name(v) != v}
+    if broken:  # pragma: no cover - guarded at import so the table can never drift
+        raise AssertionError(f"alias values are not normalised fixed points: {broken}")
+
+
+_freeze_aliases()
 
 
 @dataclass
@@ -143,6 +199,10 @@ class MatchDecision:
 EXACT_WINDOW = timedelta(minutes=15)
 DEFAULT_MAX_DELTA = timedelta(hours=3)
 RESCHEDULE_WINDOW = timedelta(hours=36)
+# How far around a kickoff callers should LOOK for candidates. Deliberately much wider than the
+# attach thresholds above: a postponement of several days must surface the original fixture so the
+# decision can be reported as uncertain instead of silently creating a duplicate match row.
+LOOKUP_WINDOW = timedelta(days=14)
 
 
 def find_match(
@@ -158,8 +218,12 @@ def find_match(
 
     - competition keys must agree when both are known
     - home and away names must match in the same orientation
-    - kickoff within 15 min -> exact; within `max_delta` -> high; within 36 h -> ambiguous
-      (probably rescheduled: not attached automatically); several candidates -> ambiguous
+    - kickoff within 15 min -> exact; within `max_delta` -> high; anything further apart ->
+      ambiguous ("possibly rescheduled", carrying the candidate ids); several candidates -> ambiguous
+
+    Attach thresholds never widen with the caller's lookup window: a candidate that the caller only
+    found because it searched a fortnight ahead can produce an `ambiguous` or a `none` decision, never
+    an attachment.
     """
     if kickoff_utc is not None and kickoff_utc.tzinfo is None:
         kickoff_utc = kickoff_utc.replace(tzinfo=timezone.utc)
@@ -191,4 +255,9 @@ def find_match(
     if near:
         return MatchDecision(None, "ambiguous", "teams match but kickoff differs by more than the allowed window (rescheduled?)",
                              [c.match_id for _, c in near])
-    return MatchDecision(None, "none", "teams match but kickoff is on a different day", [c.match_id for _, c in name_matches])
+    # Beyond the reschedule window the candidate is still the only fixture with these teams in the
+    # caller's lookup range: report it as possibly rescheduled instead of pretending nothing was found.
+    hours = sorted(int(d.total_seconds() // 3600) for d, _ in name_matches if d is not None)
+    return MatchDecision(None, "ambiguous",
+                         f"teams match but kickoff is {hours[0] if hours else '?'} h away (possibly rescheduled)",
+                         [c.match_id for _, c in name_matches])

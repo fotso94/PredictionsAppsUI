@@ -1,5 +1,6 @@
 """Live Score API provider — mocked HTTP (no credentials, no network)."""
 
+import json
 from datetime import date, datetime, timedelta, timezone
 
 import httpx
@@ -10,7 +11,7 @@ from app.services.providers.base import (
     ProviderAuthError, ProviderNotConfiguredError, ProviderQuotaError, ProviderUnavailableError,
 )
 from app.services.providers.budget import RequestBudget
-from app.services.providers.livescore_api import LiveScoreAPIProvider
+from app.services.providers.livescore_api import COMPETITION_STORE_KEY, LiveScoreAPIProvider
 from app.services.match_cache import MatchCache
 from tests.providers.support import FakeRedis, json_response, make_transport
 
@@ -301,3 +302,70 @@ def test_upcoming_stops_paginating_after_the_window():
     with patch("app.services.providers.livescore_api.datetime", FrozenDate):
         fixtures = p.get_upcoming("premier_league", days_ahead=7)
     assert [f.external_id for f in fixtures] == ["1"] and len(recorder.requests) == 1
+
+
+# ------------------------------------------------------- competition id persistence (A6)
+
+def test_stale_competition_store_is_read_when_the_fresh_copy_has_expired():
+    """Competition ids are immutable: once the 24h copy expires the 30-day copy is still right.
+
+    Ignoring it sends every new provider instance back through up to 40 pages of the list.
+    """
+    client = FakeRedis()
+    store = MatchCache(client=client)
+    first, recorder1 = provider(store=store)
+    assert first.list_competitions(["premier_league"])[0].external_id == "2"
+    assert len(recorder1.requests) == 1
+
+    client.expire_now(COMPETITION_STORE_KEY)  # the fresh copy ages out; the :stale copy remains
+    assert client.get(COMPETITION_STORE_KEY) is None
+    assert client.get(f"{COMPETITION_STORE_KEY}:stale") is not None
+
+    second, recorder2 = provider(store=store)
+    assert second.list_competitions(["premier_league"])[0].external_id == "2"
+    assert recorder2.requests == []  # served from the stale copy, not re-downloaded
+
+
+def test_ids_from_defaults_and_overrides_are_persisted_too():
+    """An id that needed no lookup still belongs in the store, so no instance re-pays for it."""
+    client = FakeRedis()
+    store = MatchCache(client=client)
+    p, recorder = provider(store=store, overrides={"premier_league": "2"}, use_default_ids=True)
+    assert {c.key: c.external_id for c in p.list_competitions(["premier_league", "la_liga"])} == {
+        "premier_league": "2", "la_liga": "3"}
+    assert recorder.requests == []
+    stored = json.loads(client.get(COMPETITION_STORE_KEY))
+    assert {k: v["external_id"] for k, v in stored.items()} == {"premier_league": "2", "la_liga": "3"}
+
+    # a later instance with neither overrides nor defaults still resolves them without a request
+    later, recorder2 = provider(store=store, overrides={}, use_default_ids=False)
+    assert {c.key: c.external_id for c in later.list_competitions(["premier_league", "la_liga"])} == {
+        "premier_league": "2", "la_liga": "3"}
+    assert recorder2.requests == []
+
+
+def test_pagination_and_retries_are_attributed_separately():
+    budget = RequestBudget("livescore", 1200, client=FakeRedis())
+    p, _ = provider(budget=budget, overrides={"premier_league": "2"})
+    p.get_fixtures(date(2026, 9, 20), ["premier_league"])  # page 1 + page 2
+    assert budget.by_reason() == {"fetch": 1, "page": 1}
+
+    calls = {"n": 0}
+
+    def flaky(request):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return json_response({"success": False, "error": "This API key and secret do not have access to our data enabled"}, 401)
+        return json_response(FIXTURES_PAGE_2)
+
+    budget2 = RequestBudget("livescore", 1200, client=FakeRedis())
+    p2, _ = provider(flaky, budget=budget2, overrides={"premier_league": "2"})
+    p2.get_fixtures(date(2026, 9, 20), ["premier_league"])
+    assert budget2.by_reason() == {"fetch": 1, "retry": 1}  # the retry is a real outbound request
+
+
+def test_competition_discovery_is_attributed_to_discovery():
+    budget = RequestBudget("livescore", 1200, client=FakeRedis())
+    p, _ = provider(budget=budget)
+    p.list_competitions(["premier_league"])
+    assert budget.by_reason() == {"discovery": 1}

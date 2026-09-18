@@ -80,21 +80,26 @@ class TestCacheService:
         cache.delete(key)
     
     def test_ttl_expiration(self):
-        """Test TTL expiration"""
+        """A key is stored with the TTL it was given and stops existing once that TTL runs out.
+
+        Asserted from the TTL Redis actually recorded rather than by sleeping past it: sleeping made
+        this test three seconds of the suite's runtime and still failed intermittently, because the
+        expiry and the assertion raced.
+        """
         cache = sessions_cache
         key = "test:ttl"
-        
-        # Set with 2 second TTL
-        cache.set(key, "value", ttl=2)
-        
-        # Should exist immediately
-        assert cache.exists(key) is True
-        
-        # Wait for expiration
-        time.sleep(3)
-        
-        # Should not exist after TTL
-        assert cache.exists(key) is False
+        try:
+            cache.set(key, "value", ttl=120)
+            assert cache.exists(key) is True
+
+            remaining = cache.redis.ttl(cache._make_key(key))
+            assert 0 < remaining <= 120
+
+            # expiring it immediately is the same code path the TTL would take
+            cache.expire(key, 0)
+            assert cache.exists(key) is False
+        finally:
+            cache.delete(key)
     
     def test_get_many(self):
         """Test getting multiple values"""

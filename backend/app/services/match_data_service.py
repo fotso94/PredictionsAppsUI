@@ -45,10 +45,14 @@ class SyncMeta:
     errors: List[str] = field(default_factory=list)
     live_polled: bool = False
     results_polled: bool = False
+    #: Fixtures the registry refused to store because they could not be told apart from an existing
+    #: match. Counted and reported rather than guessed into a duplicate row.
+    ambiguous: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         return {"provider": self.provider, "source": self.source, "stale": self.stale, "fetched_at": self.fetched_at,
-                "errors": self.errors, "live_polled": self.live_polled, "results_polled": self.results_polled}
+                "errors": self.errors, "live_polled": self.live_polled, "results_polled": self.results_polled,
+                "ambiguous": self.ambiguous}
 
 
 def _fixture_to_dict(f: ProviderFixture) -> Dict[str, Any]:
@@ -181,6 +185,24 @@ class MatchDataService:
         return [l.id for l in self.competitions()]
 
     # ------------------------------------------------------------------ fixtures
+    def _store_fixtures(self, fixtures, meta: SyncMeta) -> int:
+        """Persist fixtures, counting the ones the registry refused as too ambiguous to identify.
+
+        `upsert_fixture` returns None when a provider fixture cannot be told apart from an existing
+        match. Storing it anyway would create a second card for the same game and split the expert
+        predictions across the two rows, so the refusal is recorded instead.
+        """
+        stored = 0
+        for fixture in fixtures:
+            if self.registry.upsert_fixture(fixture) is None:
+                meta.ambiguous += 1
+            else:
+                stored += 1
+        if meta.ambiguous:
+            logger.warning("%d fixture(s) were not stored because they could not be identified unambiguously",
+                           meta.ambiguous)
+        return stored
+
     def sync_day(self, day: date) -> SyncMeta:
         meta = SyncMeta()
         key = f"matchdata:fixtures:{day.isoformat()}:{','.join(self.keys)}"
@@ -192,8 +214,7 @@ class MatchDataService:
             meta.source = "database"
             return meta
         fixtures = [_fixture_from_dict(d) for d in payload]
-        for fixture in fixtures:
-            self.registry.upsert_fixture(fixture)
+        self._store_fixtures(fixtures, meta)
         self.db.commit()
         if day <= self.now.date():
             self._sync_results(day, meta)
@@ -219,8 +240,7 @@ class MatchDataService:
             meta.errors.append(f"results: {exc}")
             return
         meta.results_polled = True
-        for fixture in (_fixture_from_dict(d) for d in payload):
-            self.registry.upsert_fixture(fixture)
+        self._store_fixtures((_fixture_from_dict(d) for d in payload), meta)
         self.db.commit()
 
     def _live_window_open(self) -> bool:
@@ -243,8 +263,7 @@ class MatchDataService:
             meta.errors.append(f"live: {exc}")
             return
         meta.live_polled = True
-        for fixture in (_fixture_from_dict(d) for d in payload):
-            self.registry.upsert_fixture(fixture)
+        self._store_fixtures((_fixture_from_dict(d) for d in payload), meta)
         self.db.commit()
 
     def sync_upcoming(self, key: str, days_ahead: int = 14) -> SyncMeta:
@@ -257,8 +276,7 @@ class MatchDataService:
         except ProviderError as exc:
             meta.errors.append(str(exc))
             return meta
-        for fixture in (_fixture_from_dict(d) for d in payload):
-            self.registry.upsert_fixture(fixture)
+        self._store_fixtures((_fixture_from_dict(d) for d in payload), meta)
         self.db.commit()
         return meta
 
