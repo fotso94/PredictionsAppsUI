@@ -144,6 +144,15 @@ class ExpertPredictionCreate(BaseModel):
     reasoning: Optional[str] = Field(None, max_length=2000, description="Expert reasoning")
     key_factors: Optional[Dict[str, Any]] = Field(None, description="Key factors influencing prediction")
 
+    #: Ask for this record to be classified as test data, so it is left out of measured
+    #: performance. The request is honoured ONLY where the installation allows classification
+    #: (ALLOW_TEST_DATA_CLASSIFICATION, off by default and therefore off in any real deployment);
+    #: everywhere else the record is simply stored unclassified. Without that gate this field
+    #: would be a way for an expert to keep their own losses off the leaderboard.
+    is_test_data: Optional[bool] = Field(
+        None, description="Ask to classify this record as test data (honoured only where the "
+                          "installation allows test-data classification)")
+
     @validator('away_win_prob')
     def probabilities_sum_to_one(cls, v, values):
         """Validate that match outcome probabilities sum to 1.0"""
@@ -204,6 +213,15 @@ class ExpertPredictionOverride(BaseModel):
     # Reasoning & Metadata
     reasoning: str = Field(..., min_length=10, max_length=2000, description="Reason for override")
     key_factors: Optional[Dict[str, Any]] = Field(None, description="Key factors influencing override")
+
+    #: Ask for this record to be classified as test data, so it is left out of measured
+    #: performance. The request is honoured ONLY where the installation allows classification
+    #: (ALLOW_TEST_DATA_CLASSIFICATION, off by default and therefore off in any real deployment);
+    #: everywhere else the record is simply stored unclassified. Without that gate this field
+    #: would be a way for an expert to keep their own losses off the leaderboard.
+    is_test_data: Optional[bool] = Field(
+        None, description="Ask to classify this record as test data (honoured only where the "
+                          "installation allows test-data classification)")
 
     @validator('away_win_prob')
     def probabilities_sum_to_one(cls, v, values):
@@ -391,6 +409,13 @@ class ExpertPredictionResponse(BaseModel):
     created_by: str
     created_at: datetime
     published_at: Optional[datetime] = None
+    #: When the prediction was last taken off the public lists. published_at is never cleared, so
+    #: the pair says what a reader could see and when - which is what makes a prediction's
+    #: standing at kickoff checkable after the match.
+    unpublished_at: Optional[datetime] = None
+    #: TRUE when this record is deliberately classified as test data and so excluded from measured
+    #: performance. NULL means nobody has classified it.
+    is_test_data: Optional[bool] = None
     superseded_by: Optional[str] = None
 
     # Enhanced fields
@@ -445,6 +470,19 @@ class ReviewQueueItem(BaseModel):
     def serialize_created_at(self, value: Optional[datetime]) -> Optional[str]:
         """UTC ISO-8601 with a trailing Z (see to_utc_iso_z)."""
         return to_utc_iso_z(value)
+
+
+class TestDataClassificationRequest(BaseModel):
+    """Classify an existing record as test data, or clear the classification.
+
+    The mechanism exists so an automated suite can mark the records it creates without writing a
+    marker into the reasoning text, which is free-form and would let anyone exclude their own
+    losses from measured performance by typing the right string. It is refused unless the
+    installation allows classification at all.
+    """
+    is_test_data: bool = Field(
+        True, description="TRUE classifies the record as test data; FALSE clears the "
+                          "classification, leaving it unclassified")
 
 
 class ExpertPerformanceMetrics(BaseModel):

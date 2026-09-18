@@ -46,6 +46,24 @@ LEAGUE_STORE_TTL = 30 * 24 * 3600
 #: burns the whole plan on a lookup that is already known to fail.
 UNRESOLVED_TTL = 6 * 3600
 
+#: What one competition's turn costs in outbound requests: a /leagues lookup when the provider's
+#: league id is not recorded yet, and then the /events fetch. Quoted by :meth:`request_cost` so the
+#: caller can refuse to START a turn it cannot pay for in full - paying for the discovery and then
+#: being refused the fetch buys a league id and no forecast.
+DISCOVERY_COST = 1
+FETCH_COST = 1
+
+#: How many discarded events one fetch report may name. The report exists to evidence "the provider
+#: returned this fixture with nothing usable in it", so it carries identifiers and a reason per
+#: event and never the payload itself; this cap keeps it bounded when a whole page parses to
+#: nothing. Beyond it the count is still exact and `discarded_truncated` says the list is not.
+MAX_DISCARDED_REPORTED = 60
+
+#: Why an event the provider returned produced no forecast. Both are statements about the
+#: provider's own response, which is the distinction the coverage diagnosis cannot make today.
+DISCARD_NO_PREDICTIONS = "the event carried no prediction snapshot"
+DISCARD_NO_MARKET = "a prediction snapshot was published with no usable market in it"
+
 # GameForecast uses ISO country codes; our competitions use football federations' names
 COUNTRY_CODES = {"premier_league": "GB", "la_liga": "ES", "serie_a": "IT", "bundesliga": "DE", "ligue_1": "FR"}
 
@@ -277,6 +295,11 @@ class GameForecastProvider(ForecastProvider):
         #: Keys whose negative marker this instance has already reported, so the short-circuit
         #: logs once instead of once per competition per sync.
         self._unresolved_logged: set = set()
+        #: What the most recent :meth:`get_forecasts` call actually saw: how many events came back,
+        #: which of them were discarded and why, and the window the response covered. Read by the
+        #: caller straight after the call and retained per competition, so a later unrelated pass
+        #: cannot erase the evidence of the only real fetch of the day. None until a fetch happens.
+        self.last_fetch: Optional[Dict[str, Any]] = None
 
     def _load_store(self) -> None:
         data = self._store.get(LEAGUE_STORE_KEY) or {}
@@ -315,6 +338,39 @@ class GameForecastProvider(ForecastProvider):
 
     def is_configured(self) -> bool:
         return bool(self.api_key)
+
+    # -------------------------------------------------- what a turn costs, quoted before it starts
+    def league_id_is_known(self, key: str) -> bool:
+        """Is this competition's provider league id already recorded? Makes no request.
+
+        Reads the same three sources :meth:`resolve_league` reads before it would call /leagues:
+        this instance's cache, the shared store, and the ids configured in code or by override.
+        """
+        if key in self._league_cache:
+            return True
+        self._load_store()
+        if key in self._league_cache:
+            return True
+        if self._overrides.get(key):
+            return True
+        try:
+            canonical = comps.get(key)
+        except KeyError:
+            return False
+        return canonical.gameforecast_id is not None
+
+    def request_cost(self, key: str) -> int:
+        """Outbound requests one turn for `key` will cost, quoted before the turn is started.
+
+        A competition whose league id is already recorded costs one /events request. One that still
+        needs discovery costs a /leagues lookup FIRST and then the fetch, so its turn cannot be
+        afforded with a single request left: that was how a day ended with a league id bought and
+        no forecast fetched. A competition already marked unresolvable makes no request at all, so
+        its turn is free - the fetch is short-circuited before any HTTP call.
+        """
+        if self._store.get(self.unresolved_key(key)):
+            return 0
+        return FETCH_COST if self.league_id_is_known(key) else DISCOVERY_COST + FETCH_COST
 
     def _get(self, path: str, reason: str = "fetch", **params: Any) -> Dict[str, Any]:
         if not self.is_configured():
@@ -365,10 +421,20 @@ class GameForecastProvider(ForecastProvider):
         return comp
 
     def get_forecasts(self, key: str, date_from: date, date_to: date) -> List[ProviderForecast]:
+        self.last_fetch = None
         league = self.resolve_league(key)
         if not league:
             return []
         forecasts: List[ProviderForecast] = []
+        #: Events the provider returned that produced no usable forecast. Dropping them silently is
+        #: what leaves a fixture unexplainable afterwards: "the provider never returned it" and "it
+        #: returned it with nothing in it" become the same absence. They are reported instead.
+        discarded: List[Dict[str, Any]] = []
+        discarded_count = 0
+        events_returned = 0
+        pages_read = 0
+        complete = False
+        first_fetched_at: Optional[datetime] = None
         page = 1
         while page <= MAX_PAGES:
             payload = self._get("/events", reason="fetch" if page == 1 else "page",
@@ -380,13 +446,59 @@ class GameForecastProvider(ForecastProvider):
             # parsed - not when the forecast is later attached to a match. Stamping it at attach
             # time presents an hours-old forecast as freshly retrieved.
             fetched_at = datetime.now(timezone.utc)
+            first_fetched_at = first_fetched_at or fetched_at
+            pages_read += 1
             for event in payload.get("data") or []:
+                events_returned += 1
                 forecast = parse_event(event, competition_key=key)
-                if forecast and forecast.has_any_market():
-                    forecast.fetched_at = fetched_at
-                    forecasts.append(forecast)
+                if forecast is None:
+                    discarded_count += 1
+                    self._note_discarded(discarded, event, DISCARD_NO_PREDICTIONS)
+                    continue
+                if not forecast.has_any_market():
+                    discarded_count += 1
+                    self._note_discarded(discarded, event, DISCARD_NO_MARKET)
+                    continue
+                forecast.fetched_at = fetched_at
+                forecasts.append(forecast)
             pagination = payload.get("pagination") or {}
             if not pagination.get("hasMore"):
+                complete = True
                 break
             page += 1
+        self.last_fetch = {
+            "provider": PROVIDER_NAME,
+            "key": key,
+            "league_id": league.external_id,
+            "fetched_at": (first_fetched_at or datetime.now(timezone.utc)).isoformat(),
+            # The window the response actually covered. Without it, "the provider returned N events
+            # and none is this fixture" would be claimed about fixtures outside the requested dates.
+            "window_from": date_from.isoformat(),
+            "window_to": date_to.isoformat(),
+            "pages_read": pages_read,
+            # True only when the provider said there was no further page. A listing cut off at
+            # MAX_PAGES does not license "this fixture was not among them".
+            "complete": complete,
+            "events_returned": events_returned,
+            "forecasts_returned": len(forecasts),
+            "discarded": discarded_count,
+            "discarded_events": discarded,
+            "discarded_truncated": discarded_count > len(discarded),
+        }
         return forecasts
+
+    @staticmethod
+    def _note_discarded(discarded: List[Dict[str, Any]], event: Dict[str, Any], reason: str) -> None:
+        """Name one dropped event, up to the cap. Identifiers and a reason only, never the payload."""
+        if len(discarded) >= MAX_DISCARDED_REPORTED:
+            return
+        home = event.get("team_home") or {}
+        away = event.get("team_away") or {}
+        kickoff = parse_utc(event.get("start_at"))
+        discarded.append({
+            "external_event_id": str(event.get("id")) if event.get("id") is not None else None,
+            "home": str(home.get("name") or "") or None,
+            "away": str(away.get("name") or "") or None,
+            "kickoff_utc": kickoff.isoformat() if kickoff else None,
+            "reason": reason,
+        })

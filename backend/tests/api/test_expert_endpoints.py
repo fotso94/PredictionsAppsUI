@@ -131,6 +131,8 @@ def _make_prediction(
     prediction.created_by = uuid.uuid4()
     prediction.created_at = CREATED_AT
     prediction.published_at = None
+    prediction.unpublished_at = None
+    prediction.is_test_data = None
     prediction.superseded_by = None
     prediction.prediction_metadata = {}
     return prediction

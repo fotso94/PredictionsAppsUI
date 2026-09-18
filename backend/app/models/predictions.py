@@ -142,7 +142,30 @@ class Prediction(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     status = Column(Enum(PredictionStatus), nullable=False, default=PredictionStatus.PENDING)
     approved_by = uuid_fk('users.users.id', nullable=True, comment="Admin who approved")
     approved_at = Column(DateTime)
+    #: When this prediction first went live. It is a historical fact and is never cleared or
+    #: restamped once set: settlement reads it to decide whether the prediction predates kickoff,
+    #: so clearing it on an unpublish would destroy the only evidence that it stood before the
+    #: match. Unpublishing records ``unpublished_at`` instead.
     published_at = Column(DateTime)
+    #: When it was last taken off the public lists (PUBLISHED -> ARCHIVED). Normally NULL while it
+    #: is live. Paired with published_at this says what a reader could see at any given moment,
+    #: which is what makes "was this standing at kickoff?" answerable after the fact.
+    #:
+    #: One exception, and it is the point of the column: a withdrawal recorded BEFORE kickoff is
+    #: frozen once the match has kicked off, so a later republish does not clear it and a later
+    #: unpublish does not overwrite it. Without that, an expert could withdraw everything in
+    #: advance, wait for the results and republish only the winners. Such a row can therefore be
+    #: PUBLISHED again while still carrying the prematch withdrawal that keeps it out of the
+    #: measured record; the full toggle history is in prediction_audit.
+    unpublished_at = Column(DateTime, comment="When the prediction was last unpublished (archived)")
+    #: Explicit, server-side classification of a record as test data (a QA harness run, a demo
+    #: fixture). NULL means unclassified, which is the honest state for anything nobody has
+    #: deliberately marked. Measured performance excludes rows flagged TRUE. It is never inferred
+    #: from the reasoning text, and it can only be set while
+    #: ``settings.ALLOW_TEST_DATA_CLASSIFICATION`` is on - off in any normal deployment - so no
+    #: user can exclude their own record from the leaderboard by asking for it.
+    is_test_data = Column(Boolean, nullable=True,
+                          comment="TRUE when this record is deliberately classified as test data")
 
     # Multi-Source Priority System
     priority_level = Column(Integer, nullable=False, comment="Priority level (0-100): Expert=100, LLM=50, API-Football=25, Randomized=0")

@@ -238,6 +238,19 @@ class Settings(BaseSettings):
     # Set to False to restore the review-queue workflow (predictions created as PENDING).
     EXPERT_DIRECT_PUBLISH: bool = True
     ADMIN_FEATURES_ENABLED: bool = True
+
+    # May a record be classified as test data (and so excluded from measured performance)?
+    #
+    # OFF by default, and it must stay off anywhere real records are published: with it on, the
+    # author of a prediction can ask for their own record to be left out of the leaderboard, which
+    # is exactly the hole this setting exists to keep shut. It is turned on only where the records
+    # genuinely are test data - a developer machine running the end-to-end suite - and it is a
+    # deliberate opt-in rather than something inferred from ENVIRONMENT, so no deployment can
+    # satisfy it by accident.
+    #
+    # The classification itself is always written server-side onto a column
+    # (predictions.is_test_data). Nothing is ever inferred from the reasoning text.
+    ALLOW_TEST_DATA_CLASSIFICATION: bool = False
     
     # Pagination
     DEFAULT_PAGE_SIZE: int = 20

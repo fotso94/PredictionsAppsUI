@@ -1,16 +1,20 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
 import { ApiMatch } from '../support/api-stub';
 import {
-  apiContext, ensureQaExpertToken, cleanupQaPredictions, anyUpcomingMatch,
-  QA_EXPERT, QA_REASONING_MARKER,
+  apiContext, ensureQaExpertToken, cleanupQaPredictions, anyUpcomingMatch, publishQaPrediction,
+  classifyQaPrediction, QA_EXPERT, QA_REASONING_MARKER,
 } from '../support/qa-account';
 
 /**
  * Expert publishing, end to end, against the local backend and the real local data.
  *
  * The owner's rule is that an expert publishes directly: no admin approval step, and the prediction
- * is public immediately. These tests only create and remove their own clearly-marked QA records,
- * and they never trigger a provider refresh, so they spend no trial allowance.
+ * is public immediately. These tests only create and remove their own records, and they never
+ * trigger a provider refresh, so they spend no trial allowance.
+ *
+ * Every record created here asks to be classified as test data, server-side, so measured
+ * performance leaves it out. The "[e2e-qa]" string in the reasoning is a label for a human reading
+ * the database and decides nothing - see support/qa-account.ts.
  */
 
 let api: APIRequestContext;
@@ -35,22 +39,16 @@ test.afterAll(async () => {
   await api?.dispose();
 });
 
-const publish = async (overrides: Record<string, unknown> = {}) => {
-  const response = await api.post('/api/v1/expert/predictions/manual', {
-    headers: { Authorization: `Bearer ${token}` },
-    data: {
-      match_id: match.id,
-      home_win_prob: 0.55,
-      draw_prob: 0.25,
-      away_win_prob: 0.2,
-      confidence_score: 0.7,
-      reasoning: `${QA_REASONING_MARKER} home side has the stronger recent form`,
-      ...overrides,
-    },
+const publish = async (overrides: Record<string, unknown> = {}) =>
+  publishQaPrediction(api, token, {
+    match_id: match.id,
+    home_win_prob: 0.55,
+    draw_prob: 0.25,
+    away_win_prob: 0.2,
+    confidence_score: 0.7,
+    reasoning: `${QA_REASONING_MARKER} home side has the stronger recent form`,
+    ...overrides,
   });
-  expect(response.status(), await response.text()).toBeLessThan(300);
-  return response.json();
-};
 
 test('a published prediction needs no approval and is public immediately', async ({ page }) => {
   const created = await publish();
@@ -126,6 +124,33 @@ test('deleting a prediction removes it from the public view immediately', async 
   await page.goto(`/match/${match.id}`);
   await page.waitForLoadState('networkidle');
   await expect(page.locator('body')).not.toContainText('stronger recent form');
+});
+
+test('a record the suite creates is classified as test data, by a flag and not by its text', async () => {
+  const created = await publish();
+
+  test.skip(
+    created.is_test_data !== true,
+    'this backend runs without ALLOW_TEST_DATA_CLASSIFICATION, so nothing can be classified as ' +
+      'test data here. Set it (it is off by default and must stay off where real predictions are ' +
+      'published) to exercise this.',
+  );
+
+  // the classification is a stored field, not a reading of the reasoning
+  expect(created.is_test_data).toBe(true);
+
+  // and it can be applied afterwards too, which is how a record created through the composer UI
+  // gets classified: the application's own request does not ask for it
+  const second = await publish({ reasoning: `${QA_REASONING_MARKER} a second record` });
+  expect(await classifyQaPrediction(api, token, second.id)).toBe(true);
+});
+
+test('the QA label in the reasoning is a label, not a mechanism', async () => {
+  // A record carrying the marker but NOT classified is an ordinary record as far as the backend is
+  // concerned. Nothing may key off this text: an expert who typed it must still be measured.
+  const created = await publish({ is_test_data: false });
+  expect(created.reasoning).toContain(QA_REASONING_MARKER);
+  expect(created.is_test_data).not.toBe(true);
 });
 
 test('an expert signs in through the UI and reaches the match picker', async ({ page }) => {

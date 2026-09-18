@@ -6,6 +6,7 @@ asserts something about how the small daily allowance is spent and about what is
 """
 
 from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import List
 from unittest.mock import MagicMock
 
@@ -13,7 +14,7 @@ import pytest
 
 from app.models.predictions import Match, MatchStatus
 from app.models.provider_data import ProviderForecastRecord
-from app.services.forecast_service import ForecastService, content_hash
+from app.services.forecast_service import STATUS_KEY, ForecastService, content_hash
 from app.services.match_cache import MatchCache
 from app.services.providers.base import ForecastProvider, ProviderForecast, ProviderQuotaError
 from tests.providers.support import FakeRedis
@@ -296,3 +297,202 @@ def test_a_warm_sync_reuses_the_stored_league_ids():
 
     assert [url for url in seen if "/leagues" in url] == []
     assert len(seen) == len(KEYS)               # events only
+
+
+# ------------------------------------------------- the allowance gate: a turn is all or nothing
+class PricedStubProvider(StubForecastProvider):
+    """A stub that quotes a price per competition and reports a fixed allowance left.
+
+    The budget never moves, so a turn that gets started shows up as a call the gate should not
+    have allowed - which is the thing under test, rather than what the call would have cost.
+    """
+
+    def __init__(self, costs, remaining, **kwargs):
+        super().__init__(**kwargs)
+        self.costs = costs
+        self.budget = SimpleNamespace(daily_limit=8, remaining=lambda: remaining)
+
+    def request_cost(self, key):
+        return self.costs.get(key, 1)
+
+
+def _gameforecast(shared, events=(), limit=8):
+    """A real GameForecastProvider over MockTransport, sharing one Redis stand-in. No network."""
+    import httpx
+    from app.services.providers.budget import RequestBudget
+    from app.services.providers.gameforecast import GameForecastProvider
+
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if "/leagues" in request.url.path:
+            name = request.url.params.get("name", "League")
+            return httpx.Response(200, json={"data": [{"id": abs(hash(name)) % 1000, "name": name,
+                                                       "type": "league", "women": False}]})
+        return httpx.Response(200, json={"data": list(events), "pagination": {"hasMore": False}})
+
+    provider = GameForecastProvider(
+        api_key="test-key", transport=httpx.MockTransport(handler),
+        budget=RequestBudget("gameforecast", limit, client=shared),
+        store=MatchCache(client=shared), league_overrides={})
+    return provider, seen
+
+
+def test_a_turn_that_needs_discovery_is_not_started_with_one_request_left():
+    """The gate that starved a competition: one unit bought a league id and no forecast.
+
+    A competition whose provider league id is not recorded costs a /leagues lookup and THEN an
+    /events fetch. Started with one request left it spends that request on the lookup and is
+    refused the fetch, so the allowance is gone and the competition still has nothing.
+    """
+    from app.services.providers.budget import budget_key
+    from app.services.providers.gameforecast import LEAGUE_STORE_KEY
+
+    shared = CountingRedis()
+    shared.store[budget_key("gameforecast")] = 7          # 7 of 8 spent: one request left
+    cache = MatchCache(client=shared)
+    provider, seen = _gameforecast(shared)
+    service = build(cache, provider=provider, keys=["champions_league"])
+
+    report = service.ensure_synced(force=True)
+
+    assert seen == [], "no request may be sent for a turn that cannot be paid for in full"
+    assert int(shared.store[budget_key("gameforecast")]) == 7, "the last unit must be left unspent"
+    assert "champions_league" in report["error"] and "2 request(s)" in report["error"]
+    assert report["deferred"] == ["champions_league"]
+    assert not (cache.get(LEAGUE_STORE_KEY) or {}), "no league id was bought with the last unit"
+
+
+def test_a_turn_that_fits_in_what_is_left_is_still_started():
+    """The gate must refuse only what it cannot pay for; one unit still buys a one-request turn."""
+    provider = PricedStubProvider({"premier_league": 1}, remaining=1)
+    service = build(cache=MatchCache(client=LockingFakeRedis()), provider=provider,
+                    keys=["premier_league"])
+
+    service.ensure_synced(force=True)
+
+    assert provider.calls == ["premier_league"]
+
+
+def test_a_starved_competition_is_not_skipped_for_a_cheaper_one_behind_it(cache):
+    """Stopping is correct; reordering by price is not, because it starves the dear one forever.
+
+    One request is left, the competition at the head of the order needs two and the one behind it
+    needs one. Spending the unit on the cheaper competition would make the expensive one cheaper
+    than nothing to skip again tomorrow, and the day after, and it would never be fetched.
+    """
+    provider = PricedStubProvider({"champions_league": 2, "premier_league": 1}, remaining=1)
+    service = build(cache, provider=provider, keys=["champions_league", "premier_league"])
+
+    report = service.ensure_synced(force=True)
+
+    assert provider.calls == [], "the affordable competition behind it must not be promoted"
+    assert report["deferred"] == ["champions_league", "premier_league"]
+    assert "champions_league costs 2 request(s)" in report["error"]
+
+    service.clear_cooldown()
+    later = build(cache, provider=PricedStubProvider({}, remaining=8),
+                  keys=["champions_league", "premier_league"], now=NOW + timedelta(days=1))
+    assert later.sync_order()[0] == "champions_league", "the starved competition keeps the head"
+
+
+def test_the_gate_charges_one_request_to_a_provider_that_does_not_price_its_turns():
+    """An unpriced provider behaves exactly as before: one request per turn, nothing refused."""
+    provider = StubForecastProvider()
+    provider.budget = SimpleNamespace(daily_limit=8, remaining=lambda: 1)
+    service = build(cache=MatchCache(client=LockingFakeRedis()), provider=provider,
+                    keys=["premier_league"])
+
+    service.ensure_synced(force=True)
+
+    assert provider.calls == ["premier_league"]
+
+
+# ------------------------------------------------- per-competition evidence of what was fetched
+def test_a_competitions_fetch_record_survives_an_unrelated_later_pass():
+    """The only real fetch of a day must not be erased by a no-op hours later.
+
+    The global status key holds the last run of ANY kind, including the cooling-down early return
+    that makes no provider request at all. A record written per competition, only by a turn that
+    actually called the provider, is what lets a later reader say what that response contained.
+    """
+    from app.services.forecast_service import COMPETITION_STATUS_KEY
+
+    shared = CountingRedis()
+    cache = MatchCache(client=shared)
+    provider, _ = _gameforecast(shared, limit=100)
+    key = COMPETITION_STATUS_KEY.format(provider="gameforecast", key="premier_league")
+
+    build(cache, provider=provider, keys=["premier_league"]).ensure_synced(force=True)
+    after_fetch = cache.get(key)
+
+    assert after_fetch is not None, "a turn that called the provider must leave a record"
+    assert after_fetch["events_returned"] == 0 and after_fetch["complete"] is True
+    assert after_fetch["window_from"] == NOW.date().isoformat()
+    assert after_fetch["fetched"] == 0 and after_fetch["attached"] == 0
+
+    # An unrelated later pass: the provider is paused, so it returns early having fetched nothing.
+    later = build(cache, provider=_gameforecast(shared, limit=100)[0], keys=["premier_league"],
+                  now=NOW + timedelta(hours=12))
+    later._pause("skipped (recent failure: budget exhausted)", 3600)
+    report = later.ensure_synced(force=True)
+
+    assert report["paused"] is True
+    assert cache.get(STATUS_KEY.format(provider="gameforecast"))["paused"] is True, \
+        "the global key is the one that gets overwritten"
+    assert cache.get(key) == after_fetch, "the per-competition record must be untouched by it"
+
+
+def test_a_turn_whose_request_failed_leaves_the_last_real_record_standing():
+    """A failed turn knows nothing about the provider's response; it must not replace what does."""
+    from app.services.forecast_service import COMPETITION_STATUS_KEY
+
+    shared = CountingRedis()
+    cache = MatchCache(client=shared)
+    key = COMPETITION_STATUS_KEY.format(provider="stub", key="premier_league")
+
+    good = StubForecastProvider()
+    build(cache, provider=good, keys=["premier_league"]).ensure_synced(force=True)
+    recorded = cache.get(key)
+    assert recorded is not None and recorded["fetched"] == 0
+
+    failing = StubForecastProvider(budget_after=0)
+    later = build(cache, provider=failing, keys=["premier_league"], now=NOW + timedelta(hours=12))
+    later.ensure_synced(force=True)
+
+    assert cache.get(key) == recorded
+
+
+def test_the_fetch_record_carries_what_the_provider_reported_about_what_it_dropped():
+    """The evidence the coverage diagnosis needs: the events returned and discarded, by name."""
+    from app.services.forecast_service import COMPETITION_STATUS_KEY
+
+    empty_event = {"id": 909, "league": {"id": 15, "name": "Premier League"},
+                   "team_home": {"id": 1, "name": "Arsenal"}, "team_away": {"id": 2, "name": "Chelsea"},
+                   "start_at": "2026-09-21T14:00:00Z", "predictions": []}
+    shared = CountingRedis()
+    cache = MatchCache(client=shared)
+    provider, _ = _gameforecast(shared, events=[empty_event], limit=100)
+
+    build(cache, provider=provider, keys=["premier_league"]).ensure_synced(force=True)
+
+    record = cache.get(COMPETITION_STATUS_KEY.format(provider="gameforecast", key="premier_league"))
+    assert record["events_returned"] == 1 and record["discarded"] == 1
+    assert record["discarded_events"][0]["external_event_id"] == "909"
+    assert record["discarded_events"][0]["home"] == "Arsenal"
+
+
+def test_a_fetch_record_never_adopts_another_competitions_report():
+    """Evidence attributed to the wrong league is worse than none: the record refuses it."""
+    from app.services.forecast_service import COMPETITION_STATUS_KEY
+
+    shared = CountingRedis()
+    cache = MatchCache(client=shared)
+    provider = StubForecastProvider()
+    provider.last_fetch = {"key": "serie_a", "events_returned": 12, "complete": True}
+    build(cache, provider=provider, keys=["premier_league"]).ensure_synced(force=True)
+
+    record = cache.get(COMPETITION_STATUS_KEY.format(provider="stub", key="premier_league"))
+    assert record["key"] == "premier_league"
+    assert "events_returned" not in record, "a listing about Serie A says nothing about this league"

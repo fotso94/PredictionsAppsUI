@@ -59,6 +59,12 @@ TASK_SETTLE = "settle"
 #: rather than half an hour later.
 TASK_NAMES: Tuple[str, ...] = (TASK_FIXTURES, TASK_LIVE, TASK_RESULTS, TASK_FORECASTS, TASK_SETTLE)
 
+#: What one forecast competition's turn is assumed to cost when its provider will not price it:
+#: a league-id discovery and then the fetch, which is the expensive case. The dry run is an upper
+#: bound, so where it cannot know it rounds UP - a number that under-reports what a trial plan is
+#: about to spend is worse than no number at all.
+UNPRICED_TURN_COST = 2
+
 STATE_KEY = "sync:task:{name}"
 LOCK_KEY = "sync:lock:{name}"
 #: Task state outlives any plausible outage, so "last succeeded" stays honest after a long stop.
@@ -232,7 +238,15 @@ class SyncScheduler:
             state["backoff_seconds"] = backoff
             # Back off rather than retrying on the next tick: whatever broke is unlikely to be fixed
             # in sixty seconds, and each retry is a provider request nobody asked for.
-            state["next_due_at"] = (now + timedelta(seconds=backoff)).isoformat()
+            #
+            # But never past the next budget reset. The commonest way a task fails here is the
+            # allowance running out mid-pass (a spent provider is reported as a failure, not a
+            # skip), and a 6 h backoff taken at 22:30 would park the task until 04:30 - hours of a
+            # fresh day's allowance spent waiting for a quota that came back at midnight. `min`
+            # only ever pulls the retry earlier, so a short backoff is untouched, and
+            # `backoff_seconds` above still records the real penalty.
+            state["next_due_at"] = min(now + timedelta(seconds=backoff),
+                                       _next_budget_reset(now)).isoformat()
         self._save_state(name, state)
         return state
 
@@ -540,8 +554,72 @@ class SyncScheduler:
         entry["basis"] = basis
         return entry
 
+    @staticmethod
+    def _forecast_pass_cost(provider: Any, due_keys: Sequence[str]) -> Tuple[int, str]:
+        """(what these competitions' turns are expected to cost, and what that assumed).
+
+        The bound holds for ONE page of events per fetch, which is what every covered competition
+        has returned so far. A competition with more pages pays one more request per extra page
+        (up to the provider's page cap), and those are not priced here: charging every fetch the
+        cap would report four times the real cost of the only plan that has to be read exactly,
+        and would hold back a pass that fits comfortably. The assumption is stated in the basis
+        string that travels with the number, so a reader is never handed the figure alone.
+
+        Each competition is priced by the provider itself, through the same `request_cost` seam
+        `ForecastService` uses to decide whether it can afford to START a turn - so the estimate
+        and the gate cannot disagree. A competition whose provider league id is already recorded
+        costs one /events fetch; one that still has to be discovered pays a /leagues lookup first
+        and costs two; one already marked unresolvable costs nothing, because its turn is
+        short-circuited before any HTTP call.
+
+        Dropping the discovery request is what made a six-competition pass estimate 6 and spend 7
+        (champions_league is the one covered competition with no configured GameForecast id).
+        Charging every competition two, the way this did before that, over-reported the cost of
+        the one plan that has to be read exactly.
+
+        A provider that will not price a turn is charged the expensive case: an estimate that
+        cannot know rounds UP, because under-reporting a trial plan is how a pass overruns it.
+
+        Prices are read from the provider's caches (Redis and in-memory). No request is made and
+        nothing is written.
+        """
+        price = getattr(provider, "request_cost", None)
+        costs: List[int] = []
+        unpriced = 0
+        for key in due_keys:
+            cost = None
+            if callable(price):
+                try:
+                    cost = max(int(price(key)), 0)
+                except Exception as exc:  # pragma: no cover - pricing must never break an estimate
+                    logger.debug("Could not price the %s turn for %s: %s",
+                                 getattr(provider, "name", "provider"), key, exc)
+            if cost is None:
+                cost, unpriced = UNPRICED_TURN_COST, unpriced + 1
+            costs.append(cost)
+
+        wording = {
+            0: "costing nothing (a remembered discovery failure short-circuits the turn)",
+            1: "costing 1 request (the provider league id is already recorded)",
+            2: "costing 2 (a league-id discovery, then the fetch)",
+        }
+        parts = []
+        for cost in sorted(set(costs), reverse=True):
+            count = costs.count(cost)
+            parts.append(f"{count} {wording.get(cost) or f'costing {cost} request(s)'}")
+        if unpriced:
+            parts.append(f"{unpriced} of them not priced by "
+                         f"{getattr(provider, 'name', 'the provider')!r}, so charged the "
+                         f"expensive case rather than assumed cheap")
+        return sum(costs), "; ".join(parts) or "nothing is due"
+
     def _estimate_cost(self, name: str, services: _Services) -> Tuple[int, str]:
-        """Upper bound on outbound requests, before caching. Reads the database, never a provider."""
+        """What this task is expected to spend, before caching. Reads the database, never a provider.
+
+        An estimate, not a guarantee: see `_forecast_pass_cost` for the one assumption it makes
+        (a single page of events per competition) and why pricing the page cap instead would be
+        worse. The basis string returned beside the number says what was assumed.
+        """
         if name == TASK_FORECASTS:
             forecast = services.forecast
             if forecast.provider is None:
@@ -550,12 +628,20 @@ class SyncScheduler:
             now = forecast.now
             due_keys = [k for k in forecast.sync_order()
                         if not forecast._last_sync(k) or now - forecast._last_sync(k) >= interval]
+            cost, assumed = self._forecast_pass_cost(forecast.provider, due_keys)
             budget = getattr(forecast.provider, "budget", None)
-            capped = min(len(due_keys), budget.remaining()) if budget is not None and budget.daily_limit else len(due_keys)
-            return (capped * 2,
+            capped = min(cost, budget.remaining()) if budget is not None and budget.daily_limit else cost
+            # Count only what this task bills to the FORECAST allowance. Each competition also
+            # triggers a fixture sync, but that goes through MatchDataService and is charged to the
+            # match-data providers' budgets; adding it here doubled the apparent cost of the small
+            # forecast plan, which is the one figure that has to be read exactly.
+            return (capped,
                     f"{len(due_keys)} competition(s) past their {settings.GAMEFORECAST_SYNC_INTERVAL_HOURS}h "
-                    f"interval, capped at {capped} by the remaining allowance; up to 1 forecast request "
-                    f"and 1 fixture request each")
+                    f"interval ({assumed}): {cost} request(s), capped at {capped} by the remaining "
+                    f"{getattr(budget, 'provider', 'forecast')} allowance. Assumes one page of "
+                    f"events per fetch; a competition with more than one page pays one more "
+                    f"request per extra page. Each one also syncs fixtures, billed to the "
+                    f"match-data providers, not to this allowance")
         if name == TASK_SETTLE:
             # Scoring reads stored results and stored predictions; it contacts nobody.
             return 0, "no provider request: scoring reads only what is already stored"

@@ -19,6 +19,13 @@ The same rule applies to an expert: a published prediction that was edited after
 on the version that stood at kickoff, restored from the revision the edit preserved. If no such
 version survives, the prediction is not scored at all.
 
+And the mirror image of that rule: what an expert does to a prediction AFTER kickoff cannot remove
+it from the record. Deleting it, unpublishing it or superseding it once the result is in takes it
+off the public lists - that is the expert's call - but the version that stood at kickoff is still
+scored, losses included. Withdrawing BEFORE kickoff is different and counts for nothing: nobody was
+standing behind it when the match started. One function, :func:`stood_at_kickoff`, decides this for
+the scoring pass and the performance read alike.
+
 Settlement is idempotent. Each score row is keyed one-to-one to the thing it scores (prediction_id,
 snapshot_id), so a second run over the same data rewrites nothing and double-counts nothing.
 """
@@ -122,6 +129,25 @@ PROBABILITY_OF_ACTUAL_RULE = (
     "field is null."
 )
 
+#: Statuses a prediction can only hold before it has ever gone live. A row sitting in one of these
+#: was never shown to a reader, so there is nothing to measure it against - unlike ARCHIVED, which
+#: a published prediction reaches by being taken down again and which says nothing about whether it
+#: was standing at kickoff. That question is answered by the timestamps, in
+#: :func:`stood_at_kickoff`.
+NEVER_PUBLISHED_STATUSES = (
+    PredictionStatus.PENDING,
+    PredictionStatus.UNDER_REVIEW,
+    PredictionStatus.APPROVED,
+    PredictionStatus.REJECTED,
+)
+
+WITHDRAWAL_RULE = (
+    "An expert is measured on what was standing when the match kicked off. Withdrawing a "
+    "prediction - deleting it, unpublishing it or superseding it - before kickoff means it counts "
+    "for nothing. Doing so after kickoff removes it from what readers see but not from the record: "
+    "the version that stood at kickoff is still scored, losses included."
+)
+
 #: Brier is computed on the published numbers as they stand. Renormalising a set that does not sum
 #: to 1 would replace the source's numbers with ours, so a set outside this tolerance is simply not
 #: scored probabilistically (the hit test is unaffected: it only compares sizes).
@@ -176,6 +202,12 @@ def settlement_rules() -> Dict[str, Any]:
             "Only evidence that existed before kickoff is scored: a provider forecast snapshot "
             "captured before kickoff, and an expert prediction published before kickoff (on the "
             "version that stood at kickoff if it was edited afterwards)."
+        ),
+        "withdrawal": WITHDRAWAL_RULE,
+        "test_records": (
+            "Records explicitly classified as test data are excluded. The classification is a "
+            "stored flag set server-side under a configuration gate that is off by default; it is "
+            "never read out of the reasoning text an expert writes."
         ),
         "markets": dict(MARKET_RULES),
         "probability_of_actual": PROBABILITY_OF_ACTUAL_RULE,
@@ -490,21 +522,139 @@ def eligible_matches(db: Session, start: Optional[datetime] = None,
     return query.order_by(Match.match_date.asc()).all()
 
 
-def candidate_predictions(db: Session, match_ids: Sequence[uuid.UUID]) -> List[Prediction]:
-    """Published, live expert predictions for those matches.
+def withdrawn_before_kickoff(prediction: Prediction, kickoff: datetime) -> bool:
+    """Had the expert taken this prediction back before the match started?
 
-    Soft-deleted and superseded rows are excluded: a withdrawn prediction is not a record of what
-    the expert told readers, and a superseded one is represented by the row that replaced it.
+    Two ways to take one back, and they are tested identically: deleting it (``deleted_at``) and
+    unpublishing it (``unpublished_at``). Before kickoff either means nobody was standing behind
+    it when the ball was kicked, so it counts for nothing. At or after kickoff neither does: what
+    an expert does once the result is in cannot unsay what they said beforehand.
+
+    The exact instant belongs to the actor: publishing AT kickoff is not prematch evidence (see
+    :func:`prematch_expert_view`), so withdrawing AT kickoff is symmetrically too late to take
+    anything back. The other way round, a withdrawal timed exactly on the whistle could delete a
+    loss.
     """
-    if not match_ids:
+    for withdrawn_at in (prediction.deleted_at, prediction.unpublished_at):
+        if withdrawn_at is not None and withdrawn_at < kickoff:
+            return True
+    return False
+
+
+def stood_at_kickoff(prediction: Prediction, kickoff: datetime) -> bool:
+    """Was this prediction standing, published, at the moment the match started?
+
+    The whole of an expert's measured record turns on this one question, so it is asked in exactly
+    one place and every caller - the scoring pass and the performance read - asks it here. While
+    the two asked it separately they could, and did, disagree.
+
+    Three stored facts answer it, all of them naive UTC:
+
+    * it was published (``published_at`` set, and strictly before kickoff). A row still in a
+      pre-publication state was never shown to anyone, so there is nothing to measure;
+    * it was not withdrawn before kickoff (``deleted_at``);
+    * it was not taken off the public lists before kickoff (``unpublished_at``).
+
+    What happens AFTER kickoff cannot change any of it. Deleting, unpublishing or superseding a
+    prediction once the result is in removes it from what readers see, and that is the expert's
+    choice to make, but it does not unsay what they said beforehand: the record stays scored,
+    losses included. Without that, the leaderboard measures nothing - anyone could publish freely
+    and delete whatever went wrong.
+
+    The exact instant belongs to the actor on both sides: publishing AT kickoff is not prematch
+    evidence, and withdrawing AT kickoff is too late to take it back.
+    """
+    if prediction.status in NEVER_PUBLISHED_STATUSES:
+        return False
+    if prediction.published_at is None or prediction.published_at >= kickoff:
+        return False
+    return not withdrawn_before_kickoff(prediction, kickoff)
+
+
+#: Why a prediction is not prematch evidence, in the words the reader is given.
+#:
+#: The first two are separate sentences on purpose. "This row carries no publication time" and
+#: "this row was published at or after kickoff" are different facts, and telling the reader the
+#: second when only the first is true asserts a publication time the record does not have. While
+#: the candidate list still filtered on status the distinction was academic, because an undated row
+#: never reached a refusal; since :func:`candidate_predictions` stopped filtering on status, it does.
+NO_PUBLICATION_TIME_REASON = ("the prediction has no publication time, so it cannot be shown to "
+                              "predate kickoff")
+NOT_PREMATCH_EVIDENCE_REASON = "published at or after kickoff, so it is not prematch evidence"
+NOT_STANDING_REASON = ("withdrawn before kickoff or never published, so nothing was standing "
+                       "behind it when the match started")
+
+
+def not_prematch_reason(prediction: Prediction, kickoff: datetime) -> str:
+    """Why :func:`stood_at_kickoff` said no about this prediction, in one honest sentence.
+
+    Total by design: it answers for every way that question can come back false, so no caller can
+    be handed a reason that happens to be wrong for the rows it is looking at. That is exactly the
+    defect this closes - a single fixed sentence that was true of every row reaching it at the time
+    it was written, and false of the undated rows that started reaching it afterwards.
+    """
+    if prediction.published_at is None:
+        return NO_PUBLICATION_TIME_REASON
+    if prediction.published_at >= kickoff:
+        return NOT_PREMATCH_EVIDENCE_REASON
+    return NOT_STANDING_REASON
+
+
+def replaced_before_kickoff(replacement: Optional[Prediction], kickoff: datetime) -> bool:
+    """Did the row that supersedes this one take over before the match started?
+
+    A supersession made before kickoff is an ordinary correction: the replacement is what stood,
+    and the original is not scored. A supersession made after the result is not - it hands the
+    fixture to a row that ``prematch_expert_view`` then refuses for being published after kickoff,
+    so scoring neither would quietly erase the original, loss and all. Then the original stands.
+
+    A replacement that is missing entirely (hard-deleted) leaves the original as the only surviving
+    evidence, so the original stands in that case too.
+    """
+    if replacement is None:
+        return False
+    return replacement.published_at is not None and replacement.published_at < kickoff
+
+
+def candidate_predictions(db: Session, matches: Sequence[Match]) -> List[Prediction]:
+    """The expert predictions worth measuring against those matches' results.
+
+    Selection is by what was true AT KICKOFF rather than by the row's state right now, so a
+    prediction withdrawn, unpublished or superseded AFTER the match still counts. Withdrawn before
+    kickoff, it counts for nothing: an expert is measured on what they were actually standing
+    behind when the ball was kicked, no more and no less.
+
+    Records explicitly classified as test data are excluded. That classification is a column
+    (``is_test_data``), set server-side under a configuration gate; it is never read out of the
+    reasoning text, which the expert writes and could therefore use to hide a loss.
+
+    Rows published at or after kickoff are deliberately kept here. They cannot be scored, but
+    ``prematch_expert_view`` refuses them with a reason that reaches the report, which is more
+    honest than dropping them silently.
+    """
+    if not matches:
         return []
-    return (db.query(Prediction)
-            .filter(Prediction.match_id.in_(list(match_ids)),
-                    Prediction.status == PredictionStatus.PUBLISHED,
-                    Prediction.deleted_at.is_(None),
-                    Prediction.superseded_by.is_(None))
+    kickoffs = {match.id: match.match_date for match in matches}
+    rows = (db.query(Prediction)
+            .filter(Prediction.match_id.in_(list(kickoffs)))
             .order_by(Prediction.created_at.asc())
             .all())
+    by_id = {row.id: row for row in rows}
+
+    chosen: List[Prediction] = []
+    for row in rows:
+        if row.is_test_data is True:
+            continue
+        if row.status in NEVER_PUBLISHED_STATUSES:
+            continue
+        kickoff = kickoffs[row.match_id]
+        if withdrawn_before_kickoff(row, kickoff):
+            continue
+        if row.superseded_by is not None and replaced_before_kickoff(
+                by_id.get(row.superseded_by), kickoff):
+            continue
+        chosen.append(row)
+    return chosen
 
 
 def prematch_snapshots(db: Session, match_ids: Sequence[uuid.UUID]
@@ -553,8 +703,10 @@ def prematch_expert_view(prediction: Prediction, revisions: Sequence[PredictionA
     the version the edit preserved, never on the values that replaced it.
     """
     if prediction.published_at is None:
-        return None, "the prediction has no publication time, so it cannot be shown to predate kickoff", ""
+        return None, NO_PUBLICATION_TIME_REASON, ""
     if prediction.published_at >= kickoff:
+        # The settlement report lists the prediction's id beside the reason, so the short form is
+        # enough here; the performance read, which reports per source, spells out the consequence.
         return None, "published at or after kickoff", ""
 
     later = [r for r in revisions if r.created_at is not None and r.created_at >= kickoff]
@@ -605,7 +757,7 @@ class SettlementService:
 
     def _settle_predictions(self, match: Match, score: Optional[RegulationScore],
                             void_reason: Optional[str], report: Dict[str, Any]) -> None:
-        predictions = candidate_predictions(self.db, [match.id])
+        predictions = candidate_predictions(self.db, [match])
         if not predictions:
             return
         ids = [p.id for p in predictions]
@@ -890,7 +1042,7 @@ def measure_sources(db: Session, start: datetime, end: datetime) -> List[Dict[st
         return accumulators[key]
 
     # ---- experts
-    predictions = candidate_predictions(db, match_ids)
+    predictions = candidate_predictions(db, matches)
     if predictions:
         prediction_ids = [p.id for p in predictions]
         results = {r.prediction_id: r for r in
@@ -905,9 +1057,14 @@ def measure_sources(db: Session, start: datetime, end: datetime) -> List[Dict[st
             if row is not None:
                 acc.add_result(row.outcome.value if row.outcome else None, row.market_results)
                 continue
+            # Not scored yet. The only reason a candidate can never be scored is that it cannot be
+            # shown to have stood, published, before kickoff; everything else is a pass that has
+            # not run. The same stood_at_kickoff test decided the candidate list, so this read and
+            # the scoring pass cannot land on different answers about the same prediction, and
+            # not_prematch_reason then says which of the ways it failed actually applies here.
             kickoff = by_id[prediction.match_id].match_date
-            if prediction.published_at is None or prediction.published_at >= kickoff:
-                acc.refuse("published at or after kickoff, so it is not prematch evidence")
+            if not stood_at_kickoff(prediction, kickoff):
+                acc.refuse(not_prematch_reason(prediction, kickoff))
             else:
                 acc.add_pending()
 

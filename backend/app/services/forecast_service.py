@@ -42,6 +42,17 @@ logger = logging.getLogger(__name__)
 
 LAST_SYNC_KEY = "forecast:last_sync:{provider}:{key}"
 STATUS_KEY = "forecast:status:{provider}"
+#: What ONE competition's turn actually fetched, kept under that competition's own key.
+#:
+#: `STATUS_KEY` holds the last run of any kind and is rewritten by every later code path, including
+#: the cooling-down early return that makes no provider request at all. That is how the only real
+#: fetch of a day gets erased by a no-op hours later, leaving a fixture with no record that can say
+#: whether the provider returned it. This key is written ONLY by a turn that actually called the
+#: provider, so an unrelated later pass cannot overwrite it, and it carries the retrieval time and
+#: the window it covered so a reader can tell a record that is older than the fixture it would
+#: explain from one that is not.
+COMPETITION_STATUS_KEY = "forecast:status:{provider}:{key}"
+COMPETITION_STATUS_TTL_SECONDS = 7 * 24 * 3600
 PENDING_KEY = "forecast:pending:{provider}:{key}"
 COOLDOWN_KEY = "forecast:cooldown:{provider}"
 SYNC_LOCK_KEY = "forecast:sync_lock:{provider}"
@@ -228,6 +239,48 @@ class ForecastService:
         except Exception:  # pragma: no cover - budget is best effort
             return None
 
+    def _turn_cost(self, key: str) -> int:
+        """How many outbound requests this competition's turn will cost, before it is started.
+
+        Only the provider knows, because only it knows whether it still has to discover the
+        competition's league id: that discovery is a second request, paid BEFORE the fetch. A
+        provider that does not price its turns is charged one, which is what the gate assumed for
+        every competition before - and why a turn that needed two could be started with one left.
+        """
+        price = getattr(self.provider, "request_cost", None)
+        if not callable(price):
+            return 1
+        try:
+            return max(int(price(key)), 0)
+        except Exception as exc:  # pragma: no cover - pricing must never break a sync
+            logger.debug("Could not price the %s turn for %s (%s); assuming one request",
+                         getattr(self.provider, "name", "provider"), key, exc)
+            return 1
+
+    def _unaffordable(self, key: str, remaining: Optional[int]) -> Optional[str]:
+        """Why this competition's turn cannot be started now, or None when it can be paid for.
+
+        The turn is all-or-nothing. Starting one whose discovery fits but whose fetch does not
+        spends the last unit on a league id and returns no forecast at all, which is worse than
+        not starting: the allowance is gone and the competition is no better off. So the whole
+        cost has to fit, and when it does not the pass stops here rather than half-spending.
+
+        It stops rather than moving on to a cheaper competition behind it. Letting price decide
+        the order would put an expensive competition permanently last, and permanently last with
+        a small daily allowance means never fetched. The starved competition keeps its place at
+        the head of the next run, which is the only thing that eventually feeds it.
+        """
+        if remaining is None:
+            return None
+        cost = self._turn_cost(key)
+        if cost == 0 or remaining >= cost:
+            return None
+        detail = "a league-id discovery and then a fetch" if cost > 1 else "a fetch"
+        return (f"{self.provider.name}'s remaining daily allowance ({remaining}) cannot cover the "
+                f"next competition's turn: {key} costs {cost} request(s) ({detail}). Stopped "
+                f"rather than spending part of it, and rather than reordering by price, which "
+                f"would starve {key} permanently")
+
     def ensure_synced(self, days_ahead: Optional[int] = None, force: bool = False) -> Dict[str, Any]:
         """Sync every covered competition whose last sync is older than the configured interval."""
         report: Dict[str, Any] = {"provider": self.provider.name if self.provider else None, "competitions": {}, "skipped": []}
@@ -267,11 +320,12 @@ class ForecastService:
                 if not force and last and self.now - last < interval:
                     report["skipped"].append(key)
                     continue
-                remaining = self._budget_remaining()
-                if remaining is not None and remaining < 1:
-                    # Stop before reserving: the request would be refused anyway, and the remaining
-                    # competitions keep their place at the head of tomorrow's order.
-                    stop_reason = f"daily request allowance for {self.provider.name} is spent"
+                unaffordable = self._unaffordable(key, self._budget_remaining())
+                if unaffordable:
+                    # Stop before reserving anything: what is left cannot pay for this turn in
+                    # full, and the competitions that did not get their turn - this one first -
+                    # keep their place at the head of tomorrow's order.
+                    stop_reason = unaffordable
                     self._pause(stop_reason, _seconds_until_utc_midnight(self.now))
                     break
                 try:
@@ -390,7 +444,42 @@ class ForecastService:
         self.db.commit()
         self._store_pending(key, pending)
         stats["details"] = stats["details"][:25]
+        self._record_competition_fetch(key, stats)
         return stats
+
+    def _record_competition_fetch(self, key: str, stats: Dict[str, Any]) -> None:
+        """Retain what this competition's turn actually fetched, under its own key.
+
+        Written here and nowhere else, so only a turn that really called the provider leaves a
+        record: a cooling-down early return, a run that skipped this competition as not due, and a
+        turn whose request failed (this is never reached, the exception propagates) all leave the
+        last real record standing instead of replacing it with a no-op.
+
+        Bounded by construction: the provider's own report names discarded events by id, teams and
+        reason up to its cap and never carries a payload, this adds counters only, and the key
+        expires. Six covered competitions means at most six of these.
+        """
+        if not self.provider:
+            return
+        reported = getattr(self.provider, "last_fetch", None)
+        # Only a report that names THIS competition is used. A report left over from another
+        # competition's turn would attribute one response's events to a different league, and a
+        # reader would then evidence "the provider did not return this fixture" from a listing
+        # that was never about it. Mis-attributed evidence is worse than none.
+        if not (isinstance(reported, dict) and reported.get("key") == key):
+            reported = None
+        record: Dict[str, Any] = dict(reported) if reported else {}
+        record.setdefault("provider", self.provider.name)
+        record.setdefault("key", key)
+        # The provider stamps the moment the response was read. Only a provider that reports
+        # nothing falls back to now, and a record with no real retrieval time can still be placed
+        # against a fixture row by the reader, who checks this field before trusting anything else.
+        record.setdefault("fetched_at", self.now.isoformat())
+        record["recorded_at"] = self.now.isoformat()
+        for name in ("fetched", "attached", "unmatched", "ambiguous", "without_markets"):
+            record[name] = stats.get(name, 0)
+        self.cache.set(COMPETITION_STATUS_KEY.format(provider=self.provider.name, key=key), record,
+                       ttl=COMPETITION_STATUS_TTL_SECONDS, stale_ttl=COMPETITION_STATUS_TTL_SECONDS)
 
     # ------------------------------------------------------------------ pending (unmatched) forecasts
     def _pending_key(self, key: str) -> str:

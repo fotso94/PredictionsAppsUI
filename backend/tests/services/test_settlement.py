@@ -8,7 +8,8 @@ Covered: a home win, a draw and an away win; both-teams-to-score either way; ove
 lines; a postponed fixture voiding rather than losing; a market the source never published being
 skipped rather than counted as a loss; a snapshot captured after kickoff (and one captured with the
 kickoff unknown) being refused; an expert prediction edited after kickoff being scored on the
-version that stood at kickoff; idempotent re-runs; and the minimum-sample refusal.
+version that stood at kickoff; a withdrawal before kickoff counting for nothing while one made
+after kickoff stays scored; idempotent re-runs; and the minimum-sample refusal.
 
 Requires PostgreSQL. Set TEST_DATABASE_URL (default: the docker-compose test database
 postgresql://postgres:postgres123@localhost:5432/soccer_predictions_test); skipped when unreachable.
@@ -451,18 +452,42 @@ def test_an_edit_before_kickoff_is_the_prematch_view(db):
     assert market(row, S.MARKET_MATCH_RESULT)["evidence"] == "as published"
 
 
-def test_withdrawn_and_unpublished_predictions_are_not_scored(db):
+def test_a_draft_and_a_prediction_withdrawn_before_kickoff_are_not_scored(db):
+    """Nothing a reader could see at kickoff, so there is nothing to measure.
+
+    This used to assert that a withdrawal at ANY time left the prediction unscored - it set
+    deleted_at to utcnow() against a kickoff 200 days in the past, which is a withdrawal made long
+    after the result. That is the abuse, not the rule: it let an expert delete a loss off the
+    leaderboard whenever they liked. The withdrawal here is moved to where it belongs, before
+    kickoff, and the post-kickoff case is pinned by the test below.
+    """
     match = played(db, 2, 0)
     user = _expert(db)
     draft = _prediction(db, match, user)
     draft.status = PredictionStatus.PENDING
     withdrawn = _prediction(db, match, user)
-    withdrawn.deleted_at = datetime.utcnow()
+    withdrawn.deleted_at = match.match_date - timedelta(hours=2)
     db.flush()
     settle(db)
 
     assert db.query(PredictionResult).filter(
         PredictionResult.prediction_id.in_([draft.id, withdrawn.id])).count() == 0
+
+
+def test_a_prediction_withdrawn_after_kickoff_is_still_scored(db):
+    """Withdrawing after the result takes it off the public lists, not out of the record.
+
+    The full set of withdrawal cases - losses, supersession, archiving, the exact kickoff instant -
+    lives in tests/services/test_expert_history.py; this keeps the two halves of the rule visible
+    next to each other here.
+    """
+    match = played(db, 0, 2)                      # away win, against a prediction leaning home
+    prediction = _prediction(db, match, _expert(db), home=0.6, draw=0.25, away=0.15)
+    prediction.deleted_at = match.match_date + timedelta(hours=2)
+    db.flush()
+    settle(db)
+
+    assert stored_prediction_result(db, prediction).outcome == PredictionOutcome.LOST
 
 
 # ----------------------------------------------------------------------------- idempotency

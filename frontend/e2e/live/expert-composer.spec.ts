@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { apiContext, ensureQaExpertToken, cleanupQaPredictions, QA_EXPERT, QA_REASONING_MARKER } from '../support/qa-account';
+import {
+  apiContext, ensureQaExpertToken, cleanupQaPredictions, classifyQaPrediction,
+  QA_EXPERT, QA_REASONING_MARKER, QaPredictionRow,
+} from '../support/qa-account';
 
 /**
  * The composer, driven the way an expert actually drives it.
@@ -11,6 +14,15 @@ import { apiContext, ensureQaExpertToken, cleanupQaPredictions, QA_EXPERT, QA_RE
  * The third is not theoretical. A prediction was published to this database carrying exactly those
  * four numbers and the reasoning "nothing to say but bayern will win for sure": the defaults were
  * never touched, because a form that arrives holding an opinion gets submitted holding it.
+ *
+ * A record this file creates is created by the APPLICATION's own request, which carries no
+ * classification and must not carry one: there is no test-data control in the composer, because
+ * every control in it is one a real expert can see and set. So the row is classified the moment it
+ * exists, through the supported endpoint, using the id the create response returns - and that same
+ * id, never the reasoning text, is what finds it again. The classification is for cleanup's
+ * benefit, so it is best effort and the assertions below do not depend on the gate being on. The
+ * "[e2e-qa]" string still goes into the reasoning, but only as a label for a person reading the
+ * database by eye; nothing here reads it back.
  */
 
 let api: Awaited<ReturnType<typeof apiContext>>;
@@ -109,16 +121,36 @@ test('a percentage typed as 55 is stored as 0.55 and published immediately', asy
   const reasoning = page.locator('textarea').first();
   await reasoning.fill(`${QA_REASONING_MARKER} the home side keeps more of the ball in this fixture`);
 
+  // The application's own create request is what identifies the record: watching it gives the id
+  // without inventing a control the composer does not have and a real expert must never see.
+  const created = page.waitForResponse(
+    r => r.url().includes('/api/v1/expert/predictions/manual') && r.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: /publish/i }).first().click();
+  const createResponse = await created;
+  expect(createResponse.ok(), 'the composer published the prediction').toBeTruthy();
+  const createdId = String((await createResponse.json()).id);
   await page.waitForLoadState('networkidle');
+
+  // Classify it server-side straight away, the same mechanism every other record in this suite
+  // uses, so cleanup can select it on the stored flag rather than on the reasoning label.
+  //
+  // Best effort, and nothing here waits on it: the endpoint is refused where
+  // ALLOW_TEST_DATA_CLASSIFICATION is off, which is the default and must stay the default wherever
+  // real predictions are published. What identifies the record for this test is the id the create
+  // response just returned, which needs no gate and no marker. Either way the row is removed again
+  // in afterAll, before the fixture it was written about kicks off, and a prediction withdrawn
+  // before kickoff is not measured.
+  await classifyQaPrediction(api, token, createdId);
 
   // the API is the source of truth: 55 must have become 0.55, not 55 and not 0.0055
   const mine = await api.get('/api/v1/expert/predictions/my-predictions?limit=5', {
     headers: { Authorization: `Bearer ${token}` },
   });
   const rows = await mine.json();
+  // found by the id the application's own create response returned, never by the reasoning text
   const published = (Array.isArray(rows) ? rows : rows.predictions || [])
-    .find((r: { reasoning?: string }) => (r.reasoning || '').includes(QA_REASONING_MARKER));
+    .find((r: QaPredictionRow) => r.id === createdId);
 
   expect(published, 'the prediction reached the backend').toBeTruthy();
   expect(Number(published.home_win_prob)).toBeCloseTo(0.55, 4);

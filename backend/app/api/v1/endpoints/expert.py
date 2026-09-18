@@ -29,8 +29,14 @@ from app.schemas.predictions import (
     ExpertPredictionUpdate,
     ExpertPredictionResponse,
     ExpertPerformanceMetrics,
+    TestDataClassificationRequest,
 )
-from app.services.expert_prediction import ExpertPredictionService
+from app.services.expert_prediction import (
+    ClassificationNotAllowed,
+    ExpertPredictionService,
+    ForeignExpertRecord,
+    RecordClosed,
+)
 from app.services.prediction_audit import PredictionAuditService
 
 router = APIRouter()
@@ -195,7 +201,10 @@ async def override_prediction(
                 detail=f"Prediction {override_data.prediction_id} not found"
             )
 
-        # Create override prediction
+        # Create override prediction. The service refuses an override of another expert's
+        # published record, and any override at all once the match has kicked off: after kickoff
+        # the original stays scored on what it said beforehand, and a supersession written now
+        # would only take it out of view.
         override_prediction = expert_service.override_prediction(override_data, current_user)
 
         # Log audit trail
@@ -211,6 +220,10 @@ async def override_prediction(
         # The 404 raised above for an unknown prediction must reach the client as a 404; the
         # catch-all below would otherwise report it as a 400 with an empty detail.
         raise
+    except ForeignExpertRecord as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except RecordClosed as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -573,6 +586,43 @@ async def toggle_publish_status(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+
+
+@router.post("/predictions/{prediction_id}/test-classification",
+             response_model=ExpertPredictionResponse)
+async def classify_prediction_as_test_data(
+    prediction_id: str,
+    classification: TestDataClassificationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_expert_user)
+):
+    """
+    Classify one of your own records as test data, or clear that classification
+
+    **Permission**: Expert or Admin, and only on their own predictions
+
+    A record classified as test data is left out of measured performance and out of the
+    leaderboard. This is the ONLY supported way to say "this is not a real prediction": the
+    exclusion is driven by a stored flag, never by anything written in the reasoning text, which
+    an expert controls and could otherwise use to keep a loss off their record.
+
+    **Availability**: refused with 404 unless the installation allows test-data classification
+    (`ALLOW_TEST_DATA_CLASSIFICATION`), which is off by default. It is meant for a machine running
+    the end-to-end suite, and it must stay off wherever real predictions are published.
+
+    **Returns**: the updated prediction
+    """
+    expert_service = ExpertPredictionService(db)
+    try:
+        prediction = expert_service.classify_as_test_data(
+            prediction_id, current_user, classification.is_test_data)
+        return expert_service.enrich_prediction_with_details(prediction)
+    except ClassificationNotAllowed as e:
+        # 404, not 403: where this is switched off the capability does not exist at all, and
+        # saying so is more truthful than implying the caller could be given permission for it.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/analytics/performance", response_model=ExpertPerformanceMetrics)

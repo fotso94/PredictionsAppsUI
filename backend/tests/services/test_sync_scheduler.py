@@ -157,14 +157,61 @@ class StubDataProvider(MatchDataProvider):
 class StubForecastService:
     """Stands in for ForecastService: the scheduler must delegate, not reimplement the rotation."""
 
-    def __init__(self, report: Optional[Dict[str, Any]] = None, provider: Any = None):
+    def __init__(self, report: Optional[Dict[str, Any]] = None, provider: Any = None,
+                 keys: Optional[List[str]] = None, last_sync: Optional[Dict[str, datetime]] = None,
+                 now: Optional[datetime] = None):
         self.calls = 0
         self._report = report if report is not None else {"provider": "stub", "competitions": {}}
         self.provider = provider
+        # Rotation state, only for the dry-run estimate. Empty by default: a stub with no covered
+        # competition has nothing due, which is what every test that does not care should see.
+        self.keys = list(keys or [])
+        self._last = dict(last_sync or {})
+        self.now = now or NOW
 
     def ensure_synced(self, *args, **kwargs) -> Dict[str, Any]:
         self.calls += 1
         return dict(self._report)
+
+    def sync_order(self) -> List[str]:
+        epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        return sorted(self.keys, key=lambda key: (self._last.get(key) or epoch, self.keys.index(key)))
+
+    def _last_sync(self, key: str) -> Optional[datetime]:
+        return self._last.get(key)
+
+
+class StubForecastProvider:
+    """Stands in for GameForecastProvider in the dry-run estimate.
+
+    Prices each competition's turn through the same `request_cost` seam the real provider and
+    `ForecastService` use: 1 for a competition whose league id is recorded, 2 for one that has to
+    be discovered first, 0 for one already known to be unresolvable. `tests/providers` covers
+    what the real provider quotes; here the quote is the input.
+    """
+
+    name = "stub-forecast"
+    integration_status = "test"
+
+    def __init__(self, budget: Optional[RequestBudget] = None,
+                 costs: Optional[Dict[str, int]] = None):
+        self.budget = budget
+        self._costs = dict(costs or {})
+        self.priced: List[str] = []
+
+    def request_cost(self, key: str) -> int:
+        self.priced.append(key)
+        return self._costs.get(key, 1)
+
+
+class UnpricedForecastProvider:
+    """A provider that does not quote its turns at all - the estimate has to round up."""
+
+    name = "unpriced-forecast"
+    integration_status = "test"
+
+    def __init__(self, budget: Optional[RequestBudget] = None):
+        self.budget = budget
 
 
 class FakeMatch:
@@ -315,6 +362,11 @@ def _spend_budget(redis_client, provider_name: str, amount: int) -> None:
     redis_client.store[budget_key(provider_name)] = amount
 
 
+def _spend_budget_on(redis_client, provider_name: str, amount: int, day: datetime) -> None:
+    """Spend the allowance on the fake clock's day, not on the real one."""
+    redis_client.store[budget_key(provider_name, day)] = amount
+
+
 def test_a_spent_budget_stops_the_task_without_calling_the_provider(cache, clock, redis_client):
     budget = RequestBudget("stub", daily_limit=10, client=redis_client)
     _spend_budget(redis_client, "stub", 10)
@@ -353,6 +405,76 @@ def test_a_budget_skip_resumes_at_the_daily_reset_not_a_full_interval_later(cach
     next_due = datetime.fromisoformat(scheduler.state(TASK_FIXTURES)["next_due_at"])
     assert next_due.date() == (clock.now + timedelta(days=1)).date()
     assert next_due.hour == 0, "the allowance comes back at UTC midnight; resume then"
+
+
+def test_a_spent_allowance_recovers_by_itself_at_the_utc_reset(cache, clock, redis_client):
+    """The whole recovery story, on a controlled clock: nothing restarts, nothing is reset by hand.
+
+    The budget shares the fake clock, so crossing midnight rolls the counter key the way the real
+    boundary does: the new day's key does not exist, so it reads 0 and the allowance is back.
+    """
+    clock.now = NOW.replace(hour=23, minute=0)
+    budget = RequestBudget("stub", daily_limit=8, client=redis_client, now=clock)
+    _spend_budget_on(redis_client, "stub", 8, clock())
+    scheduler, provider, _, _ = build(cache, clock, provider=StubDataProvider(budget=budget))
+
+    blocked = scheduler.run_once(only=[TASK_FIXTURES])
+
+    assert blocked["tasks"][TASK_FIXTURES]["skipped"] == "budget_spent"
+    assert provider.calls == []
+    reset = sync_scheduler._next_budget_reset(clock())
+    assert datetime.fromisoformat(scheduler.state(TASK_FIXTURES)["next_due_at"]) == reset
+
+    clock.now = reset  # the next tick of the same loop, one minute into the new day
+
+    resumed = scheduler.run_once(only=[TASK_FIXTURES])
+
+    assert resumed["tasks"][TASK_FIXTURES]["ran"] is True
+    assert provider.calls, "the first pass after the reset must actually fetch"
+    assert budget.remaining() == 8, "the new day starts from its own counter"
+    assert redis_client.store[budget_key("stub", NOW.replace(hour=23))] == 8, "yesterday stays honest"
+
+
+def test_a_counter_left_above_the_limit_still_refuses_today_and_still_recovers(cache, clock, redis_client):
+    """2026-09-18 exactly: 9 spent against a limit of 8, left by a build that counted its refusals.
+
+    The reading is impossible for the current accounting to produce, so it must not be tidied away
+    - but it must not wedge the scheduler either. It blocks today and is gone tomorrow, because the
+    counter is not reset at midnight, it is abandoned.
+    """
+    clock.now = NOW.replace(hour=23, minute=0)
+    budget = RequestBudget("stub", daily_limit=8, client=redis_client, now=clock)
+    _spend_budget_on(redis_client, "stub", 9, clock())
+    scheduler, provider, _, _ = build(cache, clock, provider=StubDataProvider(budget=budget))
+
+    blocked = scheduler.run_once(only=[TASK_FIXTURES])
+
+    assert blocked["tasks"][TASK_FIXTURES]["skipped"] == "budget_spent"
+    assert "9/8 used" in blocked["tasks"][TASK_FIXTURES]["reason"], "report the real number"
+    assert budget.remaining() == 0, "an over-limit counter reads as nothing left, never as negative"
+    assert redis_client.store.get(refused_key("stub", clock())) is None, "a skip reserves nothing"
+
+    clock.now = sync_scheduler._next_budget_reset(clock())
+
+    assert scheduler.run_once(only=[TASK_FIXTURES])["tasks"][TASK_FIXTURES]["ran"] is True
+    assert provider.calls
+
+
+def test_the_first_pass_after_the_reset_still_respects_the_ceiling(cache, clock, redis_client):
+    """Recovery is not a free-for-all: a new day whose allowance is already gone still skips."""
+    clock.now = NOW.replace(hour=23, minute=0)
+    budget = RequestBudget("stub", daily_limit=8, client=redis_client, now=clock)
+    _spend_budget_on(redis_client, "stub", 8, clock())
+    scheduler, provider, _, _ = build(cache, clock, provider=StubDataProvider(budget=budget))
+    scheduler.run_once(only=[TASK_FIXTURES])
+
+    clock.now = sync_scheduler._next_budget_reset(clock())
+    _spend_budget_on(redis_client, "stub", 8, clock())  # something else spent the new day first
+
+    report = scheduler.run_once(only=[TASK_FIXTURES])
+
+    assert report["tasks"][TASK_FIXTURES]["skipped"] == "budget_spent"
+    assert provider.calls == [], "the ceiling is checked every pass, not just the first"
 
 
 def test_the_reserve_keeps_requests_back_for_page_loads(cache, clock, redis_client, monkeypatch):
@@ -443,6 +565,41 @@ def test_repeated_failures_back_off_further_and_are_capped(cache, clock):
     assert backoffs == sorted(backoffs) and backoffs[0] < backoffs[-1]
     assert all(b <= sync_scheduler.BACKOFF_MAX_SECONDS for b in backoffs)
     assert scheduler.state(TASK_LIVE)["consecutive_failures"] == 3
+
+
+def test_a_failure_late_in_the_day_does_not_park_the_task_past_the_reset(cache, clock):
+    """A spent forecast allowance is reported as a failure, and a 6 h backoff would outlive the reset.
+
+    Blocked at 22:30, the flat 6 h backoff sets the next attempt at 04:30 - four and a half hours
+    of a fresh day's allowance spent waiting for a quota that came back at midnight. The skip path
+    was clamped to the reset for exactly this reason; the failure path has to be too.
+    """
+    clock.now = NOW.replace(hour=22, minute=30)
+    forecast = StubForecastService(report={"provider": "stub",
+                                           "error": "daily request allowance for stub is spent; "
+                                                    "2 competition(s) deferred to the next reset"})
+    scheduler, _, _, _ = build(cache, clock, forecast=forecast)
+
+    report = scheduler.run_once(only=[TASK_FORECASTS])
+
+    state = scheduler.state(TASK_FORECASTS)
+    assert report["tasks"][TASK_FORECASTS]["ok"] is False
+    assert state["backoff_seconds"] == sync_scheduler.BACKOFF_MAX_SECONDS, "the penalty is still recorded"
+    next_due = datetime.fromisoformat(state["next_due_at"])
+    assert next_due == sync_scheduler._next_budget_reset(clock())
+    assert next_due < clock.now + timedelta(seconds=state["backoff_seconds"]), "the backoff was clamped"
+
+
+def test_the_reset_clamp_never_lengthens_or_shortens_an_ordinary_backoff(cache, clock):
+    """The clamp is a ceiling, not a schedule: a failure with hours of the day left keeps its backoff."""
+    matches = [FakeMatch(NOW)]  # NOW is 18:00, well inside the day
+    scheduler, _, _, _ = build(cache, clock, provider=StubDataProvider(fail=True), matches=matches)
+
+    scheduler.run_once(only=[TASK_LIVE])
+
+    state = scheduler.state(TASK_LIVE)
+    assert (datetime.fromisoformat(state["next_due_at"])
+            == clock.now + timedelta(seconds=state["backoff_seconds"]))
 
 
 def test_a_success_clears_the_backoff(cache, clock):
@@ -646,6 +803,86 @@ def test_a_dry_run_costs_nothing_for_a_task_with_no_work(cache, clock):
     assert report["tasks"][TASK_LIVE]["estimated_requests"] == 0
     assert report["tasks"][TASK_RESULTS]["estimated_requests"] == 0
     assert report["total_requests"] == 0
+
+
+def test_a_dry_run_bills_only_forecast_requests_to_the_forecast_allowance(cache, clock, redis_client):
+    """Each competition also syncs fixtures, but that is charged to the match-data providers.
+
+    Counting it here doubled the apparent cost of the 8-a-day forecast plan - the one number that
+    has to be read exactly, because it decides whether a pass is allowed to run at all. Both
+    competitions here carry a confirmed provider league id, so neither pays a lookup.
+    """
+    budget = RequestBudget("stub-forecast", daily_limit=8, client=redis_client, now=clock)
+    forecast = StubForecastService(provider=StubForecastProvider(budget=budget),
+                                   keys=["ligue_1", "serie_a"], now=clock())
+    scheduler, _, _, _ = build(cache, clock, forecast=forecast)
+
+    entry = scheduler.estimate(only=[TASK_FORECASTS])["tasks"][TASK_FORECASTS]
+
+    assert entry["estimated_requests"] == 2, "one forecast request per due competition, not two"
+    assert "not to this allowance" in entry["basis"]
+    assert budget.used_today() == 0, "an estimate spends nothing"
+
+
+def test_a_dry_run_counts_the_discovery_lookup_a_competition_without_an_id_has_to_pay(cache, clock, redis_client):
+    """The estimate has to bound the pass, and a competition with no provider id costs two.
+
+    champions_league is the one covered competition with no configured GameForecast id, so its
+    fetch is preceded by a /leagues lookup. Counting one request each said 6 for the pass that
+    spends 7; doubling everything said 12 for the same pass. Only the competitions that actually
+    pay a lookup are charged for one, and it is the provider that says which those are.
+    """
+    budget = RequestBudget("stub-forecast", daily_limit=8, client=redis_client, now=clock)
+    provider = StubForecastProvider(budget=budget, costs={"champions_league": 2})
+    forecast = StubForecastService(provider=provider, keys=["ligue_1", "champions_league"],
+                                   now=clock())
+    scheduler, _, _, _ = build(cache, clock, forecast=forecast)
+
+    entry = scheduler.estimate(only=[TASK_FORECASTS])["tasks"][TASK_FORECASTS]
+
+    assert entry["estimated_requests"] == 3, "1 for the known id, 2 for the one to be discovered"
+    assert "1 costing 2 (a league-id discovery, then the fetch)" in entry["basis"]
+    assert "1 costing 1 request" in entry["basis"]
+    assert provider.priced == ["ligue_1", "champions_league"], "the provider prices its own turns"
+
+
+def test_a_dry_run_bills_nothing_for_a_competition_whose_turn_makes_no_request(cache, clock, redis_client):
+    """A remembered discovery failure short-circuits the turn, so it costs nothing to estimate."""
+    budget = RequestBudget("stub-forecast", daily_limit=8, client=redis_client, now=clock)
+    provider = StubForecastProvider(budget=budget, costs={"champions_league": 0})
+    forecast = StubForecastService(provider=provider, keys=["ligue_1", "champions_league"],
+                                   now=clock())
+    scheduler, _, _, _ = build(cache, clock, forecast=forecast)
+
+    entry = scheduler.estimate(only=[TASK_FORECASTS])["tasks"][TASK_FORECASTS]
+
+    assert entry["estimated_requests"] == 1
+    assert "1 costing nothing" in entry["basis"]
+
+
+def test_a_dry_run_rounds_up_for_a_provider_that_does_not_price_its_turns(cache, clock, redis_client):
+    """The estimate is an upper bound, so where it cannot know it assumes the worst and says so."""
+    budget = RequestBudget("stub-forecast", daily_limit=8, client=redis_client, now=clock)
+    forecast = StubForecastService(provider=UnpricedForecastProvider(budget=budget),
+                                   keys=["ligue_1", "serie_a"], now=clock())
+    scheduler, _, _, _ = build(cache, clock, forecast=forecast)
+
+    entry = scheduler.estimate(only=[TASK_FORECASTS])["tasks"][TASK_FORECASTS]
+
+    assert entry["estimated_requests"] == 4, "two competitions, a lookup assumed for each"
+    assert "2 of them not priced by 'unpriced-forecast'" in entry["basis"]
+
+
+def test_a_dry_run_caps_the_forecast_estimate_at_the_allowance_that_is_left(cache, clock, redis_client):
+    budget = RequestBudget("stub-forecast", daily_limit=8, client=redis_client, now=clock)
+    _spend_budget_on(redis_client, "stub-forecast", 7, clock())
+    forecast = StubForecastService(provider=StubForecastProvider(budget=budget),
+                                   keys=list(KEYS) + ["ligue_1"], now=clock())
+    scheduler, _, _, _ = build(cache, clock, forecast=forecast)
+
+    entry = scheduler.estimate(only=[TASK_FORECASTS])["tasks"][TASK_FORECASTS]
+
+    assert entry["estimated_requests"] == 1, "three competitions are due, one request is left"
 
 
 def test_a_dry_run_reports_a_blocked_task_as_not_running(cache, clock, redis_client):

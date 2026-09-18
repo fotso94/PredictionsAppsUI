@@ -38,6 +38,11 @@ logger = logging.getLogger(__name__)
 #: correction would be gone for good.
 REVISION_ACTION = "updated"
 
+#: `action` written when a prediction is taken off the public lists or put back on them. Kept
+#: distinct from REVISION_ACTION so that settlement's "what stood at kickoff" restore, which reads
+#: revisions, is not handed a row that changed no probability.
+PUBLICATION_ACTION = "publication_changed"
+
 #: The values that make up a published expert view. A revision preserves all of them, so an earlier
 #: version can be read back in full rather than inferred from a diff.
 REVISION_VALUE_FIELDS: Tuple[str, ...] = (
@@ -48,8 +53,47 @@ REVISION_VALUE_FIELDS: Tuple[str, ...] = (
 )
 
 
+class ForeignExpertRecord(Exception):
+    """Raised when an expert tries to attach an override to another expert's published record."""
+
+
+class ClassificationNotAllowed(Exception):
+    """Raised when test-data classification is asked for on an installation that does not allow it."""
+
+
+class RecordClosed(Exception):
+    """Raised when a change is refused because the match has already kicked off.
+
+    The measured record closes at kickoff. An expert may still take a prediction down afterwards,
+    and it stays scored; what they may not do is reach into the record with a new version and
+    claim the fixture for it.
+    """
+
+
 def _decimal_to_float(value) -> Optional[float]:
     return float(value) if value is not None else None
+
+
+def test_data_classification(requested: Optional[bool]) -> Optional[bool]:
+    """Whether to stamp a new record as test data, given what the request asked for.
+
+    Returns TRUE only when the caller explicitly asked AND the installation allows classification
+    (``ALLOW_TEST_DATA_CLASSIFICATION``, off by default). Otherwise the record stays unclassified -
+    NULL, meaning "nobody has said", which is the honest state and not the same claim as FALSE.
+
+    Everything about this is deliberate. The flag decides whether a record is left out of measured
+    performance, so if an ordinary deployment honoured the request an expert could exclude their
+    own losses from the leaderboard just by asking. The gate is what makes the mechanism safe;
+    being a column rather than a substring of the reasoning text is what makes it exact.
+    """
+    if not requested:
+        return None
+    from app.core.config import settings
+    if not settings.ALLOW_TEST_DATA_CLASSIFICATION:
+        logger.warning("test-data classification was requested but ALLOW_TEST_DATA_CLASSIFICATION "
+                       "is off; the record is stored unclassified")
+        return None
+    return True
 
 
 def prediction_snapshot(prediction: Prediction) -> Dict[str, Any]:
@@ -187,6 +231,7 @@ class ExpertPredictionService:
             reasoning=data.reasoning,
             status=self._initial_status(),
             published_at=self._initial_published_at(),
+            is_test_data=test_data_classification(data.is_test_data),
             prediction_metadata={
                 "key_factors": data.key_factors or {},
                 "created_via": "expert_manual",
@@ -205,6 +250,46 @@ class ExpertPredictionService:
         
         return prediction
     
+    #: Sources whose predictions an expert is entitled to supersede. This is what the endpoint has
+    #: always said it did ("override ML/API-Football/LLM predictions"); until now it checked
+    #: nothing, so any verified expert could attach a supersession to any row in the table -
+    #: another expert's published work included.
+    OVERRIDABLE_SOURCES = (
+        PredictionSource.ML_BASELINE,
+        PredictionSource.API_FOOTBALL_BASELINE,
+        PredictionSource.LLM_GENERATED,
+        PredictionSource.DEFAULT_RANDOMIZED,
+    )
+
+    def _check_override_allowed(self, original: Prediction, expert_user: User) -> None:
+        """Refuse an override that would rewrite somebody else's record, or a closed one.
+
+        Two rules, and neither of them adds an approval step - an expert still publishes, edits
+        and withdraws their own work without anyone's sign-off:
+
+        * an expert may supersede a model's prediction (that is the feature) or their own, but not
+          another expert's. Superseding is the quietest way to take a prediction out of the public
+          view, so being able to do it to a colleague's record is the ability to edit someone
+          else's published history;
+        * nothing may be superseded once the match has kicked off. After kickoff the record is
+          closed: the original keeps being scored on what it said beforehand, and a replacement
+          written now is not prematch evidence of anything. Refusing here is clearer than
+          accepting the write and silently refusing to score it.
+        """
+        if (original.source not in self.OVERRIDABLE_SOURCES
+                and original.created_by != expert_user.id):
+            raise ForeignExpertRecord(
+                "This prediction belongs to another expert. You can override a model prediction "
+                "or your own, but not another expert's published record.")
+
+        match = self.db.query(Match).filter(Match.id == original.match_id).first()
+        if match is not None and match.match_date is not None \
+                and match.match_date <= datetime.utcnow():
+            raise RecordClosed(
+                "This match has already kicked off, so the prediction record is closed. The "
+                "prediction stays scored on what it said before kickoff; it cannot be superseded "
+                "now.")
+
     def override_prediction(
         self,
         data: ExpertPredictionOverride,
@@ -234,7 +319,9 @@ class ExpertPredictionService:
         
         if not original_prediction:
             raise ValueError(f"Prediction {data.prediction_id} not found")
-        
+
+        self._check_override_allowed(original_prediction, expert_user)
+
         # Create new expert override prediction
         override_prediction = Prediction(
             id=uuid.uuid4(),
@@ -261,6 +348,7 @@ class ExpertPredictionService:
             reasoning=data.reasoning,
             status=self._initial_status(),
             published_at=self._initial_published_at(),
+            is_test_data=test_data_classification(data.is_test_data),
             prediction_metadata={
                 "key_factors": data.key_factors or {},
                 "created_via": "expert_override",
@@ -731,6 +819,33 @@ class ExpertPredictionService:
         # Invalidate cache
         self._invalidate_match_cache(match_id)
 
+    def _withdrawal_is_frozen(self, prediction: Prediction, now: datetime) -> bool:
+        """Is this prediction's recorded withdrawal now a closed fact that must not be rewritten?
+
+        ``unpublished_at`` holds the moment the prediction last came off the public lists, and
+        settlement reads it to answer "was a reader seeing this when the ball was kicked?". While
+        the match is still ahead, that answer is not yet fixed and the column simply tracks the
+        current state. Once the match has kicked off it IS fixed, and a withdrawal that happened
+        before kickoff must survive every later toggle:
+
+        * clearing it on a republish would let an expert withdraw everything in advance, wait for
+          the results and put back only the winners - the same erasure this change closes, run in
+          the profitable direction and inventing a record no reader ever saw;
+        * overwriting it with a fresh post-kickoff time on a second unpublish would do the same
+          thing by a longer route.
+
+        A withdrawal made AFTER kickoff is not frozen: it says nothing about what stood at kickoff,
+        so a later republish is free to clear it. The full sequence of toggles is preserved in the
+        PredictionAudit rows written under :data:`PUBLICATION_ACTION` either way.
+        """
+        if prediction.unpublished_at is None:
+            return False
+        match = self.db.query(Match).filter(Match.id == prediction.match_id).first()
+        kickoff = match.match_date if match is not None else None
+        if kickoff is None:
+            return False
+        return prediction.unpublished_at < kickoff <= now
+
     def toggle_publish_status(
         self,
         prediction_id: str,
@@ -766,17 +881,59 @@ class ExpertPredictionService:
 
         match_id = str(prediction.match_id)
 
-        # Toggle status
+        # Toggle status.
+        #
+        # published_at is a historical fact and is written once. This used to clear it on an
+        # unpublish and restamp it on a republish, which was the only place in the system where a
+        # prematch fact was destroyed rather than merely hidden: settlement proves a prediction
+        # predates kickoff from published_at, so an unpublish/republish round trip after the result
+        # made a losing prediction permanently unscoreable. The moment of the unpublish goes in its
+        # own column instead, so both "when did readers first see this?" and "when did it come
+        # down?" survive.
+        toggled_at = datetime.utcnow()
+        before = {"status": prediction.status.value if hasattr(prediction.status, "value")
+                  else str(prediction.status),
+                  "published_at": iso_utc(prediction.published_at),
+                  "unpublished_at": iso_utc(prediction.unpublished_at)}
+        frozen = self._withdrawal_is_frozen(prediction, toggled_at)
+
         if prediction.status == PredictionStatus.PUBLISHED:
             prediction.status = PredictionStatus.ARCHIVED
-            prediction.published_at = None
-            logger.info(f"Unpublished prediction {prediction_id} by expert {expert_user.id}")
+            if not frozen:
+                prediction.unpublished_at = toggled_at
+            logger.info(f"Unpublished prediction {prediction_id} by expert {expert_user.id}; "
+                        f"its publication time {prediction.published_at} is kept")
         else:  # ARCHIVED
             prediction.status = PredictionStatus.PUBLISHED
-            prediction.published_at = datetime.utcnow()
+            if not frozen:
+                prediction.unpublished_at = None
+            if prediction.published_at is None:
+                # It has never been published before, so this is its first publication.
+                prediction.published_at = toggled_at
             logger.info(f"Published prediction {prediction_id} by expert {expert_user.id}")
 
-        prediction.updated_at = datetime.utcnow()
+        prediction.updated_at = toggled_at
+
+        after = {"status": prediction.status.value if hasattr(prediction.status, "value")
+                 else str(prediction.status),
+                 "published_at": iso_utc(prediction.published_at),
+                 "unpublished_at": iso_utc(prediction.unpublished_at)}
+        # Appended, never updated in place, so a prediction toggled several times leaves a full
+        # trail of when it was and was not on the public lists.
+        self.db.add(PredictionAudit(
+            id=uuid.uuid4(),
+            prediction_id=prediction.id,
+            user_id=expert_user.id,
+            action=PUBLICATION_ACTION,
+            action_description=(f"Expert {expert_user.id} changed the publication state of "
+                                f"prediction {prediction.id} from {before['status']} to "
+                                f"{after['status']}"),
+            old_values=before,
+            new_values=after,
+            changes_summary=f"{before['status']} -> {after['status']}",
+            created_at=toggled_at,
+            updated_at=toggled_at,
+        ))
 
         self.db.commit()
         self.db.refresh(prediction)
@@ -784,6 +941,52 @@ class ExpertPredictionService:
         # Invalidate cache
         self._invalidate_match_cache(match_id)
 
+        return prediction
+
+    def classify_as_test_data(self, prediction_id: str, expert_user: User,
+                              is_test_data: bool = True) -> Prediction:
+        """Classify one of the caller's own records as test data, or clear the classification.
+
+        This is the supported way to classify a record that was not created through the API - one
+        made through the composer UI, for instance - so the end-to-end suite never has to rely on
+        a marker typed into the reasoning text to tell its own records apart. It is:
+
+        * gated: refused outright unless ``ALLOW_TEST_DATA_CLASSIFICATION`` is on, which it is not
+          in any normal deployment. Without the gate this endpoint would be a way for an expert to
+          take their own losses off the leaderboard;
+        * per record: it marks the one row named, never an account and never a match. The QA
+          account here also holds records a person typed by hand, and those must not be swept up
+          with the harness's;
+        * explicit: a stored boolean, never a guess about what some text means.
+
+        Raises:
+            ClassificationNotAllowed: the installation does not allow classification
+            ValueError: no such prediction, or it belongs to somebody else
+        """
+        from app.core.config import settings
+        if not settings.ALLOW_TEST_DATA_CLASSIFICATION:
+            raise ClassificationNotAllowed(
+                "This installation does not allow records to be classified as test data. It is "
+                "enabled only where the records genuinely are test data (set "
+                "ALLOW_TEST_DATA_CLASSIFICATION), never where real predictions are published.")
+
+        prediction = self.db.query(Prediction).filter(
+            Prediction.id == uuid.UUID(prediction_id)
+        ).first()
+        if not prediction:
+            raise ValueError(f"Prediction {prediction_id} not found")
+        if prediction.created_by != expert_user.id:
+            raise ValueError("You can only classify your own predictions")
+
+        # True or NULL, never False: "nobody has said" and "somebody said this is genuine" are
+        # different claims, and only the first one is ever true of a record nobody classified.
+        prediction.is_test_data = True if is_test_data else None
+        prediction.updated_at = datetime.utcnow()
+        self.db.commit()
+        self.db.refresh(prediction)
+
+        logger.info(f"Prediction {prediction_id} classified is_test_data={prediction.is_test_data} "
+                    f"by {expert_user.id}")
         return prediction
 
     def enrich_prediction_with_details(self, prediction: Prediction) -> Dict[str, Any]:
@@ -862,6 +1065,8 @@ class ExpertPredictionService:
             'created_by': str(prediction.created_by),
             'created_at': prediction.created_at,
             'published_at': prediction.published_at,
+            'unpublished_at': prediction.unpublished_at,
+            'is_test_data': prediction.is_test_data,
             'superseded_by': str(prediction.superseded_by) if prediction.superseded_by else None,
             'match_details': match_details,
             'user_details': user_details
@@ -912,8 +1117,12 @@ class ExpertPredictionService:
 
             if is_placeholder:
                 logger.info(f"Match {match_uuid} exists but is a placeholder, updating with real data from API-Football")
-                # Delete the placeholder match and its teams/league, then recreate with real data
-                self._delete_placeholder_match(match_uuid)
+                # Delete the placeholder match and its teams/league, then recreate with real data.
+                # If anything is attached to it the deletion is refused, and the placeholder is
+                # kept as it is: recreating the row here would collide with the existing primary
+                # key anyway, and no amount of tidier team names is worth deleting a record.
+                if not self._delete_placeholder_match(match_uuid):
+                    return
             else:
                 logger.debug(f"Match {match_uuid} already exists with real data")
                 return
@@ -1037,10 +1246,18 @@ class ExpertPredictionService:
         api_status = match_data.get("status", "NS")
         match_status = status_map.get(api_status, MatchStatus.SCHEDULED)
 
-        # Parse match date
+        # Parse match date.
+        #
+        # match_date is a naive column holding UTC wall time, and every prematch test in the
+        # system - "was this published before kickoff?", "was it withdrawn before kickoff?" -
+        # compares against it. fromisoformat returns an AWARE datetime for any offset the provider
+        # sends, and writing that straight in stored local wall time instead, shifting the whole
+        # boundary by the offset. Normalised here the way the match registry does it.
+        from app.services.match_registry import _naive_utc
+
         match_date_str = match_data.get("match_date")
         try:
-            match_date = datetime.fromisoformat(match_date_str.replace('Z', '+00:00'))
+            match_date = _naive_utc(datetime.fromisoformat(match_date_str.replace('Z', '+00:00')))
         except (ValueError, AttributeError):
             match_date = datetime.utcnow()
             logger.warning(f"Could not parse match date '{match_date_str}', using current time")
@@ -1154,18 +1371,39 @@ class ExpertPredictionService:
         self.db.commit()  # Commit the placeholder match and related data
         logger.info(f"Created placeholder match {match_uuid} for external ID {external_match_id}")
 
-    def _delete_placeholder_match(self, match_uuid: uuid.UUID) -> None:
+    def _delete_placeholder_match(self, match_uuid: uuid.UUID) -> bool:
         """
         Delete a placeholder match and its associated teams and league.
 
         Args:
             match_uuid: Match UUID to delete
+
+        Returns:
+            True when the placeholder was deleted, False when it was kept because records are
+            attached to it.
         """
         from app.models.predictions import Match, Team, League
 
         match = self.db.query(Match).filter(Match.id == match_uuid).first()
         if not match:
-            return
+            return False
+
+        # Refuse to delete a match anything is attached to.
+        #
+        # Match.predictions is cascade="all, delete-orphan", so deleting the match row deletes
+        # every prediction on it - other experts' included - and with them their scores
+        # (prediction_results), their preserved earlier versions (prediction_audit) and, through
+        # ON DELETE CASCADE in the database, the provider forecast snapshots for that fixture.
+        # None of it is soft-deleted and none of it is recoverable, which makes this by far the
+        # largest erasure reachable from an expert action. Upgrading a placeholder is a
+        # convenience; it is never worth a record.
+        attached = self.db.query(Prediction).filter(Prediction.match_id == match_uuid).count()
+        if attached:
+            logger.warning(
+                f"Refusing to delete placeholder match {match_uuid}: {attached} prediction(s) are "
+                f"attached to it and deleting the match would delete them and their scores. The "
+                f"placeholder stays; its details can be corrected in place.")
+            return False
 
         # Get team and league IDs before deleting the match
         home_team_id = match.home_team_id
@@ -1198,4 +1436,5 @@ class ExpertPredictionService:
 
         self.db.commit()
         logger.info(f"Deleted placeholder match {match_uuid} and its associated teams/league")
+        return True
 
