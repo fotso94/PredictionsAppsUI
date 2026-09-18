@@ -28,12 +28,15 @@ from app.services.providers.base import (
 )
 from app.services.providers.budget import RequestBudget
 from app.services.providers.http import ProviderHttpClient
+from app.services.match_cache import MatchCache
 
 logger = logging.getLogger(__name__)
 
 PROVIDER_NAME = "gameforecast"
 PAGE_SIZE = 50
 MAX_PAGES = 4
+LEAGUE_STORE_KEY = "provider:gameforecast:leagues"
+LEAGUE_STORE_TTL = 30 * 24 * 3600
 
 # GameForecast uses ISO country codes; our competitions use football federations' names
 COUNTRY_CODES = {"premier_league": "GB", "la_liga": "ES", "serie_a": "IT", "bundesliga": "DE", "ligue_1": "FR"}
@@ -105,7 +108,7 @@ class GameForecastProvider(ForecastProvider):
 
     def __init__(self, api_key: Optional[str] = None, api_host: Optional[str] = None,
                  base_url: Optional[str] = None, transport=None, budget: Optional[RequestBudget] = None,
-                 league_overrides: Optional[Dict[str, str]] = None):
+                 league_overrides: Optional[Dict[str, str]] = None, store: Optional[MatchCache] = None):
         self.api_key = api_key if api_key is not None else settings.GAMEFORECAST_API_KEY
         self.api_host = api_host or settings.GAMEFORECAST_API_HOST
         headers = {"X-RapidAPI-Key": self.api_key or "", "X-RapidAPI-Host": self.api_host}
@@ -115,6 +118,23 @@ class GameForecastProvider(ForecastProvider):
         self._overrides = league_overrides if league_overrides is not None \
             else comps.parse_id_overrides(settings.GAMEFORECAST_LEAGUE_IDS)
         self._league_cache: Dict[str, ProviderCompetition] = {}
+        # League ids never change: keep them in Redis so the 10-requests/day free plan is spent on events
+        self._store = store if store is not None else MatchCache()
+
+    def _load_store(self) -> None:
+        data = self._store.get(LEAGUE_STORE_KEY) or {}
+        for key, item in data.items():
+            if key in self._league_cache or not isinstance(item, dict) or not item.get("external_id"):
+                continue
+            self._league_cache[key] = ProviderCompetition(
+                provider=PROVIDER_NAME, external_id=str(item["external_id"]), name=item.get("name") or key, key=key,
+                country_code=item.get("country_code"), is_cup=bool(item.get("is_cup")))
+
+    def _save_store(self) -> None:
+        data = {key: {"external_id": c.external_id, "name": c.name, "country_code": c.country_code, "is_cup": c.is_cup}
+                for key, c in self._league_cache.items()}
+        if data:
+            self._store.set(LEAGUE_STORE_KEY, data, ttl=LEAGUE_STORE_TTL, stale_ttl=LEAGUE_STORE_TTL)
 
     def is_configured(self) -> bool:
         return bool(self.api_key)
@@ -129,6 +149,9 @@ class GameForecastProvider(ForecastProvider):
         return payload
 
     def resolve_league(self, key: str) -> Optional[ProviderCompetition]:
+        if key in self._league_cache:
+            return self._league_cache[key]
+        self._load_store()
         if key in self._league_cache:
             return self._league_cache[key]
         canonical = comps.get(key)
@@ -152,6 +175,7 @@ class GameForecastProvider(ForecastProvider):
                     break
         if comp:
             self._league_cache[key] = comp
+            self._save_store()
         else:
             logger.warning("GameForecastAPI: league id for %s could not be resolved", key)
         return comp

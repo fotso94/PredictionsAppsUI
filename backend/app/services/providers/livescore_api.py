@@ -27,6 +27,7 @@ from app.services.providers.base import (
 )
 from app.services.providers.budget import RequestBudget
 from app.services.providers.http import ProviderHttpClient
+from app.services.match_cache import MatchCache
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,8 @@ LIVE_STATUS_MAP = {
 }
 
 MAX_PAGES = 5
+COMPETITION_STORE_KEY = "provider:livescore:competitions"
+COMPETITION_LIST_MAX_PAGES = 40
 
 
 class LiveScoreAPIProvider(MatchDataProvider):
@@ -56,7 +59,7 @@ class LiveScoreAPIProvider(MatchDataProvider):
 
     def __init__(self, api_key: Optional[str] = None, api_secret: Optional[str] = None,
                  base_url: Optional[str] = None, transport=None, budget: Optional[RequestBudget] = None,
-                 competition_overrides: Optional[Dict[str, str]] = None):
+                 competition_overrides: Optional[Dict[str, str]] = None, store: Optional[MatchCache] = None):
         self.api_key = api_key if api_key is not None else settings.LIVESCORE_API_KEY
         self.api_secret = api_secret if api_secret is not None else settings.LIVESCORE_API_SECRET
         self.client = ProviderHttpClient(PROVIDER_NAME, base_url or settings.LIVESCORE_API_BASE_URL, transport=transport)
@@ -64,6 +67,26 @@ class LiveScoreAPIProvider(MatchDataProvider):
         self._overrides = competition_overrides if competition_overrides is not None \
             else comps.parse_id_overrides(settings.LIVESCORE_COMPETITION_IDS)
         self._competition_cache: Dict[str, ProviderCompetition] = {}
+        # Resolved competition ids are kept in Redis so a new provider instance (one per request)
+        # does not re-download the paginated competition list every time.
+        self._store = store if store is not None else MatchCache()
+
+    def _load_store(self) -> None:
+        data = self._store.get(COMPETITION_STORE_KEY) or {}
+        for key, item in data.items():
+            if key in self._competition_cache or not isinstance(item, dict) or not item.get("external_id"):
+                continue
+            self._competition_cache[key] = ProviderCompetition(
+                provider=PROVIDER_NAME, external_id=str(item["external_id"]), name=item.get("name") or key, key=key,
+                country=item.get("country"), country_code=item.get("country_code"), is_cup=bool(item.get("is_cup")),
+                season_name=item.get("season_name"), logo=item.get("logo"))
+
+    def _save_store(self) -> None:
+        data = {key: {"external_id": c.external_id, "name": c.name, "country": c.country, "country_code": c.country_code,
+                      "is_cup": c.is_cup, "season_name": c.season_name, "logo": c.logo}
+                for key, c in self._competition_cache.items()}
+        if data:
+            self._store.set(COMPETITION_STORE_KEY, data, ttl=settings.MATCH_CACHE_TTL_COMPETITIONS, stale_ttl=30 * 24 * 3600)
 
     # ------------------------------------------------------------------ plumbing
     def is_configured(self) -> bool:
@@ -91,10 +114,10 @@ class LiveScoreAPIProvider(MatchDataProvider):
             raise ProviderUnavailableError(f"Live Score API: {message}", provider=self.name)
         return payload.get("data") or {}
 
-    def _paginate(self, path: str, list_key: str, **params: Any) -> List[Dict[str, Any]]:
+    def _paginate(self, path: str, list_key: str, max_pages: int = MAX_PAGES, **params: Any) -> List[Dict[str, Any]]:
         items: List[Dict[str, Any]] = []
         page = 1
-        while page <= MAX_PAGES:
+        while page <= max_pages:
             data = self._get(path, page=page if page > 1 else None, **params)
             chunk = data.get(list_key) or []
             items.extend(chunk)
@@ -194,6 +217,7 @@ class LiveScoreAPIProvider(MatchDataProvider):
     # ------------------------------------------------------------------ interface
     def list_competitions(self, keys: Iterable[str]) -> List[ProviderCompetition]:
         keys = list(keys)
+        self._load_store()
         missing = [k for k in keys if k not in self._competition_cache]
         # Overrides and static defaults never need a network call
         for key in list(missing):
@@ -206,17 +230,29 @@ class LiveScoreAPIProvider(MatchDataProvider):
                     country=canonical.country, country_code=canonical.country_code, is_cup=canonical.is_cup)
                 missing.remove(key)
         if missing:
-            items = self._paginate("competitions/list.json", "competition")
+            # The full competition list is fetched at most once a day (persisted in Redis), so a deep
+            # pagination cap is affordable here even though the endpoint may return many pages.
+            items = self._paginate("competitions/list.json", "competition", max_pages=COMPETITION_LIST_MAX_PAGES)
             for item in items:
                 comp = self._competition_from_payload(item)
                 key = comps.match_competition_name(comp.name, country=comp.country, keys=missing, is_cup=comp.is_cup or None)
                 if key and key not in self._competition_cache:
                     comp.key = key
                     self._competition_cache[key] = comp
+                    logger.info("Live Score API: resolved %s -> id %s (%s, %s)", key, comp.external_id, comp.name, comp.country)
+            self._save_store()
         unresolved = [k for k in keys if k not in self._competition_cache]
         if unresolved:
             logger.warning("Live Score API: could not resolve competition ids for %s", unresolved)
         return [self._competition_cache[k] for k in keys if k in self._competition_cache]
+
+    def _check_competition_name(self, comp: ProviderCompetition, items: List[Dict[str, Any]]) -> None:
+        """Warn when a configured/recorded competition id returns fixtures of a different competition."""
+        for item in items[:1]:
+            raw_name = (item.get("competition") or {}).get("name")
+            if raw_name and comp.key and comps.match_competition_name(raw_name, keys=[comp.key]) is None:
+                logger.warning("Live Score API: competition id %s configured for %s returned '%s'; check LIVESCORE_COMPETITION_IDS",
+                               comp.external_id, comp.key, raw_name)
 
     def get_fixtures(self, day: date, keys: Iterable[str]) -> List[ProviderFixture]:
         keys = list(keys)
@@ -224,6 +260,7 @@ class LiveScoreAPIProvider(MatchDataProvider):
         for comp in self.list_competitions(keys):
             items = self._paginate("fixtures/list.json", "fixtures", date=day.strftime("%Y-%m-%d"),
                                    competition_id=comp.external_id)
+            self._check_competition_name(comp, items)
             for item in items:
                 fixture = self._fixture_from_scheduled(item, keys)
                 fixture.competition = comp
@@ -238,6 +275,7 @@ class LiveScoreAPIProvider(MatchDataProvider):
         comp = comps_found[0]
         limit = datetime.now(timezone.utc).date() + timedelta(days=days_ahead)
         items = self._paginate("fixtures/list.json", "fixtures", competition_id=comp.external_id)
+        self._check_competition_name(comp, items)
         fixtures = []
         for item in items:
             fixture = self._fixture_from_scheduled(item, [key])

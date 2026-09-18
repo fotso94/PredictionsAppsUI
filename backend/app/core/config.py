@@ -182,7 +182,7 @@ class Settings(BaseSettings):
     FORECAST_MAX_AGE_HOURS: int = 72
 
     # Cache TTLs (seconds) for provider data
-    MATCH_CACHE_TTL_FIXTURES: int = 900
+    MATCH_CACHE_TTL_FIXTURES: int = 1800
     MATCH_CACHE_TTL_LIVE: int = 60
     MATCH_CACHE_TTL_RESULTS: int = 1800
     MATCH_CACHE_TTL_STANDINGS: int = 3600

@@ -11,6 +11,7 @@ from app.services.providers.base import (
 )
 from app.services.providers.budget import RequestBudget
 from app.services.providers.livescore_api import LiveScoreAPIProvider
+from app.services.match_cache import MatchCache
 from tests.providers.support import FakeRedis, json_response, make_transport
 
 COMPETITIONS = {"success": True, "data": {"competition": [
@@ -86,12 +87,24 @@ def _route(request: httpx.Request) -> httpx.Response:
     return json_response({"success": False, "error": "unknown endpoint"}, 404)
 
 
-def provider(handler=_route, key="trial-key", secret="trial-secret", budget=None, overrides=None):
+def provider(handler=_route, key="trial-key", secret="trial-secret", budget=None, overrides=None, store=None):
     transport, recorder = make_transport(handler)
     p = LiveScoreAPIProvider(api_key=key, api_secret=secret, transport=transport,
                              budget=budget or RequestBudget("livescore", 1200, client=FakeRedis()),
-                             competition_overrides=overrides if overrides is not None else {})
+                             competition_overrides=overrides if overrides is not None else {},
+                             store=store or MatchCache(client=FakeRedis()))
     return p, recorder
+
+
+def test_resolved_competition_ids_persist_across_provider_instances():
+    store = MatchCache(client=FakeRedis())
+    first, recorder1 = provider(store=store)
+    assert first.list_competitions(["premier_league", "la_liga"])[0].external_id == "2"
+    assert len(recorder1.requests) == 1
+    second, recorder2 = provider(store=store)
+    comps = second.list_competitions(["premier_league", "la_liga"])
+    assert [c.external_id for c in comps] == ["2", "3"]
+    assert recorder2.requests == []  # served from the shared store, no competitions/list call
 
 
 def test_not_configured_raises_before_any_request():
@@ -206,3 +219,11 @@ def test_live_window():
     assert LiveScoreAPIProvider.live_window(kickoff, kickoff - timedelta(minutes=10)) is True
     assert LiveScoreAPIProvider.live_window(kickoff, kickoff + timedelta(minutes=140)) is True
     assert LiveScoreAPIProvider.live_window(kickoff, kickoff + timedelta(minutes=160)) is False
+
+
+def test_auth_error_carries_the_provider_message():
+    body = {"success": False, "error": "This API key and secret do not have access to our data enabled"}
+    p, _ = provider(lambda r: json_response(body, 401), overrides={"premier_league": "2"})
+    with pytest.raises(ProviderAuthError) as exc:
+        p.get_fixtures(date(2026, 9, 20), ["premier_league"])
+    assert "do not have access to our data enabled" in str(exc.value)

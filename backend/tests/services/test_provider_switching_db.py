@@ -255,7 +255,8 @@ def test_sync_and_forecast_freshness_with_sample_provider(db):
     _, meta = data.matches_for_day(DAY)
     assert meta.source == "cache"
 
-    forecasts = ForecastService(db, provider=SampleForecastProvider(), cache=cache, now=NOW, keys=KEYS)
+    # fixture-first sync is covered by test_ensure_synced_loads_fixtures_before_attaching; here only DAY's fixtures exist
+    forecasts = ForecastService(db, provider=SampleForecastProvider(), cache=cache, now=NOW, keys=KEYS, sync_fixtures=False)
     report = forecasts.ensure_synced(days_ahead=3)
     stats = report["competitions"]["premier_league"]
     assert stats["attached"] == 2 and stats["ambiguous"] == 0

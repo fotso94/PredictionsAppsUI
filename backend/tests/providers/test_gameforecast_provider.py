@@ -10,6 +10,7 @@ from app.services.providers.base import (
 )
 from app.services.providers.budget import RequestBudget
 from app.services.providers.gameforecast import GameForecastProvider, parse_event
+from app.services.match_cache import MatchCache
 from tests.providers.support import FakeRedis, json_response, make_transport
 
 
@@ -100,13 +101,25 @@ def _events_route(pages):
     return handler
 
 
-def provider(handler, key="rapid-key", budget=None, overrides=None):
+def provider(handler, key="rapid-key", budget=None, overrides=None, store=None):
     transport, recorder = make_transport(handler)
     p = GameForecastProvider(api_key=key, api_host="game-forecast-api.p.rapidapi.com",
                              base_url="https://game-forecast-api.p.rapidapi.com", transport=transport,
                              budget=budget or RequestBudget("gameforecast", 8, client=FakeRedis()),
-                             league_overrides=overrides if overrides is not None else {})
+                             league_overrides=overrides if overrides is not None else {},
+                             store=store or MatchCache(client=FakeRedis()))
     return p, recorder
+
+
+def test_resolved_league_ids_persist_across_provider_instances():
+    store = MatchCache(client=FakeRedis())
+    pages = [{"data": [], "pagination": {"hasMore": False}}]
+    first, recorder1 = provider(_events_route(pages), store=store)
+    assert first.resolve_league("la_liga").external_id == "22"
+    assert [r.url.path for r in recorder1.requests] == ["/leagues"]
+    second, recorder2 = provider(_events_route(pages), store=store)
+    assert second.resolve_league("la_liga").external_id == "22"
+    assert recorder2.requests == []  # no second /leagues lookup: the free plan is spent on /events only
 
 
 def test_get_forecasts_paginates_and_skips_events_without_markets():
@@ -164,3 +177,10 @@ def test_free_plan_budget_is_enforced_locally():
         p.get_forecasts("premier_league", date(2026, 9, 18), date(2026, 9, 25))
     assert len(recorder.requests) == 1
     assert budget.snapshot()["remaining_today"] == 0
+
+
+def test_not_subscribed_message_is_surfaced():
+    p, _ = provider(lambda r: httpx.Response(403, json={"message": "You are not subscribed to this API."}))
+    with pytest.raises(ProviderAuthError) as exc:
+        p.get_forecasts("premier_league", date(2026, 9, 18), date(2026, 9, 25))
+    assert "not subscribed" in str(exc.value)

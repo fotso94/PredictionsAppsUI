@@ -173,3 +173,26 @@ def test_forecast_freshness_states():
 def test_forecast_sync_without_provider_reports_error():
     report = forecasts().ensure_synced()
     assert report["error"] == "no prediction provider configured" and report["competitions"] == {}
+
+
+def test_rejected_provider_is_not_retried_on_every_call():
+    redis = FakeRedis()
+    broken = FakeProvider("livescore", error=ProviderAuthError("authentication rejected: not enabled", provider="livescore"))
+    fallback = FakeProvider("api_football", [fixture("api_football", "af")])
+    svc = service([broken, fallback], MatchCache(client=redis))
+    call(svc, key="a")
+    call(svc, key="b")
+    assert broken.calls == 1  # second call skipped the cooling-down provider
+    data, meta = call(svc, key="c")
+    assert data == ["af"] and any("skipped (recent failure" in e for e in meta.errors)
+    assert svc.provider_status()["chain"][0]["cooling_down"].startswith("authentication rejected")
+
+
+def test_quota_failure_cools_down_until_midnight():
+    redis = FakeRedis()
+    broken = FakeProvider("gameforecast_like", error=ProviderQuotaError("quota", provider="x"))
+    svc = service([broken], MatchCache(client=redis))
+    with pytest.raises(ProviderQuotaError):
+        call(svc, key="a")
+    ttl = redis.ttls["provider:cooldown:gameforecast_like"]
+    assert 60 <= ttl <= 24 * 3600

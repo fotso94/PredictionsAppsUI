@@ -59,3 +59,21 @@ def client(db_session):
     
     app.dependency_overrides.clear()
 
+
+@pytest.fixture(autouse=True)
+def _no_real_providers(monkeypatch):
+    """
+    Tests must never reach real data providers, whatever backend/.env contains.
+    Force the sample providers and blank every provider credential; individual tests that want
+    to exercise provider construction set their own values with monkeypatch.
+    """
+    monkeypatch.setattr(settings, "DATA_PROVIDER", "sample")
+    monkeypatch.setattr(settings, "DATA_PROVIDER_FALLBACKS", "")
+    monkeypatch.setattr(settings, "PREDICTION_PROVIDER", "sample")
+    monkeypatch.setattr(settings, "LIVESCORE_API_KEY", "")
+    monkeypatch.setattr(settings, "LIVESCORE_API_SECRET", "")
+    monkeypatch.setattr(settings, "GAMEFORECAST_API_KEY", "")
+    monkeypatch.setattr(settings, "API_FOOTBALL_KEY", "")
+    monkeypatch.setattr(settings, "THESPORTSDB_KEY", "")
+    monkeypatch.setattr(settings, "GAMEFORECAST_LEAGUE_IDS", "")
+    monkeypatch.setattr(settings, "LIVESCORE_COMPETITION_IDS", "")

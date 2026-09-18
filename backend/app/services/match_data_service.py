@@ -19,13 +19,21 @@ from app.services.match_registry import MatchRegistry
 from app.services.providers import competitions as comps
 from app.services.providers.base import (
     MatchDataProvider, ProviderError, ProviderFixture, ProviderNotConfiguredError,
-    ProviderQuotaError, ProviderAuthError, ProviderStanding,
+    ProviderQuotaError, ProviderAuthError, ProviderStanding, ProviderUnavailableError,
 )
 from app.services.providers.registry import data_provider_chain
 
 logger = logging.getLogger(__name__)
 
 STATUS_KEY = "provider:status:{name}"
+COOLDOWN_KEY = "provider:cooldown:{name}"
+AUTH_COOLDOWN_SECONDS = 10 * 60        # rejected credentials: retry every 10 minutes, not on every page load
+UNAVAILABLE_COOLDOWN_SECONDS = 2 * 60  # upstream errors / network problems
+
+
+def _seconds_until_utc_midnight(now: datetime) -> int:
+    tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return max(int((tomorrow - now).total_seconds()), 60)
 
 
 @dataclass
@@ -107,6 +115,13 @@ class MatchDataService:
             payload.update({"last_error_at": stamp, "last_error": error})
         self.cache.set(STATUS_KEY.format(name=name), payload, ttl=7 * 24 * 3600, stale_ttl=7 * 24 * 3600)
 
+    def _cooldown(self, name: str) -> Optional[str]:
+        payload = self.cache.get(COOLDOWN_KEY.format(name=name))
+        return payload.get("reason") if isinstance(payload, dict) else None
+
+    def _set_cooldown(self, name: str, reason: str, seconds: int) -> None:
+        self.cache.set(COOLDOWN_KEY.format(name=name), {"reason": reason, "until_seconds": seconds}, ttl=seconds, stale_ttl=seconds)
+
     def _call_chain(self, cache_key: str, ttl: int, meta: SyncMeta, fn):
         """Run `fn(provider)` on the first working provider, with fresh/stale cache around it."""
         cached = self.cache.get(cache_key)
@@ -115,16 +130,27 @@ class MatchDataService:
             return cached["data"]
         last_error: Optional[ProviderError] = None
         for provider in self.providers:
+            cooling = self._cooldown(provider.name)
+            if cooling:
+                meta.errors.append(f"{provider.name}: skipped (recent failure: {cooling})")
+                last_error = last_error or ProviderUnavailableError(cooling, provider=provider.name)
+                continue
             try:
                 data = fn(provider)
             except ProviderNotConfiguredError as exc:
                 meta.errors.append(str(exc)); last_error = exc; continue
-            except (ProviderQuotaError, ProviderAuthError) as exc:
+            except ProviderQuotaError as exc:
                 logger.warning("%s: %s", provider.name, exc)
-                meta.errors.append(str(exc)); self._record_status(provider.name, False, str(exc)); last_error = exc; continue
+                meta.errors.append(str(exc)); self._record_status(provider.name, False, str(exc)); last_error = exc
+                self._set_cooldown(provider.name, str(exc), _seconds_until_utc_midnight(self.now)); continue
+            except ProviderAuthError as exc:
+                logger.warning("%s: %s", provider.name, exc)
+                meta.errors.append(str(exc)); self._record_status(provider.name, False, str(exc)); last_error = exc
+                self._set_cooldown(provider.name, str(exc), AUTH_COOLDOWN_SECONDS); continue
             except ProviderError as exc:
                 logger.warning("%s: %s", provider.name, exc)
-                meta.errors.append(str(exc)); self._record_status(provider.name, False, str(exc)); last_error = exc; continue
+                meta.errors.append(str(exc)); self._record_status(provider.name, False, str(exc)); last_error = exc
+                self._set_cooldown(provider.name, str(exc), UNAVAILABLE_COOLDOWN_SECONDS); continue
             self._record_status(provider.name, True)
             meta.source, meta.provider, meta.fetched_at = "provider", provider.name, self.now.isoformat()
             self.cache.set(cache_key, {"provider": provider.name, "fetched_at": meta.fetched_at, "data": data}, ttl=ttl)
@@ -276,7 +302,7 @@ class MatchDataService:
             status = self.cache.get(STATUS_KEY.format(name=p.name)) or {}
             budget = getattr(p, "budget", None)
             chain.append({"name": p.name, "integration_status": p.integration_status, "configured": p.is_configured(),
-                          "budget": budget.snapshot() if budget else None, **status})
+                          "budget": budget.snapshot() if budget else None, "cooling_down": self._cooldown(p.name), **status})
         return {
             "active_provider": settings.DATA_PROVIDER,
             "configured_fallbacks": [n.strip() for n in settings.DATA_PROVIDER_FALLBACKS.split(",") if n.strip()],

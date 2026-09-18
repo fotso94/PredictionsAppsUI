@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
+import re
+
 import httpx
 
 from app.services.providers.base import (
@@ -29,6 +31,27 @@ class ProviderHttpClient:
         self.transport = transport
         self.timeout = timeout
 
+    @staticmethod
+    def _upstream_message(response: httpx.Response) -> str:
+        """Short, credential-free excerpt of the provider's own error text (e.g. 'not subscribed')."""
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        text = None
+        if isinstance(payload, dict):
+            for field in ("error", "message", "detail", "msg"):
+                value = payload.get(field)
+                if isinstance(value, str) and value.strip():
+                    text = value.strip()
+                    break
+        if text is None:
+            text = (response.text or "").strip()
+        if not text:
+            return ""
+        text = re.sub(r"(key|secret|token)=[^&\s]+", r"\1=<hidden>", text, flags=re.I)
+        return f": {text[:160]}"
+
     def get_json(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
         url = f"{self.base_url}/{path.lstrip('/')}"
         try:
@@ -39,10 +62,10 @@ class ProviderHttpClient:
 
         status = response.status_code
         if status in (401, 403):
-            raise ProviderAuthError(f"{self.provider}: authentication rejected (HTTP {status})",
+            raise ProviderAuthError(f"{self.provider}: authentication rejected (HTTP {status}){self._upstream_message(response)}",
                                     provider=self.provider, status_code=status)
         if status == 429:
-            raise ProviderQuotaError(f"{self.provider}: rate limit or quota exceeded (HTTP 429)",
+            raise ProviderQuotaError(f"{self.provider}: rate limit or quota exceeded (HTTP 429){self._upstream_message(response)}",
                                      provider=self.provider, status_code=status)
         if status >= 500:
             raise ProviderUnavailableError(f"{self.provider}: upstream error (HTTP {status})",

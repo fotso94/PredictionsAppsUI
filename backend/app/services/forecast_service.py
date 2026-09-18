@@ -26,6 +26,8 @@ from app.services.match_cache import MatchCache
 from app.services.match_registry import MatchRegistry, _aware_utc
 from app.services.providers import competitions as comps
 from app.services.providers.base import (
+    ProviderQuotaError,
+    ProviderAuthError,
     parse_utc,
     ForecastProvider, ProviderError, ProviderForecast, ProviderNotConfiguredError,
 )
@@ -39,6 +41,14 @@ logger = logging.getLogger(__name__)
 LAST_SYNC_KEY = "forecast:last_sync:{provider}:{key}"
 STATUS_KEY = "forecast:status:{provider}"
 PENDING_KEY = "forecast:pending:{provider}:{key}"
+COOLDOWN_KEY = "forecast:cooldown:{provider}"
+AUTH_COOLDOWN_SECONDS = 10 * 60
+UNAVAILABLE_COOLDOWN_SECONDS = 2 * 60
+
+
+def _seconds_until_utc_midnight(now: datetime) -> int:
+    tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return max(int((tomorrow - now).total_seconds()), 60)
 PENDING_TTL_SECONDS = 48 * 3600
 
 _DATETIME_FIELDS = ("kickoff_utc", "model_run_at", "provider_updated_at")
@@ -127,6 +137,11 @@ class ForecastService:
         interval = timedelta(hours=settings.GAMEFORECAST_SYNC_INTERVAL_HOURS)
         days_ahead = days_ahead or settings.GAMEFORECAST_SYNC_DAYS_AHEAD
         report["retried"] = {}
+        cooling = self.cache.get(COOLDOWN_KEY.format(provider=self.provider.name))
+        if isinstance(cooling, dict) and cooling.get("reason"):
+            report["error"] = f"skipped (recent failure: {cooling['reason']})"
+            report["synced_at"] = self.now.isoformat()
+            return report
         for key in self.keys:
             last = self._last_sync(key)
             if not force and last and self.now - last < interval:
@@ -150,7 +165,10 @@ class ForecastService:
             except ProviderError as exc:
                 report["competitions"][key] = {"error": str(exc)}
                 logger.warning("Forecast sync for %s failed: %s", key, exc)
-                # quota/auth failures affect every competition: stop here
+                # quota/auth failures affect every competition: stop here and back off
+                seconds = _seconds_until_utc_midnight(self.now) if isinstance(exc, ProviderQuotaError) else (
+                    AUTH_COOLDOWN_SECONDS if isinstance(exc, ProviderAuthError) else UNAVAILABLE_COOLDOWN_SECONDS)
+                self.cache.set(COOLDOWN_KEY.format(provider=self.provider.name), {"reason": str(exc)}, ttl=seconds, stale_ttl=seconds)
                 break
         report["synced_at"] = self.now.isoformat()
         self._record_status(report)
@@ -301,4 +319,6 @@ class ForecastService:
             budget = getattr(provider, "budget", None)
             payload["budget"] = budget.snapshot() if budget else None
             payload["last_sync"] = self.cache.get(STATUS_KEY.format(provider=provider.name))
+            cooling = self.cache.get(COOLDOWN_KEY.format(provider=provider.name))
+            payload["cooling_down"] = cooling.get("reason") if isinstance(cooling, dict) else None
         return payload
