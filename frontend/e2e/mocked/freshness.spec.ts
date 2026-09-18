@@ -167,10 +167,16 @@ test('a source with too few scored predictions gets a sentence, not a number', a
   // The source IS measured — it has scored predictions — but no market reaches the minimum.
   await expect(record.getByTestId('measured-hit-rate')).toHaveCount(0);
   await expect(record.getByTestId('measured-hit-rate-withheld')).toHaveCount(1);
-  await expect(source).toContainText(new RegExp(`below the minimum of ${MINIMUM_SAMPLE}`, 'i'));
+  // Each market says how far off it is, in few enough words to read as one line.
+  await expect(source).toContainText(new RegExp(`7 of ${MINIMUM_SAMPLE} scored predictions needed`, 'i'));
   // The counts behind the refusal are still published: they are real.
   await expect(source.getByTestId('measured-source-counts')).toContainText(/7 scored/);
+  // The full statistical rationale is stated ONCE for the block. Repeating it under every market
+  // turned five honest rows into what looked like five errors, which is how the quota notices used
+  // to make a perfectly good forecast look broken.
   await expect(record.getByTestId('measured-minimum-sample')).toContainText(/95% interval wider/i);
+  const rationaleCount = (await record.innerText()).match(/standard error is 0\.5\/sqrt/g) || [];
+  expect(rationaleCount.length, 'the rationale is stated once, not once per market').toBe(1);
 });
 
 test('a source with enough scored predictions shows the figure with its sample', async ({ page }) => {

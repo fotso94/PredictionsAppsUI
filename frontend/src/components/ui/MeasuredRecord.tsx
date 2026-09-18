@@ -48,26 +48,29 @@ const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = (
       </div>
 
       {/*
-        The refusal, in the backend's own words, as a sentence. This is the branch that runs
-        whenever a source has fewer than the minimum scored predictions, and it must read as an
-        explanation rather than as a missing value.
+        Why there is no figure, in as few words as carry the meaning. The full rationale for the
+        minimum sample is stated ONCE for the whole block, below the markets: repeating three
+        sentences under every market made five honest rows read like five errors, which is the same
+        way the quota notices once made a good forecast look broken.
       */}
       {!market.hit_rate_available && (
         <p className="mt-0.5 text-xs text-secondary-400">
-          {market.hit_rate_unavailable_reason
-            ?? `Fewer than ${minimumSample} predictions from this source have been scored on this market.`}
+          {market.hit_rate_sample} of {minimumSample} scored predictions needed before a rate is published.
         </p>
       )}
 
       <dl className="mt-1 space-y-0.5 text-xs text-secondary-500">
-        <div>
-          <dt className="inline text-secondary-400">Counted as: </dt>
-          <dd className="inline">{market.hit_rate_definition}</dd>
-        </div>
-        <div>
-          <dt className="inline text-secondary-400">Settled by: </dt>
-          <dd className="inline">{market.rule}</dd>
-        </div>
+        {/* The definitions matter but they are identical on every row; they belong behind a
+            disclosure, not repeated five times down the page. */}
+        <details className="group">
+          <summary className="cursor-pointer text-secondary-400 hover:text-secondary-300 focus-ring">
+            How this market is counted and settled
+          </summary>
+          <div className="mt-1 space-y-0.5 pl-3">
+            <p><span className="text-secondary-400">Counted as: </span>{market.hit_rate_definition}</p>
+            <p><span className="text-secondary-400">Settled by: </span>{market.rule}</p>
+          </div>
+        </details>
         <div>
           <dt className="inline text-secondary-400">Sample: </dt>
           <dd className="inline">
@@ -89,7 +92,9 @@ const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = (
                 )}
               </>
             ) : (
-              market.brier_unavailable_reason ?? 'not published'
+              <span className="text-secondary-500">
+                {market.brier_sample} of {minimumSample} needed
+              </span>
             )}
           </dd>
         </div>

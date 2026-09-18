@@ -30,6 +30,32 @@ test.afterAll(async () => {
   await api?.dispose();
 });
 
+/**
+ * Open the composer on a day that still has a fixture to write about.
+ *
+ * You cannot write a prediction for a match that has already kicked off, so "today" stops offering
+ * fixtures once the evening's games start — which is exactly what happened the first time this ran
+ * after 20:00 UTC. Walk forward until a day has one.
+ */
+async function openComposerOnADayWithFixtures(page: import('@playwright/test').Page) {
+  await page.goto('/expert/predictions/create');
+  await page.waitForLoadState('networkidle');
+
+  const action = page.getByRole('button', { name: /^write a prediction:/i });
+  for (const label of [/^today$/i, /^tomorrow$/i, /in two days/i]) {
+    const chip = page.getByRole('button', { name: label }).first();
+    if (await chip.count() === 0) continue;
+    await chip.click();
+    await page.waitForTimeout(500);
+    if (await action.count() > 0) {
+      await action.first().click();
+      await page.waitForLoadState('networkidle');
+      return true;
+    }
+  }
+  return false;
+}
+
 async function signInThroughTheUi(page: import('@playwright/test').Page) {
   await page.goto('/login');
   await page.locator('input[type="email"], input[name="email"]').first().fill(QA_EXPERT.email);
@@ -54,10 +80,8 @@ test('an expert reaches the form without ever seeing a match id', async ({ page 
 
 test('the form suggests no probability of its own', async ({ page }) => {
   await signInThroughTheUi(page);
-  await page.goto('/expert/predictions/create');
-  await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: /^write a prediction:/i }).first().click();
-  await page.waitForLoadState('networkidle');
+  const opened = await openComposerOnADayWithFixtures(page);
+  test.skip(!opened, 'no upcoming fixture in the next three days to write about');
 
   const numbers = page.locator('input[inputmode="decimal"]');
   const count = await numbers.count();
@@ -74,12 +98,8 @@ test('the form suggests no probability of its own', async ({ page }) => {
 
 test('a percentage typed as 55 is stored as 0.55 and published immediately', async ({ page }) => {
   await signInThroughTheUi(page);
-  await page.goto('/expert/predictions/create');
-  await page.waitForLoadState('networkidle');
-
-  const fixture = page.getByRole('button', { name: /^write a prediction:/i }).first();
-  await fixture.click();
-  await page.waitForLoadState('networkidle');
+  const opened = await openComposerOnADayWithFixtures(page);
+  test.skip(!opened, 'no upcoming fixture in the next three days to write about');
 
   const numbers = page.locator('input[inputmode="decimal"]');
   await numbers.nth(0).fill('55');
