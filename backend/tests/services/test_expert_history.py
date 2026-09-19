@@ -555,10 +555,22 @@ def test_the_exclusion_does_not_depend_on_the_reasoning_text(db):
     assert measured(db, user)["scored"] == 1
 
 
-def test_classification_is_refused_where_the_installation_does_not_allow_it(db):
-    """Off by default, so no user in a real deployment can classify their own record."""
+def test_the_declared_default_for_the_classification_gate_is_off():
+    """The invariant is the DECLARED default, not whatever this machine's .env happens to say.
+
+    Asserting the live setting made this test pass or fail depending on the developer's own .env:
+    a machine running the end-to-end suite turns the gate on, and the test that exists to prove the
+    gate is off by default then failed. What must never drift is the default compiled into
+    Settings, which is what every deployment gets when it says nothing.
+    """
+    from app.core.config import Settings
+    assert Settings.model_fields["ALLOW_TEST_DATA_CLASSIFICATION"].default is False
+
+
+def test_classification_is_refused_where_the_installation_does_not_allow_it(db, monkeypatch):
+    """With the gate off, no user can classify their own record - whatever they ask for."""
     from app.core.config import settings
-    assert settings.ALLOW_TEST_DATA_CLASSIFICATION is False, "the default must stay off"
+    monkeypatch.setattr(settings, "ALLOW_TEST_DATA_CLASSIFICATION", False)
 
     match = away_win(db)
     user = _expert(db)
@@ -572,8 +584,10 @@ def test_classification_is_refused_where_the_installation_does_not_allow_it(db):
     assert db.query(Prediction).filter(Prediction.id == prediction.id).one().is_test_data is None
 
 
-def test_a_create_request_asking_for_classification_is_ignored_when_the_gate_is_off(db):
+def test_a_create_request_asking_for_classification_is_ignored_when_the_gate_is_off(db, monkeypatch):
     """Asking is not enough: the request is stored unclassified and the record stays measurable."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ALLOW_TEST_DATA_CLASSIFICATION", False)
     from app.services.expert_prediction import test_data_classification
     assert test_data_classification(True) is None
     assert test_data_classification(False) is None

@@ -38,6 +38,21 @@ async def provider_status(db: Session = Depends(get_db)):
     The `scheduler` block is what lets a page say "last updated ..." honestly. A task that has never
     run reports `never_run: true` with null timestamps rather than borrowing another task's time, and
     a task that is skipping because the daily allowance is spent says so in `last_skip_reason`.
+
+    Every `budget` block - one per data provider in `chain`, and one under `forecasts` - now
+    carries TWO accountings side by side, because they are not the same thing and on 2026-09-19
+    they disagreed:
+
+      - ours: `daily_limit`, `used_today`, `remaining_today`, keyed to the UTC day. Unchanged.
+      - the provider's: `provider_reported`, which is whatever its rate-limit headers last said -
+        its ceiling, what it says is left, and when it says its window resets. Its `known` flag is
+        part of the answer: `known: false` means no such header has ever reached us, and it must
+        be read as "unknown", never as zero and never as a full allowance.
+      - `effective_remaining_today` is the smaller of the two - what the next request is actually
+        measured against - and `limited_by` names which side is binding.
+
+    On the night this was added ours read "3 of 8 used, 5 left" while the provider's read "0
+    left": the divergence is the finding, so both are published rather than reconciled.
     """
     data = MatchDataService(db).provider_status()
     data["forecasts"] = ForecastService(db).status()

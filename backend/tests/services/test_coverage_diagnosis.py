@@ -243,6 +243,68 @@ def test_never_fetched_competition_with_a_spent_allowance_is_not_fetched(db, cac
     assert "0 remaining" in entry["evidence"]
 
 
+def _provider_says(redis, remaining: int, reset_seconds: int = 25972) -> None:
+    """Seed the provider's own rate-limit reading, exactly as a real response would store it.
+
+    Built through RateLimitReading so the fixture cannot drift from the stored shape: an earlier
+    draft hand-wrote the JSON, left out the precomputed reset instant the store actually reads,
+    and produced a reading that claimed to know a window with no reset in it.
+
+    Anchored to the real clock, because the countdown to the provider's reset is measured against
+    wall time; a reading stamped hours ago describes a window that has already turned.
+    """
+    import json
+    from datetime import datetime as _dt, timezone as _tz
+    from app.services.providers.budget import rate_limit_key
+    from app.services.providers.http import RateLimitReading
+
+    reading = RateLimitReading(provider=PROVIDER, limit=10, remaining=remaining,
+                               reset_seconds=reset_seconds, observed_at=_dt.now(_tz.utc),
+                               status_code=429)
+    redis.set(rate_limit_key(PROVIDER), json.dumps(reading.to_dict()))
+
+
+def test_a_shut_provider_window_is_not_reported_as_our_allowance_being_spent(db, cache, redis):
+    """The case measured on 2026-09-19: our counter had room and the provider refused anyway.
+
+    Saying "today's allowance is spent (3/8 counted, 0 remaining)" would have been false in both
+    halves - 5 were left by our count, and it was not our count that stopped the pass. The reader
+    has to be able to tell "we hit the cap we chose" from "the provider's own window is shut",
+    because only the second one means waiting on somebody else's clock.
+
+    The competition is ALSO deferred here, because a provider that refuses mid-pass defers what is
+    left - which is exactly how this cause was unreachable when the deferral was tested first.
+    """
+    league = _league(db)
+    _fixture(db, league, "Arsenal", "Chelsea")
+    _spend_allowance(redis, used=3)          # our ceiling is 8, so 5 of ours are left
+    _provider_says(redis, remaining=0)       # and the provider says none of its own are
+    _run(cache, synced_at=FETCHED.isoformat(), order=[KEY], deferred=[KEY],
+         error="gameforecast: rate limit or quota exceeded (HTTP 429)")
+
+    entry = _only(_diagnose(db, cache, redis), "not_fetched")
+
+    assert entry["sub_cause"] == "provider_window_spent"
+    assert "our counter still shows 5 of 8 left" in entry["evidence"]
+    assert "0 request(s) left in its own window" in entry["evidence"]
+    assert "resetting in" in entry["evidence"], "when the window turns is the actionable half"
+    assert "allowance is spent" not in entry["evidence"], "that would be the false sentence"
+
+
+def test_our_own_ceiling_is_still_named_as_ours_when_it_is_the_one_that_binds(db, cache, redis):
+    """The mirror: the provider has room, we do not, and the honest answer is our cap."""
+    league = _league(db)
+    _fixture(db, league, "Arsenal", "Chelsea")
+    _spend_allowance(redis, used=8)
+    _provider_says(redis, remaining=2)
+    _run(cache, synced_at=FETCHED.isoformat(), order=[KEY], deferred=[KEY],
+         error="daily request allowance for gameforecast is spent; 1 competition(s) deferred")
+
+    entry = _only(_diagnose(db, cache, redis), "not_fetched")
+
+    assert entry["sub_cause"] == "daily_allowance_spent"
+
+
 def test_a_competition_the_last_run_deferred_names_that_run(db, cache, redis):
     league = _league(db)
     _fixture(db, league, "Arsenal", "Chelsea")

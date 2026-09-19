@@ -21,6 +21,7 @@ import pytest
 
 from app.services.match_cache import MatchCache
 from app.services.providers import gameforecast as gf
+from app.services.providers.base import ProviderQuotaError
 from app.services.providers.budget import RequestBudget
 from app.services.providers.gameforecast import GameForecastProvider
 from tests.providers.support import FakeRedis, json_response, make_transport
@@ -187,3 +188,86 @@ def test_every_domestic_competition_is_priced_without_a_request(key):
     assert p.request_cost(key) == 1
     assert recorder.requests == []
     assert p.budget.used_today() == 0
+
+
+# ------------------------------------------------- the provider's own accounting, read and obeyed
+#
+# GameForecastAPI is served through RapidAPI, which reports the plan's ceiling, what is left and
+# when the window resets on every response. Until 2026-09-19 nothing here read them, and the cost
+# was measured that night: the provider refused the third request of a fresh UTC day while our own
+# counter still showed five of eight left, because its window is not the UTC calendar day.
+
+RATE_LIMIT_HEADERS = {"x-ratelimit-requests-limit": "10",
+                      "x-ratelimit-requests-remaining": "1",
+                      "x-ratelimit-requests-reset": "25972"}
+
+
+def _with_headers(payload, status=200, headers=None):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status, json=payload,
+                              headers=RATE_LIMIT_HEADERS if headers is None else headers)
+    return handler
+
+
+def test_a_fetch_records_what_the_provider_said_about_its_own_window():
+    """Into the budget's own store, so the counter and the provider's window are read together."""
+    redis = FakeRedis()
+    budget = RequestBudget("gameforecast", 8, client=redis)
+    p, _ = provider(_with_headers({"data": [], "pagination": {"hasMore": False}}), budget=budget)
+
+    p.get_forecasts("premier_league", FROM, TO)
+
+    assert budget.used_today() == 1
+    assert budget.provider_remaining() == 1, "the provider's own count, not ours"
+    assert budget.remaining_effective() == 1, "and it is the binding one: ours still shows 7"
+    assert budget.snapshot()["limited_by"] == "the_provider"
+
+
+def test_a_turn_is_refused_when_the_provider_says_its_window_is_empty():
+    """Our counter is untouched and no request goes out: the provider already said no."""
+    redis = FakeRedis()
+    budget = RequestBudget("gameforecast", 8, client=redis)
+    handler = _with_headers({"data": [], "pagination": {"hasMore": False}},
+                            headers=dict(RATE_LIMIT_HEADERS, **{"x-ratelimit-requests-remaining": "0"}))
+    p, recorder = provider(handler, budget=budget)
+
+    p.get_forecasts("premier_league", FROM, TO)          # spends one, and learns the window is now empty
+    assert len(recorder.requests) == 1
+
+    with pytest.raises(ProviderQuotaError) as refused:
+        p.get_forecasts("premier_league", FROM, TO)
+
+    assert len(recorder.requests) == 1, "the second turn must never reach the network"
+    assert "gameforecast itself reports 0 request(s) left in its own window" in str(refused.value)
+    assert budget.used_today() == 1
+
+
+def test_a_429_still_teaches_us_the_window_even_though_it_fails():
+    redis = FakeRedis()
+    budget = RequestBudget("gameforecast", 8, client=redis)
+    handler = _with_headers({"message": "You have exceeded the DAILY quota for Requests on your "
+                                        "current plan, BASIC."}, status=429,
+                            headers=dict(RATE_LIMIT_HEADERS, **{"x-ratelimit-requests-remaining": "0"}))
+    p, _ = provider(handler, budget=budget)
+
+    with pytest.raises(ProviderQuotaError):
+        p.get_forecasts("premier_league", FROM, TO)
+
+    assert budget.provider_remaining() == 0
+    assert budget.rate_limit.seconds_until_reset() is not None
+    assert budget.snapshot()["provider_reported"]["window_matches_utc_day"] is False
+
+
+def test_a_provider_that_sends_no_such_header_behaves_exactly_as_before():
+    """The headers are optional. Their absence must change nothing about a normal fetch."""
+    redis = FakeRedis()
+    budget = RequestBudget("gameforecast", 8, client=redis)
+    p, recorder = provider(_with_headers({"data": [event()], "pagination": {"hasMore": False}},
+                                         headers={}), budget=budget)
+
+    forecasts = p.get_forecasts("premier_league", FROM, TO)
+
+    assert len(forecasts) == 1 and len(recorder.requests) == 1
+    assert budget.used_today() == 1
+    assert budget.provider_remaining() is None, "silence is unknown, never zero"
+    assert budget.remaining_effective() == 7, "so our own counter is what governs"

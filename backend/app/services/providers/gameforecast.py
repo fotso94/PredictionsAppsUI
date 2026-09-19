@@ -287,6 +287,11 @@ class GameForecastProvider(ForecastProvider):
         self.client = ProviderHttpClient(PROVIDER_NAME, base_url or settings.GAMEFORECAST_API_BASE_URL,
                                          headers=headers, transport=transport)
         self.budget = budget or RequestBudget(PROVIDER_NAME, settings.GAMEFORECAST_DAILY_REQUEST_BUDGET)
+        # The provider's own accounting goes into the same store, and on the same clock, as the
+        # counter that has to obey it. Two stores would let our counter and the provider's window
+        # be read from different places - and disagreeing about which is authoritative is the
+        # defect this closes, not one to reproduce internally.
+        self.client.rate_limit_sink = self.budget.rate_limit.record
         self._overrides = league_overrides if league_overrides is not None \
             else comps.parse_id_overrides(settings.GAMEFORECAST_LEAGUE_IDS)
         self._league_cache: Dict[str, ProviderCompetition] = {}

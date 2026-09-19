@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typing import List
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
 from app.models.predictions import Match, MatchStatus
@@ -17,6 +18,9 @@ from app.models.provider_data import ProviderForecastRecord
 from app.services.forecast_service import STATUS_KEY, ForecastService, content_hash
 from app.services.match_cache import MatchCache
 from app.services.providers.base import ForecastProvider, ProviderForecast, ProviderQuotaError
+from app.services.providers.budget import ProviderRateLimit, RequestBudget
+from app.services.providers.gameforecast import GameForecastProvider
+from app.services.providers.http import RateLimitReading
 from tests.providers.support import FakeRedis
 
 NOW = datetime(2026, 9, 20, 12, 0, tzinfo=timezone.utc)
@@ -496,3 +500,283 @@ def test_a_fetch_record_never_adopts_another_competitions_report():
     record = cache.get(COMPETITION_STATUS_KEY.format(provider="stub", key="premier_league"))
     assert record["key"] == "premier_league"
     assert "events_returned" not in record, "a listing about Serie A says nothing about this league"
+
+
+# ------------------------------------------------------- pausing on the provider's clock, not ours
+#
+# 2026-09-19T00:01:10Z: a 429 paused GameForecastAPI for ~86,000 seconds because the pause was a
+# flat "until UTC midnight". The provider had told us, in the same response, when its own window
+# would reopen. Pausing a full day on a window that reopens in three hours throws away the other
+# twenty-one hours of allowance.
+
+SECONDS_TO_MIDNIGHT = int((datetime(2026, 9, 21, tzinfo=timezone.utc) - NOW).total_seconds())
+
+
+def _budgeted_provider(redis, *, remaining=None, reset_seconds=None, limit=10, status=429,
+                       quota_status=None, daily_limit=8):
+    """A stub provider with a real RequestBudget, optionally carrying a reading from the provider."""
+    provider = StubForecastProvider(budget_after=0 if quota_status is not None else None)
+    provider.budget = RequestBudget("stub", daily_limit, client=redis, now=NOW)
+    if quota_status is not None:
+        def raise_quota(key, date_from, date_to):
+            raise ProviderQuotaError("stub: rate limit or quota exceeded (HTTP 429): You have "
+                                     "exceeded the DAILY quota for Requests on your current plan, "
+                                     "BASIC.", provider="stub", status_code=quota_status)
+        provider.get_forecasts = raise_quota
+    if remaining is not None or reset_seconds is not None:
+        ProviderRateLimit("stub", client=redis, now=NOW).record(
+            RateLimitReading(provider="stub", limit=limit, remaining=remaining,
+                             reset_seconds=reset_seconds, observed_at=NOW, status_code=status))
+    return provider
+
+
+def test_a_429_carrying_a_reset_pauses_until_that_reset_rather_than_for_a_flat_day():
+    redis = LockingFakeRedis()
+    cache = MatchCache(client=redis)
+    three_hours = 3 * 3600
+    provider = _budgeted_provider(redis, remaining=0, reset_seconds=three_hours, quota_status=429)
+
+    report = build(cache, provider=provider).ensure_synced(force=True)
+
+    assert redis.ttls["forecast:cooldown:stub"] == three_hours, \
+        "the provider said three hours; waiting a day discards the other twenty-one"
+    assert redis.ttls["forecast:cooldown:stub"] < SECONDS_TO_MIDNIGHT
+    assert "per the provider's own reset" in report["error"]
+
+
+def test_a_429_with_no_usable_header_keeps_todays_behaviour_exactly():
+    """Nothing learned, nothing changed: the flat day is still the fallback, to the second."""
+    redis = LockingFakeRedis()
+    cache = MatchCache(client=redis)
+    provider = _budgeted_provider(redis, quota_status=429)
+
+    report = build(cache, provider=provider).ensure_synced(force=True)
+
+    assert redis.ttls["forecast:cooldown:stub"] == SECONDS_TO_MIDNIGHT
+    assert "the provider published no reset" in report["error"]
+
+
+def test_a_reset_further_out_than_our_own_day_is_still_honoured():
+    """Both have to allow the request, so the pause runs to whichever window turns last."""
+    redis = LockingFakeRedis()
+    cache = MatchCache(client=redis)
+    two_days = 2 * 24 * 3600
+    provider = _budgeted_provider(redis, remaining=0, reset_seconds=two_days, quota_status=429)
+
+    build(cache, provider=provider).ensure_synced(force=True)
+
+    assert redis.ttls["forecast:cooldown:stub"] == two_days
+
+
+def test_a_pass_does_not_start_a_turn_the_provider_has_already_said_it_will_not_serve():
+    """Our counter was clean and the provider had nothing left. The turn must not be started."""
+    redis = LockingFakeRedis()
+    cache = MatchCache(client=redis)
+    provider = _budgeted_provider(redis, remaining=0, reset_seconds=4 * 3600)
+
+    report = build(cache, provider=provider).ensure_synced(force=True)
+
+    assert provider.calls == [], "not one request may go out against a window the provider closed"
+    assert provider.budget.used_today() == 0, "and nothing may be counted as spent"
+    assert "remaining daily allowance (0" in report["error"]
+    assert "what the provider itself reports is left in its own window" in report["error"]
+    assert redis.ttls["forecast:cooldown:stub"] == 4 * 3600
+
+
+def test_our_own_spent_ceiling_still_pauses_on_our_own_day():
+    """When our cap is what stopped the pass, the provider's window is not the clock to wait on."""
+    redis = LockingFakeRedis()
+    cache = MatchCache(client=redis)
+    provider = _budgeted_provider(redis, remaining=500, reset_seconds=3600, limit=500, status=200)
+    for _ in range(8):
+        provider.budget.consume()
+
+    report = build(cache, provider=provider).ensure_synced(force=True)
+
+    assert provider.calls == []
+    assert redis.ttls["forecast:cooldown:stub"] == SECONDS_TO_MIDNIGHT
+    assert "per the daily ceiling we configured" in report["error"]
+
+
+def test_our_own_spent_ceiling_does_not_wait_on_a_window_that_is_not_what_refused():
+    """The mirror of the defect this package fixes, and just as expensive.
+
+    Our cap is 8 against a plan of 10, so when our counter is spent the provider still has two
+    requests left in a window that - the whole premise here - is NOT the UTC day and therefore
+    publishes a reset beyond our midnight. Our counter hands its allowance back at 00:00 and the
+    provider is willing to serve then. Pausing until the provider's reset instead would sleep
+    through those hours for a window that never refused anything.
+    """
+    redis = LockingFakeRedis()
+    cache = MatchCache(client=redis)
+    beyond_our_midnight = SECONDS_TO_MIDNIGHT + 7 * 3600 + 14 * 60
+    provider = _budgeted_provider(redis, remaining=2, reset_seconds=beyond_our_midnight,
+                                  limit=10, status=200)
+    for _ in range(8):
+        provider.budget.consume()
+
+    report = build(cache, provider=provider).ensure_synced(force=True)
+
+    assert provider.budget.limited_by() == "our_configured_ceiling", "our cap is what refused"
+    assert provider.budget.provider_remaining() == 2, "the provider's window was never spent"
+    assert redis.ttls["forecast:cooldown:stub"] == SECONDS_TO_MIDNIGHT, \
+        "our day is the only window that has to turn; the provider's reset is not our clock"
+    assert redis.ttls["forecast:cooldown:stub"] < beyond_our_midnight
+    assert "is not what refused" in report["error"]
+
+
+# ============================================================ REPLAY: 2026-09-19T00:01:10Z
+#
+# The measured sequence, reconstructed with httpx.MockTransport and nothing else:
+#
+#   provider:budget:gameforecast:20260919 = 3, by_reason {fetch: 2, discovery: 1}, refused 0
+#   ligue_1          /events   -> 200, eight fixtures gained forecasts
+#   champions_league /leagues  -> 200, league id 8 discovered and stored
+#   champions_league /events   -> HTTP 429 "You have exceeded the DAILY quota ... plan, BASIC."
+#
+# Our counter said five of eight were left. The provider's plan is ten a day and it had served
+# eight in the previous UTC day, so its window - which is not the UTC day - had two left and the
+# third request was always going to be refused. The discovery request bought a league id that no
+# fetch could use, and the 429 then paused us for a full day.
+
+REPLAY_NOW = datetime(2026, 9, 19, 0, 1, 10, tzinfo=timezone.utc)
+#: What the provider said in the 429: its window reopens ~7h12m into the new UTC day, not at
+#: midnight. This is the number a flat "pause until UTC midnight" throws away.
+REPLAY_RESET_SECONDS = 25972
+LIGUE_1_LEAGUE_ID = "4"
+
+
+def _replay_event(index):
+    return {"id": 9000 + index, "league": {"id": 4, "name": "Ligue 1"},
+            "team_home": {"id": index, "name": f"Home {index}"},
+            "team_away": {"id": 100 + index, "name": f"Away {index}"},
+            "start_at": "2026-09-20T19:00:00Z", "updated_at": "2026-09-19T00:00:00Z",
+            "predictions": [{"run_at": "2026-09-19T00:00:00Z",
+                             "match_result": {"home": 52, "draw": 26, "away": 22}}]}
+
+
+def _replay_transport(remaining_at_start):
+    """The provider as it behaved that night, with the headers it was already returning.
+
+    `remaining_at_start` is what its own window had left when the pass resumed. It is the fact
+    the old code had no way to see.
+    """
+    state = {"left": remaining_at_start}
+
+    def headers():
+        return {"x-ratelimit-requests-limit": "10",
+                "x-ratelimit-requests-remaining": str(max(state["left"], 0)),
+                "x-ratelimit-requests-reset": str(REPLAY_RESET_SECONDS)}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if state["left"] <= 0:
+            # The provider serves while its window has allowance and refuses when it does not.
+            # It reports the same three headers either way, which is the whole point.
+            return httpx.Response(429, json={"message": "You have exceeded the DAILY quota for "
+                                                        "Requests on your current plan, BASIC."},
+                                  headers=headers())
+        state["left"] -= 1
+        if request.url.path == "/leagues":
+            return httpx.Response(200, headers=headers(), json={"data": [
+                {"id": 8, "name": "UEFA Champions League", "type": "cup", "women": False}]})
+        return httpx.Response(200, headers=headers(), json={
+            "data": [_replay_event(i) for i in range(8)], "pagination": {"hasMore": False}})
+
+    return httpx.MockTransport(handler), state
+
+
+def _replay_provider(redis, remaining_at_start):
+    transport, state = _replay_transport(remaining_at_start)
+    provider = GameForecastProvider(
+        api_key="rapid-key", api_host="game-forecast-api.p.rapidapi.com",
+        base_url="https://game-forecast-api.p.rapidapi.com", transport=transport,
+        budget=RequestBudget("gameforecast", 8, client=redis, now=REPLAY_NOW),
+        league_overrides={}, store=MatchCache(client=redis))
+    provider.client.rate_limit_sink = ProviderRateLimit(
+        "gameforecast", client=redis, now=REPLAY_NOW).record
+    provider.client._now = lambda: REPLAY_NOW
+    return provider, state
+
+
+def _replay(redis, remaining_at_start, warm_reading=None):
+    if warm_reading is not None:
+        ProviderRateLimit("gameforecast", client=redis, now=REPLAY_NOW).record(warm_reading)
+    provider, state = _replay_provider(redis, remaining_at_start)
+    service = build(MatchCache(client=redis), provider=provider,
+                    keys=["ligue_1", "champions_league"], now=REPLAY_NOW)
+    # This replay is about what is spent and how long the pause lasts, not about matching a
+    # forecast to a fixture: there is no database here, so every forecast that arrives is held
+    # as unmatched. `fetched` still counts what the provider actually returned.
+    service.attach_forecast = lambda forecast, key, league_id: {
+        "result": "unmatched", "reason": "no fixtures exist in this replay"}
+    return service.ensure_synced(force=True), provider, state
+
+
+def test_replay_the_discovery_that_bought_nothing_is_never_paid_for():
+    """The ligue_1 fetch still happens and still succeeds. The two wasted requests do not.
+
+    After the ligue_1 response the provider has said, in a header, that it has one request left.
+    The champions_league turn costs two - a /leagues discovery and then the /events fetch - so it
+    is not started at all. That is the discovery request and the 429 both avoided.
+    """
+    redis = LockingFakeRedis()
+    report, provider, _ = _replay(redis, remaining_at_start=2)
+
+    assert provider.budget.used_today() == 1, "one request, not three"
+    assert provider.budget.by_reason() == {"fetch": 1}, "no discovery was bought"
+    assert "ligue_1" in report["competitions"] and "error" not in report["competitions"]["ligue_1"]
+    assert report["competitions"]["ligue_1"]["fetched"] == 8, "the eight forecasts still arrive"
+    assert "champions_league" not in report["competitions"]
+    assert report["deferred"] == ["champions_league"]
+
+
+def test_replay_the_pause_is_the_providers_seven_hours_not_a_flat_day():
+    redis = LockingFakeRedis()
+    report, _, _ = _replay(redis, remaining_at_start=2)
+
+    paused_for = redis.ttls["forecast:cooldown:gameforecast"]
+    assert paused_for == REPLAY_RESET_SECONDS, "the provider named the hour its window reopens"
+    assert paused_for < 86000, "the measured pause was ~86,000s; this is ~7h"
+    assert "what the provider itself reports is left in its own window" in report["error"]
+
+
+def test_replay_the_two_accountings_are_both_published_afterwards():
+    redis = LockingFakeRedis()
+    _replay(redis, remaining_at_start=2)
+
+    snapshot = RequestBudget("gameforecast", 8, client=redis, now=REPLAY_NOW).snapshot()
+    assert (snapshot["used_today"], snapshot["remaining_today"]) == (1, 7)
+    assert snapshot["provider_reported"]["remaining"] == 1
+    assert snapshot["effective_remaining_today"] == 1 and snapshot["limited_by"] == "the_provider"
+    assert snapshot["provider_reported"]["window_matches_utc_day"] is False
+
+
+def test_replay_the_first_request_of_a_cold_pass_is_still_spent_before_anything_is_learned():
+    """Honest limit of the fix: with nothing stored, the first request goes out blind.
+
+    If the provider's window is already empty when the pass resumes, that first request is still
+    spent on a 429 - the refusal is what teaches us. What changes is everything after it: the
+    window is recorded, the pass stops instead of spending two more, and the pause is the
+    provider's own reset rather than a flat day.
+    """
+    redis = LockingFakeRedis()
+    report, provider, _ = _replay(redis, remaining_at_start=0)
+
+    assert provider.budget.used_today() == 1, "one request was spent learning; three were not"
+    assert "429" in report["competitions"]["ligue_1"]["error"]
+    assert redis.ttls["forecast:cooldown:gameforecast"] == REPLAY_RESET_SECONDS
+    assert "per the provider's own reset" in report["error"]
+    assert ProviderRateLimit("gameforecast", client=redis, now=REPLAY_NOW).remaining_now() == 0
+
+
+def test_replay_a_window_carried_over_from_yesterday_stops_the_pass_before_any_request():
+    """Once a reading survives the day boundary, an empty window costs nothing at all to obey."""
+    redis = LockingFakeRedis()
+    yesterday = RateLimitReading(provider="gameforecast", limit=10, remaining=0,
+                                 reset_seconds=REPLAY_RESET_SECONDS + 60,
+                                 observed_at=REPLAY_NOW - timedelta(minutes=1), status_code=429)
+    report, provider, state = _replay(redis, remaining_at_start=0, warm_reading=yesterday)
+
+    assert provider.budget.used_today() == 0, "not one request against a window known to be shut"
+    assert report["competitions"] == {}
+    assert "remaining daily allowance (0" in report["error"]

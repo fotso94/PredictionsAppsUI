@@ -231,11 +231,19 @@ class ForecastService:
         return sorted(self.keys, key=lambda key: (self._last_sync(key) or epoch, self.keys.index(key)))
 
     def _budget_remaining(self) -> Optional[int]:
+        """What the next turn can actually be paid for out of - the binding number of the two.
+
+        Our configured ceiling and the provider's own remaining count are separate constraints,
+        and the smaller one governs. On 2026-09-19 our counter said five were left and the
+        provider said none, so a pass that consulted only our counter started turns the provider
+        had already refused to serve.
+        """
         budget = getattr(self.provider, "budget", None)
         if budget is None or not getattr(budget, "daily_limit", 0):
             return None
         try:
-            return budget.remaining()
+            effective = getattr(budget, "remaining_effective", None)
+            return effective() if callable(effective) else budget.remaining()
         except Exception:  # pragma: no cover - budget is best effort
             return None
 
@@ -276,10 +284,94 @@ class ForecastService:
         if cost == 0 or remaining >= cost:
             return None
         detail = "a league-id discovery and then a fetch" if cost > 1 else "a fetch"
-        return (f"{self.provider.name}'s remaining daily allowance ({remaining}) cannot cover the "
-                f"next competition's turn: {key} costs {cost} request(s) ({detail}). Stopped "
+        return (f"{self.provider.name}'s remaining daily allowance ({remaining}{self._remaining_source()}) "
+                f"cannot cover the next competition's turn: {key} costs {cost} request(s) ({detail}). Stopped "
                 f"rather than spending part of it, and rather than reordering by price, which "
                 f"would starve {key} permanently")
+
+    def _remaining_source(self) -> str:
+        """Which side that remaining figure came from, as a clause for the stop reason.
+
+        "We have 0 left" and "the provider says it has 0 left" call for different next steps and
+        different pauses, so the message names which one stopped the pass.
+        """
+        budget = getattr(self.provider, "budget", None)
+        try:
+            binding = budget.limited_by() if budget is not None else "nothing"
+        except Exception:  # pragma: no cover - reporting is never worth an exception
+            return ""
+        if binding == "the_provider":
+            return ", which is what the provider itself reports is left in its own window"
+        if binding == "both":
+            return ", our configured ceiling and the provider's own count agreeing"
+        if binding == "our_configured_ceiling":
+            return ", per the daily ceiling we configured"
+        return ""
+
+    def _provider_reset_seconds(self) -> Optional[int]:
+        """Seconds until the provider says its own window turns, or None when it never said."""
+        rate_limit = getattr(getattr(self.provider, "budget", None), "rate_limit", None)
+        if rate_limit is None:
+            return None
+        try:
+            return rate_limit.seconds_until_reset()
+        except Exception:  # pragma: no cover - never worth failing a sync over
+            return None
+
+    def _quota_cooldown_seconds(self, exc: Optional[Exception] = None) -> Tuple[int, str]:
+        """How long to pause after a quota refusal, and what decided it.
+
+        The flat "until UTC midnight" this replaces was a guess dressed as a fact. When the
+        provider publishes a reset, that instant IS the answer for a refusal the provider made:
+        pausing a full day on a window that reopens in three hours throws away twenty-one hours
+        of allowance, which is exactly what happened on 2026-09-19 (paused ~86,000s at 00:01Z).
+
+        Which side refused decides which clock to wait on, because only that side's window has
+        to turn before there is anything to retry:
+          - the provider (an HTTP 429, or its own remaining count at zero) -> its reset;
+          - our configured ceiling -> UTC midnight, when our counter's day rolls over;
+          - both -> the later of the two, since a request needs both to allow it.
+        When the provider published no reset there is nothing new to go on, and today's
+        behaviour is kept exactly: UTC midnight.
+        """
+        midnight = _seconds_until_utc_midnight(self.now)
+        budget = getattr(self.provider, "budget", None)
+        refused_by = "the_provider" if getattr(exc, "status_code", None) == 429 else None
+        if refused_by is None:
+            try:
+                refused_by = budget.limited_by() if budget is not None else "nothing"
+            except Exception:  # pragma: no cover
+                refused_by = "nothing"
+        reset = self._provider_reset_seconds()
+        if reset is None:
+            return midnight, "our counter's UTC day (the provider published no reset)"
+        ours_spent = False
+        theirs_spent = False
+        try:
+            ours_spent = bool(getattr(budget, "daily_limit", 0)) and budget.remaining() <= 0
+        except Exception:  # pragma: no cover
+            pass
+        try:
+            theirs = budget.provider_remaining() if budget is not None else None
+            theirs_spent = theirs is not None and theirs <= 0
+        except Exception:  # pragma: no cover
+            pass
+        if refused_by == "the_provider" and not (ours_spent and midnight > reset):
+            return max(int(reset), 60), "the provider's own reset"
+        if not theirs_spent:
+            # Our own ceiling is what refused, and the provider's window still has room in it.
+            # Only OUR day has to turn before there is something to retry, so the provider's
+            # reset must not extend the pause past it: a provider whose window is not the UTC
+            # day publishes a reset beyond our midnight most of the time, and honouring it here
+            # would sleep through the allowance our own counter hands back at 00:00 - the same
+            # throwing-away of hours this package exists to stop, in the opposite direction.
+            return midnight, ("our counter's UTC day (the provider's own window still has room "
+                              "and is not what refused)")
+        if midnight >= reset:
+            return midnight, ("our counter's UTC day, which outlasts the provider's own reset in "
+                              f"{reset}s")
+        return max(int(reset), 60), ("the provider's own reset, which outlasts our counter's UTC "
+                                     f"day in {midnight}s")
 
     def ensure_synced(self, days_ahead: Optional[int] = None, force: bool = False) -> Dict[str, Any]:
         """Sync every covered competition whose last sync is older than the configured interval."""
@@ -325,8 +417,11 @@ class ForecastService:
                     # Stop before reserving anything: what is left cannot pay for this turn in
                     # full, and the competitions that did not get their turn - this one first -
                     # keep their place at the head of tomorrow's order.
-                    stop_reason = unaffordable
-                    self._pause(stop_reason, _seconds_until_utc_midnight(self.now))
+                    # The pause runs to whichever window actually has to turn: ours when our
+                    # ceiling is the binding number, the provider's when its own count is.
+                    seconds, decided_by = self._quota_cooldown_seconds()
+                    stop_reason = f"{unaffordable}. Paused for {seconds}s, per {decided_by}"
+                    self._pause(stop_reason, seconds)
                     break
                 try:
                     # Forecasts can only be attached to fixtures we know about: fill the calendar first
@@ -344,9 +439,15 @@ class ForecastService:
                     report["competitions"][key] = {"error": str(exc)}
                     logger.warning("Forecast sync for %s failed: %s", key, exc)
                     # quota/auth failures affect every competition: stop here and back off
-                    seconds = _seconds_until_utc_midnight(self.now) if isinstance(exc, ProviderQuotaError) else (
-                        AUTH_COOLDOWN_SECONDS if isinstance(exc, ProviderAuthError) else UNAVAILABLE_COOLDOWN_SECONDS)
                     stop_reason = str(exc)
+                    if isinstance(exc, ProviderQuotaError):
+                        # The provider's own window, when it published one, decides how long this
+                        # is - not our assumption about when its day turns.
+                        seconds, decided_by = self._quota_cooldown_seconds(exc)
+                        stop_reason = f"{stop_reason} (paused for {seconds}s, per {decided_by})"
+                    else:
+                        seconds = AUTH_COOLDOWN_SECONDS if isinstance(exc, ProviderAuthError) \
+                            else UNAVAILABLE_COOLDOWN_SECONDS
                     self._pause(stop_reason, seconds)
                     break
         finally:

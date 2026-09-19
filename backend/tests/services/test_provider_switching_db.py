@@ -259,8 +259,22 @@ def test_sync_and_forecast_freshness_with_sample_provider(db):
     forecasts = ForecastService(db, provider=SampleForecastProvider(), cache=cache, now=NOW, keys=KEYS, sync_fixtures=False)
     report = forecasts.ensure_synced(days_ahead=3)
     stats = report["competitions"]["premier_league"]
-    assert stats["attached"] == 2 and stats["ambiguous"] == 0
-    assert stats["fetched"] == stats["attached"] + stats["unmatched"]
+    # Both of DAY's fixtures get their forecast. What happens to the rest of the window is the
+    # point of the two assertions below, and it depends on the calendar: the sample provider
+    # rotates a small set of teams on a three-day cycle, so on some dates the SAME pairing appears
+    # again inside the days_ahead window. Those repeats are refused - "teams match but kickoff is
+    # 43 h away" - rather than attached to DAY's match, which is the rule this whole codebase turns
+    # on: refuse, never guess. An earlier version asserted ambiguous == 0, which quietly encoded
+    # "today is not one of those dates" and failed the moment the clock rolled onto one.
+    assert stats["attached"] == 2
+    assert stats["fetched"] == (stats["attached"] + stats["ambiguous"]
+                                + stats["unmatched"] + stats["without_markets"]), \
+        "every fetched forecast is accounted for in exactly one bucket"
+    for entry in stats["details"]:
+        assert entry["result"] != "attached", "the details list only ever holds non-attachments"
+        if entry["result"] == "ambiguous":
+            # Refused for the right reason: a name match at the wrong kickoff, never a silent grab.
+            assert "kickoff" in entry["reason"]
     for match in matches:
         record = forecasts.forecast_for_match(match)
         assert record is not None and record.provider == "sample"

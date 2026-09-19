@@ -29,8 +29,9 @@ import pytest
 from app.services.providers import budget as budget_module
 from app.services.providers.base import ProviderQuotaError
 from app.services.providers.budget import (
-    KEY_TTL_SECONDS, RequestBudget, budget_key, by_reason_key, refused_key,
+    KEY_TTL_SECONDS, ProviderRateLimit, RequestBudget, budget_key, by_reason_key, refused_key,
 )
+from app.services.providers.http import RateLimitReading
 from tests.providers.support import FakeRedis
 
 #: Late on the day the gameforecast allowance was spent: one hour before the reset.
@@ -348,3 +349,133 @@ def test_a_client_without_eval_still_counts_and_still_refuses():
         budget.consume()
 
     assert budget.used_today() == 2 and budget.refused_today() == 1
+
+
+# ------------------------------------------------- our ceiling and the provider's window, together
+#
+# 2026-09-19T00:01:10Z, replayed: the UTC-day counter was clean, two requests went out, and the
+# provider refused the third with "you have exceeded the DAILY quota" while our counter still
+# showed five of eight left. Two independent constraints, and only one of them was reporting the
+# truth about what the provider would serve. A request now goes out only when BOTH allow it.
+
+DAY_TWO = datetime(2026, 9, 19, 0, 1, 10, tzinfo=timezone.utc)
+
+
+def _record(client, now, remaining, limit=10, reset_seconds=25972, status=429):
+    """Store one reading exactly as the HTTP client would, without making a request."""
+    ProviderRateLimit("gameforecast", client=client, now=now).record(
+        RateLimitReading(provider="gameforecast", limit=limit, remaining=remaining,
+                         reset_seconds=reset_seconds, observed_at=now, status_code=status))
+
+
+def test_a_request_is_refused_when_the_provider_says_zero_although_our_counter_has_room():
+    """Tonight's defect: five of eight left by our count, nothing left by the provider's."""
+    client = LuaRedis()
+    budget = RequestBudget("gameforecast", 8, client=client, now=DAY_TWO)
+    budget.consume(reason="fetch")
+    budget.consume(reason="discovery")
+    assert budget.remaining() == 6, "our own counter still has room"
+
+    _record(client, DAY_TWO, remaining=0)
+
+    with pytest.raises(ProviderQuotaError) as refused:
+        budget.consume(reason="fetch")
+
+    message = str(refused.value)
+    assert "gameforecast itself reports 0 request(s) left in its own window" in message
+    assert "its window resets in 25972s" in message
+    assert "Our daily counter still shows 6 of 8 left" in message, \
+        "the refusal has to name which of the two constraints stopped it"
+    assert budget.used_today() == 2, "a request that was never sent must not be counted as spent"
+    assert budget.refused_today() == 1, "but the refusal itself is counted"
+
+
+def test_our_own_ceiling_still_refuses_when_it_is_the_smaller_number():
+    """The cap we chose is not bypassed by a generous provider count. Nothing here retunes a limit."""
+    client = LuaRedis()
+    budget = RequestBudget("gameforecast", 8, client=client, now=DAY_TWO)
+    _record(client, DAY_TWO, remaining=500, limit=500)
+
+    for _ in range(8):
+        budget.consume()
+    with pytest.raises(ProviderQuotaError) as refused:
+        budget.consume()
+
+    assert "(8/8 used)" in str(refused.value)
+    assert "refused by the daily ceiling we configured, not by the provider" in str(refused.value)
+    assert budget.limited_by() == "our_configured_ceiling"
+
+
+def test_the_binding_number_is_the_smaller_of_the_two():
+    client = LuaRedis()
+    budget = RequestBudget("gameforecast", 8, client=client, now=DAY_TWO)
+    assert budget.remaining_effective() == 8, "with no reading, our counter is all there is"
+
+    _record(client, DAY_TWO, remaining=2)
+    assert budget.remaining_effective() == 2 and budget.limited_by() == "the_provider"
+    assert budget.can_afford(2) is True and budget.can_afford(3) is False
+
+    _record(client, DAY_TWO, remaining=8)
+    assert budget.remaining_effective() == 8 and budget.limited_by() == "both"
+
+
+def test_an_unknown_provider_count_constrains_nothing():
+    """Unknown is not zero. A provider that publishes no header must keep working exactly as before."""
+    budget = RequestBudget("gameforecast", 8, client=LuaRedis(), now=DAY_TWO)
+
+    assert budget.provider_remaining() is None
+    assert budget.can_afford(8) is True
+    for _ in range(8):
+        budget.consume()
+    assert budget.used_today() == 8
+
+
+# ------------------------------------------------------------------ what the status payload says
+def test_unknown_stays_unknown_in_the_status_payload():
+    """A provider we have never heard from must not read as spent, nor as a full allowance."""
+    snapshot = RequestBudget("gameforecast", 8, client=LuaRedis(), now=DAY_TWO).snapshot()
+
+    view = snapshot["provider_reported"]
+    assert view["known"] is False
+    assert view["remaining"] is None and view["limit"] is None and view["reset_at"] is None
+    assert view["remaining"] != 0, "unknown must never be reported as zero"
+    assert snapshot["effective_remaining_today"] == 8, "our own counter is all there is to go on"
+    assert snapshot["limited_by"] == "our_configured_ceiling"
+    # and every pre-existing key still means what it meant
+    assert snapshot["daily_limit"] == 8 and snapshot["used_today"] == 0
+    assert snapshot["remaining_today"] == 8 and snapshot["enforced"] is True
+
+
+def test_the_status_payload_puts_the_two_accountings_side_by_side():
+    """Tonight's divergence, published rather than reconciled: ours said 5 left, its said 0."""
+    client = LuaRedis()
+    budget = RequestBudget("gameforecast", 8, client=client, now=DAY_TWO)
+    for _ in range(3):
+        budget.consume()
+    _record(client, DAY_TWO, remaining=0)
+
+    snapshot = budget.snapshot()
+
+    assert (snapshot["used_today"], snapshot["remaining_today"]) == (3, 5)
+    view = snapshot["provider_reported"]
+    assert view["known"] is True
+    assert (view["limit"], view["remaining"]) == (10, 0)
+    assert view["reset_in_seconds"] == 25972
+    assert view["observed_status"] == 429
+    assert view["window_matches_utc_day"] is False and "different windows" in view["window_note"]
+    assert snapshot["effective_remaining_today"] == 0 and snapshot["limited_by"] == "the_provider"
+
+
+def test_a_reading_whose_window_has_turned_is_not_reported_as_a_live_zero():
+    client = LuaRedis()
+    clock = Clock(DAY_TWO)
+    budget = RequestBudget("gameforecast", 8, client=client, now=clock)
+    _record(client, DAY_TWO, remaining=0, reset_seconds=ONE_HOUR)
+    assert budget.remaining_effective() == 0
+
+    clock.tick(ONE_HOUR + 60)
+
+    assert budget.provider_remaining() is None, "the window has turned; the old zero is not a fact"
+    assert budget.remaining_effective() == 8
+    view = budget.snapshot()["provider_reported"]
+    assert view["known"] is True and view["window_expired"] is True and view["remaining"] is None

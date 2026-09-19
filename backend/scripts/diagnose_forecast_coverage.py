@@ -166,6 +166,37 @@ def budget_ledger(provider: str, client=None) -> Dict[str, Any]:
     return ledger
 
 
+def _provider_view_lines(budget: Dict[str, Any]) -> List[str]:
+    """The provider's own accounting, printed beside ours. Reads only what is already stored.
+
+    Says "not known" when no rate-limit header has ever reached us, rather than printing a zero
+    or a full allowance for a number the provider never gave.
+    """
+    view = budget.get("provider_reported") or {}
+    if not view.get("known"):
+        return ["Provider's own view: not known - this provider has returned no rate-limit header "
+                "to us (or the last one has expired), so the counter above is all there is"]
+    remaining = view.get("remaining")
+    reset_in = view.get("reset_in_seconds")
+    lines = [
+        "Provider's own view: "
+        f"limit {view.get('limit') if view.get('limit') is not None else 'not stated'}, "
+        f"remaining {remaining if remaining is not None else 'not stated'}, "
+        + (f"window resets in {reset_in}s ({view.get('reset_at')})" if reset_in is not None
+           else f"reset {view.get('reset_at') or 'not stated'}")
+        + f", observed {view.get('observed_at')} (HTTP {view.get('observed_status')})",
+        f"Binding constraint: {budget.get('limited_by')} "
+        f"-> {budget.get('effective_remaining_today')} request(s) can actually be spent",
+    ]
+    if view.get("window_note") and view.get("window_matches_utc_day") is False:
+        # One "!" for the finding, not one per wrapped line.
+        wrapped = _wrap(view["window_note"], 90)
+        lines.extend(f"{'!' if index == 0 else ' '} {line}" for index, line in enumerate(wrapped))
+    if view.get("window_expired"):
+        lines.append("! " + str(view.get("detail")))
+    return lines
+
+
 def league_store(cache: MatchCache, provider: str) -> Dict[str, Any]:
     key = LEAGUE_STORE_KEYS.get(provider)
     return (cache.get(key) or {}) if key else {}
@@ -338,6 +369,26 @@ def classify(fixture: Dict[str, Any], comp: Dict[str, Any], pending: List[Dict[s
                     "evidence": f"{why}: this fixture's league is not one of the covered "
                                 "competitions the forecast sync walks, so no forecast is requested "
                                 "for it at all"}
+        # The provider's own window is asked about FIRST, ahead of the deferral and ahead of our
+        # counter. When its window shuts the pass, the competition IS deferred, so testing the
+        # deferral first returned "today's allowance is spent" off our counter - the exact
+        # sentence this branch exists to replace, and false whenever our counter still has room.
+        provider_view = ledger.get("provider_reported") or {}
+        if provider_view.get("known") and ledger.get("effective_remaining_today") == 0 \
+                and ledger.get("remaining_today"):
+            # Our counter has room and the turn still cannot run: the provider's own window is
+            # what is spent. Reporting "today's allowance is spent" off our counter alone would
+            # have been simply false here, and reporting it as "paused" would hide the reason.
+            reset_in = provider_view.get("reset_in_seconds")
+            return {"cause": "not_fetched", "sub_cause": "provider_window_spent",
+                    "evidence": f"{why}; our counter still shows {ledger.get('remaining_today')} of "
+                                f"{ledger.get('daily_limit')} left, but {ledger.get('provider')} "
+                                f"itself reports 0 request(s) left in its own window"
+                                + (f", resetting in {reset_in}s" if reset_in is not None
+                                   else " and did not say when that window resets")
+                                + ", so its turn cannot run until that window turns"
+                                + (f"; the last run deferred it: {run['error']}"
+                                   if comp["deferred_by_last_run"] and run.get("error") else "")}
         if comp["deferred_by_last_run"]:
             return {"cause": "not_fetched", "sub_cause": "daily_allowance_spent",
                     "evidence": f"{why}; the last run deferred it to the next reset: "
@@ -646,6 +697,10 @@ def render(result: Dict[str, Any]) -> str:
     out.append(f"Budget ledger ({budget['provider']}): used {budget['used_today']}/"
                f"{budget['daily_limit']}, refused {budget['refused_today']}, "
                f"by reason {budget['by_reason'] or '{}'}")
+    # Our counter alone cannot explain a refusal: "used 3 of 8" invites the reader to conclude
+    # five requests were available, which on 2026-09-19 was false - the provider had none left
+    # in a window that is not our UTC day. Whatever it last told us is printed beside ours.
+    out.extend(f"  {line}" for line in _provider_view_lines(budget))
     if budget.get("over_limit_note"):
         for line in _wrap(budget["over_limit_note"], 92):
             out.append(f"  ! {line}")
