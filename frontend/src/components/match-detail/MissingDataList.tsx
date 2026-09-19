@@ -6,7 +6,11 @@ import type { MissingGroup } from './evidence'
 import { groupMarketNames } from './evidence'
 
 /**
- * What this page does NOT know, and why — one row per distinct reason.
+ * Which MARKETS this page does not know, and why — one row per distinct reason.
+ *
+ * A source with nothing at all for the fixture is not listed here: that is stated once, by the
+ * coverage row in the evidence panel above. This list is about a source that DID publish and the
+ * markets it left out.
  *
  * The four ways a model market can be absent must read as four different statements, because they
  * are:
@@ -40,18 +44,19 @@ const REASON_TONE: Record<BriefMissingReason, string> = {
   refresh_blocked: 'border-dark-600 text-secondary-300',
 }
 
+/**
+ * `groups` must be non-empty and must hold market-scoped reasons only.
+ *
+ * There is deliberately no empty state: "every market was published" and "nothing was published
+ * at all, so no market is missing" are different facts, and a component that only sees an empty
+ * array cannot tell them apart. The caller knows which it is and says so itself.
+ */
 const MissingDataList: React.FC<{ groups: MissingGroup[]; className?: string }> = ({ groups, className }) => {
-  if (groups.length === 0) {
-    return (
-      <p className={clsx('text-sm text-secondary-300', className)} data-testid="brief-missing-none">
-        Both sources published every market they offer for this fixture.
-      </p>
-    )
-  }
+  if (groups.length === 0) return null
 
   return (
     <div className={className} data-testid="brief-missing">
-      <h3 className="mb-2 text-sm font-semibold text-white">What is missing, and why</h3>
+      <h3 className="mb-2 text-sm font-semibold text-white">Markets not published, and why</h3>
       <ul className="space-y-2">
         {groups.map(group => {
           const markets = groupMarketNames(group)
@@ -64,11 +69,14 @@ const MissingDataList: React.FC<{ groups: MissingGroup[]; className?: string }> 
               data-source={group.source}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <SourceMarker
-                  source={group.source}
-                  state={group.wholeSource ? 'unavailable' : 'available'}
-                  title={group.detail}
-                />
+                {/*
+                  No `title={group.detail}` here. SourceMarker renders its description into an
+                  sr-only span, so passing the sentence made a screen reader read it twice in a
+                  row — once as the marker's name and again as the paragraph underneath. The
+                  marker's own default description says what the marker is; the sentence is the
+                  paragraph's job.
+                */}
+                <SourceMarker source={group.source} state={group.wholeSource ? 'unavailable' : 'available'} />
                 <span
                   className={clsx(
                     'inline-flex items-center rounded-md border bg-dark-900 px-1.5 py-0.5 text-[11px] leading-4 font-medium',

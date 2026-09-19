@@ -8,12 +8,38 @@ import { AuthProvider } from './contexts/AuthContext'
 import App from './App.tsx'
 import './index.css'
 
-// Create a client
+/**
+ * Defaults for react-query.
+ *
+ * READ THIS BEFORE ADDING THE FIRST `useQuery`. Nothing in src/ uses react-query yet — every fetch
+ * in this application goes through the services in src/services and their own stores — so these
+ * options currently configure a provider with no queries under it. They are set correctly anyway,
+ * because the first person to add a query will inherit them silently.
+ *
+ * `refetchOnWindowFocus` was false, which is what "nothing on this page ever refreshes" looked
+ * like in configuration. A reader who leaves the tab open and comes back should see the current
+ * state of what they saved, so it is on, together with the same behaviour after a dropped
+ * connection.
+ *
+ * THE ONE THING A NEW QUERY MUST NOT DO. Refetching on focus is only safe for endpoints that read
+ * stored data. `GET /api/v1/matches` is declared `refresh: bool = Query(True)` on the backend, so
+ * a query over the dated match lists that inherits these defaults would go to the fixtures
+ * provider every time somebody alt-tabs — and the forecast provider's allowance is eight requests
+ * a day. Pass `refresh=false` (see STORED_ONLY in src/services/match-data-source.ts), or set
+ * `refetchOnWindowFocus: false` on that query.
+ *
+ * The refresh that is actually in force today lives in src/services/favourites.service.ts: it
+ * re-reads the signed-in reader's saved and followed fixtures when the tab comes back, and polls
+ * once a minute only while one of their matches is in play. Both read stored data only.
+ */
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      // Focus does not mean "request again": a query refetches on focus only once its data is
+      // stale, so returning to a tab twice in a minute costs one request, not two.
       staleTime: 5 * 60 * 1000, // 5 minutes
     },
   },

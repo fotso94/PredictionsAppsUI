@@ -1,14 +1,29 @@
 import React, { useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
+import type { ReturnedFromSignIn } from '@/components/favourites/useMatchSaving'
+import { pendingSaveIntent, safeReturnPath, useResumeSave } from '@/components/favourites/useMatchSaving'
+
+/**
+ * Create an account — and then carry on with whatever the visitor was doing.
+ *
+ * This form had no navigation of its own at all: everyone landed on the role landing page
+ * AuthContext picks, whatever they had been doing when they were sent here. It now honours the
+ * same handoff as LoginPage, because "create a new account" is one click away from that form and
+ * a visitor who takes it has not changed their mind about the match they were saving. The contract
+ * and the destination validation both live in components/favourites/useMatchSaving.ts.
+ */
 
 const RegisterPage: React.FC = () => {
   const { register, isAuthenticated, isLoading } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const resumeSave = useResumeSave()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formData, setFormData] = useState({
@@ -22,9 +37,16 @@ const RegisterPage: React.FC = () => {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  /** Where this visitor asked to go back to, once it has been proved to be a path on this app. */
+  const returnTo = safeReturnPath(location.state)
+  /** The save they were in the middle of, if any — used only to say so above the form. */
+  const interruptedSave = pendingSaveIntent(location.state)
+  /** Tells the destination it was returned to, not walked to. See ReturnedFromSignIn. */
+  const arrival: ReturnedFromSignIn = { resumedFromSignIn: true }
+
   // Redirect if already authenticated
   if (isAuthenticated) {
-    return <Navigate to="/" replace />
+    return <Navigate to={returnTo ?? '/'} state={arrival} replace />
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -60,8 +82,17 @@ const RegisterPage: React.FC = () => {
         last_name: formData.lastName,
         role: 'regular', // Default role for new users
       })
-      // Navigation is handled by AuthContext
       toast.success('Account created successfully! Welcome email sent to your inbox.')
+      // AuthContext has already navigated to its role landing page, and this component is
+      // unmounted by now; replacing that entry is what returns the visitor to the page they were
+      // on, and the save they had started goes through the shared store rather than through any
+      // state held here. With no return destination, AuthContext's choice stands.
+      //
+      // The save runs FIRST: the destination reads the saved list as it mounts, and navigating
+      // before the write landed would race the two and could show a star that says "not saved"
+      // for a match the server had just accepted.
+      await resumeSave(location.state)
+      if (returnTo) navigate(returnTo, { replace: true, state: arrival })
     } catch (error) {
       // Error is handled by AuthContext (toast notification)
       console.error('Registration failed:', error)
@@ -90,11 +121,29 @@ const RegisterPage: React.FC = () => {
             <h2 className="text-3xl font-bold text-white">Create your account</h2>
             <p className="mt-2 text-secondary-400">
               Already have an account?{' '}
-              <Link to="/login" className="text-primary-400 hover:text-primary-300">
+              {/* The handoff rides along, so going back to sign in still finishes the save and
+                  still returns to the same page. */}
+              <Link to="/login" state={location.state} className="text-primary-400 hover:text-primary-300">
                 Sign in
               </Link>
             </p>
           </div>
+
+          {/*
+            Why they are on this form. Stated only when a save is genuinely waiting, and worded as
+            what will be attempted rather than as a result: the save happens after the account is
+            created, and it can still fail.
+          */}
+          {interruptedSave && (
+            <p
+              className="rounded-lg border border-dark-700 bg-dark-900/60 px-4 py-3 text-center text-sm text-secondary-200"
+              data-testid="register-save-intent"
+            >
+              Saving a match needs an account. Create one and we will finish saving{' '}
+              <span className="font-medium text-white">{interruptedSave.label ?? 'that match'}</span>
+              {' '}and take you back to where you were.
+            </p>
+          )}
 
           {/* Form */}
           <Card>

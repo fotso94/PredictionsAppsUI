@@ -88,11 +88,24 @@ test('a paused refresh says when it resumes, not merely that it is paused', asyn
 
   const note = block.getByTestId('freshness-note');
   await expect(note).toContainText(/model forecasts: paused/i);
-  // The backend's own reason, verbatim.
-  await expect(note).toContainText(/daily request budget for gameforecast is spent/i);
-  // And the half that makes it useful: when it comes back.
-  await expect(note).toContainText(/resets at 00:00 utc/i);
+  // And the half that makes a pause useful instead of merely alarming: when it comes back.
   await expect(note).toContainText(/the next attempt is in/i);
+
+  /*
+   * THE REASON AND THE ARITHMETIC MOVED, AND NEITHER WAS LOST.
+   *
+   * This test used to require the backend's message verbatim and the UTC-reset sentence in the
+   * note itself. On a phone that put the vendor's name, our plan tier and an upgrade link above
+   * the football, which is what a reviewer counted as clutter. The note now carries a readable
+   * summary and the time it returns; the upstream wording and the reset arithmetic are one
+   * disclosure away. Both halves are still asserted, so nothing can quietly disappear — only its
+   * placement changed.
+   */
+  await expect(note).not.toContainText(/rapidapi\.com/i);
+  const detail = block.getByTestId('freshness-detail');
+  await detail.locator('summary').click();
+  await expect(block.getByTestId('freshness-mechanics')).toContainText(/resets at 00:00 utc/i);
+  await expect(detail).toContainText(/daily request budget for gameforecast is spent/i);
 });
 
 test('a backend with no scheduler does not imply that one exists', async ({ page }) => {
@@ -133,7 +146,11 @@ test('the match page carries the same freshness statement as the list', async ({
   const block = freshness(page);
   await expect(block).toBeVisible();
   await expect(block.getByTestId('freshness-summary')).toContainText(/stored data/i);
-  await expect(block.getByTestId('freshness-note')).toContainText(/resets at 00:00 utc/i);
+  // The same statement as the list, in the same two places: the note says when it comes back,
+  // and the reset arithmetic behind that answer sits in the disclosure.
+  await expect(block.getByTestId('freshness-note')).toContainText(/the next attempt is in/i);
+  await block.getByTestId('freshness-detail').locator('summary').click();
+  await expect(block.getByTestId('freshness-mechanics')).toContainText(/resets at 00:00 utc/i);
 });
 
 // --------------------------------------------------------------------------- the measured record

@@ -1,15 +1,20 @@
-import React from 'react'
+import React, { useEffect, useMemo, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
+import type { Match } from '@/types'
 import EmptyState from '@/components/ui/EmptyState'
 import { onLeagueLogoError, onTeamLogoError } from '@/components/ui/imageFallback'
 import useFavourites from '@/hooks/useFavourites'
+import {
+  followedFixturesStore, followIsUnreadable, FEED_DAYS_AHEAD,
+  type FollowedFixture, type FollowedFixturesState,
+} from '@/services/favourites.service'
 import { getErrorMessage } from '@/utils/errors'
 import FollowButton from './FollowButton'
 
 /**
- * The teams and competitions this user follows.
+ * The teams and competitions this user follows, and what each of them has next.
  *
  * Three facts are kept apart, because on screen they look the same and they are not:
  *  - a followed team we hold a row for, which can be shown and linked;
@@ -20,10 +25,137 @@ import FollowButton from './FollowButton'
  *
  * The follow limits come from the API (`limits`), never hard-coded here: two places with different
  * numbers is how a UI ends up refusing what the server would have accepted.
+ *
+ * WHY EACH ROW NOW CARRIES A FIXTURE. This was a directory of links: a name, a logo and a way to
+ * unfollow, which told a reader nothing about why the follow was worth keeping. Each row now says
+ * what that team or competition plays next, or what they last played — read from the same store
+ * the feed above is built from (`followedFixturesStore`), so showing it here costs no extra
+ * request. The fixtures themselves live in the feed; this panel stays the place follows are
+ * MANAGED, which is a different job from reading them and needs the unfollow control beside every
+ * entry.
  */
 
 export interface FollowingPanelProps {
   className?: string
+}
+
+/** Day and time of a kick-off, in the reader's own locale and zone. */
+const FIXTURE_DAY = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+const FIXTURE_TIME = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
+
+const kickoffDate = (match: Match): Date | null => {
+  const parsed = match.kickoffUtc ? new Date(match.kickoffUtc) : null
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed : null
+}
+
+const isPlayed = (match: Match) => match.status === 'finished'
+const isInPlay = (match: Match) => match.status === 'live' || match.status === 'halftime'
+
+/** The fixtures in the shared store that this particular follow brought in. */
+function fixturesFor(fixtures: FollowedFixture[], kind: 'team' | 'league', id: string): Match[] {
+  return fixtures
+    .filter(entry => entry.reasons.some(reason => reason.kind === kind && reason.id === id))
+    .map(entry => entry.match)
+}
+
+/**
+ * One line under a followed name: what is happening, what is next, or what was last played.
+ *
+ * It never says "no fixtures". What it can honestly say is that nothing is STORED for the days
+ * this feed covers, which is a statement about our data and not about the competition's calendar.
+ *
+ * AND A READ THAT FAILED IS NOT AN EMPTY WINDOW. Each follow is a request of its own, and one of
+ * them can come back 500 while the others answer. Until the store carried the failed follows by
+ * name, this line could not tell the two apart and said "No fixture stored for the next 7 days"
+ * for a team whose fixtures nobody had managed to read — a claim about data that never arrived,
+ * on the one row where the reader would never think to doubt it. A failure now says it failed and
+ * offers the way out the rest of the application already offers: Retry.
+ */
+const FollowFixtureLine: React.FC<{
+  kind: 'team' | 'league'
+  id: string
+  /** The team's own name, so a team row can name the opponent instead of repeating itself. */
+  self?: string
+  fixtures: FollowedFixture[]
+  status: FollowedFixturesState['status']
+  /** True when THIS follow's own request failed, whether or not the others did. */
+  unreadable: boolean
+  /** True while a rebuild is running, so Retry reports itself instead of looking inert. */
+  retrying: boolean
+}> = ({ kind, id, self, fixtures, status, unreadable, retrying }) => {
+  const mine = useMemo(() => fixturesFor(fixtures, kind, id), [fixtures, kind, id])
+
+  if (status === 'loading' && mine.length === 0) {
+    return <p className="truncate text-[11px] text-secondary-500">Loading fixtures…</p>
+  }
+  /*
+   * `status === 'error'` is every follow having failed; `unreadable` is this one having failed.
+   * They are the same fact at different scopes and get the same sentence and the same way out —
+   * the reader is not helped by learning how many OTHER follows also failed.
+   */
+  if (status === 'error' || unreadable) {
+    return (
+      <p className="break-words text-[11px] text-warning-200" data-testid="follow-fixture-failed">
+        Its fixtures could not be loaded, so nothing is claimed about them.{' '}
+        <button
+          type="button"
+          onClick={() => { void followedFixturesStore.load() }}
+          disabled={retrying}
+          className="focus-ring rounded font-medium text-primary-300 underline underline-offset-2 transition-colors hover:text-primary-200 disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="follow-fixture-retry"
+        >
+          {retrying ? 'Trying again…' : 'Try again'}
+        </button>
+      </p>
+    )
+  }
+
+  const opponentOf = (match: Match): string => {
+    if (kind !== 'team' || !self) return `${match.homeTeam.name} v ${match.awayTeam.name}`
+    const away = match.awayTeam.name === self
+    return `${away ? 'away at' : 'at home to'} ${away ? match.homeTeam.name : match.awayTeam.name}`
+  }
+
+  const byKickoff = (a: Match, b: Match) =>
+    (kickoffDate(a)?.getTime() ?? 0) - (kickoffDate(b)?.getTime() ?? 0)
+
+  const live = mine.filter(isInPlay).sort(byKickoff)[0]
+  if (live) {
+    return (
+      <p className="truncate text-[11px] text-success-300" data-testid="follow-fixture-line">
+        In play now, {opponentOf(live)}
+      </p>
+    )
+  }
+
+  const next = mine.filter(match => !isPlayed(match)).sort(byKickoff)[0]
+  if (next) {
+    const at = kickoffDate(next)
+    return (
+      <p className="truncate text-[11px] text-secondary-400" data-testid="follow-fixture-line">
+        Next {at ? `${FIXTURE_DAY.format(at)}, ${FIXTURE_TIME.format(at)}` : `on ${next.date}`}
+        {' — '}{opponentOf(next)}
+      </p>
+    )
+  }
+
+  const last = mine.filter(isPlayed).sort(byKickoff).reverse()[0]
+  if (last) {
+    const at = kickoffDate(last)
+    const score = last.result ? `${last.result.homeScore}–${last.result.awayScore}` : null
+    return (
+      <p className="truncate text-[11px] text-secondary-400" data-testid="follow-fixture-line">
+        Last played {at ? FIXTURE_DAY.format(at) : last.date}
+        {score ? `, ${score}` : ''}{' — '}{opponentOf(last)}
+      </p>
+    )
+  }
+
+  return (
+    <p className="truncate text-[11px] text-secondary-500" data-testid="follow-fixture-line">
+      No fixture stored for the next <span className="num">{FEED_DAYS_AHEAD}</span> days.
+    </p>
+  )
 }
 
 const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
@@ -31,6 +163,17 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
     data, loading, failed, error, reload, setTeamFollowed, setLeagueFollowed,
     isTeamPending, isLeaguePending,
   } = useFavourites()
+  const followed = useSyncExternalStore(
+    followedFixturesStore.subscribe,
+    followedFixturesStore.getState,
+    followedFixturesStore.getState,
+  )
+
+  // Idempotent once the store matches the follows it was built from, and shared with the feed, so
+  // rendering both panels on one page still makes one set of requests.
+  useEffect(() => {
+    if (data) followedFixturesStore.ensureLoaded()
+  }, [data])
 
   const teams = data?.teams ?? []
   const leagues = data?.leagues ?? []
@@ -82,7 +225,7 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
         className={className}
         tone="empty"
         title="You do not follow any teams or competitions yet."
-        description="Follow a team to see their fixtures here."
+        description="Follow a team and their fixtures join your feed above."
         action={
           <div className="flex flex-wrap justify-center gap-2">
             <Link
@@ -118,7 +261,7 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
         </div>
         {teams.length === 0 && unresolvedTeams.length === 0 ? (
           <p className="text-sm text-secondary-400">
-            No teams followed yet. Follow a team to see their fixtures here.
+            No teams followed yet. Follow a team and their fixtures join your feed above.
           </p>
         ) : (
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -129,13 +272,24 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
                 data-testid="followed-team"
               >
                 <img src={team.logo} alt="" aria-hidden="true" className="h-6 w-6 flex-shrink-0 object-contain" onError={onTeamLogoError} />
-                <Link
-                  to={`/teams/${team.id}`}
-                  className="focus-ring min-w-0 flex-1 truncate rounded text-sm text-white hover:underline"
-                >
-                  {team.name}
-                  {team.country && <span className="ml-2 text-xs text-secondary-400">{team.country}</span>}
-                </Link>
+                <div className="min-w-0 flex-1">
+                  <Link
+                    to={`/teams/${team.id}`}
+                    className="focus-ring block truncate rounded text-sm text-white hover:underline"
+                  >
+                    {team.name}
+                    {team.country && <span className="ml-2 text-xs text-secondary-400">{team.country}</span>}
+                  </Link>
+                  <FollowFixtureLine
+                    kind="team"
+                    id={team.id}
+                    self={team.name}
+                    fixtures={followed.fixtures}
+                    status={followed.status}
+                    unreadable={followIsUnreadable(followed, 'team', team.id)}
+                    retrying={followed.refreshing}
+                  />
+                </div>
                 <FollowButton kind="team" id={team.id} name={team.name} variant="icon" size="sm" />
               </li>
             ))}
@@ -174,7 +328,7 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
         </div>
         {leagues.length === 0 && unresolvedLeagues.length === 0 ? (
           <p className="text-sm text-secondary-400">
-            No competitions followed yet. Follow one to keep its fixtures within reach.
+            No competitions followed yet. Follow one and its fixtures join your feed above.
           </p>
         ) : (
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -185,13 +339,23 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
                 data-testid="followed-league"
               >
                 <img src={league.logo} alt="" aria-hidden="true" className="h-6 w-6 flex-shrink-0 object-contain" onError={onLeagueLogoError} />
-                <Link
-                  to={`/league/${league.id}`}
-                  className="focus-ring min-w-0 flex-1 truncate rounded text-sm text-white hover:underline"
-                >
-                  {league.name}
-                  {league.country && <span className="ml-2 text-xs text-secondary-400">{league.country}</span>}
-                </Link>
+                <div className="min-w-0 flex-1">
+                  <Link
+                    to={`/league/${league.id}`}
+                    className="focus-ring block truncate rounded text-sm text-white hover:underline"
+                  >
+                    {league.name}
+                    {league.country && <span className="ml-2 text-xs text-secondary-400">{league.country}</span>}
+                  </Link>
+                  <FollowFixtureLine
+                    kind="league"
+                    id={league.id}
+                    fixtures={followed.fixtures}
+                    status={followed.status}
+                    unreadable={followIsUnreadable(followed, 'league', league.id)}
+                    retrying={followed.refreshing}
+                  />
+                </div>
                 <FollowButton kind="league" id={league.id} name={league.name} variant="icon" size="sm" />
               </li>
             ))}

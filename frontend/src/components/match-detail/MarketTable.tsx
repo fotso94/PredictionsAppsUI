@@ -105,7 +105,10 @@ const MarketTable: React.FC<{
   const scoreBlock = block('exact_score')
 
   return (
-    <div className="space-y-4">
+    /* The testid is a measuring anchor as much as a selector: e2e/mocked/clutter.spec.ts holds
+       this table to a maximum distance from the top of the document on a phone, and that bound
+       only means anything if it can find the table without guessing at class names. */
+    <div className="space-y-4" data-testid="market-table" data-source={source}>
       <MarketRow label="Match Outcome">
         {outcome && bestLabel !== null && best !== null ? (
           <>

@@ -47,6 +47,28 @@ export default defineConfig({
       use: { ...devices['iPhone 13'] },
     },
     {
+      /**
+       * The narrowest phone this interface has to work on: Galaxy S8, 360x740, unmodified.
+       *
+       * 360px is where the header broke. The brand wrapped onto two lines, both account actions
+       * and the menu button would not fit on one row, the menu button was clipped by the right
+       * edge and the document scrolled sideways — so the one control that reaches every other page
+       * could not be tapped. mocked-mobile is an iPhone 13 at 390px and passed throughout, which
+       * is exactly why this needs a project of its own: thirty pixels is the entire difference
+       * between the two, and 360 is what a Galaxy S-series, a Pixel "a" in a font-scaled profile
+       * and most budget Androids report.
+       *
+       * SCOPE. It runs navigation-continuity.spec.ts only, not every mocked spec. Widening the
+       * testMatch to /mocked\/.*\.spec\.ts is a one-line change and is where this should end up —
+       * but the rest of the mocked suite has never been run at 360, so turning it all on in the
+       * same commit would mix "the header is fixed" with an unknown number of unrelated failures
+       * in files owned by other people. Run the mocked suite at 360 first, then widen it.
+       */
+      name: 'mocked-mobile-360',
+      testMatch: /mocked\/navigation-continuity\.spec\.ts/,
+      use: { ...devices['Galaxy S8'] },
+    },
+    {
       name: 'live',
       testMatch: /live\/.*\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },

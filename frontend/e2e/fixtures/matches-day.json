@@ -109,7 +109,623 @@
         }
       },
       "forecast_state": "available",
-      "last_synced_at": "2026-09-18T03:49:29.049666+00:00"
+      "last_synced_at": "2026-09-18T03:49:29.049666+00:00",
+      "brief": {
+        "match_id": "54305723-4509-48a3-af7d-3c279dcc2f98",
+        "assembled_at": "2026-09-18T03:49:29.008219Z",
+        "headline": "The model makes a home win the most likely single outcome at 45%, with a draw at 30%.",
+        "known": {
+          "kickoff_utc": "2026-09-19T11:30:00Z",
+          "kickoff_known": true,
+          "status": "scheduled",
+          "competition": {
+            "id": "6a327af8-6d2e-4bc4-b325-0e7106884f35",
+            "key": "premier_league",
+            "name": "Premier League",
+            "country": "England",
+            "country_code": "ENG",
+            "logo": "/leagues/default.svg",
+            "is_cup": false,
+            "providers": {
+              "livescore": "2"
+            }
+          },
+          "competition_known": true,
+          "model_markets": [
+            "match_result",
+            "btts",
+            "over_under_25",
+            "over_under_35",
+            "exact_score"
+          ],
+          "expert_markets": [],
+          "sources": [
+            {
+              "source": "model",
+              "present": true,
+              "provider": "gameforecast",
+              "external_event_id": "26662",
+              "match_confidence": "exact",
+              "matched_by": "name_kickoff",
+              "markets": [
+                "match_result",
+                "btts",
+                "over_under_25",
+                "over_under_35",
+                "exact_score"
+              ]
+            },
+            {
+              "source": "expert",
+              "present": false,
+              "prediction_id": null,
+              "published_at": null,
+              "created_by": null,
+              "markets": []
+            }
+          ]
+        },
+        "markets": [
+          {
+            "key": "match_result",
+            "label": "Match result",
+            "kind": "ranked",
+            "supplied_by": [
+              "model"
+            ],
+            "model": {
+              "source": "model",
+              "state": "available",
+              "available": true,
+              "reason": null,
+              "detail": null,
+              "outcomes": [
+                {
+                  "key": "home_win",
+                  "label": "Home win",
+                  "phrase": "a home win",
+                  "probability": 0.45,
+                  "percent": 45.0,
+                  "percent_text": "45",
+                  "rank": 1,
+                  "most_likely": true
+                },
+                {
+                  "key": "draw",
+                  "label": "Draw",
+                  "phrase": "a draw",
+                  "probability": 0.3,
+                  "percent": 30.0,
+                  "percent_text": "30",
+                  "rank": 2,
+                  "most_likely": false
+                },
+                {
+                  "key": "away_win",
+                  "label": "Away win",
+                  "phrase": "an away win",
+                  "probability": 0.25,
+                  "percent": 25.0,
+                  "percent_text": "25",
+                  "rank": 3,
+                  "most_likely": false
+                }
+              ],
+              "summary": "The model makes a home win the most likely single outcome at 45%, with a draw at 30%.",
+              "confidence_published": false,
+              "confidence": null,
+              "confidence_percent": null,
+              "confidence_scope": null,
+              "accuracy_state": "below_minimum_sample",
+              "accuracy_measured": false,
+              "accuracy_detail": "4 of 4 eligible prediction(s) from gameforecast with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not."
+            },
+            "expert": {
+              "source": "expert",
+              "state": "unavailable",
+              "available": false,
+              "reason": "no_expert_prediction",
+              "detail": "No expert has published a prediction for this fixture.",
+              "outcomes": [],
+              "summary": null,
+              "confidence_published": false,
+              "confidence": null,
+              "confidence_percent": null,
+              "confidence_scope": null,
+              "accuracy_state": "below_minimum_sample",
+              "accuracy_measured": false,
+              "accuracy_detail": "4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not."
+            }
+          },
+          {
+            "key": "btts",
+            "label": "Both teams to score",
+            "kind": "pair",
+            "supplied_by": [
+              "model"
+            ],
+            "model": {
+              "source": "model",
+              "state": "available",
+              "available": true,
+              "reason": null,
+              "detail": null,
+              "outcomes": [
+                {
+                  "key": "yes",
+                  "label": "Both teams score",
+                  "phrase": "both teams scoring",
+                  "probability": 0.45,
+                  "percent": 45.0,
+                  "percent_text": "45",
+                  "rank": 2,
+                  "most_likely": false
+                },
+                {
+                  "key": "no",
+                  "label": "At least one team does not score",
+                  "phrase": "at least one team not scoring",
+                  "probability": 0.55,
+                  "percent": 55.0,
+                  "percent_text": "55",
+                  "rank": 1,
+                  "most_likely": true
+                }
+              ],
+              "summary": "The model puts both teams scoring at 45% and at least one team not scoring at 55%.",
+              "confidence_published": false,
+              "confidence": null,
+              "confidence_percent": null,
+              "confidence_scope": null,
+              "accuracy_state": "below_minimum_sample",
+              "accuracy_measured": false,
+              "accuracy_detail": "4 of 4 eligible prediction(s) from gameforecast with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not."
+            },
+            "expert": {
+              "source": "expert",
+              "state": "unavailable",
+              "available": false,
+              "reason": "no_expert_prediction",
+              "detail": "No expert has published a prediction for this fixture.",
+              "outcomes": [],
+              "summary": null,
+              "confidence_published": false,
+              "confidence": null,
+              "confidence_percent": null,
+              "confidence_scope": null,
+              "accuracy_state": "below_minimum_sample",
+              "accuracy_measured": false,
+              "accuracy_detail": "4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not."
+            }
+          },
+          {
+            "key": "over_under_25",
+            "label": "Total goals 2.5",
+            "kind": "pair",
+            "supplied_by": [
+              "model"
+            ],
+            "model": {
+              "source": "model",
+              "state": "available",
+              "available": true,
+              "reason": null,
+              "detail": null,
+              "outcomes": [
+                {
+                  "key": "over",
+                  "label": "Over 2.5 goals",
+                  "phrase": "over 2.5 goals",
+                  "probability": 0.45,
+                  "percent": 45.0,
+                  "percent_text": "45",
+                  "rank": 2,
+                  "most_likely": false
+                },
+                {
+                  "key": "under",
+                  "label": "Under 2.5 goals",
+                  "phrase": "under 2.5 goals",
+                  "probability": 0.55,
+                  "percent": 55.0,
+                  "percent_text": "55",
+                  "rank": 1,
+                  "most_likely": true
+                }
+              ],
+              "summary": "The model puts over 2.5 goals at 45% and under 2.5 goals at 55%.",
+              "confidence_published": false,
+              "confidence": null,
+              "confidence_percent": null,
+              "confidence_scope": null,
+              "accuracy_state": "below_minimum_sample",
+              "accuracy_measured": false,
+              "accuracy_detail": "4 of 4 eligible prediction(s) from gameforecast with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not."
+            },
+            "expert": {
+              "source": "expert",
+              "state": "unavailable",
+              "available": false,
+              "reason": "no_expert_prediction",
+              "detail": "No expert has published a prediction for this fixture.",
+              "outcomes": [],
+              "summary": null,
+              "confidence_published": false,
+              "confidence": null,
+              "confidence_percent": null,
+              "confidence_scope": null,
+              "accuracy_state": "below_minimum_sample",
+              "accuracy_measured": false,
+              "accuracy_detail": "4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not."
+            }
+          },
+          {
+            "key": "over_under_35",
+            "label": "Total goals 3.5",
+            "kind": "pair",
+            "supplied_by": [
+              "model"
+            ],
+            "model": {
+              "source": "model",
+              "state": "available",
+              "available": true,
+              "reason": null,
+              "detail": null,
+              "outcomes": [
+                {
+                  "key": "over",
+                  "label": "Over 3.5 goals",
+                  "phrase": "over 3.5 goals",
+                  "probability": 0.3,
+                  "percent": 30.0,
+                  "percent_text": "30",
+                  "rank": 2,
+                  "most_likely": false
+                },
+                {
+                  "key": "under",
+                  "label": "Under 3.5 goals",
+                  "phrase": "under 3.5 goals",
+                  "probability": 0.7,
+                  "percent": 70.0,
+                  "percent_text": "70",
+                  "rank": 1,
+                  "most_likely": true
+                }
+              ],
+              "summary": "The model puts over 3.5 goals at 30% and under 3.5 goals at 70%.",
+              "confidence_published": false,
+              "confidence": null,
+              "confidence_percent": null,
+              "confidence_scope": null,
+              "accuracy_state": "below_minimum_sample",
+              "accuracy_measured": false,
+              "accuracy_detail": "4 of 4 eligible prediction(s) from gameforecast with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not."
+            },
+            "expert": {
+              "source": "expert",
+              "state": "unavailable",
+              "available": false,
+              "reason": "no_expert_prediction",
+              "detail": "No expert has published a prediction for this fixture.",
+              "outcomes": [],
+              "summary": null,
+              "confidence_published": false,
+              "confidence": null,
+              "confidence_percent": null,
+              "confidence_scope": null,
+              "accuracy_state": "below_minimum_sample",
+              "accuracy_measured": false,
+              "accuracy_detail": "4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not."
+            }
+          },
+          {
+            "key": "exact_score",
+            "label": "Exact score",
+            "kind": "scores",
+            "supplied_by": [
+              "model"
+            ],
+            "model": {
+              "source": "model",
+              "state": "available",
+              "available": true,
+              "reason": null,
+              "detail": null,
+              "outcomes": [
+                {
+                  "key": "1-0",
+                  "label": "1-0",
+                  "phrase": "1-0",
+                  "probability": 0.2,
+                  "percent": 20.0,
+                  "percent_text": "20",
+                  "rank": 1,
+                  "most_likely": true
+                },
+                {
+                  "key": "1-1",
+                  "label": "1-1",
+                  "phrase": "1-1",
+                  "probability": 0.15,
+                  "percent": 15.0,
+                  "percent_text": "15",
+                  "rank": 2,
+                  "most_likely": false
+                },
+                {
+                  "key": "0-0",
+                  "label": "0-0",
+                  "phrase": "0-0",
+                  "probability": 0.12,
+                  "percent": 12.0,
+                  "percent_text": "12",
+                  "rank": 3,
+                  "most_likely": false
+                },
+                {
+                  "key": "0-1",
+                  "label": "0-1",
+                  "phrase": "0-1",
+                  "probability": 0.1,
+                  "percent": 10.0,
+                  "percent_text": "10",
+                  "rank": 4,
+                  "most_likely": false
+                },
+                {
+                  "key": "2-0",
+                  "label": "2-0",
+                  "phrase": "2-0",
+                  "probability": 0.1,
+                  "percent": 10.0,
+                  "percent_text": "10",
+                  "rank": 5,
+                  "most_likely": false
+                },
+                {
+                  "key": "2-1",
+                  "label": "2-1",
+                  "phrase": "2-1",
+                  "probability": 0.1,
+                  "percent": 10.0,
+                  "percent_text": "10",
+                  "rank": 6,
+                  "most_likely": false
+                },
+                {
+                  "key": "0-2",
+                  "label": "0-2",
+                  "phrase": "0-2",
+                  "probability": 0.05,
+                  "percent": 5.0,
+                  "percent_text": "5",
+                  "rank": 7,
+                  "most_likely": false
+                },
+                {
+                  "key": "1-2",
+                  "label": "1-2",
+                  "phrase": "1-2",
+                  "probability": 0.05,
+                  "percent": 5.0,
+                  "percent_text": "5",
+                  "rank": 8,
+                  "most_likely": false
+                },
+                {
+                  "key": "2-2",
+                  "label": "2-2",
+                  "phrase": "2-2",
+                  "probability": 0.03,
+                  "percent": 3.0,
+                  "percent_text": "3",
+                  "rank": 9,
+                  "most_likely": false
+                },
+                {
+                  "key": "3-0",
+                  "label": "3-0",
+                  "phrase": "3-0",
+                  "probability": 0.02,
+                  "percent": 2.0,
+                  "percent_text": "2",
+                  "rank": 10,
+                  "most_likely": false
+                },
+                {
+                  "key": "3-1",
+                  "label": "3-1",
+                  "phrase": "3-1",
+                  "probability": 0.02,
+                  "percent": 2.0,
+                  "percent_text": "2",
+                  "rank": 11,
+                  "most_likely": false
+                },
+                {
+                  "key": "3-2",
+                  "label": "3-2",
+                  "phrase": "3-2",
+                  "probability": 0.02,
+                  "percent": 2.0,
+                  "percent_text": "2",
+                  "rank": 12,
+                  "most_likely": false
+                },
+                {
+                  "key": "0-3",
+                  "label": "0-3",
+                  "phrase": "0-3",
+                  "probability": 0.01,
+                  "percent": 1.0,
+                  "percent_text": "1",
+                  "rank": 13,
+                  "most_likely": false
+                },
+                {
+                  "key": "1-3",
+                  "label": "1-3",
+                  "phrase": "1-3",
+                  "probability": 0.01,
+                  "percent": 1.0,
+                  "percent_text": "1",
+                  "rank": 14,
+                  "most_likely": false
+                },
+                {
+                  "key": "2-3",
+                  "label": "2-3",
+                  "phrase": "2-3",
+                  "probability": 0.01,
+                  "percent": 1.0,
+                  "percent_text": "1",
+                  "rank": 15,
+                  "most_likely": false
+                },
+                {
+                  "key": "3-3",
+                  "label": "3-3",
+                  "phrase": "3-3",
+                  "probability": 0.0,
+                  "percent": 0.0,
+                  "percent_text": "0",
+                  "rank": 16,
+                  "most_likely": false
+                }
+              ],
+              "summary": "The model's most likely listed scoreline is 1-0 at 20%. Every other scoreline is grouped together at 1%.",
+              "confidence_published": false,
+              "confidence": null,
+              "confidence_percent": null,
+              "confidence_scope": null,
+              "accuracy_state": "below_minimum_sample",
+              "accuracy_measured": false,
+              "accuracy_detail": "4 of 4 eligible prediction(s) from gameforecast with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not.",
+              "other_scorelines_probability": 0.01,
+              "other_scorelines_percent": 1.0
+            },
+            "expert": {
+              "source": "expert",
+              "state": "unavailable",
+              "available": false,
+              "reason": "not_offered_by_source",
+              "detail": "Experts do not publish scoreline probabilities.",
+              "outcomes": [],
+              "summary": null,
+              "confidence_published": false,
+              "confidence": null,
+              "confidence_percent": null,
+              "confidence_scope": null,
+              "accuracy_state": "below_minimum_sample",
+              "accuracy_measured": false,
+              "accuracy_detail": "4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not."
+            }
+          }
+        ],
+        "missing": [
+          {
+            "scope": "source",
+            "source": "expert",
+            "market": null,
+            "reason": "no_expert_prediction",
+            "detail": "No expert has published a prediction for this fixture."
+          },
+          {
+            "scope": "market",
+            "source": "expert",
+            "market": "match_result",
+            "reason": "no_expert_prediction",
+            "detail": "No expert has published a prediction for this fixture."
+          },
+          {
+            "scope": "market",
+            "source": "expert",
+            "market": "btts",
+            "reason": "no_expert_prediction",
+            "detail": "No expert has published a prediction for this fixture."
+          },
+          {
+            "scope": "market",
+            "source": "expert",
+            "market": "over_under_25",
+            "reason": "no_expert_prediction",
+            "detail": "No expert has published a prediction for this fixture."
+          },
+          {
+            "scope": "market",
+            "source": "expert",
+            "market": "over_under_35",
+            "reason": "no_expert_prediction",
+            "detail": "No expert has published a prediction for this fixture."
+          },
+          {
+            "scope": "market",
+            "source": "expert",
+            "market": "exact_score",
+            "reason": "not_offered_by_source",
+            "detail": "Experts do not publish scoreline probabilities."
+          }
+        ],
+        "missing_reasons": [
+          "no_expert_prediction",
+          "not_offered_by_source"
+        ],
+        "freshness": {
+          "state": "available",
+          "state_reason": null,
+          "stale": false,
+          "kickoff_passed": false,
+          "model_run_at": "2026-09-17T00:00:00Z",
+          "provider_updated_at": "2026-09-14T00:00:00Z",
+          "retrieved_at": "2026-09-18T03:13:11.256535Z",
+          "model_run_at_known": true,
+          "provider_updated_at_known": true,
+          "retrieved_at_known": true,
+          "unknown_timestamps": [],
+          "age_basis": "model_run_at",
+          "age_hours": 27.8,
+          "max_age_hours": 72,
+          "refresh_blocked": false,
+          "refresh_blocked_reason": null
+        },
+        "reliability": {
+          "model": {
+            "confidence_published": false,
+            "confidence": null,
+            "detail": "This provider publishes no confidence value with its forecasts."
+          },
+          "expert": {
+            "confidence_published": false,
+            "confidence": null,
+            "detail": "The expert published no confidence value with this prediction."
+          },
+          "accuracy_state": "below_minimum_sample",
+          "accuracy_measured": false,
+          "results_scored": true,
+          "detail": "4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not.",
+          "scoring": {
+            "accuracy_state": "below_minimum_sample",
+            "eligible": 4,
+            "scored": 4,
+            "pending": 0,
+            "void": 0,
+            "not_scored": 0,
+            "published_figures": 0,
+            "minimum_sample": 30,
+            "window": {
+              "start": "2026-06-21",
+              "end": "2026-09-19",
+              "basis": "kickoff date in UTC, both ends included"
+            },
+            "measured_at": "2026-09-19T04:37:12.715953+00:00",
+            "counted_by": "app.services.settlement.measurement, the counts /performance/sources publishes",
+            "published_by": "/api/v1/performance/sources"
+          }
+        },
+        "anomalies": []
+      }
     },
     {
       "id": "0e7acadc-329e-46ac-a493-a3c25ea251d0",

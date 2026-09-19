@@ -86,12 +86,20 @@ export function groupMissing(missing: BriefMissingEntry[] | null | undefined): M
 }
 
 /**
- * The state of the data behind this page, as ONE statement.
+ * The state of the data behind this page, as ONE statement — about THIS FIXTURE and nothing else.
  *
  * A site-wide provider banner, a per-match notice and the operational quota wording used to stack
  * up on this screen and make a perfectly good forecast look broken. This composes the single
  * statement the reader needs, and hands the operational lines to a disclosure instead of printing
  * them beside it.
+ *
+ * THE SCOPE RULE, which is what keeps the page down to one notice. Site-wide operational state —
+ * the provider's spent allowance, its cooldown, when refreshing resumes — is NOT repeated here.
+ * It is stated once per page by DataFreshness, beside the ages it explains. What belongs here is
+ * only what is true of this fixture: the state of the forecast we hold for it, and the brief's own
+ * reason for a gap in it. `availability` therefore contributes exactly one thing — a fallback
+ * "refresh paused" clause for a payload whose brief carried no reason of its own — and never its
+ * wording, its counters or its resume time.
  *
  * A paused refresh never becomes the statement: "nobody has asked the provider recently" says
  * nothing about whether the numbers on screen are right, so it stays its own clause.
@@ -104,8 +112,11 @@ export interface DataState {
    * That a refresh is not running — its own clause, never folded into `statement`, because
    * "nobody has asked the provider recently" says nothing about whether what is on screen is right.
    *
-   * The caller shows EITHER this or the brief's own provenance line, never both: two sentences for
-   * one fact is how a working forecast ends up looking broken.
+   * It is now shown ALONGSIDE the brief's provenance line rather than instead of it: they are two
+   * different facts (how old this forecast is, and whether anything is fetching a newer one) and
+   * neither answers the other. What must not be doubled is the WORDING — the provider's own reason
+   * is printed here once and nowhere else on the page, which is why the caller strips it out of
+   * what it hands ProvenanceLine.
    */
   pausedClause: string | null
   /** Operational lines for the disclosure, in the backend's own words. De-duplicated. */
@@ -153,12 +164,32 @@ export function describeDataState(
 
   // The brief's own reason wins; the provider-status message is the fallback for a payload that
   // carries no brief. Either way this stays a separate clause from the state statement above.
+  /*
+   * THE PAUSE, STATED WITHOUT THE PROVIDER'S PROSE.
+   *
+   * `refresh_blocked_reason` is the provider's own sentence, and on this installation it is a
+   * hundred-and-eighty-character HTTP 429 ending in a vendor upgrade URL — the identical text the
+   * freshness block prints a few hundred pixels above. Printing it twice on one screen is how a
+   * forecast that is perfectly sound starts to look broken.
+   *
+   * So the clause here says the bare fact, which is all this fixture's reader needs to read the
+   * numbers below correctly, and the provider's verbatim reason goes into `detail`, behind the
+   * disclosure. Nothing is dropped: the sentence is still on the page, one tap away, and the
+   * freshness block still carries it in full outside any disclosure.
+   */
+  /*
+   * And the clause only claims what is actually on the page. Nine of the fixtures this
+   * installation holds carry no model forecast at all, and on those "what is below is the last
+   * forecast retrieved" asserts a forecast that does not exist — a sentence the reader can see is
+   * false by looking down the page. `held` already tells us which case we are in, so each case
+   * gets the sentence that is true of it.
+   */
   const blockedReason = refreshBlockedNote(freshness)
-  const paused = blockedReason
-    ? `Refresh paused — ${blockedReason}`
-    : availability?.paused
-      ? availability.message
-      : null
+  const paused = blockedReason || availability?.paused
+    ? held
+      ? 'Refresh paused: what is below is the last forecast retrieved, unchanged.'
+      : 'Refresh paused: no new forecast can be retrieved for this fixture until it resumes.'
+    : null
 
   const detail: string[] = []
   const add = (line: string | null | undefined) => {
@@ -167,11 +198,8 @@ export function describeDataState(
   }
   add(freshness?.state_reason)
   add(forecast?.stateReason)
-  // The operational quota wording: true, useful to an operator, and noise beside a sound forecast.
-  add(availability?.message)
-  // And when it comes back. Kept out of `message` on purpose (see forecastStatus.ts) so the
-  // site-wide banner stays one line; here there is room for it, and it is what a reader can use.
-  add(availability?.resume)
+  // The provider's own words for the pause, verbatim and unedited — just not in the reader's way.
+  add(blockedReason)
   if (freshness?.max_age_hours) {
     add(`A forecast is treated as out of date once it is more than ${freshness.max_age_hours} hours old.`)
   }

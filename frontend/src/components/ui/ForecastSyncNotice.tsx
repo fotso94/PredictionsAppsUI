@@ -1,5 +1,5 @@
 import React from 'react'
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { ChevronRightIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { ForecastSyncStatus } from '@/services/match-data-source'
 import { forecastSyncMessage } from '@/utils/predictionLabels'
 
@@ -21,39 +21,50 @@ interface ForecastSyncNoticeProps {
  * A spent daily allowance or a provider cooldown stops new numbers arriving; everything already
  * fetched is still exactly what the provider published and stays on screen. Renders nothing when
  * the last refresh ran normally.
+ *
+ * WHAT MOVED BEHIND THE DISCLOSURE, AND WHY. This sits directly under the freshness block, which
+ * now carries a line of its own for the forecast clock and, when a refresh is paused, when it
+ * comes back. Two blocks restating one pause in more words each is exactly what made a working
+ * forecast look broken, so what is left visible here is the one clause only THIS notice knows —
+ * that the day's own refresh pass was skipped, in the backend's own words. The reassurance, the
+ * deferred competitions and the timestamp of the last attempt are all still published, one tap
+ * away, because they are operator detail rather than a reason to doubt the numbers below.
  */
 const ForecastSyncNotice: React.FC<ForecastSyncNoticeProps> = ({ sync, resume = null, className = '' }) => {
   const message = forecastSyncMessage(sync)
   if (!message) return null
 
+  const detail: string[] = [
+    'Forecasts already loaded stay visible and are unchanged — they are just not being updated right now.',
+  ]
+  if (resume) detail.push(resume)
+  if (sync && sync.deferred.length > 0) {
+    detail.push(`Waiting for the next allowance reset: ${sync.deferred.join(', ')}`)
+  }
+  if (sync?.syncedAt) detail.push(`Last refresh attempt ${new Date(sync.syncedAt).toLocaleString()}`)
+
   return (
     <div
-      className={`flex items-start space-x-2 rounded-lg border border-yellow-700/60 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-200 ${className}`}
+      className={`rounded-lg border border-yellow-700/60 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-200 ${className}`}
       role="status"
       data-testid="forecast-sync-notice"
     >
-      <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
-      <div>
-        <p className="font-medium">{message}</p>
-        <p className="text-yellow-300/80">
-          Forecasts already loaded stay visible and are unchanged — they are just not being updated right now.
-        </p>
-        {/* When it comes back. A reader can do something with a time; "paused" on its own asks
-            them to keep checking. */}
-        {resume && (
-          <p className="mt-1 text-yellow-300/80" data-testid="forecast-sync-resume">{resume}</p>
-        )}
-        {sync && sync.deferred.length > 0 && (
-          <p className="mt-1 text-xs text-yellow-300/60">
-            Waiting for the next allowance reset: {sync.deferred.join(', ')}
-          </p>
-        )}
-        {sync?.syncedAt && (
-          <p className="mt-1 text-xs text-yellow-300/60">
-            Last refresh attempt {new Date(sync.syncedAt).toLocaleString()}
-          </p>
-        )}
+      <div className="flex items-start gap-2">
+        <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+        {/* min-w-0 and break-words: a provider reason can carry an unbreakable URL, and without
+            both of these it sets a min-content width that scrolls a narrow phone sideways. */}
+        <p className="min-w-0 flex-1 break-words font-medium">{message}</p>
       </div>
+
+      <details className="group ml-7 mt-1">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs text-yellow-300/80 hover:text-yellow-100">
+          <ChevronRightIcon className="h-3.5 w-3.5 flex-shrink-0 transition-transform group-open:rotate-90" aria-hidden="true" />
+          What this means for what you are reading
+        </summary>
+        <ul className="mt-1 space-y-0.5 text-xs text-yellow-300/80">
+          {detail.map(line => <li key={line} className="break-words">{line}</li>)}
+        </ul>
+      </details>
     </div>
   )
 }

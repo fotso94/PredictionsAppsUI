@@ -45,7 +45,15 @@ const CoverageRow: React.FC<{
   markets: string[]
   /** How this source is tied to the fixture: provider and link confidence, or publication time. */
   note: string | null
-  /** Short phrase for an absent source. The full sentence, and the reason, belong to the list below. */
+  /**
+   * The whole statement for an absent source — the backend's own sentence when it gave one.
+   *
+   * It used to be a short phrase here and the full sentence again in the list below and a third
+   * time in a strip further down the page, so "no expert has published a prediction for this
+   * fixture" reached the reader four times on one screen (twice in text, twice more to a screen
+   * reader through a marker's description). Absence is worth exactly one sentence, and this row —
+   * the one that is about who published what — is where it belongs.
+   */
   absentText: string
 }> = ({ source, present, markets, note, absentText }) => (
   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1" data-testid={`brief-coverage-${source}`}>
@@ -72,10 +80,21 @@ const EvidenceBrief: React.FC<{
   className?: string
 }> = ({ brief = null, forecast, experts, availability, className }) => {
   const groups = groupMissing(brief?.missing)
+  /**
+   * A source-scoped gap ("nothing at all from this source") is stated by the coverage row above;
+   * the list below is only about MARKETS and why each one is absent. Splitting them this way is
+   * what removed the repetition: before, a wholly-absent source was announced by the coverage row,
+   * then again in full by a row of this list, then a third time by a strip further down the page.
+   */
+  const marketGroups = groups.filter(group => !group.wholeSource)
+  const sourceGap = (source: BriefSourceKey): string | null =>
+    groups.find(group => group.wholeSource && group.source === source)?.detail ?? null
+
   const headline = brief?.headline ?? null
   // The headline is the first available summary, or the first missing-data sentence when nothing is
   // available — in which case it is about to be printed again, in full, in the list below.
-  const headlineIsRepeated = headline !== null && groups.some(group => group.detail === headline)
+  const headlineIsRepeated = headline !== null
+    && (marketGroups.some(group => group.detail === headline) || headline === sourceGap('model') || headline === sourceGap('expert'))
 
   const modelPresence = brief?.known.sources.find(entry => entry.source === 'model') ?? null
   const expertPresence = brief?.known.sources.find(entry => entry.source === 'expert') ?? null
@@ -103,7 +122,7 @@ const EvidenceBrief: React.FC<{
 
   return (
     <Card className={className} data-testid="match-brief">
-      <Card.Body className="space-y-5">
+      <Card.Body className="space-y-4 sm:space-y-5">
         <div className="space-y-2">
           <h2 className="text-base font-semibold text-white">What this page knows about the match</h2>
           {headline && !headlineIsRepeated && (
@@ -113,23 +132,25 @@ const EvidenceBrief: React.FC<{
 
         <div className="space-y-2">
           {/*
-            A short phrase for an absent source, not the full sentence: the reason it is absent —
-            and whether that reason means "unknown" or "not refreshed lately" — is stated once,
-            below, where the reasons are kept apart from one another.
+            The backend's own sentence for a source with nothing here, shown once. What follows
+            below is about MARKETS: which ones are missing from a source that did publish, and
+            whether each gap means "unknown" or only "not refreshed lately".
           */}
           <CoverageRow
             source="model"
             present={modelPresent}
             markets={modelMarkets}
             note={modelNote}
-            absentText="No forecast held for this fixture"
+            absentText={sourceGap('model') ?? 'No model forecast has been retrieved for this fixture.'}
           />
           <CoverageRow
             source="expert"
             present={expertPresent}
             markets={expertMarkets}
-            note={expertNote}
-            absentText="No prediction published for this fixture"
+            /* What would change this, for the one source a reader can actually wait on. Never a
+               promise about when: experts publish directly, and nobody schedules them. */
+            note={expertNote ?? (expertPresent ? null : 'Experts publish directly, so one appears here as soon as it is published.')}
+            absentText={sourceGap('expert') ?? 'No expert has published a prediction for this fixture.'}
           />
         </div>
 
@@ -140,7 +161,20 @@ const EvidenceBrief: React.FC<{
           className="border-t border-dark-700 pt-4"
         />
 
-        {brief && <MissingDataList groups={groups} className="border-t border-dark-700 pt-4" />}
+        {brief && marketGroups.length > 0 && (
+          <MissingDataList groups={marketGroups} className="border-t border-dark-700 pt-4" />
+        )}
+        {/*
+          The positive statement, and ONLY when it is true of every source. It used to come from
+          the list's own empty state, which could not tell "no market is missing" from "no market
+          is missing because a source published nothing at all" — and printed the reassurance in
+          the second case too.
+        */}
+        {brief && groups.length === 0 && (
+          <p className="border-t border-dark-700 pt-4 text-sm text-secondary-300" data-testid="brief-missing-none">
+            Both sources published every market they offer for this fixture.
+          </p>
+        )}
 
         {/*
           Probability is not accuracy, and it is not a claim about this source's record. Said once,

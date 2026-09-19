@@ -19,6 +19,15 @@
  *      succeed having made no provider call at all — the results task with nothing unsettled does
  *      exactly that — so this is not a retrieval either.
  *
+ * AND THE FOURTH SEPARATION, ADDED AFTER A REVIEWER WAS MISLED BY ITS ABSENCE. Fixtures and model
+ * forecasts refresh on different schedules, from different providers, under different allowances —
+ * and on this installation they are routinely days apart. A single "last refreshed" line took the
+ * most recent success across every task, so a live-score pass that ran a minute ago made a forecast
+ * that had not been refreshed in two days read as current. That is not a rounding error; it is the
+ * page asserting something nobody established. `freshnessReport` therefore answers the question
+ * twice — once for the fixture side, once for forecasts — and neither answer is ever allowed to
+ * cover for the other.
+ *
  * AND THE STATES THAT ARE NOT TIMESTAMPS. A task that has NEVER RUN has no time to show, and
  * showing another task's time in its place would be a fabrication; a task that is SKIPPING because
  * the daily allowance is spent has neither succeeded nor failed. Both get their own wording.
@@ -47,6 +56,15 @@ export function syncTaskLabel(name: string): string {
 
 /** The order the tasks read best in: what is on, then what is happening, then how it ended. */
 const TASK_ORDER = ['fixtures', 'live', 'results', 'forecasts'];
+
+/**
+ * Which tasks belong to the forecast clock.
+ *
+ * Everything NOT named here is the fixture side, so a task this build has never heard of is
+ * reported rather than silently dropped out of both halves — which is how a broken task would
+ * disappear from the interface entirely.
+ */
+const FORECAST_TASKS = ['forecasts'];
 
 /**
  * How each fixture provider is named on screen.
@@ -113,6 +131,62 @@ export function relativeTime(iso: string | null | undefined, now: number = Date.
 }
 
 /**
+ * How far past due something is, as the tail of "The next attempt is …".
+ *
+ * `relativeTime` cannot answer this and must not be asked to. Its past branch describes a MOMENT
+ * that has happened ("2 minutes ago"), and an attempt that is overdue is precisely one that has
+ * NOT happened — so reading a moment phrase into that sentence produced "The next attempt is 2
+ * minutes ago", which was live on the settle row and which any task on a two-minute cadence
+ * renders for part of every cycle.
+ *
+ * Rounded on the same boundaries as `relativeTime`, so one instant is never described as two
+ * different lengths of time within one block.
+ */
+function overduePhrase(seconds: number): string {
+  if (seconds < 45) return 'due now';
+  if (seconds < 90 * 60) return `overdue by ${plural(Math.max(1, Math.round(seconds / 60)), 'minute')}`;
+  if (seconds < 36 * 3600) return `overdue by ${plural(Math.round(seconds / 3600), 'hour')}`;
+  return `overdue by ${plural(Math.round(seconds / 86400), 'day')}`;
+}
+
+/**
+ * A backoff window, in the units the rest of this block already uses.
+ *
+ * Rounded on `relativeTime`'s boundaries for the same reason `overduePhrase` is: the forecasts
+ * task backs off for 21600 seconds, and this sentence called that "360 minutes" one line above a
+ * cadence line calling the identical span "6 hours". One duration, two numbers, in one paragraph.
+ */
+function backoffWindow(seconds: number): string {
+  if (seconds < 90 * 60) return plural(Math.max(1, Math.round(seconds / 60)), 'minute');
+  if (seconds < 36 * 3600) return plural(Math.round(seconds / 3600), 'hour');
+  return plural(Math.round(seconds / 86400), 'day');
+}
+
+/**
+ * When the scheduler will try this task again — or that it should already have.
+ *
+ * AN OVERDUE ATTEMPT IS A REAL STATE AND IS WORTH SAYING, so the sentence is not withheld once the
+ * time has passed: a reader looking at a stuck refresh wants to be told it is late, not to watch
+ * the line disappear. It was the tense that was wrong, not the fact. Both ends of the range have
+ * to read as English — a task seconds past due is simply due, one hours past due is hours late.
+ *
+ * Null when the backend published no next attempt. Nothing is invented to fill it.
+ */
+export function nextAttemptSentence(
+  iso: string | null | undefined,
+  now: number = Date.now(),
+): string | null {
+  if (!iso) return null;
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return null;
+  if (at > now) {
+    const ahead = relativeTime(iso, now);
+    return ahead ? `The next attempt is ${ahead}.` : null;
+  }
+  return `The next attempt is ${overduePhrase((now - at) / 1000)}.`;
+}
+
+/**
  * True when the backend's skip reason is a spent request allowance rather than anything broken.
  *
  * Matched on the backend's own vocabulary ("daily request budget for gameforecast is spent").
@@ -151,12 +225,46 @@ export interface TaskFreshness {
   paused: boolean;
   /** True when the last attempt failed and it has not recovered. */
   failing: boolean;
-  /** True when the task has never completed a run: no time exists, and none is invented. */
+  /**
+   * True when the task has never been ATTEMPTED — the backend's own `never_run`, and nothing else.
+   *
+   * It used to be set for any task with no successful pass, which made it false for the one state
+   * it matters in: a task that has run and failed has certainly run. `neverSucceeded` is the other
+   * claim and is kept apart from it, because the two are exactly what the row's wording turns on.
+   */
   neverRun: boolean;
-  /** The backend's own reason for the pause or the failure. Null when neither applies. */
+  /** True when no attempt has ever succeeded — which a task that ran and failed also is. */
+  neverSucceeded: boolean;
+  /** The backend's own reason for the pause. Null when the task is not paused. */
+  pauseReason: string | null;
+  /** The backend's own reason for the failure. Null when the last attempt did not fail. */
+  failureReason: string | null;
+  /**
+   * The leading reason, pause before failure — kept for callers that want one sentence.
+   *
+   * A task can be BOTH paused and failing, and the two reasons come from two different fields, so
+   * anything describing a specific state reads `pauseReason` or `failureReason` rather than this.
+   */
   reason: string | null;
   /** When it comes back — the sentence that makes a pause useful instead of merely alarming. */
   resume: string | null;
+  /**
+   * The same answer as separate sentences, in the order `resume` joins them.
+   *
+   * A caller assembling a note for SEVERAL tasks needs the pieces rather than the paragraph: the
+   * allowance reset is one calendar fact shared by every task waiting on it and must be said
+   * once, while the next attempt and the backoff window are measured per task and must be said
+   * for each. With only the joined string the choice was between printing the reset once per
+   * task and dropping a task's own timings with it.
+   */
+  resumeParts: string[];
+  /**
+   * How the resume time was arrived at: the allowance's calendar and the backoff window.
+   *
+   * True, useful when something is stuck, and not what a reader came to the page for — so these
+   * live in the opened detail rather than in the note. See the comment where they are built.
+   */
+  mechanicsParts: string[];
   /** Every sentence worth showing in the opened detail, in order, de-duplicated. */
   detail: string[];
 }
@@ -184,6 +292,54 @@ function cadenceNote(task: SyncTaskState): string | null {
     : `Scheduled every ${plural(Math.round(task.interval_seconds / 60), 'minute')}.`;
 }
 
+/**
+ * A provider's own refusal, in words a football reader can use.
+ *
+ * The backend passes the upstream message through verbatim, which is right for a diagnostic and
+ * wrong for the first thing on a match page. On 2026-09-19 the live block read, above the
+ * football: "Model forecasts: last attempt failed - skipped (recent failure: gameforecast: rate
+ * limit or quota exceeded (HTTP 429): You have exceeded the DAILY quota for Requests on your
+ * current plan, BASIC. Upgrade your plan at https://rapidapi.com/krnelstudio/api/game-forecast-api)."
+ *
+ * Three things are wrong with showing that to a visitor. It names the vendor and the plan tier,
+ * which is our plumbing and not their business. It carries an HTTP status and a parenthetical
+ * inside a parenthetical. And it ends in a link inviting somebody to buy something, which is an
+ * advert we did not write and do not want on a public page.
+ *
+ * So the note says what it means for the reader and the verbatim message stays one disclosure
+ * away, where anyone diagnosing it still has every word of it. Nothing is discarded, and nothing
+ * is invented either: a message this does not recognise is passed through with only its URLs
+ * removed, because an unrecognised message may be the one that matters.
+ */
+export function readableProviderReason(raw: string | null | undefined): string | null {
+  const text = (raw ?? '').trim()
+  if (!text) return null
+  // Never show a vendor link to a visitor, whatever the message turns out to be.
+  const withoutLinks = text.replace(/https?:\/\/\S+/g, '').replace(/\s{2,}/g, ' ').trim()
+  const lower = withoutLinks.toLowerCase()
+  if (lower.includes('quota') || lower.includes('rate limit') || lower.includes('429')) {
+    return 'the provider refused the request because our daily allowance with it is spent'
+  }
+  if (lower.includes('budget') && lower.includes('spent')) {
+    return 'our own daily request allowance for this provider is spent'
+  }
+  if (lower.includes('unauthor') || lower.includes('forbidden') || lower.includes('401')
+      || lower.includes('403')) {
+    return 'the provider rejected our credentials'
+  }
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    /*
+     * Deliberately names nobody. Not every timeout is a provider's: this branch was written as
+     * "the provider did not answer in time" and a test caught it rendering that for
+     * "settlement store: database timeout", which is our own database and not a provider at all.
+     * A summary must not reassign blame that the message did not assign.
+     */
+    return 'it timed out before answering'
+  }
+  // Unrecognised: say it as it came, minus the links, and let the disclosure carry the original.
+  return withoutLinks.replace(/[.\s]+$/, '')
+}
+
 /** Everything the reader needs about one task, in the backend's words wherever it supplied them. */
 export function describeTask(name: string, task: SyncTaskState, now: number = Date.now()): TaskFreshness {
   const label = syncTaskLabel(name);
@@ -191,18 +347,29 @@ export function describeTask(name: string, task: SyncTaskState, now: number = Da
   if (!task.enabled) {
     return {
       name, label, text: 'switched off', tone: 'unknown', exact: null,
-      paused: false, failing: false, neverRun: Boolean(task.never_run), reason: null, resume: null,
+      paused: false, failing: false,
+      neverRun: Boolean(task.never_run), neverSucceeded: !task.last_success_at,
+      pauseReason: null, failureReason: null, reason: null, resume: null, resumeParts: [],
+      mechanicsParts: [],
       detail: ['This task is not switched on for this installation, so nothing refreshes it automatically.'],
     };
   }
 
+  /*
+   * PAUSED AND FAILING ARE NOT EXCLUSIVE, AND EACH HAS ITS OWN REASON.
+   *
+   * A task can have failed its last attempt and then be skipping while it waits for the allowance
+   * to come back; the backend publishes the two reasons in two different fields. Reading one
+   * `reason` for both printed the SKIP's wording under "last attempt failed", which attributes to
+   * the failure a sentence the backend wrote about something else.
+   */
   const paused = Boolean(task.last_skip_reason);
   const failing = task.consecutive_failures > 0;
-  const reason = paused
-    ? task.last_skip_reason
-    : failing
-      ? (task.last_error ?? 'The backend did not report why the last attempt failed.')
-      : null;
+  const pauseReason = paused ? task.last_skip_reason : null;
+  const failureReason = failing
+    ? (task.last_error ?? 'The backend did not report why the last attempt failed.')
+    : null;
+  const reason = pauseReason ?? failureReason;
 
   /*
    * The resume statement, which is the whole point of showing a pause at all. "Paused" tells a
@@ -211,12 +378,34 @@ export function describeTask(name: string, task: SyncTaskState, now: number = Da
    * is what stopped it — never as a general explanation for every pause.
    */
   const resumeParts: string[] = [];
-  if (paused && isAllowanceSkip(task.last_skip_reason)) resumeParts.push(allowanceResetNote(now));
-  const nextDue = relativeTime(task.next_due_at, now);
-  if (nextDue) resumeParts.push(`The next attempt is ${nextDue}.`);
+  /*
+   * MECHANICS ARE NOT THE ANSWER TO "WHEN DOES THIS COME BACK".
+   *
+   * "The next attempt is in 5 hours" is what a reader can act on. How our allowance is counted,
+   * which calendar it resets on, and how long the backoff window is are how we arrived at that
+   * number, and the reviewer counted them among the technical explanations filling the screen
+   * above the football. They are kept, in full, one disclosure away — losing them would make a
+   * stuck refresh undiagnosable — but they are no longer the first thing on a match page.
+   */
+  const mechanicsParts: string[] = [];
+  if (paused && isAllowanceSkip(task.last_skip_reason)) mechanicsParts.push(allowanceResetNote(now));
+  const nextAttempt = nextAttemptSentence(task.next_due_at, now);
+  if (nextAttempt) resumeParts.push(nextAttempt);
   if (task.backoff_seconds) {
-    resumeParts.push(`After ${plural(task.consecutive_failures, 'failure')} in a row it is waiting `
-      + `${plural(Math.max(1, Math.round(task.backoff_seconds / 60)), 'minute')} before trying again.`);
+    /*
+     * "AFTER 1 FAILURE IN A ROW" IS NOT ENGLISH, and it is what the live installation renders: the
+     * forecasts task is one failure deep, so the note read "After 1 failure in a row it is waiting
+     * 360 minutes before trying again." A run of one is not a run, and 360 minutes is the same six
+     * hours the cadence line beside it already names.
+     *
+     * The count is never rounded up to make the phrase work. With no failure reported, nothing is
+     * said about failures at all rather than a failure being asserted to fit the sentence.
+     */
+    const failures = task.consecutive_failures;
+    const after = failures > 1 ? `After ${plural(failures, 'failure')} in a row it is waiting`
+      : failures === 1 ? 'After 1 failure it is waiting'
+        : 'It is waiting';
+    mechanicsParts.push(`${after} ${backoffWindow(task.backoff_seconds)} before trying again.`);
   }
   const resume = resumeParts.length > 0 ? resumeParts.join(' ') : null;
 
@@ -226,25 +415,39 @@ export function describeTask(name: string, task: SyncTaskState, now: number = Da
     const text = (line ?? '').trim();
     if (text && !detail.includes(text)) detail.push(text);
   };
-  if (paused) add(sentence(`Paused: ${reason}`));
-  if (failing) add(sentence(`Last attempt failed: ${reason}`));
+  if (paused) add(sentence(`Paused: ${pauseReason}`));
+  if (failing) add(sentence(`Last attempt failed: ${failureReason}`));
   if (behind && !paused && !failing) add('This task is more than a full interval past due.');
   add(resume);
   add(cadenceNote(task));
 
-  // A task that has never run has no timestamp, and none is borrowed from anywhere else.
+  /*
+   * A task with no successful pass has no timestamp, and none is borrowed from anywhere else.
+   *
+   * "Has never run" and "has run and never succeeded" are different claims, and the row must make
+   * the same distinction the summary line above it makes. The live forecasts task has run once and
+   * failed once: with one wording for both states this row read "has never run" three lines under
+   * a summary saying "no refresh has succeeded yet", so the same block contradicted itself and the
+   * row was the half that was false.
+   */
   if (task.never_run || !task.last_success_at) {
+    const base = task.never_run ? 'has never run' : 'has not succeeded yet';
     return {
       name,
       label,
-      text: paused ? 'has never run — paused' : 'has never run',
+      text: paused ? `${base} — paused` : base,
       tone: failing ? 'problem' : paused ? 'ageing' : 'unknown',
       exact: null,
       paused,
       failing,
-      neverRun: true,
+      neverRun: Boolean(task.never_run),
+      neverSucceeded: true,
+      pauseReason,
+      failureReason,
       reason,
       resume,
+      resumeParts,
+      mechanicsParts,
       detail,
     };
   }
@@ -258,8 +461,13 @@ export function describeTask(name: string, task: SyncTaskState, now: number = Da
     paused,
     failing,
     neverRun: false,
+    neverSucceeded: false,
+    pauseReason,
+    failureReason,
     reason,
     resume,
+    resumeParts,
+    mechanicsParts,
     detail,
   };
 }
@@ -283,13 +491,45 @@ export interface FreshnessSummary {
   /** A second sentence when one is needed — a pause with its resume time, or an unknown. */
   note: string | null;
   /**
-   * The task `note` is about, when it is about one.
+   * `note` as the separate statements it is built from: one per task it speaks for.
+   *
+   * Attribution alone was not enough to make a two-task note readable. Four measured sentences
+   * running together in one paragraph are hard to parse even when each names its task, and a
+   * reader scanning for "which refresh is stuck" should not have to. A caller that can lay them
+   * out gets the pieces; `note` stays the joined form for callers that only want one string.
+   */
+  notes: string[];
+  /**
+   * How the resume time was worked out, one line per task, for the opened detail only.
+   *
+   * The allowance's calendar and the backoff window are true and worth keeping, and they are not
+   * what a reader on a match page is there for. See where they are built in describeTask.
+   */
+  mechanics?: string[];
+  /**
+   * The "when it comes back" sentences `note` already carries. Null when it answers nothing.
+   *
+   * Exposed so a caller with a SECOND source for the same answer — the provider budget, which the
+   * scheduler's task state knows nothing about — can tell whether the note already says it,
+   * instead of guessing from its wording and either printing it twice or dropping it entirely.
+   */
+  resume: string | null;
+  /**
+   * The task `note` is about, when it is about one. The first of `noteTasks`.
    *
    * Only so the detail rows can avoid printing the same pause twice; it is never used to suppress
    * a DIFFERENT task's lines, which is how a real problem would end up hidden behind a coincidence
    * of identical wording.
    */
   noteTask: string | null;
+  /**
+   * Every task `note` speaks for.
+   *
+   * `note` can now describe more than one task — a failure and a pause on different tasks are two
+   * facts and both are stated — so naming only the first left the others repeating themselves a
+   * few pixels below.
+   */
+  noteTasks: string[];
   /** True when the backend reported a scheduler at all. */
   scheduled: boolean;
 }
@@ -297,65 +537,63 @@ export interface FreshnessSummary {
 /** The phrase every branch opens with. Nothing on any page is live, and it never pretends to be. */
 const STORED = 'Stored data';
 
+/** Worst wins, so a block holding two clocks takes the tone of the one in more trouble. */
+const TONE_RANK: Record<FreshnessTone, number> = { ok: 0, unknown: 1, ageing: 2, problem: 3 };
+
+/** The worse of two tones. 'unknown' outranks 'ok': not knowing is not the same as being fine. */
+export function worseTone(a: FreshnessTone, b: FreshnessTone): FreshnessTone {
+  return TONE_RANK[b] > TONE_RANK[a] ? b : a;
+}
+
+/** One group of scheduled tasks, read as a single clock. */
+interface ClockState {
+  /** "4 minutes ago" for the most recent success in the group; null when none has ever succeeded. */
+  age: string | null;
+  /**
+   * True when no task in the group has ever been ATTEMPTED — a different claim from `age === null`,
+   * which only says none has ever succeeded. A task that has run four times and failed four times
+   * has certainly run, and telling a reader it never has would be a plain falsehood about the one
+   * state that means something is wrong.
+   */
+  neverRan: boolean;
+  tone: FreshnessTone;
+  /** A pause, a failure or a late run, stated as its own sentence. */
+  note: string | null;
+  /** The same statements unjoined, one per task — see FreshnessSummary.notes. */
+  notes: string[];
+  /**
+   * How the resume time was worked out, one line per task, for the opened detail only.
+   *
+   * The allowance's calendar and the backoff window are true and worth keeping, and they are not
+   * what a reader on a match page is there for. See where they are built in describeTask.
+   */
+  mechanics?: string[];
+  /** The "when it comes back" half of `note`, so a caller can tell that it is already answered. */
+  resume: string | null;
+  noteTask: string | null;
+  noteTasks: string[];
+  /** True when the group holds at least one enabled task, so it has something to speak for. */
+  present: boolean;
+}
+
 /**
- * How current this page is, in one line.
+ * The state of one clock: the most recent success across `names`, with whatever is wrong with it.
  *
- * Every branch below is a different fact, and none of them is allowed to read as another:
- *
- *  - no status at all: we do not know. Not "up to date", not "out of date".
- *  - no scheduler block: this backend runs no scheduled refresh, so stored data only changes when
- *    somebody loads a page with refresh on. That is a real and important thing to say.
- *  - a scheduler that cannot reach its state store: it is running, but it cannot remember when
- *    anything ran, so no timestamp exists to show.
- *  - a scheduler where nothing has ever succeeded: "no scheduled refresh has run yet", never a
- *    borrowed time from somewhere else.
- *  - everything else: the most recent success across the enabled tasks, with a pause or a failure
- *    as its own clause rather than folded into the headline.
+ * Split out of the summary so the fixture side and the forecast side are computed by exactly the
+ * same rules — the whole point of separating them is that they are the same question asked of
+ * different tasks, not two different questions.
  */
-export function freshnessSummary(
-  status: ProviderStatus | null | undefined,
-  now: number = Date.now(),
-): FreshnessSummary {
-  if (!status) {
-    return {
-      text: `${STORED} · how current it is cannot be stated`,
-      tone: 'unknown',
-      note: 'The status service could not be reached, so when this was last refreshed is unknown.',
-      noteTask: null,
-      scheduled: false,
-    };
-  }
+function clockState(scheduler: SchedulerStatus, names: string[], now: number): ClockState {
+  const active = names
+    .filter(name => scheduler.tasks[name]?.enabled !== false)
+    .map(name => describeTask(name, scheduler.tasks[name], now));
 
-  const scheduler = status.scheduler;
-  if (!scheduler) {
+  if (active.length === 0) {
     return {
-      text: `${STORED} · no scheduled refresh is reported`,
-      tone: 'unknown',
-      note: 'This installation reports no refresh schedule, so stored data changes only when a page asks the provider for new data.',
-      noteTask: null,
-      scheduled: false,
+      age: null, neverRan: true, tone: 'unknown',
+      note: null, notes: [], resume: null, noteTask: null, noteTasks: [], present: false,
     };
   }
-  if (!scheduler.enabled) {
-    return {
-      text: `${STORED} · scheduled refresh is switched off`,
-      tone: 'ageing',
-      note: 'Automatic refreshes are switched off here. What is stored stays as it is until somebody refreshes it.',
-      noteTask: null,
-      scheduled: true,
-    };
-  }
-  if (!scheduler.state_store_available) {
-    return {
-      text: `${STORED} · when it last refreshed is unknown`,
-      tone: 'unknown',
-      note: 'The scheduler cannot reach its state store, so it cannot report when any task last ran.',
-      noteTask: null,
-      scheduled: true,
-    };
-  }
-
-  const active = describeTasks(scheduler, now).filter(task => scheduler.tasks[task.name]?.enabled !== false);
 
   const successes = active
     .map(task => Date.parse(scheduler.tasks[task.name]?.last_success_at ?? ''))
@@ -366,51 +604,366 @@ export function freshnessSummary(
   const behind = active.filter(task => taskIsBehind(scheduler.tasks[task.name], now));
 
   /*
-   * A pause and a failure are different states and get different sentences. A failure leads,
-   * because it is the one that means something is wrong; a pause is expected behaviour on a trial
-   * plan and reads as such, with the time it comes back attached.
+   * ONE PARAGRAPH PER TASK, AND EVERY SENTENCE IN IT IS ABOUT THAT TASK.
+   *
+   * A pause and a failure are different states, they get different sentences, and BOTH are stated
+   * when both are true — this used to be `failNote ?? pauseNote ?? behindNote`, which assumes a
+   * task is in exactly one of the three states, and the failure branch silently ate the pause and
+   * with it the only sentence saying when forecasts come back.
+   *
+   * Each reason is also the reason of the task it is printed under. Joining the labels and then
+   * printing `failing[0]`'s reason states a fact measured about one task as though it were true of
+   * the others: with `live` down on a network error and `results` down on a database timeout, the
+   * block read "Live scores and Final results: last attempt failed — livescore: network error",
+   * which is false of Final results.
+   *
+   * AND THE SENTENCES THAT SAY WHEN IT COMES BACK ARE PART OF THAT PARAGRAPH, not a pool at the
+   * end of the note. Pooled, with two tasks in trouble, the block read "The next attempt is in 10
+   * minutes. After 3 failures in a row it is waiting 10 minutes before trying again. The next
+   * attempt is in 30 minutes. After 2 failures in a row it is waiting 30 minutes before trying
+   * again." — four measured facts, none of them attached to the task it was measured on, so a
+   * reader could not tell which refresh either pair described.
+   *
+   * With ONE task in trouble this emits exactly the string it emitted before, in the same order,
+   * so the states pinned in freshness.spec.ts are unchanged and a healthy schedule still gets no
+   * second sentence at all.
    */
-  const names = (list: TaskFreshness[]) => list.map(task => task.label).join(' and ');
-  const failNote = failing.length > 0
-    ? sentence(`${names(failing)}: last attempt failed — ${failing[0].reason}`)
-    : null;
-  const pauseNote = paused.length > 0
-    ? [sentence(`${names(paused)}: paused — ${paused[0].reason}`), paused[0].resume]
-      .filter(Boolean).join(' ')
-    : null;
+  const speaking: TaskFreshness[] = [];
+  for (const task of [...failing, ...paused, ...behind]) {
+    if (!speaking.includes(task)) speaking.push(task);
+  }
+
   /*
-   * A task that is simply late is the third case, and it needs a sentence of its own. Without one
-   * the line would turn amber with nothing to explain it, which is the worst of both: enough
-   * signal to worry a reader and not enough to tell them what about.
+   * The one sentence that is NOT a fact about a task. Our allowance resets on the calendar, not on
+   * any task's schedule, so several tasks waiting on it are all waiting on the same midnight and
+   * printing it under each of them would read as several separate stoppages.
    */
-  const behindNote = behind.length > 0
-    ? `${names(behind)} ${behind.length === 1 ? 'is' : 'are'} more than a full interval past due, `
-      + 'so what is stored may be older than the schedule intends.'
-    : null;
+  const allowance = allowanceResetNote(now);
+  let allowanceSaid = false;
 
-  // Which task the note speaks for, so its detail row does not repeat it a few pixels below.
-  const noteTask = failNote ? failing[0].name
-    : pauseNote ? paused[0].name
-      : behindNote ? behind[0].name : null;
+  const noteTasks: string[] = [];
+  const resumes: string[] = [];
+  const mechanics: string[] = [];
+  const paragraphs: string[] = [];
 
-  if (successes.length === 0) {
+  for (const task of speaking) {
+    const lines: string[] = [];
+    /*
+     * The reason a READER needs, not the upstream string. The verbatim message is still carried
+     * into the disclosure below, word for word, so nothing is lost to whoever is diagnosing it.
+     */
+    if (task.failing) {
+      lines.push(sentence(`${task.label}: last attempt failed — `
+        + `${readableProviderReason(task.failureReason) ?? 'the backend did not say why'}`));
+    }
+    if (task.paused) {
+      lines.push(sentence(`${task.label}: paused — `
+        + `${readableProviderReason(task.pauseReason) ?? 'the backend did not say why'}`));
+    }
+    /*
+     * A task that is simply late is the third case, and it needs a sentence of its own. Without
+     * one the line would turn amber with nothing to explain it, which is the worst of both:
+     * enough signal to worry a reader and not enough to tell them what about.
+     */
+    if (behind.includes(task)) {
+      lines.push(`${task.label}: more than a full interval past due, `
+        + 'so what is stored may be older than the schedule intends.');
+    }
+    for (const part of task.resumeParts) {
+      if (part === allowance) {
+        if (allowanceSaid) continue;
+        allowanceSaid = true;
+      }
+      lines.push(part);
+      if (!resumes.includes(part)) resumes.push(part);
+    }
+    /*
+     * The allowance reset is one calendar fact shared by every task waiting on it, so it is said
+     * once however many tasks are waiting — de-duplicating whole paragraphs could not catch it,
+     * because the paragraphs around it differ.
+     */
+    for (const part of task.mechanicsParts) {
+      if (part === allowance) {
+        if (allowanceSaid) continue;
+        allowanceSaid = true;
+      }
+      const line = `${task.label}: ${part.charAt(0).toLowerCase()}${part.slice(1)}`;
+      if (!mechanics.includes(line)) mechanics.push(line);
+    }
+    noteTasks.push(task.name);
+    paragraphs.push(lines.join(' '));
+  }
+
+  // Nothing is collected outside the loop above, so with no task in trouble both of these are
+  // empty and the block keeps the one short line a healthy schedule has always had.
+  const resume = resumes.length > 0 ? resumes.join(' ') : null;
+
+  return {
+    age: successes.length > 0 ? relativeTime(new Date(Math.max(...successes)).toISOString(), now) : null,
+    neverRan: active.every(task => Boolean(scheduler.tasks[task.name]?.never_run)),
+    tone: failing.length > 0 ? 'problem'
+      : (paused.length > 0 || behind.length > 0) ? 'ageing'
+        : successes.length > 0 ? 'ok' : 'unknown',
+    note: paragraphs.length > 0 ? paragraphs.join(' ') : null,
+    notes: paragraphs,
+    mechanics,
+    resume,
+    // Which tasks the note speaks for, so their detail rows do not repeat it a few pixels below.
+    noteTask: noteTasks[0] ?? null,
+    noteTasks,
+    present: true,
+  };
+}
+
+/**
+ * How current the FIXTURE side of this page is, in one line: what is on, when it kicks off, the
+ * live score and the final result.
+ *
+ * Deliberately NOT the forecast clock. Model forecasts refresh on their own schedule under their
+ * own allowance and are read separately by `forecastRefresh` — see the header of this file for the
+ * bug that merging them caused.
+ *
+ * Every branch below is a different fact, and none of them is allowed to read as another:
+ *
+ *  - no status at all: we do not know. Not "up to date", not "out of date".
+ *  - no scheduler block: this backend runs no scheduled refresh, so stored data only changes when
+ *    somebody loads a page with refresh on. That is a real and important thing to say.
+ *  - a scheduler that cannot reach its state store: it is running, but it cannot remember when
+ *    anything ran, so no timestamp exists to show.
+ *  - a scheduler where nothing has ever succeeded: "no scheduled refresh has run yet", never a
+ *    borrowed time from somewhere else.
+ *  - everything else: the most recent success across the enabled fixture tasks, with a pause or a
+ *    failure as its own clause rather than folded into the headline.
+ */
+/*
+ * The fixed statements, named so each can be given once and then both joined into `note` and
+ * listed in `notes` without the two copies drifting apart.
+ */
+const NO_STATUS_NOTE = 'The status service could not be reached, so when this was last refreshed is unknown.';
+const NO_SCHEDULE_NOTE = 'This installation reports no refresh schedule, so stored data changes only when a page asks the provider for new data.';
+const SWITCHED_OFF_NOTE = 'Automatic refreshes are switched off here. What is stored stays as it is until somebody refreshes it.';
+const NO_STATE_STORE_NOTE = 'The scheduler cannot reach its state store, so it cannot report when any task last ran.';
+const NO_FIXTURE_TASK_NOTE = 'No scheduled task on this installation refreshes fixtures, kick-off times or results.';
+const NO_PASS_YET_NOTE = 'The scheduler is running but no task has completed a pass yet, so there is no refresh time to report.';
+
+export function freshnessSummary(
+  status: ProviderStatus | null | undefined,
+  now: number = Date.now(),
+): FreshnessSummary {
+  if (!status) {
     return {
-      text: `${STORED} · no scheduled refresh has run yet`,
-      tone: failing.length > 0 ? 'problem' : paused.length > 0 ? 'ageing' : 'unknown',
-      note: failNote ?? pauseNote ?? behindNote
-        ?? 'The scheduler is running but no task has completed a pass yet, so there is no refresh time to report.',
-      noteTask: noteTask,
+      text: `${STORED} · how current it is cannot be stated`,
+      tone: 'unknown',
+      note: NO_STATUS_NOTE,
+      notes: [NO_STATUS_NOTE],
+      resume: null,
+      noteTask: null,
+      noteTasks: [],
+      scheduled: false,
+    };
+  }
+
+  const scheduler = status.scheduler;
+  if (!scheduler) {
+    return {
+      text: `${STORED} · no scheduled refresh is reported`,
+      tone: 'unknown',
+      note: NO_SCHEDULE_NOTE,
+      notes: [NO_SCHEDULE_NOTE],
+      resume: null,
+      noteTask: null,
+      noteTasks: [],
+      scheduled: false,
+    };
+  }
+  if (!scheduler.enabled) {
+    return {
+      text: `${STORED} · scheduled refresh is switched off`,
+      tone: 'ageing',
+      note: SWITCHED_OFF_NOTE,
+      notes: [SWITCHED_OFF_NOTE],
+      resume: null,
+      noteTask: null,
+      noteTasks: [],
+      scheduled: true,
+    };
+  }
+  if (!scheduler.state_store_available) {
+    return {
+      text: `${STORED} · when it last refreshed is unknown`,
+      tone: 'unknown',
+      note: NO_STATE_STORE_NOTE,
+      notes: [NO_STATE_STORE_NOTE],
+      resume: null,
+      noteTask: null,
+      noteTasks: [],
       scheduled: true,
     };
   }
 
-  const latest = new Date(Math.max(...successes)).toISOString();
+  const fixtureNames = Object.keys(scheduler.tasks ?? {}).filter(name => !FORECAST_TASKS.includes(name));
+  const state = clockState(scheduler, fixtureNames, now);
+
+  if (!state.present) {
+    // Every task this backend runs is a forecast task. Saying nothing about fixtures is the only
+    // honest option: no task here refreshes them.
+    return {
+      text: `${STORED} · nothing here refreshes fixtures or scores`,
+      tone: 'unknown',
+      note: NO_FIXTURE_TASK_NOTE,
+      notes: [NO_FIXTURE_TASK_NOTE],
+      resume: null,
+      noteTask: null,
+      noteTasks: [],
+      scheduled: true,
+    };
+  }
+
   return {
-    text: `${STORED} · last refreshed ${relativeTime(latest, now)}`,
-    tone: failing.length > 0 ? 'problem' : (paused.length > 0 || behind.length > 0) ? 'ageing' : 'ok',
-    note: failNote ?? pauseNote ?? behindNote,
-    noteTask: noteTask,
+    text: state.age
+      ? `${STORED} · fixtures and scores last refreshed ${state.age}`
+      : state.neverRan
+        ? `${STORED} · no scheduled refresh has run yet`
+        : `${STORED} · no scheduled refresh has succeeded yet`,
+    tone: state.tone,
+    note: state.note ?? (state.age ? null : NO_PASS_YET_NOTE),
+    notes: state.notes.length > 0 ? state.notes : (state.age ? [] : [NO_PASS_YET_NOTE]),
+    mechanics: state.mechanics ?? [],
+    resume: state.resume,
+    noteTask: state.noteTask,
+    noteTasks: state.noteTasks,
     scheduled: true,
+  };
+}
+
+/**
+ * How current the MODEL FORECASTS are — the other clock, and on this installation usually the
+ * older one.
+ *
+ * Null when the backend reports no per-task state at all, because then there is nothing to say
+ * about forecasts SPECIFICALLY and the fixture line's "we do not know" already covers the page.
+ * A forecast row that appeared with no task behind it could only be guessing.
+ */
+export function forecastRefresh(
+  status: ProviderStatus | null | undefined,
+  now: number = Date.now(),
+): FreshnessSummary | null {
+  const scheduler = status?.scheduler;
+  if (!scheduler || !scheduler.enabled || !scheduler.state_store_available) return null;
+
+  const names = FORECAST_TASKS.filter(name => scheduler.tasks?.[name]);
+  if (names.length === 0) return null;
+
+  const state = clockState(scheduler, names, now);
+  if (!state.present) {
+    return {
+      text: 'Model forecasts · automatic refresh is switched off',
+      tone: 'ageing',
+      note: null,
+      notes: [],
+      resume: null,
+      noteTask: null,
+      noteTasks: [],
+      scheduled: true,
+    };
+  }
+
+  return {
+    text: state.age
+      ? `Model forecasts last refreshed ${state.age}`
+      : state.neverRan
+        ? 'Model forecasts · no refresh has run yet'
+        : 'Model forecasts · no refresh has succeeded yet',
+    tone: state.tone,
+    // No "nothing has completed a pass" fallback here: the fixture line above already carries it
+    // when it applies, and the same sentence twice in one small block reads as two problems.
+    note: state.note,
+    notes: state.notes,
+    mechanics: state.mechanics ?? [],
+    resume: state.resume,
+    noteTask: state.noteTask,
+    noteTasks: state.noteTasks,
+    scheduled: true,
+  };
+}
+
+/** Both clocks, and the one tone and the one note the block as a whole should carry. */
+export interface FreshnessReport {
+  /** Fixtures, kick-off times, live scores and final results. */
+  fixtures: FreshnessSummary;
+  /** Model forecasts, on their own clock. Null when no per-task state exists to read. */
+  forecasts: FreshnessSummary | null;
+  /** The worse of the two, so the block never looks calmer than its unhappiest half. */
+  tone: FreshnessTone;
+  /**
+   * The sentence a reader must see even if they never open the disclosure — a pause with its
+   * resume time, a failure, or an "we do not know". De-duplicated: when both clocks are stopped
+   * for the same reason it is stated once, because one fact printed twice reads as two faults.
+   */
+  note: string | null;
+  /**
+   * `note` as its separate statements, across both clocks and de-duplicated the same way.
+   *
+   * One per task in trouble, so a caller can lay them out as lines instead of one paragraph —
+   * which is the difference between a two-task note being attributable and being readable.
+   */
+  notes: string[];
+  /**
+   * How the resume time was worked out, one line per task, for the opened detail only.
+   *
+   * The allowance's calendar and the backoff window are true and worth keeping, and they are not
+   * what a reader on a match page is there for. See where they are built in describeTask.
+   */
+  mechanics?: string[];
+  /**
+   * The "when it comes back" sentences `note` already carries, across both clocks.
+   *
+   * A second source answers the same question — the provider budget, which the scheduler's task
+   * state cannot see — and a caller holding both needs to know which sentences are already going
+   * to be printed. Without it the choice is between saying it twice and saying it never, and the
+   * block spent this round saying it never.
+   */
+  resume: string | null;
+  noteTask: string | null;
+  /** Every task `note` speaks for, across both clocks. */
+  noteTasks: string[];
+  scheduled: boolean;
+}
+
+/** The whole freshness answer for a page: two clocks, never merged into one. */
+export function freshnessReport(
+  status: ProviderStatus | null | undefined,
+  now: number = Date.now(),
+): FreshnessReport {
+  const fixtures = freshnessSummary(status, now);
+  const forecasts = forecastRefresh(status, now);
+
+  // Statement by statement rather than clock by clock: two clocks stopped for the same reason
+  // used to be de-duplicated only when their whole notes matched word for word.
+  const notes: string[] = [];
+  for (const note of [...fixtures.notes, ...(forecasts?.notes ?? [])]) {
+    if (note && !notes.includes(note)) notes.push(note);
+  }
+  const mechanics: string[] = [];
+  for (const line of [...(fixtures.mechanics ?? []), ...(forecasts?.mechanics ?? [])]) {
+    if (line && !mechanics.includes(line)) mechanics.push(line);
+  }
+  const resumes: string[] = [];
+  for (const resume of [fixtures.resume, forecasts?.resume ?? null]) {
+    if (resume && !resumes.includes(resume)) resumes.push(resume);
+  }
+
+  return {
+    fixtures,
+    forecasts,
+    tone: forecasts ? worseTone(fixtures.tone, forecasts.tone) : fixtures.tone,
+    note: notes.length > 0 ? notes.join(' ') : null,
+    notes,
+    mechanics,
+    resume: resumes.length > 0 ? resumes.join(' ') : null,
+    noteTask: fixtures.noteTask ?? forecasts?.noteTask ?? null,
+    noteTasks: [...new Set([...fixtures.noteTasks, ...(forecasts?.noteTasks ?? [])])],
+    scheduled: fixtures.scheduled,
   };
 }
 

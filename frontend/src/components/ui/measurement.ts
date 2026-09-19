@@ -12,14 +12,17 @@
  * estimate — which is why `hit_rate` comes back null with a reason rather than as a small,
  * confident-looking number.
  *
- * AND THE STATE WE ARE ACTUALLY IN. Nothing on this installation has been scored yet, so the
- * "not measured" path is the one a real visitor meets. It is treated as a first-class state with
- * its own sentences, not as an error or an empty chart.
+ * AND EVERY STATE IS WRITTEN OUT, because which one a visitor meets depends only on how much has
+ * been scored by the time they arrive, and that changes as results come in. "Nothing scored",
+ * "scored but below the minimum sample" and "measured" each get their own sentences here, so no
+ * caller has to invent wording — and so no sentence asserts one of those states as a standing fact
+ * about this installation. An earlier version of this comment did exactly that, and it was still
+ * claiming nothing had been scored after four forecasts had been.
  *
  * Plain helpers, deliberately in a .ts file: a .tsx may export only components.
  */
 
-import type { MeasuredPerformance, MeasuredSource } from '@/types';
+import type { MeasuredMarket, MeasuredPerformance, MeasuredSource } from '@/types';
 import type { PerformanceResult } from '@/services/performance.service';
 
 /**
@@ -70,6 +73,23 @@ export function windowText(performance: MeasuredPerformance): string {
       : at.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
   };
   return `${format(performance.window.start)} to ${format(performance.window.end)}`;
+}
+
+/**
+ * What a market counted that is NOT in its sample: pushes, voids and unscorable predictions.
+ *
+ * They are real and they are published, but none of them is in the denominator of a hit rate. They
+ * used to trail the hit count on the same line — "1 of 4 scored · 1 push · 2 not scorable" — where
+ * a reader had to work out which of the four numbers the rate would be computed from. Given its
+ * own labelled row, the sample stays a single number the correct-outcome count can be checked
+ * against. Returns null when nothing was excluded, so no row is rendered saying "nothing".
+ */
+export function excludedCountsText(market: MeasuredMarket): string | null {
+  const parts: string[] = [];
+  if (market.pushes > 0) parts.push(`${market.pushes} push${market.pushes === 1 ? '' : 'es'}`);
+  if (market.voids > 0) parts.push(`${market.voids} void`);
+  if (market.not_scored > 0) parts.push(`${market.not_scored} not scorable`);
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 /** The counts behind a source, which are published whether or not a headline figure is. */

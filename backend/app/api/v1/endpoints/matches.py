@@ -25,7 +25,7 @@ from app.schemas.matches import (
 )
 from app.services.expert_prediction import ExpertPredictionService
 from app.services.forecast_service import ForecastService
-from app.services.match_brief import build_brief, compact_brief
+from app.services.match_brief import build_brief, compact_brief, current_scoring_summary
 from app.services.match_data_service import MatchDataService, SyncMeta
 from app.services.providers.base import ProviderError
 
@@ -126,15 +126,24 @@ def build_match_payloads(db: Session, matches: List[Match], service: MatchDataSe
                          full_brief: bool = False) -> List[Dict[str, Any]]:
     """Serialise matches with their forecast, expert prediction and evidence brief.
 
-    The brief is assembled from values this loop already holds, so it costs no database query of its
-    own: every list payload can carry the compact form. ``full_brief`` adds the complete brief and is
-    used by the detail endpoint only, to keep a thirty-match list small rather than because the full
-    brief is more expensive to build.
+    The brief is assembled from values this loop already holds, so it costs no database query per
+    match: every list payload can carry the compact form. ``full_brief`` adds the complete brief and
+    is used by the detail endpoint only, to keep a thirty-match list small rather than because the
+    full brief is more expensive to build.
+
+    The one thing a brief cannot read off those values is how much has been scored against a
+    result, and that is measured ONCE here, for the whole request, on the session this request was
+    already given. Leaving it out is what the briefs used to do, and ``build_brief`` then fell back
+    to opening a ``SessionLocal`` of its own whenever its sixty-second cache was cold — a second
+    session and a second transaction inside a request that already had one, on the hot path of
+    every match list and every match page.
     """
     teams = service.registry.team_names(matches)
     leagues = service.registry.leagues_by_id(matches)
     league_refs = _league_refs(db, leagues.keys())
     experts = _published_predictions(db, [m.id for m in matches])
+    # Nothing to describe means nothing to measure: an empty day costs no measurement at all.
+    scoring = current_scoring_summary(db) if matches else None
     payloads = []
     for match in matches:
         record = forecasts.forecast_for_match(match)
@@ -142,7 +151,8 @@ def build_match_payloads(db: Session, matches: List[Match], service: MatchDataSe
         forecast = serialize_forecast(record, freshness)
         expert = serialize_expert_prediction(experts.get(match.id))
         payload = serialize_match(match, teams, leagues, forecast, expert, league_refs)
-        brief = build_brief(match=payload, forecast=forecast, freshness=freshness, expert=expert)
+        brief = build_brief(match=payload, forecast=forecast, freshness=freshness, expert=expert,
+                            scoring=scoring)
         payload["brief_compact"] = compact_brief(brief)
         if full_brief:
             payload["brief"] = brief

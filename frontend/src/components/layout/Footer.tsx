@@ -1,7 +1,26 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@/hooks/useAuth'
 
+/**
+ * The site-wide footer, and the second place the site names its own sections.
+ *
+ * TERMINOLOGY. This list used to say "Today's Predictions" and "Tomorrow's Predictions" while the
+ * header called the very same destination "Matches" and the destination itself is headed "Today's
+ * matches". Three names for one page is three chances to think you have found something new. The
+ * word "Predictions" survives in the URL, because /predictions/today is linked from elsewhere and
+ * bookmarked, but it is no longer what anything on screen calls the section.
+ *
+ * "Dashboard" is the one entry here that is NOT the same kind of thing as the others. Matches and
+ * Leagues are public; the dashboard is the reader's own saved matches and followed teams and is
+ * behind ProtectedRoute, so a signed-out visitor who taps it gets the sign-in form instead of the
+ * page they were promised. Rather than rename it — "Dashboard" is its own heading, its navigation
+ * entry and what the dashboard spec looks for — the gate is simply stated, in the same voice the
+ * unpublished support pages below already use.
+ */
 const Footer: React.FC = () => {
+  const { isAuthenticated } = useAuth()
+
   return (
     <footer className="bg-dark-900 border-t border-dark-700">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -26,23 +45,26 @@ const Footer: React.FC = () => {
             <h3 className="text-white font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/predictions/today" className="text-secondary-400 hover:text-white transition-colors">
-                  Today's Predictions
+                <Link to="/predictions/today" className="focus-ring rounded text-secondary-400 transition-colors hover:text-white">
+                  Today's matches
                 </Link>
               </li>
               <li>
-                <Link to="/predictions/tomorrow" className="text-secondary-400 hover:text-white transition-colors">
-                  Tomorrow's Predictions
+                <Link to="/predictions/tomorrow" className="focus-ring rounded text-secondary-400 transition-colors hover:text-white">
+                  Tomorrow's matches
                 </Link>
               </li>
               <li>
-                <Link to="/leagues" className="text-secondary-400 hover:text-white transition-colors">
+                <Link to="/leagues" className="focus-ring rounded text-secondary-400 transition-colors hover:text-white">
                   Leagues
                 </Link>
               </li>
               <li>
-                <Link to="/dashboard" className="text-secondary-400 hover:text-white transition-colors">
+                <Link to="/dashboard" className="focus-ring rounded text-secondary-400 transition-colors hover:text-white">
                   Dashboard
+                  {/* Inside the link, not beside it: the gate is part of where this goes, and a
+                      screen reader reading the link out of context has to hear it too. */}
+                  {!isAuthenticated && <span className="text-xs text-secondary-400"> (sign in required)</span>}
                 </Link>
               </li>
             </ul>
@@ -52,10 +74,14 @@ const Footer: React.FC = () => {
               that go nowhere. Give each one a route and turn it back into a <Link>. */}
           <div>
             <h3 className="text-white font-semibold mb-4">Support</h3>
-            <ul className="space-y-2 text-secondary-500">
+            {/* Both greys here used to be secondary-500 and secondary-600, which measure 3.75:1
+                and 2.36:1 against this background — below the 4.5:1 WCAG AA asks of body text, and
+                the annotation was below even the 3:1 for large text. secondary-400 is 6.96:1; the
+                size difference is what keeps the annotation secondary, not a grey nobody can read. */}
+            <ul className="space-y-2 text-secondary-400">
               {['Help Centre', 'Contact Us', 'Privacy Policy', 'Terms of Service'].map(item => (
                 <li key={item}>
-                  {item} <span className="text-xs text-secondary-600">(not published yet)</span>
+                  {item} <span className="text-xs text-secondary-400">(not published yet)</span>
                 </li>
               ))}
             </ul>

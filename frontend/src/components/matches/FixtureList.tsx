@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { onLeagueLogoError } from '@/components/ui/imageFallback'
 import FixtureRow from '@/components/ui/FixtureRow'
-import useFavourites from '@/hooks/useFavourites'
+import useMatchSaving, { fixtureHrefFrom } from '@/components/favourites/useMatchSaving'
+import type { Match } from '@/types'
 import type { CompetitionGroup } from './fixtureGrouping'
 
 /**
@@ -17,6 +18,19 @@ import type { CompetitionGroup } from './fixtureGrouping'
  * state before rejecting if the write fails. A star that stayed filled after a failed save would
  * be a claim about the server that is not true, so the rejection is caught here and said out loud
  * instead of swallowed. Signed out, the star is a sign-in invitation, never a silent no-op.
+ *
+ * SIGNED OUT, THE STAR STILL FINISHES THE JOB. This list is the entry point most readers use, and
+ * it used to be the one that dead-ended: it pushed a sign-in handoff of its own carrying only
+ * where to come back to, so the visitor signed in, landed back on the right filtered list, and
+ * found the match exactly as unsaved as they had left it. It now goes through the same
+ * `useMatchSaving().requireSignIn` the match page uses, naming the match it was asked to save —
+ * one mechanism, one set of guarantees (nothing is saved that was not asked for, and an intent
+ * that has gone stale is dropped rather than acted on; see useMatchSaving.ts).
+ *
+ * AND THE FIXTURE LINK REMEMBERS THIS LIST. `fixtureHrefFrom` puts the reader's own filtered list
+ * in the fixture URL, so the way back from the match page survives a sign-in round trip that
+ * rewrites the history entry behind it. Without it the reader came back from signing in and the
+ * only way back to results was an unfiltered day.
  */
 
 export interface FixtureListProps {
@@ -32,22 +46,20 @@ const FixtureList: React.FC<FixtureListProps> = ({
   showCompetitionHeadings = true,
   expandable = true,
 }) => {
-  const navigate = useNavigate()
   const location = useLocation()
-  const favourites = useFavourites()
+  // The failure is shown in place, beside the list, so a toast saying the same thing twice would
+  // be noise — and a toast that has already faded cannot answer "did that save work?".
+  const saving = useMatchSaving({ toastErrors: false })
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const onToggleSave = (matchId: string, next: boolean) => {
+  // The fixture goes with the write so the saved lists can show it at once, rather than only when
+  // the server's own copy comes back.
+  const onToggleSave = (match: Match, next: boolean) => {
     setSaveError(null)
-    favourites.setMatchSaved(matchId, next).catch((error: unknown) => {
-      setSaveError(error instanceof Error
-        ? error.message
-        : `That match could not be ${next ? 'saved' : 'removed'}. Nothing was changed.`)
+    void saving.toggleSave(match.id, next, match).then(failure => {
+      if (failure) setSaveError(failure)
     })
   }
-
-  // Back to exactly this list — same date, same filters — once they have signed in.
-  const requireSignIn = () => navigate('/login', { state: { from: location } })
 
   return (
     <div data-testid="fixture-list">
@@ -89,13 +101,19 @@ const FixtureList: React.FC<FixtureListProps> = ({
                 <FixtureRow
                   key={match.id}
                   match={match}
+                  href={fixtureHrefFrom(match.id, location)}
                   showCompetition={!showCompetitionHeadings}
                   expandable={expandable}
-                  saved={favourites.isMatchSaved(match.id)}
-                  savePending={favourites.isMatchPending(match.id)}
-                  signedIn={favourites.signedIn}
-                  onRequireSignIn={requireSignIn}
-                  onToggleSave={onToggleSave}
+                  saved={saving.isSaved(match.id)}
+                  savePending={saving.isPending(match.id)}
+                  signedIn={saving.signedIn}
+                  // Named, so the sign-in form can say which match is waiting and the save can
+                  // finish itself afterwards without the reader hunting for the star again.
+                  onRequireSignIn={() => saving.requireSignIn({
+                    matchId: match.id,
+                    label: `${match.homeTeam.name} versus ${match.awayTeam.name}`,
+                  })}
+                  onToggleSave={(_matchId, next) => onToggleSave(match, next)}
                 />
               ))}
             </div>

@@ -24,9 +24,16 @@ import { CoverageSummary } from '@/services/match-data-source'
  * footnote it always should have been.
  *
  * WHAT IS STILL NOT CLAIMED
- * There is no accuracy, hit rate, return, profit or streak anywhere here, because nothing has ever
- * been scored against a final result. A saved match is a bookmark, not a bet: no stake, no odds to
- * accept, no urgency, and no suggestion that anything is certain.
+ * There is no accuracy, hit rate, return, profit or streak anywhere here. Not because nothing on
+ * this installation has ever been scored — model forecasts are settled against final results, and
+ * the home page publishes how they have done with the sample behind each figure — but because
+ * none of that is THIS READER's record. A saved match is a bookmark, not a bet: no stake, no odds
+ * to accept, no urgency, and nothing the reader did is being marked right or wrong.
+ *
+ * THE FEED IS THE PAGE. The first card is one ordered list of what is in play, what has just been
+ * played and what is coming up, built from the matches this reader saved and the teams and
+ * competitions they follow (src/components/favourites/SavedMatchesPanel.tsx). It is first because
+ * it is the only part of this page that changes between two visits.
  *
  * ONE NOTE ON THE HEADING. The h1 stays "Dashboard": it is the route, the navigation entry and the
  * anchor e2e/mocked/dashboard-truthfulness.spec.ts uses to prove it is looking at this page rather
@@ -97,11 +104,17 @@ const DashboardPage: React.FC = () => {
             )}
           </div>
 
-          {/* The page proper: this user's own saved fixtures. */}
+          {/* The page proper: one feed built from this reader's own saves and follows. */}
           <Card className="mb-8" data-testid="dashboard-my-matches">
             <Card.Header>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-lg font-semibold text-white">My matches</h2>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Your feed</h2>
+                  <p className="text-xs text-secondary-500">
+                    What you saved and what the teams and competitions you follow are playing — in
+                    play first, then results, then what is coming up.
+                  </p>
+                </div>
                 {/* A count is only reported once a snapshot has really arrived: on a failed load the
                     buckets are empty because we do not know, not because there is nothing. */}
                 {loaded && !failed && (
@@ -124,7 +137,8 @@ const DashboardPage: React.FC = () => {
               <div>
                 <h2 className="text-lg font-semibold text-white">Teams and competitions you follow</h2>
                 <p className="text-xs text-secondary-500">
-                  Following keeps them one tap away; it does not change what any source publishes.
+                  Their fixtures appear in the feed above. Following changes what you see here; it
+                  does not change what any source publishes.
                 </p>
               </div>
             </Card.Header>

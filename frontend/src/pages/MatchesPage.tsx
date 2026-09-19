@@ -59,7 +59,19 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ preset }) => {
           presetRoute={preset !== undefined}
           headingLevel={1}
           title={title}
-          footnote="Every fixture stored for this date. Each probability is shown exactly as the source published it, and a market no source published is marked unavailable rather than shown as zero. Nothing on this page has been scored against a result, so no accuracy is claimed for any of it."
+          /*
+            What the list IS. Three sentences, all of them facts about how this page renders
+            things, which is why they can be written here as a constant.
+
+            A fourth used to follow them: "Nothing on this page has been scored against a result,
+            so no accuracy is claimed for any of it." That one is not a fact about the page, it is
+            a fact about the data, and it kept being served on days when four provider forecasts
+            had in fact been scored. The claim is still worth making — on a page of fixtures that
+            have not kicked off it is the most useful thing the footnote says — so it has not been
+            deleted. It has moved into the workspace, which is the only part of this that can see
+            which fixtures were actually listed, and is computed there from them.
+          */
+          footnote="Every fixture stored for this date. Each probability is shown exactly as the source published it, and a market no source published is marked unavailable rather than shown as zero."
         />
       </div>
     </>

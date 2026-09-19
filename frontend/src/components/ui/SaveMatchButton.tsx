@@ -17,6 +17,17 @@ import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
  *    only in the fill of an icon, so it survives both a screen reader and a monochrome display.
  *  - 44x44 target via `.tap-target`, visible keyboard focus via `.focus-ring`.
  *  - Signed out, it is still a real button: it invites sign-in rather than silently doing nothing.
+ *  - A WRITE IN FLIGHT IS `aria-disabled`, NEVER `disabled`. The HTML attribute removes the
+ *    element from the focus order, and a browser blurs whatever it disables: pressing Enter on
+ *    this control used to hand focus straight back to the document body, so a keyboard or
+ *    screen-reader user was dumped at the top of the page for the length of the request and the
+ *    `role="status"` announcement arrived with focus nowhere. `aria-disabled` says exactly the
+ *    same thing to assistive technology, keeps the control focused and focusable, and the click
+ *    handler below is what actually refuses the second press. The `disabled` prop is left as a
+ *    real `disabled`, because a caller that asks for one means the control should be out of the
+ *    way entirely.
+ *  - It stays MOUNTED across the write. Re-keying or conditionally rendering it around the
+ *    pending state would throw focus to the body just as surely as disabling it does.
  *
  * Measured: filled star warning-300 #fcd34d on dark-900 #0f172a 12.38:1 and on dark-800 10.15:1;
  * unfilled secondary-300 #cbd5e1 12.02:1 / 9.85:1. Both far above the 3:1 an icon needs.
@@ -27,8 +38,12 @@ export interface SaveMatchButtonProps {
   saved: boolean
   /** Called with the state the user is asking for. */
   onToggle: (next: boolean) => void
-  /** A write is in flight. The control stays interactive-looking but is disabled to avoid a double send. */
+  /**
+   * A write is in flight. The control keeps its focus and its place in the focus order, reports
+   * itself `aria-disabled`, and refuses a second press until the write has landed.
+   */
   pending?: boolean
+  /** Out of use entirely, and out of the focus order with it. Not the same thing as `pending`. */
   disabled?: boolean
   /**
    * False renders a sign-in prompt instead of a toggle: saving is per-user and needs an account.
@@ -67,6 +82,9 @@ const SaveMatchButton: React.FC<SaveMatchButtonProps> = ({
       : `Save${subject} to your saved matches.`
 
   const handleClick = () => {
+    // The guard the `disabled` attribute used to provide, without the attribute's side effect on
+    // focus. A press while a write is in flight does nothing at all.
+    if (pending || disabled) return
     if (!signedIn) {
       onRequireSignIn?.()
       return
@@ -81,9 +99,10 @@ const SaveMatchButton: React.FC<SaveMatchButtonProps> = ({
     <button
       type="button"
       onClick={handleClick}
-      // Disabled only while OUR write is in flight, or when the caller says so. A signed-out user
-      // gets a working button that explains itself, not a dead one.
-      disabled={disabled || pending}
+      // A signed-out user gets a working button that explains itself, not a dead one — and a
+      // write in flight is announced without taking the control out from under the keyboard.
+      disabled={disabled}
+      aria-disabled={pending || undefined}
       aria-pressed={signedIn ? saved : undefined}
       aria-label={variant === 'icon' ? accessibleName : undefined}
       title={accessibleName}

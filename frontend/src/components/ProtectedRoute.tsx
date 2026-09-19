@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import type { SignInHandoff } from '@/components/favourites/useMatchSaving';
 import type { UserType } from '@/types/auth';
 
 interface ProtectedRouteProps {
@@ -12,6 +13,12 @@ interface ProtectedRouteProps {
 /**
  * ProtectedRoute Component
  * Protects routes based on authentication status and user roles
+ *
+ * An anonymous visitor is sent to /login carrying where they were, in the one handoff shape the
+ * sign-in forms know how to read (SignInHandoff, defined with its validation in
+ * components/favourites/useMatchSaving.ts). `location` carries the pathname, the query string and
+ * the fragment, so a filtered list comes back filtered. There is no `save` here: nothing was being
+ * saved — this visitor asked for a page, and the page is all they get back.
  */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
@@ -35,7 +42,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Redirect to login if authentication is required but user is not authenticated
   if (requireAuth && !isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // No `at`: the timestamp exists to expire an interrupted SAVE, and there is none here. A
+    // return destination does not go stale — the page is still the page they asked for.
+    const handoff: SignInHandoff = { from: location };
+    return <Navigate to="/login" state={handoff} replace />;
   }
 
   // Check role-based access

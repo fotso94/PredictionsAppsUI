@@ -54,21 +54,27 @@ const DataStateNotice: React.FC<{
       </p>
 
       {/*
-        How old the forecast is, and whether a refresh is running — two facts, kept apart by
-        ProvenanceLine. It is shown only when there IS a forecast to date: with none held, its
-        "No forecast held" would be a third wording of the statement already made above.
+        How old the forecast is. Shown only when there IS a forecast to date: with none held,
+        ProvenanceLine's "No forecast held" would be a third wording of the statement above.
+
+        The pause is stripped out of what ProvenanceLine is given, and stated on its own line
+        below instead. ProvenanceLine prints `refresh_blocked_reason` verbatim, and on this
+        installation that reason is the provider's full HTTP 429 with its upgrade URL — the same
+        paragraph the freshness block already carries at the top of the page. This component is
+        the one saying it here, so ProvenanceLine is asked for the age and nothing else.
+        (A `hideRefreshBlocked` prop on ProvenanceLine would say that more plainly; that file has
+        another owner.)
       */}
-      {forecast && freshness ? (
+      {forecast && freshness && (
         <ProvenanceLine
           source={forecast.providerName ?? null}
-          freshness={freshness}
+          freshness={{ ...freshness, refresh_blocked: false, refresh_blocked_reason: null }}
           layout="full"
           className="pl-6"
         />
-      ) : (
-        state.pausedClause && (
-          <p className="pl-6 text-xs text-secondary-300" data-testid="match-refresh-paused">{state.pausedClause}</p>
-        )
+      )}
+      {state.pausedClause && (
+        <p className="pl-6 text-xs text-secondary-300" data-testid="match-refresh-paused">{state.pausedClause}</p>
       )}
 
       {state.detail.length > 0 && (

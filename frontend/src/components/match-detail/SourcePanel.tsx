@@ -2,7 +2,6 @@ import React from 'react'
 import { CpuChipIcon, UserIcon } from '@heroicons/react/24/outline'
 import type { BriefSourceKey } from '@/types'
 import Card from '@/components/ui/Card'
-import SourceMarker from '@/components/ui/SourceMarker'
 
 /**
  * One source's contribution, sized to what it actually contributed.
@@ -12,10 +11,10 @@ import SourceMarker from '@/components/ui/SourceMarker'
  * page started below the fold, under a box whose entire content was "nobody has published
  * anything". Absence deserves a sentence, not half the screen.
  *
- * So a source that published nothing is rendered by `AbsentSourceStrip` instead: one line, after
- * the analysis, saying what is missing in the brief's own words. A source that published something
- * gets the room. The absent source is never dropped altogether — "the expert said nothing" is
- * itself worth knowing next to a model that did.
+ * So a source that published nothing gets NO panel here at all. It is not dropped — "the expert
+ * said nothing" is worth knowing next to a model that did — it is stated once, by the coverage row
+ * in the evidence panel at the top of the page. This file used to also export an `AbsentSourceStrip`
+ * that repeated that sentence a third time further down the page; the sentence outlived the strip.
  */
 
 const SourcePanel: React.FC<{
@@ -42,9 +41,11 @@ const SourcePanel: React.FC<{
   const Icon = source === 'expert' ? UserIcon : CpuChipIcon
   return (
     <Card className={className} data-testid={testId}>
-      <Card.Header>
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="flex items-center space-x-2 text-lg font-semibold text-white">
+      {/* Tighter on a phone: the panel heading is a signpost, and a signpost does not need the
+          same breathing room as the table under it when the table is what the reader scrolled for. */}
+      <Card.Header className="py-3 sm:py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="flex items-center space-x-2 text-base font-semibold text-white sm:text-lg">
             <Icon className={`h-5 w-5 ${source === 'expert' ? 'text-blue-400' : 'text-yellow-400'}`} aria-hidden="true" />
             <span>{title}</span>
           </h3>
@@ -75,27 +76,5 @@ const SourcePanel: React.FC<{
     </Card>
   )
 }
-
-/** A source with nothing on this fixture: one line, in the brief's own words where it gave one. */
-export const AbsentSourceStrip: React.FC<{
-  source: BriefSourceKey
-  /** The backend's sentence for why there is nothing. */
-  detail: string
-  /** A quieter second line: what would change this. Never a promise about when. */
-  note?: string | null
-  testId?: string
-  className?: string
-}> = ({ source, detail, note = null, testId, className }) => (
-  <div
-    className={`rounded-xl border border-dark-700 bg-dark-900/60 px-4 py-3 ${className ?? ''}`}
-    data-testid={testId}
-  >
-    <div className="flex flex-wrap items-center gap-2">
-      <SourceMarker source={source} state="unavailable" title={detail} />
-      <p className="min-w-0 flex-1 text-sm text-secondary-300">{detail}</p>
-    </div>
-    {note && <p className="mt-1 text-xs text-secondary-500">{note}</p>}
-  </div>
-)
 
 export default SourcePanel

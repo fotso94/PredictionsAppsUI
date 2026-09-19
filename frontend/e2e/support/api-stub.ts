@@ -64,6 +64,12 @@ export interface ApiMatch extends Json {
   away?: ApiTeamRef;
   forecast: ApiForecast | null;
   forecast_state?: string;
+  /**
+   * The full evidence brief, which only `GET /matches/{id}` carries (see matchDetail()). Typed as
+   * plain Json here because the tests never build one: it is captured, and the shape it has to
+   * keep is the backend's, in src/types/brief.ts.
+   */
+  brief?: Json | null;
 }
 
 export interface DayPayload extends Json {
@@ -260,8 +266,53 @@ export function pausedScheduler(): SchedulerPayload {
   return scheduler;
 }
 
-export const baseMatches = (): ApiMatch[] => JSON.parse(JSON.stringify(matchesDay.matches)) as ApiMatch[];
-export const baseDayPayload = (): DayPayload => JSON.parse(JSON.stringify(matchesDay)) as DayPayload;
+/**
+ * The captured fixtures AS A LIST PAYLOAD SERVES THEM — which is to say without the full brief.
+ *
+ * `build_match_payloads(..., full_brief=False)` is what answers `GET /matches`: every fixture in a
+ * list carries the compact brief and none of them carries the full one, which is added only by the
+ * detail endpoint. Dropping it here is what keeps that true of the stub, and it also keeps the
+ * derived fixtures honest: withoutMarkets(), withInconsistentNumbers() and the rest edit a
+ * forecast, and a brief assembled from the forecast BEFORE that edit would then contradict it —
+ * the brief is the backend's finished statement about a payload, not something a test may reshape.
+ * A test that wants the detail payload asks for it by name, with matchDetail().
+ */
+export const baseMatches = (): ApiMatch[] => (JSON.parse(JSON.stringify(matchesDay.matches)) as ApiMatch[])
+  .map(match => { delete match.brief; return match; });
+
+export const baseDayPayload = (): DayPayload => {
+  const payload = JSON.parse(JSON.stringify(matchesDay)) as DayPayload;
+  payload.matches = baseMatches();
+  return payload;
+};
+
+/**
+ * One captured fixture AS `GET /matches/{id}` SERVES IT: the same payload plus the full brief,
+ * which is the only endpoint that carries it (`full_brief=True`).
+ *
+ * Only the first captured fixture has a brief — the capture predates them, and one brief is what
+ * a test of the evidence panel needs; the others would only be the same shape again. It was built
+ * on 2026-09-19 by `app/services/match_brief.py::build_brief` from that fixture's own payload and
+ * forecast, with `now` fixed at the capture's `fetched_at`, so nothing in it is invented: its
+ * sentences are the builder's, and its reliability block carries the scoring position this
+ * installation actually held (4 of 4 eligible predictions scored, no source and market at the
+ * minimum of 30, so no figure published). Rebuild it the same way if the builder changes.
+ *
+ * WHY THIS IS OPT-IN rather than the default answer of the detail route. A brief changes the
+ * geometry of the match page: attaching this one moves the model forecast table from 1,191px to
+ * 1,462px down a 390px phone — both measured — because the panel gains the brief's headline, its
+ * markets-not-published row and the backend's own accuracy sentence.
+ * e2e/mocked/clutter.spec.ts bounds that distance at 1,280px, and
+ * that bound is a real guard against the clutter creeping back, so a test either asks for the
+ * detail payload deliberately, with `matchById: matchDetail`, or it measures the page the rest of
+ * the suite measures. Neither is the wrong page; they are different pages, and which one a test
+ * stands on should be visible in the test.
+ */
+export const matchDetail = (id: string): ApiMatch | null => {
+  const captured = (JSON.parse(JSON.stringify(matchesDay.matches)) as ApiMatch[]).find(m => m.id === id);
+  return captured ?? null;
+};
+
 /**
  * A healthy baseline. The capture was taken with the GameForecast daily allowance already spent, so
  * the pause is cleared here; quotaExhaustedStatus() puts it back when a test wants that state.
@@ -651,6 +702,47 @@ export function measuredPerformance(): PerformancePayload {
   return performanceEnvelope([measuredSource('gameforecast', 106, 50)], null);
 }
 
+/**
+ * The vendor's own refusal text, recorded verbatim.
+ *
+ * Read on 2026-09-19 from `GET /api/v1/data-providers/status` on the local backend, where it is
+ * what stopped the forecast provider: `forecasts.cooling_down` held
+ *
+ *   gameforecast: rate limit or quota exceeded (HTTP 429): You have exceeded the DAILY quota for
+ *   Requests on your current plan, BASIC. Upgrade your plan at
+ *   https://rapidapi.com/krnelstudio/api/game-forecast-api
+ *
+ * Everything after the second colon is the vendor's, not ours:
+ * `app/services/providers/http.py::_upstream_message` takes up to 160 characters of the provider's
+ * own error body, rewrites nothing but a credential, and hands it on. It does that identically for
+ * every provider in the chain, which is why the excerpt is reused below for a fixture provider —
+ * what any of this is testing is what a 53-character unbreakable token does to the layout of the
+ * slot that prints it, and that is a property of the slot rather than of who filled it.
+ */
+export const VENDOR_UPGRADE_URL = 'https://rapidapi.com/krnelstudio/api/game-forecast-api';
+export const VENDOR_REFUSAL_EXCERPT =
+  'You have exceeded the DAILY quota for Requests on your current plan, BASIC. '
+  + `Upgrade your plan at ${VENDOR_UPGRADE_URL}`;
+
+/**
+ * The fixture provider paused after the vendor refused it, in the backend's own composed wording.
+ *
+ * `ProviderHttpClient.get_json` raises `f"{provider}: rate limit or quota exceeded (HTTP 429)"`
+ * followed by the excerpt above, and that whole string is what lands in the chain entry — so the
+ * site-wide banner prints a line ending in an unbreakable URL. That is the widest thing this
+ * application can be asked to fit on a 360px screen, and the state that produced the sideways
+ * scroll the header work was about.
+ */
+export function vendorRefusalStatus(): ProviderStatusPayload {
+  const status = baseStatus();
+  const refusal = `${status.chain[0].name}: rate limit or quota exceeded (HTTP 429): ${VENDOR_REFUSAL_EXCERPT}`;
+  status.chain[0].cooling_down = refusal;
+  status.chain[0].last_error = refusal;
+  status.chain[0].last_error_at = new Date().toISOString();
+  status.chain[0].last_success_at = null;
+  return status;
+}
+
 /** Provider status describing an expired or rejected trial. */
 export function expiredTrialStatus(): ProviderStatusPayload {
   const status = baseStatus();
@@ -738,6 +830,8 @@ export async function stubBackend(page: Page, options: StubOptions = {}): Promis
     }
     if (path.startsWith('/matches/')) {
       const id = path.split('/')[2];
+      // The list-shaped fixture by default; `matchById: matchDetail` is how a test asks for the
+      // detail payload with its brief. See matchDetail().
       const found = options.matchById?.(id) ?? baseMatches().find(m => m.id === id) ?? null;
       return found ? json(route, found) : json(route, { detail: 'Match not found' }, 404);
     }

@@ -101,6 +101,68 @@ function relativeDay(date: string): string | null {
   return null
 }
 
+/**
+ * Whether this fixture has KICKED OFF. Anything that disqualifies the strong "none of these has
+ * been played" claim counts, so a score is enough on its own: `serialize_match` emits one as soon
+ * as the stored match has a score, which for the live-score task is from the first goal, and a
+ * fixture with a goal in it is not an unplayed fixture whatever its label says.
+ */
+const hasKickedOff = (match: Match): boolean =>
+  match.status === 'finished' || match.status === 'live' || match.status === 'halftime'
+  || match.result !== undefined
+
+/**
+ * Whether this fixture is OVER. Deliberately not the same test as above: a score is evidence that
+ * a fixture has started, never that it has ended, and only the status says which. Saying "it has
+ * finished" of a match that is 1-0 at 57 minutes would be a fact about the data inferred from
+ * something that is not that fact — the same mistake as the constant this file exists to remove,
+ * one step further in.
+ */
+const isFinished = (match: Match): boolean => match.status === 'finished'
+
+/**
+ * What is true about scoring, of the fixtures this page actually listed.
+ *
+ * WHY THIS IS COMPUTED AND NOT WRITTEN DOWN. The sentence that used to live at the end of
+ * MatchesPage's footnote read "Nothing on this page has been scored against a result, so no
+ * accuracy is claimed for any of it." It was a string constant, so it went on saying it after
+ * settlement had scored four provider forecasts — the third time a fact about the data has been
+ * found asserted as a constant in this codebase.
+ *
+ * Deleting it would have been the wrong repair. On a page of fixtures that have not kicked off
+ * the statement is true and is worth making: a reader needs to know that none of the numbers
+ * above is a score. So the page works out which of the two situations it is actually in.
+ *
+ * WHAT THIS CAN AND CANNOT SEE. It can see, per fixture, whether it has been played — that is in
+ * the payload. It cannot see whether a prediction for a played fixture was then scored, because
+ * the list payload carries no settlement state. So the moment a played fixture is on screen this
+ * stops answering and names the surface that can answer: the match's own page, whose brief
+ * reports the measured scoring position. Refusing to answer is not the same as answering "no",
+ * and answering "no" is exactly what went wrong before.
+ *
+ * `null` while the day is loading or failed, and for an empty list: a page with no fixtures on it
+ * has nothing to say about its fixtures.
+ */
+function scoringNote(fixtures: Match[], ready: boolean): string | null {
+  if (!ready || fixtures.length === 0) return null
+  const started = fixtures.filter(hasKickedOff).length
+  const finished = fixtures.filter(isFinished).length
+  const total = fixtures.length
+  const fixtureWord = total === 1 ? 'fixture' : 'fixtures'
+  if (started === 0) {
+    return `None of the ${total} ${fixtureWord} listed here has been played yet, so nothing on this `
+      + 'page has been scored against a result and no accuracy is claimed for any of it.'
+  }
+  // "finished" only where every started fixture is actually over; otherwise the weaker verb, which
+  // is true of both. Counting the two separately is what keeps a live fixture out of the strong word.
+  const verb = started === finished ? 'finished' : 'kicked off'
+  const count = started === total
+    ? `All ${total} ${fixtureWord} listed here ${total === 1 ? 'has' : 'have'} ${verb}`
+    : `${started} of the ${total} ${fixtureWord} listed here ${started === 1 ? 'has' : 'have'} ${verb}`
+  return `${count}. Whether a prediction for one of them has been scored against its result is `
+    + "stated on that match's own page; this list claims no accuracy either way."
+}
+
 /** What we know about the chosen day. `status` never collapses "failed" into "empty". */
 interface DayData {
   status: 'loading' | 'ready' | 'error'
@@ -160,8 +222,8 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
       .catch((error: unknown) => {
         if (cancelled) return
         // A failed request is not an empty day. The list must say the request failed and offer a
-        // retry, never "no matches on this date", which would be a claim about the world made out
-        // of a network error.
+        // retry, never the "nothing stored for this date" state below — that state reports what
+        // the store holds, and a network error tells us nothing about what the store holds.
         setDay({ status: 'error', date, matches: [], meta: null, error: describeError(error) })
       })
 
@@ -198,7 +260,8 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
   }, [apply, state])
 
   // Only a SUCCESSFUL load produces fixtures. While loading or after a failure this is empty, and
-  // the branches below are careful never to describe that emptiness as "no matches on this date".
+  // the branches below are careful never to report that emptiness as "nothing stored for this
+  // date": only an answered request knows what is stored.
   const dayMatches = useMemo(
     () => (day.status === 'ready' ? day.matches : NO_MATCHES),
     [day.status, day.matches],
@@ -210,6 +273,12 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
   )
   const shown = typeof limit === 'number' ? visible.slice(0, limit) : visible
   const groups = useMemo(() => groupByCompetition(shown), [shown])
+  // Computed from `shown` — the fixtures actually rendered, after filters and any cap — because
+  // the sentence is about what is on this page, not about what the day holds.
+  const scoring = useMemo(
+    () => scoringNote(shown, day.status === 'ready'),
+    [shown, day.status],
+  )
 
   const days = useMemo<DateStripDay[]>(() => {
     // The strip normally runs from yesterday; when the reader has jumped to a date outside that
@@ -318,11 +387,41 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
     }
 
     if (dayMatches.length === 0) {
+      /*
+        WHAT THIS STATE ACTUALLY KNOWS. The request succeeded and came back with no rows. That is a
+        fact about this installation's store, not about football: every read here is `refresh=false`
+        (see the header note), so a day nobody has fetched yet and a day with genuinely no fixture
+        are indistinguishable from in here. The old title, "No matches on this date.", asserted the
+        second. This says the first, and leaves the reader somewhere to go rather than a dead end —
+        "Pick another day above" was also wrong on the home panel, which has no date strip above it.
+      */
+      const today = localDateString(0)
+      const jumpTo = date === today ? localDateString(1) : today
+      const jumpLabel = date === today ? "Show tomorrow's matches" : "Show today's matches"
       return (
         <EmptyState
           tone="empty"
-          title="No matches on this date."
-          description={`Nothing is stored for ${formatDay(date)}. Pick another day above.`}
+          title="No matches stored for this date."
+          description={`This installation holds no fixtures for ${formatDay(date)}. Fixtures appear here once they have been fetched and stored, so this is what we hold rather than a statement that nothing is being played.`}
+          action={variant === 'page' ? (
+            <button
+              type="button"
+              onClick={() => setDate(jumpTo)}
+              className="tap-target-row focus-ring rounded-lg border border-dark-600 bg-dark-800 px-4 py-2 text-sm font-medium text-secondary-100 transition-colors hover:bg-dark-700 hover:text-white"
+              data-testid="matchday-empty-jump"
+            >
+              {jumpLabel}
+            </button>
+          ) : (
+            /* The panel has no date strip of its own: send the reader where the days are. */
+            <Link
+              to={{ pathname: WORKSPACE_PATH, search: searchParams.toString() }}
+              className="tap-target-row focus-ring inline-flex items-center rounded-lg border border-dark-600 bg-dark-800 px-4 py-2 text-sm font-medium text-secondary-100 transition-colors hover:bg-dark-700 hover:text-white"
+              data-testid="matchday-empty-jump"
+            >
+              Pick another date
+            </Link>
+          )}
           data-testid="matchday-empty"
         />
       )
@@ -480,8 +579,13 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
       </div>
 
       {footnote && (
-        <p className="mt-4 max-w-3xl border-t border-dark-800 pt-3 text-xs leading-5 text-secondary-400">
+        <p
+          className="mt-4 max-w-3xl border-t border-dark-800 pt-3 text-xs leading-5 text-secondary-400"
+          data-testid="matchday-footnote"
+        >
           {footnote}
+          {/* Measured from the fixtures above on every render, never written down. */}
+          {scoring && ` ${scoring}`}
         </p>
       )}
 

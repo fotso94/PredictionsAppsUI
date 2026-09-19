@@ -4,7 +4,8 @@ import { ChevronRightIcon } from '@heroicons/react/24/outline'
 import type { MeasuredMarket, MeasuredSource } from '@/types'
 import type { PerformanceResult } from '@/services/performance.service'
 import {
-  measuredMarketLabel, measuredView, ratioPercent, sourceCounts, sourceKindLabel, windowText,
+  excludedCountsText, measuredMarketLabel, measuredView, ratioPercent, sourceCounts,
+  sourceKindLabel, windowText,
 } from './measurement'
 
 /**
@@ -16,10 +17,12 @@ import {
  * renders that refusal as the plain sentence it is. It is never a 0%, never a dash, never an empty
  * bar. A dash invites the reader to assume the worst; a zero states something false.
  *
- * THE STATE YOU WILL ACTUALLY SEE. Nothing on this installation has been scored yet, so the
- * "not measured" path is what a real visitor meets today. It is written as a genuine answer —
- * what would have to happen for a figure to exist, and what is already counted in the meantime —
- * rather than as an apology or an empty chart.
+ * THE STATE A VISITOR MEETS depends entirely on how much has been scored by the time they arrive,
+ * and that moves: nothing scored, scored but under the minimum sample, and measured are all
+ * reachable, sometimes within a day of each other. Every one of them is written as a genuine
+ * answer — what would have to happen for a figure to exist, and what is already counted in the
+ * meantime — rather than as an apology or an empty chart. Nothing in this file may assert which
+ * state we are in; `measuredView()` decides that from the payload, every render.
  *
  * WHAT THIS IS NOT. Not a prediction, not a ranking, and not a recommendation. A source that did
  * well over ninety days has not thereby told anyone what will happen on Saturday, and nothing here
@@ -29,6 +32,7 @@ import {
 /** One market's line for a measured source: the figure, its sample, and its definition. */
 const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = ({ market, minimumSample }) => {
   const rate = ratioPercent(market.hit_rate)
+  const excluded = excludedCountsText(market)
 
   return (
     <div className="border-t border-dark-700 pt-2" data-testid="measured-market" data-market={market.market}>
@@ -71,15 +75,41 @@ const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = (
             <p><span className="text-secondary-400">Settled by: </span>{market.rule}</p>
           </div>
         </details>
+        {/*
+          TWO ROWS, BECAUSE THESE ARE TWO DIFFERENT NUMBERS. This was one line reading
+          "Sample: 1 of 4 scored", and a reviewer read it as a sample size — one prediction out of
+          four scored so far — when it is a hit count: one correct outcome out of a sample of four.
+          The label now says which is which, and each figure sits on its own row, so neither can be
+          taken for the other. The sample is stated first because the hit count is only meaningful
+          against it.
+        */}
         <div>
-          <dt className="inline text-secondary-400">Sample: </dt>
-          <dd className="inline">
-            <span className="num">{market.hits}</span> of <span className="num">{market.scored}</span> scored
-            {market.pushes > 0 && <> · <span className="num">{market.pushes}</span> push</>}
-            {market.voids > 0 && <> · <span className="num">{market.voids}</span> void</>}
-            {market.not_scored > 0 && <> · <span className="num">{market.not_scored}</span> not scorable</>}
+          <dt className="inline text-secondary-400">Sample size: </dt>
+          <dd className="inline" data-testid="measured-sample-size">
+            <span className="num">{market.scored}</span>{' '}
+            scored {market.scored === 1 ? 'prediction' : 'predictions'}
           </dd>
         </div>
+        <div>
+          <dt className="inline text-secondary-400">Correct outcomes: </dt>
+          <dd className="inline" data-testid="measured-hit-count">
+            {market.scored === 0 ? (
+              'nothing in this market has been scored yet, so none of it is right or wrong'
+            ) : (
+              <>
+                <span className="num">{market.hits}</span> of those{' '}
+                <span className="num">{market.scored}</span>
+              </>
+            )}
+          </dd>
+        </div>
+        {excluded && (
+          <div>
+            {/* Real counts, and deliberately outside the sample: a void is never a loss. */}
+            <dt className="inline text-secondary-400">Not in the sample: </dt>
+            <dd className="inline" data-testid="measured-excluded">{excluded}</dd>
+          </div>
+        )}
         <div>
           <dt className="inline text-secondary-400">Brier score: </dt>
           <dd className="inline">
@@ -92,8 +122,18 @@ const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = (
                 )}
               </>
             ) : (
+              /*
+                "7 of 30 needed" left the reader to guess what the 7 was. It is not the scored
+                count either, in either direction: the exact-score market on this installation has
+                four scored predictions and a Brier sample of zero, and a market with a push runs
+                the other way — settlement counts a push out of `scored` but still records its
+                Brier value, so `brier_sample` can exceed the sample size printed two rows above.
+                The count is therefore given as its own figure and never as a share of "these"
+                predictions, which would read as an impossible 5 of 4.
+              */
               <span className="text-secondary-500">
-                {market.brier_sample} of {minimumSample} needed
+                computable for {market.brier_sample} predictions so far; {minimumSample} needed
+                before a Brier score is published
               </span>
             )}
           </dd>
