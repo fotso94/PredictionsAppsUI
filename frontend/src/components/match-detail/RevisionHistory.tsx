@@ -1,6 +1,6 @@
 import React from 'react'
 import type { ExpertPredictionRevision, ExpertPredictionRevisionValues } from '@/types'
-import { formatUnitProbability, NOT_SET_TEXT } from '@/components/ui/probability'
+import { formatUnitProbability, notSetText } from '@/components/ui/probability'
 
 /**
  * Earlier published versions of an expert's view — a correction appends, it does not rewrite.
@@ -27,7 +27,7 @@ const stamp = (iso: string | null | undefined): string | null => {
 const Value: React.FC<{ label: string; value: number | null }> = ({ label, value }) => (
   <div className="rounded bg-dark-900 px-2 py-1">
     <div className="text-[11px] leading-4 text-secondary-500">{label}</div>
-    <div className="text-xs text-secondary-200">{formatUnitProbability(value, 0, NOT_SET_TEXT)}</div>
+    <div className="text-xs text-secondary-200">{formatUnitProbability(value, 0, notSetText())}</div>
   </div>
 )
 

@@ -21,6 +21,8 @@
  */
 
 import type { BettingMarket, Match } from '@/types'
+import type { MessageKey } from '@/i18n'
+import { t } from '@/i18n'
 import { hasMarket } from '@/components/ui/predictionMarkets'
 import { isMatchFinished, isMatchLive, isMatchScheduled } from '@/utils/matchFilters'
 
@@ -58,23 +60,53 @@ export const PARAM = {
  * every prediction this app can receive, so offering them would be a control that can only ever
  * empty the list.
  */
-export const MARKET_OPTIONS: ReadonlyArray<{ value: BettingMarket; label: string }> = Object.freeze([
-  { value: '1x2', label: 'Match result (1X2)' },
-  { value: 'btts', label: 'Both teams to score' },
-  { value: 'over-under', label: 'Over / under goals' },
-  { value: 'correct-score', label: 'Correct score' },
+/*
+ * THE OPTIONS CARRY A MESSAGE KEY, NOT A LABEL.
+ *
+ * These are frozen module constants — evaluated once, when the module is first imported — and a
+ * finished string in one of them would be a label in whatever language happened to be active at
+ * boot, for the life of the tab. The VALUES are what the URL and the filtering logic use and are
+ * unchanged; `label()` below resolves the wording at render time, in the reader's language.
+ *
+ * `market.definition` is the second half of the same answer: what the market counts. The period
+ * it covers is not here, because no source publishes one — see `marketPeriodNote` in
+ * src/utils/brief.ts, which says so rather than inventing a convention.
+ */
+export interface FilterOption<T extends string> {
+  value: T
+  /** Catalogue key for the option's own name. */
+  labelKey: MessageKey
+  /** Catalogue key for what the market counts, where that is a market. */
+  definitionKey?: MessageKey
+}
+
+export const MARKET_OPTIONS: ReadonlyArray<FilterOption<BettingMarket>> = Object.freeze([
+  { value: '1x2', labelKey: 'filters.marketOption.1x2', definitionKey: 'market.definition.1x2' },
+  { value: 'btts', labelKey: 'filters.marketOption.btts', definitionKey: 'market.definition.btts' },
+  { value: 'over-under', labelKey: 'filters.marketOption.overUnder', definitionKey: 'market.definition.overUnder' },
+  { value: 'correct-score', labelKey: 'filters.marketOption.correctScore', definitionKey: 'market.definition.correctScore' },
 ])
 
-export const SOURCE_OPTIONS: ReadonlyArray<{ value: SourceFilter; label: string }> = Object.freeze([
-  { value: 'model', label: 'Has a model forecast' },
-  { value: 'expert', label: 'Has an expert prediction' },
+export const SOURCE_OPTIONS: ReadonlyArray<FilterOption<SourceFilter>> = Object.freeze([
+  { value: 'model', labelKey: 'filters.sourceOption.model' },
+  { value: 'expert', labelKey: 'filters.sourceOption.expert' },
 ])
 
-export const STATUS_OPTIONS: ReadonlyArray<{ value: FixtureStatusFilter; label: string }> = Object.freeze([
-  { value: 'all', label: 'Everything on this date' },
-  { value: 'upcoming', label: 'Upcoming and in play' },
-  { value: 'finished', label: 'Played' },
+export const STATUS_OPTIONS: ReadonlyArray<FilterOption<FixtureStatusFilter>> = Object.freeze([
+  { value: 'all', labelKey: 'filters.status.all' },
+  { value: 'upcoming', labelKey: 'filters.status.upcoming' },
+  { value: 'finished', labelKey: 'filters.status.finished' },
 ])
+
+/** An option's name in the reader's language, resolved now rather than at import time. */
+export function optionLabel(option: FilterOption<string>): string {
+  return t(option.labelKey)
+}
+
+/** What the market counts, or null for an option that is not a market. */
+export function optionDefinition(option: FilterOption<string>): string | null {
+  return option.definitionKey ? t(option.definitionKey) : null
+}
 
 const MARKET_VALUES = MARKET_OPTIONS.map(option => option.value)
 const SOURCE_VALUES = SOURCE_OPTIONS.map(option => option.value)

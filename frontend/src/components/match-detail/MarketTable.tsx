@@ -2,7 +2,7 @@ import React from 'react'
 import type { BriefMarketKey, BriefSourceBlock, BriefSourceKey, MatchBrief, MatchPredictions } from '@/types'
 import { ConfidenceBadge } from '@/components/ui/Badge'
 import {
-  formatPercent, isPublished, marketLead, publishedSide, PublishedSide, UNAVAILABLE_TEXT,
+  formatPercent, isPublished, marketLead, publishedSide, PublishedSide, unavailableText,
 } from '@/components/ui/probability'
 import { marketBlock, missingReasonLabel } from '@/utils/brief'
 import { confidenceBasis } from './evidence'
@@ -38,7 +38,7 @@ const Unavailable: React.FC<{ block?: BriefSourceBlock | null }> = ({ block = nu
   const reason = block && !block.available ? missingReasonLabel(block.reason) : null
   return (
     <span className="text-right">
-      <span className="text-xs text-secondary-500">{UNAVAILABLE_TEXT}</span>
+      <span className="text-xs text-secondary-500">{unavailableText()}</span>
       {reason && <span className="block text-[11px] leading-4 text-secondary-500">{reason}</span>}
     </span>
   )
@@ -56,7 +56,7 @@ const TwoWayMarket: React.FC<{
       {sides.map((side, index) => (
         <React.Fragment key={index}>
           {index > 0 && ' / '}
-          {side ? `${side.label} ${formatPercent(side.value)}` : UNAVAILABLE_TEXT.toLowerCase()}
+          {side ? `${side.label} ${formatPercent(side.value)}` : unavailableText().toLowerCase()}
         </React.Fragment>
       ))}
       {')'}

@@ -18,9 +18,12 @@ import MatchFilterControls from './MatchFilterControls'
 import { competitionOptions, groupByCompetition } from './fixtureGrouping'
 import {
   MARKET_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS, WorkspaceState,
-  activeFilterCount, clearedFilters, matchesWorkspaceFilters, readWorkspaceState, toggleValue,
-  writeWorkspaceState,
+  activeFilterCount, clearedFilters, matchesWorkspaceFilters, optionLabel, readWorkspaceState,
+  toggleValue, writeWorkspaceState,
 } from './workspaceState'
+import type { TranslateFn } from '@/i18n'
+import { formatIsoDate, zoneLabel, zonedNoon } from '@/i18n'
+import { useLocale } from '@/i18n/react'
 
 /**
  * The matchday workspace: one date, one list of fixtures, and the smallest set of controls that
@@ -85,19 +88,20 @@ const VISIBLE_CHIPS = 8
 /** One shared empty array, so "nothing loaded" does not produce a new identity every render. */
 const NO_MATCHES: Match[] = []
 
-const LONG_DATE = new Intl.DateTimeFormat(undefined, {
-  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-})
-
+/*
+ * The day, spelled out. Was a module-level `Intl.DateTimeFormat(undefined, …)` — the DEVICE's
+ * language, built once at import — and `new Date(`${date}T12:00:00`)`, which parses in the
+ * DEVICE's zone. Both are now the reader's own, and both are resolved per render so a change of
+ * either repaints the heading.
+ */
 function formatDay(date: string): string {
-  const at = new Date(`${date}T12:00:00`)
-  return Number.isNaN(at.getTime()) ? date : LONG_DATE.format(at)
+  return formatIsoDate(date)
 }
 
-function relativeDay(date: string): string | null {
-  if (date === localDateString(0)) return 'Today'
-  if (date === localDateString(1)) return 'Tomorrow'
-  if (date === localDateString(-1)) return 'Yesterday'
+function relativeDay(date: string, t: TranslateFn): string | null {
+  if (date === localDateString(0)) return t('matchday.relative.today')
+  if (date === localDateString(1)) return t('matchday.relative.tomorrow')
+  if (date === localDateString(-1)) return t('matchday.relative.yesterday')
   return null
 }
 
@@ -143,24 +147,34 @@ const isFinished = (match: Match): boolean => match.status === 'finished'
  * `null` while the day is loading or failed, and for an empty list: a page with no fixtures on it
  * has nothing to say about its fixtures.
  */
-function scoringNote(fixtures: Match[], ready: boolean): string | null {
+/*
+ * THREE WHOLE SENTENCES IN THE CATALOGUE, NOT A SENTENCE ASSEMBLED HERE.
+ *
+ * What this function used to do is the exact defect C4 of this package names. It built the
+ * sentence out of fragments in English order — a count, an English plural of "fixture", an
+ * English subject-verb agreement, a participle — and every one of those decisions belongs to the
+ * language rather than to this file. In French the determiner and the pronoun agree with a noun
+ * that appears later ("Aucun des 12 matchs"), the participle agrees in number ("sont terminés"),
+ * and 0 and 1 are both singular. None of that is reachable by translating "fixture" and keeping
+ * the assembly.
+ *
+ * WHAT DID NOT CHANGE is the decision the sentence encodes: which of the three statements is
+ * true, and the fact that "finished" is only used when every started fixture is actually over.
+ * A live fixture still gets the weaker verb, because a 1-0 at 57 minutes has kicked off and has
+ * not finished.
+ */
+function scoringNote(fixtures: Match[], ready: boolean, t: TranslateFn): string | null {
   if (!ready || fixtures.length === 0) return null
   const started = fixtures.filter(hasKickedOff).length
   const finished = fixtures.filter(isFinished).length
   const total = fixtures.length
-  const fixtureWord = total === 1 ? 'fixture' : 'fixtures'
-  if (started === 0) {
-    return `None of the ${total} ${fixtureWord} listed here has been played yet, so nothing on this `
-      + 'page has been scored against a result and no accuracy is claimed for any of it.'
-  }
-  // "finished" only where every started fixture is actually over; otherwise the weaker verb, which
-  // is true of both. Counting the two separately is what keeps a live fixture out of the strong word.
-  const verb = started === finished ? 'finished' : 'kicked off'
-  const count = started === total
-    ? `All ${total} ${fixtureWord} listed here ${total === 1 ? 'has' : 'have'} ${verb}`
-    : `${started} of the ${total} ${fixtureWord} listed here ${started === 1 ? 'has' : 'have'} ${verb}`
-  return `${count}. Whether a prediction for one of them has been scored against its result is `
-    + "stated on that match's own page; this list claims no accuracy either way."
+
+  if (started === 0) return t('matchday.scoring.nonePlayed', { count: total })
+
+  const verb = started === finished ? 'finished' : 'kickedOff'
+  return started === total
+    ? t('matchday.scoring.allPlayed', { count: total, verb })
+    : t('matchday.scoring.somePlayed', { started, total, verb })
 }
 
 /** What we know about the chosen day. `status` never collapses "failed" into "empty". */
@@ -184,6 +198,7 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
   headingLevel = 2,
 }) => {
   const Heading = (headingLevel === 1 ? 'h1' : 'h2') as 'h1' | 'h2'
+  const { t } = useLocale()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -209,6 +224,15 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
     [searchParams, defaultDate],
   )
   const { date } = state
+  /**
+   * Today, in the reader's chosen zone, recomputed on every render.
+   *
+   * Everything on this page that means "today" reads this one value, so the heading, the strip,
+   * the jump button and the empty state's suggestion can never disagree — and because it changes
+   * when the zone changes, the memos that depend on it rebuild without needing the zone itself
+   * as a dependency they do not read.
+   */
+  const todayIso = localDateString(0)
 
   useEffect(() => {
     let cancelled = false
@@ -276,8 +300,8 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
   // Computed from `shown` — the fixtures actually rendered, after filters and any cap — because
   // the sentence is about what is on this page, not about what the day holds.
   const scoring = useMemo(
-    () => scoringNote(shown, day.status === 'ready'),
-    [shown, day.status],
+    () => scoringNote(shown, day.status === 'ready', t),
+    [shown, day.status, t],
   )
 
   const days = useMemo<DateStripDay[]>(() => {
@@ -285,10 +309,19 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
     // window it runs from the day before the one they chose, so the selection is always on it.
     const first = localDateString(-1)
     const last = localDateString(7)
-    const anchor = date >= first && date <= last ? new Date() : new Date(`${date}T12:00:00`)
-    const valid = !Number.isNaN(anchor.getTime())
+    /*
+     * Midday in the CHOSEN zone, not `new Date(`${date}T12:00:00`)`, which parses in the DEVICE's
+     * — so with a chosen zone far from the device's, noon on the 25th became a moment on the 24th
+     * and the strip was a day out. Anchoring on `todayIso` rather than on `new Date()` also gives
+     * this memo an honest dependency on the zone: "today" moves when the zone changes, `todayIso`
+     * changes with it, and the strip is rebuilt.
+     */
+    const anchorForDate = zonedNoon(date)
+    const anchor = (date >= first && date <= last) || Number.isNaN(anchorForDate.getTime())
+      ? zonedNoon(todayIso)
+      : anchorForDate
     return Array.from({ length: 9 }, (_, index) => {
-      const entry = localDateString(index - 1, valid ? anchor : new Date())
+      const entry = localDateString(index - 1, anchor)
       return {
         date: entry,
         // Only the day we actually loaded has a count. Passing 0 for the others would claim they
@@ -296,7 +329,7 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
         count: entry === day.date && day.status === 'ready' ? day.matches.length : undefined,
       }
     })
-  }, [date, day.date, day.status, day.matches.length])
+  }, [date, todayIso, day.date, day.status, day.matches.length])
 
   const activeFilters = useMemo<ActiveFilter[]>(() => {
     const chips: ActiveFilter[] = []
@@ -304,42 +337,52 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
       const known = competitions.find(option => option.id === id)
       chips.push({
         id: `comp:${id}`,
-        group: 'Competition',
+        group: t('filters.group.competition'),
         // A competition filtered on a day that has no such fixtures still names itself, from the
-        // URL, rather than turning into an anonymous chip the reader cannot identify.
-        label: known?.name ?? 'Selected competition',
+        // URL, rather than turning into an anonymous chip the reader cannot identify. The name
+        // itself is the provider's and is never translated.
+        label: known?.name ?? t('filters.selectedCompetition'),
         onRemove: () => apply({ ...state, competitions: toggleValue(state.competitions, id, false) }),
       })
     }
     for (const market of state.markets) {
       chips.push({
         id: `market:${market}`,
-        group: 'Market',
-        label: MARKET_OPTIONS.find(option => option.value === market)?.label ?? market,
+        group: t('filters.group.market'),
+        label: (() => {
+          const option = MARKET_OPTIONS.find(entry => entry.value === market)
+          return option ? optionLabel(option) : market
+        })(),
         onRemove: () => apply({ ...state, markets: toggleValue(state.markets, market, false) }),
       })
     }
     for (const source of state.sources) {
       chips.push({
         id: `source:${source}`,
-        group: 'Source',
-        label: SOURCE_OPTIONS.find(option => option.value === source)?.label ?? source,
+        group: t('filters.group.source'),
+        label: (() => {
+          const option = SOURCE_OPTIONS.find(entry => entry.value === source)
+          return option ? optionLabel(option) : source
+        })(),
         onRemove: () => apply({ ...state, sources: toggleValue(state.sources, source, false) }),
       })
     }
     if (state.status !== 'all') {
       chips.push({
         id: `status:${state.status}`,
-        group: 'Showing',
-        label: STATUS_OPTIONS.find(option => option.value === state.status)?.label ?? state.status,
+        group: t('filters.group.showing'),
+        label: (() => {
+          const option = STATUS_OPTIONS.find(entry => entry.value === state.status)
+          return option ? optionLabel(option) : state.status
+        })(),
         onRemove: () => apply({ ...state, status: 'all' }),
       })
     }
     return chips
-  }, [apply, competitions, state])
+  }, [apply, competitions, state, t])
 
   const filtered = activeFilterCount(state) > 0
-  const relative = relativeDay(date)
+  const relative = relativeDay(date, t)
   const chipRow = competitions.slice(0, VISIBLE_CHIPS)
   const hiddenChips = competitions.length - chipRow.length
 
@@ -351,7 +394,7 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
             className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-b-2 border-primary-500"
             aria-hidden="true"
           />
-          <p className="text-sm text-secondary-400" role="status">Loading matches&hellip;</p>
+          <p className="text-sm text-secondary-400" role="status">{t('matchday.loading')}</p>
         </div>
       )
     }
@@ -360,14 +403,12 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
       return (
         <EmptyState
           tone="failed"
-          title="These fixtures could not be loaded."
+          title={t('matchday.errorTitle')}
           description={
             <>
+              {/* The service's own message, verbatim. Only the clause under it is ours. */}
               <span className="block">{day.error}</span>
-              <span className="mt-1 block text-xs text-secondary-400">
-                This is a problem reaching our own service. It is not a statement about what is on
-                this date.
-              </span>
+              <span className="mt-1 block text-xs text-secondary-400">{t('matchday.errorNote')}</span>
             </>
           }
           action={
@@ -378,7 +419,7 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
               data-testid="matchday-retry"
             >
               <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
-              Retry
+              {t('matchday.retry')}
             </button>
           }
           data-testid="matchday-error"
@@ -395,14 +436,13 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
         second. This says the first, and leaves the reader somewhere to go rather than a dead end —
         "Pick another day above" was also wrong on the home panel, which has no date strip above it.
       */
-      const today = localDateString(0)
-      const jumpTo = date === today ? localDateString(1) : today
-      const jumpLabel = date === today ? "Show tomorrow's matches" : "Show today's matches"
+      const jumpTo = date === todayIso ? localDateString(1) : todayIso
+      const jumpLabel = t(date === todayIso ? 'matchday.showTomorrow' : 'matchday.showToday')
       return (
         <EmptyState
           tone="empty"
-          title="No matches stored for this date."
-          description={`This installation holds no fixtures for ${formatDay(date)}. Fixtures appear here once they have been fetched and stored, so this is what we hold rather than a statement that nothing is being played.`}
+          title={t('matchday.emptyTitle')}
+          description={t('matchday.emptyDescription', { date: formatDay(date) })}
           action={variant === 'page' ? (
             <button
               type="button"
@@ -419,7 +459,7 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
               className="tap-target-row focus-ring inline-flex items-center rounded-lg border border-dark-600 bg-dark-800 px-4 py-2 text-sm font-medium text-secondary-100 transition-colors hover:bg-dark-700 hover:text-white"
               data-testid="matchday-empty-jump"
             >
-              Pick another date
+              {t('matchday.pickAnotherDate')}
             </Link>
           )}
           data-testid="matchday-empty"
@@ -431,15 +471,18 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
       return (
         <EmptyState
           tone="empty"
-          title="No matches match your filters."
-          description={`${dayMatches.length} ${dayMatches.length === 1 ? 'fixture is' : 'fixtures are'} stored for ${formatDay(date)}; none of them match every filter you have set.`}
+          title={t('matchday.filteredEmptyTitle')}
+          description={t('matchday.filteredEmptyDescription', {
+            count: dayMatches.length,
+            date: formatDay(date),
+          })}
           action={
             <button
               type="button"
               onClick={() => apply(clearedFilters(state))}
               className="tap-target-row focus-ring rounded-lg border border-dark-600 bg-dark-800 px-4 py-2 text-sm font-medium text-secondary-100 transition-colors hover:bg-dark-700 hover:text-white"
             >
-              Clear all filters
+              {t('matchday.clearAllFilters')}
             </button>
           }
           data-testid="matchday-filtered-empty"
@@ -460,8 +503,8 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
               data-testid="matchday-see-all"
             >
               {shown.length < visible.length
-                ? `See all ${visible.length} matches`
-                : 'Open the matchday workspace'}
+                ? t('matchday.seeAll', { count: visible.length })
+                : t('matchday.openWorkspace')}
             </Link>
           </p>
         )}
@@ -474,9 +517,20 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
       {/* Compact header: the day, and nothing that has to be scrolled past. */}
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <Heading id={`${listId}-heading`} className="text-xl font-bold text-white sm:text-2xl">{title}</Heading>
-        <p className="text-sm text-secondary-400">
-          {relative ? `${relative}, ${formatDay(date)}` : formatDay(date)}
-        </p>
+        <div className="text-right">
+          <p className="text-sm text-secondary-400">
+            {relative ? t('matchday.dateLine', { relative, date: formatDay(date) }) : formatDay(date)}
+          </p>
+          {/*
+            WHICH CLOCK THESE TIMES ARE ON, said out loud.
+            A kick-off time is plausible at any hour, so a reader whose zone is wrong has no way
+            to notice from the list itself. The zone is named once, beside the date it also
+            decides — "today" is a day in this zone — rather than repeated on every row.
+          */}
+          <p className="text-xs text-secondary-500" data-testid="matchday-zone">
+            {t('matchday.timesIn', { zone: zoneLabel() })}
+          </p>
+        </div>
       </div>
       {variant === 'page' && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -497,25 +551,49 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
             days={days}
             className="min-w-0 flex-1 [&_[role=group]]:relative"
           />
-          {date !== localDateString(0) && (
+          {date !== todayIso && (
             <button
               type="button"
-              onClick={() => setDate(localDateString(0))}
+              onClick={() => setDate(todayIso)}
               className="tap-target-row focus-ring flex-shrink-0 rounded-lg border border-dark-600 bg-dark-800 px-3 py-2 text-xs font-medium text-secondary-200 transition-colors hover:bg-dark-700 hover:text-white"
               data-testid="matchday-jump-today"
             >
-              Back to today
+              {t('matchday.backToToday')}
             </button>
           )}
         </div>
       )}
 
-      {/* Competitions, always on screen. Sideways scroll inside this strip only: the page itself
-          never scrolls horizontally, at any width. */}
-      {competitions.length > 1 && (
+      {/*
+        Competitions, always on screen. Sideways scroll inside this strip only: the page itself
+        never scrolls horizontally, at any width.
+
+        WHILE THE DAY IS LOADING THIS SAYS SO, rather than not existing.
+
+        The options are derived from the fixtures, so before they arrive there are none and this
+        whole strip used to be absent from the document. An independent reviewer opened the
+        filters during a load, waited ten seconds for a competition that could not yet exist, and
+        recorded it as an unexplained failure — which is fair, because nothing on screen said the
+        filters were still coming. An absent control and a control with nothing in it read the
+        same to a reader and to a test, and neither is the truth here.
+
+        A day that has finished loading with one competition still shows no strip: there is
+        nothing to filter between, and offering the choice would be noise.
+      */}
+      {day.status === 'loading' && (
+        <div
+          className="mt-3 flex items-center gap-1.5 pb-1 text-xs text-secondary-400"
+          data-testid="competition-chip-row-loading"
+          role="status"
+        >
+          {t('matchday.loadingCompetitions')}
+        </div>
+      )}
+
+      {day.status !== 'loading' && competitions.length > 1 && (
         <div
           role="group"
-          aria-label="Filter by competition"
+          aria-label={t('matchday.filterByCompetition')}
           className="no-scrollbar mt-3 flex items-center gap-1.5 overflow-x-auto pb-1"
           data-testid="competition-chip-row"
         >
@@ -540,8 +618,8 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
               onClick={() => setSheetOpen(true)}
               className="tap-target-row focus-ring flex-shrink-0 rounded-full border border-dark-600 bg-dark-800 px-3 py-1 text-xs text-secondary-200 transition-colors hover:bg-dark-700 hover:text-white"
             >
-              {hiddenChips} more
-              <span className="sr-only"> competitions, in the filters</span>
+              {t('matchday.moreCompetitions', { count: hiddenChips })}
+              <span className="sr-only">{t('matchday.moreCompetitionsSr')}</span>
             </button>
           )}
         </div>

@@ -14,18 +14,25 @@ import type {
   BriefFreshness, BriefMarket, BriefMarketKey, BriefMissingReason, BriefOutcome, BriefSourceBlock,
   BriefSourceKey, BriefSourcePresence, MatchBrief, MatchBriefCompact,
 } from '@/types';
+import { formatPercentTrimmed, t } from '@/i18n';
+import type { MessageKey } from '@/i18n';
 
-/** How each source is named in the interface. Short, because it sits in a dense row. */
-export const SOURCE_LABEL: Record<BriefSourceKey, string> = {
-  model: 'Model',
-  expert: 'Expert',
-};
+/**
+ * How each source is named in the interface. Short, because it sits in a dense row.
+ *
+ * FUNCTIONS, NOT MAPS. A `Record` literal is evaluated once when the module is imported, which
+ * for the catalogue means "in whatever language was active at boot" — and this application lets
+ * the reader change that without reloading. Every one of these lookups therefore reads `t` at
+ * call time. The maps are gone; the keys they were indexed by are unchanged.
+ */
+export function sourceLabel(source: BriefSourceKey): string {
+  return t(source === 'expert' ? 'source.expert' : 'source.model');
+}
 
 /** The same, spelled out for a screen reader or a tooltip. */
-export const SOURCE_DESCRIPTION: Record<BriefSourceKey, string> = {
-  model: 'Forecast published by the model provider',
-  expert: 'Prediction published by one of our experts',
-};
+export function sourceDescription(source: BriefSourceKey): string {
+  return t(source === 'expert' ? 'source.description.expert' : 'source.description.model');
+}
 
 /**
  * Short label for a missing-data reason, for a chip or a column that has no room for the sentence.
@@ -35,14 +42,14 @@ export const SOURCE_DESCRIPTION: Record<BriefSourceKey, string> = {
  * a single "unavailable" — the whole point of the reason codes is that they are different facts.
  * When there is room, show `BriefSourceBlock.detail` instead: it is the full sentence.
  */
-export const MISSING_REASON_LABEL: Record<BriefMissingReason, string> = {
-  no_forecast_retrieved: 'Never retrieved',
-  market_not_in_forecast: 'Not in this forecast',
-  forecast_stale: 'Out of date',
-  refresh_blocked: 'Refresh paused',
-  no_expert_prediction: 'No expert prediction',
-  market_not_supplied: 'Expert left this out',
-  not_offered_by_source: 'Not published by this source',
+const MISSING_REASON_KEY: Record<BriefMissingReason, MessageKey> = {
+  no_forecast_retrieved: 'missing.noForecastRetrieved',
+  market_not_in_forecast: 'missing.marketNotInForecast',
+  forecast_stale: 'missing.forecastStale',
+  refresh_blocked: 'missing.refreshBlocked',
+  no_expert_prediction: 'missing.noExpertPrediction',
+  market_not_supplied: 'missing.marketNotSupplied',
+  not_offered_by_source: 'missing.notOfferedBySource',
 };
 
 /**
@@ -53,23 +60,49 @@ export const MISSING_REASON_LABEL: Record<BriefMissingReason, string> = {
  * and it stays correct for a market added after this build shipped. `marketLabel` below falls back
  * to prettifying the key for exactly that case, rather than dropping the market from the list.
  */
-export const MARKET_LABEL: Record<BriefMarketKey, string> = {
-  match_result: 'Match result',
-  btts: 'Both teams to score',
-  over_under_25: 'Total goals 2.5',
-  over_under_35: 'Total goals 3.5',
-  exact_score: 'Exact score',
+const MARKET_KEY: Record<BriefMarketKey, MessageKey> = {
+  match_result: 'market.matchResult',
+  btts: 'market.btts',
+  over_under_25: 'market.overUnder25',
+  over_under_35: 'market.overUnder35',
+  exact_score: 'market.exactScore',
 };
 
 /** The display name for a market key, never dropping a key this build does not recognise. */
 export function marketLabel(key: BriefMarketKey | string): string {
-  return MARKET_LABEL[key as BriefMarketKey] ?? String(key).replace(/_/g, ' ');
+  const message = MARKET_KEY[key as BriefMarketKey];
+  return message ? t(message) : String(key).replace(/_/g, ' ');
+}
+
+/**
+ * What a market counts, and the one thing none of the sources says about it.
+ *
+ * Returns the definition and, separately, the note that the PERIOD is not published. The two are
+ * kept apart because they are different kinds of statement: the first is what the market means,
+ * the second is a limit on what anybody has told us about it. Null for a market this build does
+ * not recognise — a made-up definition would be worse than none.
+ */
+export function marketDefinition(key: BriefMarketKey | string): string | null {
+  switch (key) {
+    case 'match_result': return t('market.definition.1x2');
+    case 'btts': return t('market.definition.btts');
+    case 'over_under_25':
+    case 'over_under_35': return t('market.definition.overUnder');
+    case 'exact_score': return t('market.definition.correctScore');
+    default: return null;
+  }
+}
+
+/** The sentence that says no source publishes the period a market covers. */
+export function marketPeriodNote(): string {
+  return t('market.period.note');
 }
 
 /** The short label, falling back to the raw code for a reason this build does not know. */
 export function missingReasonLabel(reason: BriefMissingReason | null | undefined): string | null {
   if (!reason) return null;
-  return MISSING_REASON_LABEL[reason] ?? String(reason).replace(/_/g, ' ');
+  const message = MISSING_REASON_KEY[reason];
+  return message ? t(message) : String(reason).replace(/_/g, ' ');
 }
 
 /**
@@ -82,8 +115,23 @@ export function missingReasonLabel(reason: BriefMissingReason | null | undefined
 export function percentText(percent: number | null | undefined): string | null {
   if (typeof percent !== 'number' || !Number.isFinite(percent)) return null;
   // `String(85)` is "85" and `String(33.5)` is "33.5": the trailing `.0` never survives, which is
-  // exactly the backend's `_pct_text` rule.
+  // exactly the backend's `_pct_text` rule. Deliberately NOT localised: this value is compared
+  // against the backend's own `percent_text`, and a comma would make two equal numbers unequal.
+  // `percentDisplay` below is the one that reaches a reader.
   return String(Math.round(percent * 10) / 10);
+}
+
+/**
+ * The same number as the reader reads it: 47.2% in English, 47,2 % in French.
+ *
+ * Separate from `percentText` on purpose. That one mirrors a backend string and is used for
+ * comparison; this one is for display, and display means the reader's decimal separator and the
+ * no-break space French puts before the sign. Returns null — never "0%" — for a value the source
+ * did not publish.
+ */
+export function percentDisplay(percent: number | null | undefined): string | null {
+  if (typeof percent !== 'number' || !Number.isFinite(percent)) return null;
+  return formatPercentTrimmed(percent);
 }
 
 /** One market of the brief, or null when this brief does not carry it. */
@@ -142,16 +190,9 @@ export function suppliedMarketCount(
 /** "3 hours", "2 days" — a duration, never dressed up as a precise timestamp. */
 export function ageText(hours: number | null | undefined): string | null {
   if (typeof hours !== 'number' || !Number.isFinite(hours) || hours < 0) return null;
-  if (hours < 1) {
-    const minutes = Math.max(1, Math.round(hours * 60));
-    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
-  }
-  if (hours < 48) {
-    const whole = Math.round(hours);
-    return `${whole} hour${whole === 1 ? '' : 's'}`;
-  }
-  const days = Math.round(hours / 24);
-  return `${days} day${days === 1 ? '' : 's'}`;
+  if (hours < 1) return t('duration.minutes', { count: Math.max(1, Math.round(hours * 60)) });
+  if (hours < 48) return t('duration.hours', { count: Math.round(hours) });
+  return t('duration.days', { count: Math.round(hours / 24) });
 }
 
 /** How a freshness line should be weighted on screen. `unknown` is not a problem, just unknown. */
@@ -181,9 +222,10 @@ export function freshnessLine(freshness: BriefFreshness | null | undefined): Fre
 
   if (freshness.state === 'unavailable') {
     return {
-      text: 'No forecast held',
+      text: t('brief.noForecastHeld'),
       tone: 'problem',
-      detail: freshness.state_reason ?? 'Nothing has been retrieved from the forecast provider for this fixture.',
+      // The backend's own sentence wherever it gave one, untranslated: it is the source's words.
+      detail: freshness.state_reason ?? t('brief.noForecastHeldDetail'),
     };
   }
 
@@ -193,35 +235,36 @@ export function freshnessLine(freshness: BriefFreshness | null | undefined): Fre
 
   if (!freshness.model_run_at_known && measuredAge === null) {
     return {
-      text: 'Age unknown',
+      text: t('brief.ageUnknown'),
       tone: 'unknown',
-      detail: 'The provider published no model-run time for this forecast, so how old it is cannot be stated.',
+      detail: t('brief.ageUnknownDetail'),
     };
   }
 
-  const basisNote = freshness.model_run_at_known
-    ? null
-    : 'The provider published no model-run time, so this age is measured from when we retrieved the forecast, not from when it was produced.';
+  const basisNote = freshness.model_run_at_known ? null : t('brief.basisNote');
 
   if (freshness.state === 'kickoff_passed') {
     return {
-      text: measuredAge ? `Kept for reference · ${measuredAge} old` : 'Kept for reference',
+      text: measuredAge
+        ? t('brief.keptForReferenceAged', { age: measuredAge })
+        : t('brief.keptForReference'),
       tone: 'ageing',
-      detail: freshness.state_reason ?? 'Kickoff has passed. This is preserved as the forecast that was published, not offered as a current one.',
+      detail: freshness.state_reason ?? t('brief.kickoffPassedDetail'),
     };
   }
 
   if (freshness.stale || freshness.state === 'stale') {
-    const limit = freshness.max_age_hours ? ` (limit ${freshness.max_age_hours} hours)` : '';
     return {
-      text: measuredAge ? `Out of date · ${measuredAge} old` : 'Out of date',
+      text: measuredAge ? t('brief.outOfDateAged', { age: measuredAge }) : t('brief.outOfDate'),
       tone: 'problem',
-      detail: basisNote ?? `This forecast is older than the freshness limit${limit}.`,
+      detail: basisNote ?? (freshness.max_age_hours
+        ? t('brief.staleDetailWithLimit', { hours: freshness.max_age_hours })
+        : t('brief.staleDetail')),
     };
   }
 
   return {
-    text: measuredAge ? `${measuredAge} old` : 'Current',
+    text: measuredAge ? t('brief.aged', { age: measuredAge }) : t('brief.current'),
     tone: 'ok',
     detail: basisNote,
   };
@@ -238,5 +281,5 @@ export function refreshBlockedNote(
   freshness: BriefFreshness | MatchBriefCompact | null | undefined,
 ): string | null {
   if (!freshness || !freshness.refresh_blocked) return null;
-  return freshness.refresh_blocked_reason ?? 'Forecast refreshes are paused right now.';
+  return freshness.refresh_blocked_reason ?? t('preview.refreshBlocked');
 }

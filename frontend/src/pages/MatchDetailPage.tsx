@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
@@ -31,6 +31,48 @@ const DAY_LABEL = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'num
 function formatDay(date: string): string {
   const at = new Date(`${date}T12:00:00`)
   return Number.isNaN(at.getTime()) ? date : DAY_LABEL.format(at)
+}
+
+/**
+ * The smallest age the copy on screen must have before coming back to the tab re-reads it.
+ *
+ * A COALESCING GUARD, not a ration, and deliberately the same five seconds the favourites store
+ * uses for the same reason (FOCUS_REFRESH_MIN_AGE_MS in src/services/favourites.service.ts):
+ * `focus` and `visibilitychange` routinely arrive as a pair for one tab switch, and a window
+ * manager can fire several of them within a second. Five seconds collapses those into one
+ * request while still meaning "when you come back, this is current".
+ *
+ * It is also what stops a page that has JUST LOADED re-reading itself a moment later because the
+ * tab it opened in took focus. A reader who opens a fixture and clicks into the window has not
+ * come back from anywhere, and must not cost a second read for it.
+ */
+const RETURN_REFRESH_MIN_AGE_MS = 5_000
+
+/**
+ * Run `handler` when the reader comes back to this tab. Returns the disposer.
+ *
+ * Both events are listened for because neither alone covers both ways back: switching browser
+ * tabs fires `visibilitychange`, while switching applications fires `focus` with the document
+ * never having been hidden. They often arrive together, which is what the age guard above is for.
+ *
+ * THIS IS A SECOND COPY, DELIBERATELY AND TEMPORARILY. src/services/favourites.service.ts already
+ * has exactly this function — `onReaderReturns`, same two events, same visibility test, same
+ * reasoning — and it is module-private there, in a file this change does not own. Importing
+ * another module's internals would be worse than one copy of eight lines, and inventing a second
+ * set of semantics for "the reader came back" would be worse still: the saved-matches store and
+ * this page must wake on the same signal or they will disagree about what a return is. It should
+ * become one shared helper (exported from that service, or lifted into src/utils) the moment both
+ * files can be edited together; this comment is the marker for that.
+ */
+function onReaderReturns(handler: () => void): () => void {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return () => undefined
+  const wake = () => { if (document.visibilityState === 'visible') handler() }
+  window.addEventListener('focus', wake)
+  document.addEventListener('visibilitychange', wake)
+  return () => {
+    window.removeEventListener('focus', wake)
+    document.removeEventListener('visibilitychange', wake)
+  }
 }
 
 /**
@@ -161,8 +203,21 @@ const MatchActions: React.FC<{ match: Match }> = ({ match }) => {
         />
       </div>
 
-      {/* Announced as it changes, and present in the DOM from the first render so that it is. */}
-      <p role="status" aria-live="polite" className="mt-2 min-h-[1rem] text-xs text-secondary-300">
+      {/*
+        Announced as it changes, and present in the DOM from the first render so that it is.
+
+        The testid is not decoration. A test watching "the first role=status on the page" was
+        watching the provider status banner instead of this, because that banner renders whenever
+        a provider is faulted — so whether the test saw the save being announced depended on
+        whether Live Score happened to be failing at the time. A live region needs naming to be
+        observed, not position.
+      */}
+      <p
+        role="status"
+        aria-live="polite"
+        data-testid="match-save-status"
+        className="mt-2 min-h-[1rem] text-xs text-secondary-300"
+      >
         {state}
       </p>
 
@@ -209,38 +264,101 @@ const MatchDetailPage: React.FC = () => {
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
   /** Kept apart from `providerStatus === null`: "not asked yet" is not "we asked and could not". */
   const [statusLoaded, setStatusLoaded] = useState(false)
+  /**
+   * Why the last re-read failed, in the backend's own words; null while what is on screen is the
+   * result of a read that worked. It is the difference between a page that is current and a page
+   * that is merely still there — see the read below.
+   */
+  const [refreshFailure, setRefreshFailure] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      if (!id) return
-      try {
-        setLoading(true)
-        setError(null)
-        const result = await footballDataService.getMatch(id)
-        if (!cancelled) setMatch(result)
-      } catch (err) {
-        if (!cancelled) setError(describeError(err))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => { cancelled = true }
-  }, [id])
+  /** When the copy on screen was last ASKED for. The return guard measures its age from here. */
+  const askedAt = useRef(0)
+  /** A read is already running: a second return while it runs must not start another. */
+  const reading = useRef(false)
+  /** Which read is the current one. An older one that resolves later must never land on it. */
+  const generation = useRef(0)
 
   /**
-   * Whether forecast refreshes are running. The single-match endpoint carries no forecast_sync
-   * report, so the provider-status endpoint is what lets this page say "paused" instead of
-   * "unavailable" when the daily allowance is spent.
+   * Read this fixture AND the refresh state, and commit them together.
+   *
+   * WHY THEY ARE ONE READ. The block under the scoreline states how current this page is, and it
+   * states it from the provider-status payload. Fetching that payload on its own schedule means
+   * the two can be minutes apart, and the pairing that matters is the dangerous one: a status read
+   * from a moment ago beside a fixture read from an hour ago prints "fixtures and scores last
+   * refreshed 1 minute ago" over a scoreline nobody re-read. That is cached data presented as
+   * current. Asking for both in one round trip and committing both or neither is what stops it.
+   *
+   * WHAT IT COSTS THE PROVIDER: NOTHING. `GET /matches/{id}` is answered from stored rows — the
+   * route takes no refresh parameter at all (backend/app/api/v1/endpoints/matches.py) — and
+   * `GET /data-providers/status` reports our own budgets, chain and scheduler out of the database
+   * and process state. Neither reaches a provider, so neither spends allowance, and this page
+   * never passes `refresh=true` anywhere.
+   *
+   * THE TWO MODES ARE DIFFERENT PROMISES.
+   *  - `first`: there is nothing on screen yet, so a failure is the page. Spinner, then the error.
+   *  - `return`: there IS something on screen, and it stays. A failed re-read may not blank the
+   *    fixture, may not throw the reader back to a spinner, and may not quietly leave the old
+   *    freshness line standing as though it had been confirmed. It keeps the content and says the
+   *    age is no longer known, which is `refreshFailure` below.
    */
-  useEffect(() => {
-    let cancelled = false
-    footballDataService.getProviderStatus()
-      .then(status => { if (!cancelled) setProviderStatus(status) })
-      .finally(() => { if (!cancelled) setStatusLoaded(true) })
-    return () => { cancelled = true }
-  }, [])
+  const read = useCallback(async (mode: 'first' | 'return') => {
+    if (!id) return
+    // The focus/visibilitychange pair, and any return that arrives while a read is still running.
+    if (mode === 'return' && reading.current) return
+    const mine = ++generation.current
+    reading.current = true
+    askedAt.current = Date.now()
+    if (mode === 'first') {
+      setLoading(true)
+      setError(null)
+    }
+    try {
+      const [result, status] = await Promise.all([
+        footballDataService.getMatch(id),
+        footballDataService.getProviderStatus(),
+      ])
+      // A read the reader has already moved past — another fixture, or a newer return — must not
+      // land: it would put an older payload on screen under a newer page's freshness line.
+      if (mine !== generation.current) return
+      setMatch(result)
+      setProviderStatus(status)
+      setStatusLoaded(true)
+      // A return that works is also how a page that failed to load recovers itself.
+      setError(null)
+      setRefreshFailure(null)
+    } catch (err) {
+      if (mine !== generation.current) return
+      setStatusLoaded(true)
+      if (mode === 'first') setError(describeError(err))
+      else setRefreshFailure(describeError(err))
+    } finally {
+      if (mine === generation.current) {
+        reading.current = false
+        if (mode === 'first') setLoading(false)
+      }
+    }
+  }, [id])
+
+  // The first read of this fixture, and again whenever the reader opens a different one.
+  useEffect(() => { void read('first') }, [read])
+
+  /**
+   * AND AGAIN WHEN THE READER COMES BACK, which is the only other time this page re-reads.
+   *
+   * A fixture left open in a background tab is the ordinary case, not the exotic one: the reader
+   * goes to do something else and comes back an hour later to a kick-off that has happened, a
+   * score that has moved and a status line frozen at whatever it said when they left. The
+   * favourites store has woken on this signal since it was written; this page never did.
+   *
+   * NO INTERVAL, AND THAT IS THE POINT. One reader on one match page must not become a load
+   * generator: nothing here polls, nothing runs behind a hidden tab, and the age guard above
+   * turns a burst of focus events into at most one request. The cost of leaving this page open
+   * all day is exactly one stored read per time the reader actually comes back to it.
+   */
+  useEffect(() => onReaderReturns(() => {
+    if (Date.now() - askedAt.current < RETURN_REFRESH_MIN_AGE_MS) return
+    void read('return')
+  }), [read])
 
   if (loading) {
     return (
@@ -348,7 +466,12 @@ const MatchDetailPage: React.FC = () => {
                         not decoration: it is the difference between a home and an away forecast. */}
                     <p className="text-xs uppercase tracking-wide text-secondary-400 sm:text-base sm:normal-case sm:tracking-normal">Home</p>
                   </div>
-                  <div className="flex-shrink-0 text-center">
+                  {/*
+                    The scoreline and the state it is in, named so a test can hold them together:
+                    a running score is only ever shown under a running label, and this is the one
+                    element that carries both.
+                  */}
+                  <div className="flex-shrink-0 text-center" data-testid="match-scoreline">
                     {showScore && match.result ? (
                       <div className={`text-2xl font-bold sm:text-3xl ${isMatchLive(match) ? 'text-green-500' : 'text-white'}`}>
                         {match.result.homeScore} - {match.result.awayScore}
@@ -387,6 +510,31 @@ const MatchDetailPage: React.FC = () => {
             THIS fixture. Neither is allowed to stand in for the other, and neither restates the
             other's facts.
           */}
+          {/*
+            AND WHEN COMING BACK DID NOT WORK, THE PAGE SAYS SO INSTEAD OF STANDING STILL QUIETLY.
+
+            A failed re-read leaves the fixture, the scoreline and the forecasts exactly as they
+            were — losing a page the reader was reading because a background request failed would
+            be its own kind of damage. What it may NOT leave standing is the claim underneath
+            them: the block below reports when our refresh last succeeded, and read beside content
+            we could not confirm it reads as "this is current", which is the one thing nobody
+            established. So the copy is kept, its age is withdrawn in words, and the backend's own
+            reason is printed rather than a shrug.
+
+            It sits above that block deliberately: a reader who stops after one line has still
+            been told the thing that changes how the next line should be read.
+          */}
+          {refreshFailure && (
+            <p
+              role="status"
+              data-testid="detail-refresh-failed"
+              className="mb-4 rounded-lg border border-warning-500/40 bg-warning-500/10 px-3 py-2 text-xs text-warning-200 sm:mb-6"
+            >
+              What is on screen is the copy from when you left this page. Coming back to it, we
+              could not read this match again, so its age is not known. {refreshFailure}
+            </p>
+          )}
+
           {statusLoaded && <DataFreshness status={providerStatus} className="mb-4 sm:mb-6" />}
 
           {/*

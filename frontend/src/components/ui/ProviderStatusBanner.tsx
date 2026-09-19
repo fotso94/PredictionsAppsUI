@@ -3,6 +3,7 @@ import { ChevronRightIcon, ExclamationTriangleIcon, XMarkIcon } from '@heroicons
 import { footballDataService } from '@/services/football-data.service'
 import { ProviderStatus } from '@/services/match-data-source'
 import { forecastAvailability } from './forecastStatus'
+import { useT } from '@/i18n/react'
 
 /**
  * The site-wide banner: FAULTS ONLY, one line, with the operator detail one tap away.
@@ -32,6 +33,7 @@ import { forecastAvailability } from './forecastStatus'
 const ProviderStatusBanner: React.FC = () => {
   const [status, setStatus] = useState<ProviderStatus | null>(null)
   const [dismissed, setDismissed] = useState(false)
+  const t = useT()
 
   useEffect(() => {
     let cancelled = false
@@ -47,18 +49,19 @@ const ProviderStatusBanner: React.FC = () => {
   const faults: string[] = []
   const active = status.chain[0]
   if (!active) {
-    faults.push(`No match-data provider is configured (DATA_PROVIDER=${status.active_provider}); fixtures cannot be refreshed.`)
+    faults.push(t('banner.noProvider', { provider: status.active_provider }))
   } else {
     if (active.name !== status.active_provider) {
-      faults.push(`Primary provider "${status.active_provider}" is not configured; using ${active.name} as fallback.`)
+      faults.push(t('banner.fallbackInUse', { provider: status.active_provider, fallback: active.name }))
     }
     if (active.budget && active.budget.enforced && active.budget.remaining_today === 0) {
-      faults.push(`Daily request budget for ${active.name} is exhausted; showing cached data until tomorrow.`)
+      faults.push(t('banner.budgetExhausted', { provider: active.name }))
     }
     if (active.cooling_down) {
-      faults.push(`Fixture provider ${active.name} is paused after a failure: ${active.cooling_down}`)
+      // `{reason}` is the provider's own message, carried through verbatim in every language.
+      faults.push(t('banner.providerCoolingDown', { provider: active.name, reason: active.cooling_down }))
     } else if (active.last_error && (!active.last_success_at || (active.last_error_at || '') > active.last_success_at)) {
-      faults.push(`Last ${active.name} request failed: ${active.last_error}`)
+      faults.push(t('banner.lastRequestFailed', { provider: active.name, reason: active.last_error }))
     }
   }
 
@@ -94,7 +97,7 @@ const ProviderStatusBanner: React.FC = () => {
           <button
             onClick={() => setDismissed(true)}
             className="focus-ring flex-shrink-0 rounded text-yellow-200 hover:text-white"
-            aria-label="Dismiss"
+            aria-label={t('banner.dismiss')}
           >
             <XMarkIcon className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -104,7 +107,9 @@ const ProviderStatusBanner: React.FC = () => {
           <details className="group ml-8 mt-1">
             <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs text-yellow-200/90 hover:text-white">
               <ChevronRightIcon className="h-3.5 w-3.5 flex-shrink-0 transition-transform group-open:rotate-90" aria-hidden="true" />
-              {detail.length === 1 ? 'One more provider detail' : `${detail.length} more provider details`}
+              {detail.length === 1
+                ? t('banner.oneMoreDetail')
+                : t('banner.moreDetails', { count: detail.length })}
             </summary>
             <ul className="mt-1 space-y-0.5 text-xs text-yellow-200/90">
               {detail.map(line => <li key={line} className="break-words">{line}</li>)}

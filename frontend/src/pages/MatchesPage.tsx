@@ -4,6 +4,8 @@ import { useSearchParams } from 'react-router-dom'
 import MatchdayWorkspace from '@/components/matches/MatchdayWorkspace'
 import { readWorkspaceState } from '@/components/matches/workspaceState'
 import { localDateString } from '@/services/match-data-source'
+import { formatIsoDate } from '@/i18n'
+import { useT } from '@/i18n/react'
 
 /**
  * The matches-first workspace, on its own route and on the two date routes that predate it.
@@ -23,25 +25,28 @@ export interface MatchesPageProps {
   preset?: 'today' | 'tomorrow'
 }
 
-const LONG_DATE = new Intl.DateTimeFormat('en-GB', {
-  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-})
-
+/*
+ * The day in the document title and the meta description.
+ *
+ * This was `Intl.DateTimeFormat('en-GB', …)` — English, hard-coded, built once — over a date
+ * parsed in the device's zone. Both are the reader's own now: `formatIsoDate` anchors the
+ * calendar date at midday in their chosen zone and spells it out in their language.
+ */
 function formatDay(date: string): string {
-  const at = new Date(`${date}T12:00:00`)
-  return Number.isNaN(at.getTime()) ? date : LONG_DATE.format(at)
+  return formatIsoDate(date)
 }
 
 const MatchesPage: React.FC<MatchesPageProps> = ({ preset }) => {
+  const t = useT()
   const [searchParams] = useSearchParams()
   const defaultDate = localDateString(preset === 'tomorrow' ? 1 : 0)
   // Read here only so the document title names the day actually on screen; the workspace reads the
   // same parameters for itself and stays the single owner of the state.
   const { date } = readWorkspaceState(searchParams, defaultDate)
 
-  const title = preset === 'today' ? "Today's matches"
-    : preset === 'tomorrow' ? "Tomorrow's matches"
-      : 'Matches'
+  const title = t(preset === 'today' ? 'matchday.title.today'
+    : preset === 'tomorrow' ? 'matchday.title.tomorrow'
+      : 'matchday.title.generic')
 
   return (
     <>
@@ -49,7 +54,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ preset }) => {
         <title>{`${title} — ${formatDay(date)}`}</title>
         <meta
           name="description"
-          content={`Fixtures for ${formatDay(date)} from the top five European leagues and the Champions League, with the model forecast and any expert prediction published for each match. Every probability names its source; a market no source published is shown as unavailable.`}
+          content={t('matchday.documentDescription', { date: formatDay(date) })}
         />
       </Helmet>
 
@@ -71,7 +76,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ preset }) => {
             deleted. It has moved into the workspace, which is the only part of this that can see
             which fixtures were actually listed, and is computed there from them.
           */
-          footnote="Every fixture stored for this date. Each probability is shown exactly as the source published it, and a market no source published is marked unavailable rather than shown as zero."
+          footnote={t('matchday.footnote')}
         />
       </div>
     </>

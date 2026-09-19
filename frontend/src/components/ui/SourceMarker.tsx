@@ -2,7 +2,9 @@ import React from 'react'
 import clsx from 'clsx'
 import { CpuChipIcon, UserIcon } from '@heroicons/react/24/outline'
 import { BriefSourceKey, BriefSourceState } from '@/types'
-import { SOURCE_DESCRIPTION, SOURCE_LABEL } from '@/utils/brief'
+import { sourceDescription, sourceLabel } from '@/utils/brief'
+import { useT } from '@/i18n/react'
+import type { MessageKey } from '@/i18n'
 
 /**
  * Who said it: the model provider, or one of our experts.
@@ -38,10 +40,10 @@ export interface SourceMarkerProps {
 }
 
 /** Extra wording for a state that is not plainly "available". Text, so colour is never the only cue. */
-const STATE_SUFFIX: Partial<Record<BriefSourceState, string>> = {
-  stale: 'out of date',
-  reference_only: 'for reference',
-  unavailable: 'none',
+const STATE_SUFFIX_KEY: Partial<Record<BriefSourceState, MessageKey>> = {
+  stale: 'source.state.stale',
+  reference_only: 'source.state.referenceOnly',
+  unavailable: 'source.state.unavailable',
 }
 
 const SourceMarker: React.FC<SourceMarkerProps> = ({
@@ -52,10 +54,16 @@ const SourceMarker: React.FC<SourceMarkerProps> = ({
   size = 'xs',
   className,
 }) => {
+  const t = useT()
   const Icon = source === 'expert' ? UserIcon : CpuChipIcon
   const muted = state === 'unavailable'
-  const suffix = STATE_SUFFIX[state] ?? null
-  const description = title ?? `${SOURCE_DESCRIPTION[source]}${suffix ? ` — ${suffix}` : ''}`
+  const suffixKey = STATE_SUFFIX_KEY[state]
+  // The source travels with the wording: in French the state agrees with the noun each source
+  // implies, and that cannot be applied after the fact. See the note in the catalogue.
+  const suffix = suffixKey ? t(suffixKey, { source }) : null
+  const description = title ?? (suffix
+    ? t('source.markerDescription', { description: sourceDescription(source), suffix })
+    : sourceDescription(source))
 
   return (
     <span
@@ -75,7 +83,7 @@ const SourceMarker: React.FC<SourceMarkerProps> = ({
       data-testid={`source-marker-${source}`}
     >
       <Icon className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-      <span>{SOURCE_LABEL[source]}</span>
+      <span>{sourceLabel(source)}</span>
       {detail && <span className="num font-semibold">{detail}</span>}
       {suffix && <span className="font-normal text-secondary-300">{suffix}</span>}
       <span className="sr-only">. {description}</span>

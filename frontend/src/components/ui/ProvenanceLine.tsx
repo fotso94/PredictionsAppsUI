@@ -4,6 +4,7 @@ import { ClockIcon, NoSymbolIcon, QuestionMarkCircleIcon } from '@heroicons/reac
 import { BriefFreshness, MatchBriefCompact } from '@/types'
 import { freshnessLine, refreshBlockedNote } from '@/utils/brief'
 import { providerLabel } from '@/utils/predictionLabels'
+import { useT } from '@/i18n/react'
 
 /**
  * One compact line: where a number came from, how current it is, and — when that is the honest
@@ -59,6 +60,7 @@ const ProvenanceLine: React.FC<ProvenanceLineProps> = ({
   layout = 'inline',
   className,
 }) => {
+  const t = useT()
   const name = sourceLabel ?? (source ? providerLabel(source) : null)
   const line = freshnessLine(freshness)
   const blocked = refreshBlockedNote(freshness ?? compact)
@@ -67,9 +69,9 @@ const ProvenanceLine: React.FC<ProvenanceLineProps> = ({
   // whether what we hold is out of date. It is not turned into an age it cannot support.
   const compactState = !line && compact
     ? compact.forecast_state === 'unavailable'
-      ? { text: 'No forecast held', tone: 'problem' as const }
+      ? { text: t('brief.noForecastHeld'), tone: 'problem' as const }
       : compact.stale
-        ? { text: 'Out of date', tone: 'problem' as const }
+        ? { text: t('brief.outOfDate'), tone: 'problem' as const }
         : null
     : null
 
@@ -87,7 +89,7 @@ const ProvenanceLine: React.FC<ProvenanceLineProps> = ({
       <span className={clsx('flex flex-wrap items-center gap-x-1.5 gap-y-1', TONE_CLASS[tone])}>
         {!hideSource && name && (
           <span className="text-secondary-300">
-            <span className="sr-only">Source: </span>{name}
+            <span className="sr-only">{t('provenance.sourcePrefix')}</span>{name}
           </span>
         )}
         {!hideSource && name && text && <span aria-hidden="true" className="text-secondary-400">·</span>}
@@ -100,8 +102,9 @@ const ProvenanceLine: React.FC<ProvenanceLineProps> = ({
       </span>
       {blocked && (
         <span className={clsx('text-secondary-300', layout === 'full' ? 'block' : 'inline')} data-testid="provenance-refresh-blocked">
-          {/* Deliberately its own sentence: a paused refresh is not a reason to doubt the numbers. */}
-          Refresh paused — {blocked}
+          {/* Deliberately its own sentence: a paused refresh is not a reason to doubt the numbers.
+              `{reason}` is the backend's own wording and is never translated. */}
+          {t('provenance.refreshPaused', { reason: blocked })}
         </span>
       )}
       {line?.detail && layout === 'full' && (

@@ -32,8 +32,9 @@ import { useLocation, useNavigationType } from 'react-router-dom'
  * does nothing useful: the fixtures arrive a frame or several later, and until they do the
  * document is a heading and a spinner with nothing to scroll. A restore is therefore not a single
  * jump but a short convergence. Every frame for up to RESTORE_WINDOW_MS the reader is put as close
- * to the saved offset as the page can currently reach, and the moment the page is tall enough to
- * hold the offset exactly, it is applied and the watching stops.
+ * to the saved offset as the page can currently reach, and it is applied exactly as soon as the
+ * page is tall enough to hold it — but that is where the restore LANDS, not where it ends. See
+ * A PAGE CAN BE TALL ENOUGH BEFORE IT IS FINISHED below for why those are two different moments.
  *
  * That is deliberately not "wait for the exact height or give up". A page that comes back five
  * pixels shorter than it went away — one fewer fixture on the day, a notice that has settled —
@@ -43,6 +44,34 @@ import { useLocation, useNavigationType } from 'react-router-dom'
  * The whole thing is abandoned the instant the reader takes over: once they have chosen a position
  * of their own, moving them is never right. HOW WE KNOW THEY HAVE, below, is the part that took
  * two goes to get right.
+ *
+ * A PAGE CAN BE TALL ENOUGH BEFORE IT IS FINISHED, and stopping at the first layout that could
+ * hold the offset is what this component used to do. Measured on the mocked journey's filtered
+ * list, walking into the last fixture and pressing Back — a list that is not held back at all,
+ * answering from the stub as fast as the network layer can:
+ *
+ *   360x740   the reader left at 2059. Back: 1371 tall, nothing to scroll; one frame later 3404
+ *             tall, which reaches 2059, so the offset was applied and the watch stopped. NINETEEN
+ *             MILLISECONDS after that the document finished at 3515 — the matchday controls above
+ *             the list growing from 559 to 670 as their own content arrived — and the browser's
+ *             scroll anchoring, handed straight back by a restore that thought it was done,
+ *             carried the reader down with the growth to 2170.
+ *   390x844   the same, 1961 to 2072: the same 111px, the same one frame late.
+ *   1440x900  the same growth (2271 to 2366) but the last converge happened to fall on the far
+ *             side of it, so the reader landed on 1376 and stayed. The defect was not absent at
+ *             1440, it was invisible there.
+ *
+ * 111px is a fixture and a half at 360. The reader asked for the row they were reading and got
+ * the row below it, on every Back, on both phones. What makes it worse than a miss is that the
+ * anchoring kept the WRONG content still: it preserved what sat at 2059 in a layout that existed
+ * for one frame, which is not the layout the reader's offset was recorded against.
+ *
+ * So a restore is over when the offset has been applied AND the page has stopped moving under it:
+ * `landed` and then RESTORE_SETTLE_MS of unchanged height. Until both hold, the watch keeps the
+ * browser's anchoring held off and re-applies the offset on every frame the page changes shape.
+ * This is also why the watch now starts even when the very first converge succeeds: a page that
+ * is already tall enough at the instant Back fires can still be one paint from finished, and the
+ * old code's early return left exactly that case with no correction and no anchoring hold.
  *
  * AND THE LIST THAT ARRIVES AFTER THE WINDOW HAS CLOSED. Measured on a Galaxy S8 (360x740) with
  * `GET /api/v1/matches` held back 4 s, walking into a fixture from the filtered list of
@@ -166,6 +195,27 @@ const RESTORE_MAX_MS = 6000
  * notice and coarse enough that a five-second watch forces fifty layouts rather than three hundred.
  */
 const RESTORE_POLL_MS = 100
+
+/**
+ * How long the document's height must hold still, AFTER the offset has been applied, before the
+ * restore is called finished and the browser's scroll anchoring is handed back.
+ *
+ * This is the number that closes A PAGE CAN BE TALL ENOUGH BEFORE IT IS FINISHED above. It has to
+ * clear the gap between the paint that makes the offset reachable and the paint that finishes the
+ * page — measured at 15 to 19 milliseconds, one frame, on all three widths — with enough room
+ * that a single slow frame on a loaded machine does not end the watch early. A quarter of a
+ * second is roughly fifteen frames at 60Hz.
+ *
+ * It is bounded from above by two things. e2e/mocked/navigation-continuity.spec.ts requires a
+ * landed restore to have given the page's anchoring back 600ms after the rows arrive, so this has
+ * to be comfortably inside that; and RESTORE_MAX_MS still hard-stops everything, so the settle
+ * can extend a restore but can never prolong one past the cap.
+ *
+ * What it costs: on an ordinary Back the page is watched for a quarter of a second longer than it
+ * used to be, and a reader who scrolls in that quarter second is handed the page by the check in
+ * the watch — the same check that has always covered them — rather than being fought for it.
+ */
+const RESTORE_SETTLE_MS = 250
 
 /**
  * A reader doing any of these has chosen their own position, and a pending restore must yield.
@@ -364,7 +414,15 @@ const ScrollBehaviour: React.FC = () => {
 
         if (target <= 0) {
           jumpTo(0)
-        } else if (!converge()) {
+        } else {
+          /**
+           * Whether the offset ITSELF is currently applied, as opposed to the nearest position a
+           * shorter page could reach. Re-read from every converge rather than latched: a page
+           * that grows tall enough and then shrinks below the offset again has stopped holding
+           * it, and a restore that called itself landed on the strength of a layout that no
+           * longer exists would stop watching a page it has not finished with.
+           */
+          let landed = converge()
           watching = true
           holdAnchoring()
           root.setAttribute(RESTORE_PHASE, 'converging')
@@ -372,11 +430,32 @@ const ScrollBehaviour: React.FC = () => {
           const convergeUntil = started + RESTORE_WINDOW_MS
           const giveUpAt = started + RESTORE_MAX_MS
           let lastPoll = started
+          /**
+           * The last moment the document's height was seen to move. RESTORE_SETTLE_MS is measured
+           * from here, so a page still being built keeps pushing the end of the restore out — as
+           * far as the cap, and no further.
+           */
+          let heightMovedAt = started
           for (const event of READER_TOOK_OVER) {
             window.addEventListener(event, abandonToReader, { passive: true })
           }
+
+          /**
+           * The restore is finished: the reader is on the offset they asked for, and the page has
+           * held still underneath them long enough to believe it is done arriving. Either half
+           * alone is what the two measured failures were made of — the offset applied to a page
+           * still growing (see A PAGE CAN BE TALL ENOUGH BEFORE IT IS FINISHED), and a page that
+           * has stopped growing without ever reaching the offset, which is not a restore at all.
+           */
+          const finished = (now: number) => landed && now - heightMovedAt >= RESTORE_SETTLE_MS
+
           const tick = (now: number) => {
             if (!watching) return
+
+            /** Read once a frame: the reader check and the settle must agree about the page. */
+            const height = documentHeight()
+            const grew = height !== placedHeight
+            if (grew) heightMovedAt = now
 
             /*
              * The reader moved the page themselves, by any means at all. READER_TOOK_OVER names
@@ -387,14 +466,14 @@ const ScrollBehaviour: React.FC = () => {
              * changed means content arrived, and the offset shifting with it is the browser's
              * scroll anchoring, which is the thing being corrected rather than a reader.
              */
-            if (documentHeight() === placedHeight
-              && Math.abs(window.scrollY - placedAt) > READER_SLOP) {
+            if (!grew && Math.abs(window.scrollY - placedAt) > READER_SLOP) {
               stopWatching('reader')
               return
             }
 
             if (now < convergeUntil) {
-              if (converge()) {
+              landed = converge()
+              if (finished(now)) {
                 stopWatching('restored')
                 return
               }
@@ -406,12 +485,18 @@ const ScrollBehaviour: React.FC = () => {
                * the browser's scroll anchoring if nobody corrects it. A height that has not
                * changed means the page is finished and shorter than where the reader was, and
                * they stay at the bottom of it, which is where convergence already put them.
+               *
+               * A restore that lands out here settles on exactly the same terms as one that lands
+               * inside the window: the rows arriving late can be followed by the rest of the page
+               * arriving later still, and the reader is owed the offset against the finished
+               * layout rather than against the first one that could hold it.
                */
               lastPoll = now
               if (root.getAttribute(RESTORE_PHASE) !== 'holding') {
                 root.setAttribute(RESTORE_PHASE, 'holding')
               }
-              if (documentHeight() !== placedHeight && converge()) {
+              if (grew) landed = converge()
+              if (finished(now)) {
                 stopWatching('restored')
                 return
               }

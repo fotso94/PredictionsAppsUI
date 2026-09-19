@@ -4,7 +4,9 @@ import clsx from 'clsx'
 import { ChevronDownIcon } from '@heroicons/react/24/outline'
 import { BriefSourceKey, Match } from '@/types'
 import { isMatchFinished, isMatchLive } from '@/utils/matchFilters'
-import { marketLabel, missingReasonLabel } from '@/utils/brief'
+import { marketLabel, missingReasonLabel, percentDisplay } from '@/utils/brief'
+import { formatTime } from '@/i18n'
+import { useT } from '@/i18n/react'
 import { fixturePreview, SourcePreview } from '@/utils/matchPreview'
 import { onTeamLogoError } from './imageFallback'
 import SourceMarker from './SourceMarker'
@@ -78,7 +80,10 @@ const ProbabilityBar: React.FC<{ percent: number; emphasis: boolean }> = ({ perc
 const SourceDetail: React.FC<{ preview: SourcePreview; homeName: string; awayName: string }> = ({
   preview, homeName, awayName,
 }) => {
-  const nameFor = (key: string) => (key === 'home_win' ? homeName : key === 'away_win' ? awayName : 'Draw')
+  const t = useT()
+  // The club names are the provider's and stay as published; only "Draw" is a word of ours.
+  const nameFor = (key: string) =>
+    (key === 'home_win' ? homeName : key === 'away_win' ? awayName : t('outcome.draw'))
 
   return (
     <div className="min-w-0 flex-1" data-testid={`fixture-detail-${preview.source}`}>
@@ -88,7 +93,10 @@ const SourceDetail: React.FC<{ preview: SourcePreview; homeName: string; awayNam
           // Only ever shown when the source PUBLISHED a value, and labelled as the source's own
           // claim — never as an accuracy, which nothing here has measured.
           <span className="num text-[11px] text-secondary-300">
-            {preview.confidence.percent}% confidence, published by the {preview.source}
+            {t('fixture.confidencePublished', {
+              percent: percentDisplay(preview.confidence.percent) ?? String(preview.confidence.percent),
+              source: preview.source,
+            })}
           </span>
         )}
       </div>
@@ -99,7 +107,9 @@ const SourceDetail: React.FC<{ preview: SourcePreview; homeName: string; awayNam
             <li key={outcome.key}>
               <div className="flex items-baseline justify-between gap-2 text-xs">
                 <span className="min-w-0 truncate text-secondary-200">{nameFor(outcome.key)}</span>
-                <span className="num font-semibold text-white">{outcome.percentText}%</span>
+                <span className="num font-semibold text-white">
+                  {percentDisplay(outcome.percent) ?? `${outcome.percentText}%`}
+                </span>
               </div>
               <ProbabilityBar percent={outcome.percent} emphasis={outcome.key === preview.lead?.key} />
             </li>
@@ -108,7 +118,7 @@ const SourceDetail: React.FC<{ preview: SourcePreview; homeName: string; awayNam
       ) : (
         <p className="mt-2 text-xs text-secondary-300" data-testid={`fixture-detail-${preview.source}-unavailable`}>
           {/* The backend's own sentence, verbatim. Never "0%", never a blank space. */}
-          {preview.detail ?? missingReasonLabel(preview.reason) ?? 'This source published nothing for the match result.'}
+          {preview.detail ?? missingReasonLabel(preview.reason) ?? t('fixture.noMatchResult')}
         </p>
       )}
     </div>
@@ -130,6 +140,7 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
   expandable = true,
   className,
 }) => {
+  const t = useT()
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultExpanded)
   const isControlled = expanded !== undefined
   const open = isControlled ? expanded : uncontrolledOpen
@@ -139,7 +150,7 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
   const live = isMatchLive(match)
   const finished = isMatchFinished(match)
   const showScore = (live || finished) && Boolean(match.result)
-  const fixtureLabel = `${match.homeTeam.name} versus ${match.awayTeam.name}`
+  const fixtureLabel = t('fixture.versus', { home: match.homeTeam.name, away: match.awayTeam.name })
 
   const toggle = () => {
     const next = !open
@@ -156,17 +167,28 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
     if (live) {
       return (
         <>
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-success-300">Live</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-success-300">{t('fixture.live')}</span>
           {match.minute && <span className="num text-sm font-semibold text-success-300">{match.minute}&rsquo;</span>}
         </>
       )
     }
-    if (finished) return <span className="text-[11px] font-semibold uppercase tracking-wide text-secondary-300">FT</span>
-    if (match.status === 'postponed') return <span className="text-[11px] font-semibold uppercase text-warning-200">Postp.</span>
-    if (match.status === 'cancelled') return <span className="text-[11px] font-semibold uppercase text-danger-300">Canc.</span>
+    if (finished) return <span className="text-[11px] font-semibold uppercase tracking-wide text-secondary-300">{t('fixture.ft')}</span>
+    if (match.status === 'postponed') return <span className="text-[11px] font-semibold uppercase text-warning-200">{t('fixture.postponed')}</span>
+    if (match.status === 'cancelled') return <span className="text-[11px] font-semibold uppercase text-danger-300">{t('fixture.cancelled')}</span>
+    /*
+     * THE KICK-OFF IS RE-FORMATTED FROM THE UTC INSTANT ON EVERY RENDER, not read from
+     * `match.time`.
+     *
+     * `match.time` is written once, when the payload is mapped, in whatever zone was chosen at
+     * that moment — so a reader who changes zone with a day already on screen would keep the old
+     * clock until the data was refetched. Formatting `kickoffUtc` here makes the change immediate
+     * and makes the row's `dateTime` attribute and its visible text the same instant by
+     * construction. `match.time` remains the fallback for a payload that carries no instant, and
+     * the mapper still writes it in the chosen zone for exactly that case.
+     */
     return (
       <time className="num text-sm font-semibold text-white" dateTime={match.kickoffUtc ?? undefined}>
-        {match.time}
+        {formatTime(match.kickoffUtc) ?? match.time}
       </time>
     )
   }
@@ -196,21 +218,29 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
   const marker = (source: BriefSourceKey) => {
     const side = source === 'model' ? preview.model : preview.expert
     const shortSide = side.lead
-      ? side.lead.key === 'home_win' ? 'Home' : side.lead.key === 'away_win' ? 'Away' : 'Draw'
+      ? t(side.lead.key === 'home_win' ? 'fixture.side.home'
+        : side.lead.key === 'away_win' ? 'fixture.side.away'
+          : 'fixture.side.draw')
       : null
     const teamName = side.lead
       ? side.lead.key === 'home_win' ? match.homeTeam.name
         : side.lead.key === 'away_win' ? match.awayTeam.name
-          : 'a draw'
+          : t('fixture.aDraw')
       : null
     return (
       <SourceMarker
         key={source}
         source={source}
         state={side.lead ? side.state : 'unavailable'}
-        detail={side.lead && shortSide ? `${shortSide} ${side.lead.percentText}%` : null}
-        title={side.lead
-          ? `${side.label}: ${teamName} at ${side.lead.percentText} per cent, as published by the source.`
+        detail={side.lead && shortSide
+          ? `${shortSide} ${percentDisplay(side.lead.percent) ?? `${side.lead.percentText}%`}`
+          : null}
+        title={side.lead && teamName
+          ? t('fixture.leadTitle', {
+            source: side.label,
+            outcome: teamName,
+            percent: percentDisplay(side.lead.percent) ?? `${side.lead.percentText}%`,
+          })
           : (side.detail ?? undefined)}
       />
     )
@@ -239,7 +269,7 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
         <Link
           to={href ?? `/match/${match.id}`}
           className="focus-ring -mx-1 flex min-w-0 flex-1 flex-col justify-center gap-0.5 rounded px-1"
-          aria-label={`${fixtureLabel}. Open the full analysis.`}
+          aria-label={t('fixture.openAnalysis', { fixture: fixtureLabel })}
         >
           {teamLine(match.homeTeam.name, match.homeTeam.logo, homeScore, showScore && (homeScore ?? 0) > (awayScore ?? 0))}
           {teamLine(match.awayTeam.name, match.awayTeam.logo, awayScore, showScore && (awayScore ?? 0) > (homeScore ?? 0))}
@@ -275,7 +305,7 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
               onClick={toggle}
               aria-expanded={open}
               aria-controls={detailId}
-              aria-label={`${open ? 'Hide' : 'Show'} details for ${fixtureLabel}`}
+              aria-label={t(open ? 'fixture.hideDetails' : 'fixture.showDetails', { fixture: fixtureLabel })}
               className="tap-target focus-ring rounded-lg text-secondary-300 transition-colors hover:bg-dark-700 hover:text-white"
               data-testid="fixture-row-expand"
             >
@@ -317,7 +347,7 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
                   to={href ?? `/match/${match.id}`}
                   className="focus-ring ml-auto flex-shrink-0 rounded text-xs font-medium text-primary-300 underline-offset-2 hover:text-primary-200 hover:underline"
                 >
-                  Full analysis
+                  {t('fixture.fullAnalysis')}
                 </Link>
               </div>
             </div>
@@ -336,6 +366,7 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
  * states; the value behind it lives on the match page.
  */
 const OtherMarkets: React.FC<{ match: Match }> = ({ match }) => {
+  const t = useT()
   const compact = match.briefCompact
   if (!compact) return null
   const rows: Array<[BriefSourceKey, string]> = (['model', 'expert'] as const)
@@ -351,7 +382,7 @@ const OtherMarkets: React.FC<{ match: Match }> = ({ match }) => {
     <dl className="mt-3 space-y-1 border-t border-dark-700 pt-2 text-[11px]">
       {rows.map(([source, list]) => (
         <div key={source} className="flex gap-2">
-          <dt className="flex-shrink-0 text-secondary-400">{source === 'model' ? 'Model' : 'Expert'} also published</dt>
+          <dt className="flex-shrink-0 text-secondary-400">{t('fixture.alsoPublished', { source })}</dt>
           <dd className="min-w-0 text-secondary-200">{list}</dd>
         </div>
       ))}

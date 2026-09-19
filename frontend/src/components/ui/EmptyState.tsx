@@ -1,6 +1,7 @@
 import React from 'react'
 import clsx from 'clsx'
 import { ExclamationTriangleIcon, InboxIcon, SignalSlashIcon } from '@heroicons/react/24/outline'
+import { useT } from '@/i18n/react'
 
 /**
  * The state a list is in when it has nothing to show.
@@ -54,11 +55,10 @@ const TONE_ICON_CLASS: Record<EmptyStateTone, string> = {
 }
 
 /** Read out before the title, so the tone is not conveyed by colour and icon alone. */
-const TONE_PREFIX: Record<EmptyStateTone, string> = {
-  empty: '',
-  failed: 'Could not load. ',
-  blocked: 'Unavailable right now. ',
-}
+const TONE_PREFIX_KEY = {
+  failed: 'emptyState.couldNotLoad',
+  blocked: 'emptyState.unavailableNow',
+} as const
 
 const EmptyState: React.FC<EmptyStateProps> = ({
   title,
@@ -70,7 +70,9 @@ const EmptyState: React.FC<EmptyStateProps> = ({
   className,
   'data-testid': testId = 'empty-state',
 }) => {
+  const t = useT()
   const Icon = TONE_ICON[tone]
+  const prefixKey = tone === 'failed' || tone === 'blocked' ? TONE_PREFIX_KEY[tone] : null
 
   return (
     <div
@@ -89,7 +91,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         {icon ?? <Icon className={clsx('h-8 w-8', TONE_ICON_CLASS[tone])} aria-hidden="true" />}
       </div>
       <p className="mt-3 text-sm font-medium text-white">
-        <span className="sr-only">{TONE_PREFIX[tone]}</span>
+        {prefixKey && <span className="sr-only">{t(prefixKey)}</span>}
         {title}
       </p>
       {description && <div className="mt-1 text-sm text-secondary-300">{description}</div>}

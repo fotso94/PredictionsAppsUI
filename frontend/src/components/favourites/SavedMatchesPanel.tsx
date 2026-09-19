@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import EmptyState from '@/components/ui/EmptyState'
 import FixtureRow from '@/components/ui/FixtureRow'
+import useAuth from '@/hooks/useAuth'
 import useFavourites from '@/hooks/useFavourites'
 import {
-  buildFeed, followedFixturesStore, FEED_DAYS_AHEAD, FEED_DAYS_BACK,
+  buildFeed, followedFixturesStore, usePersonalPreferences, FEED_DAYS_AHEAD, FEED_DAYS_BACK,
   type FeedEntry, type FeedGroup, type FeedPhase, type FeedReason,
 } from '@/services/favourites.service'
 import SavedMatchNote from './SavedMatchNote'
@@ -100,13 +101,32 @@ const FeedReasons: React.FC<{ reasons: FeedReason[] }> = ({ reasons }) => {
   )
 }
 
-const FeedRow: React.FC<{ entry: FeedEntry }> = ({ entry }) => {
+/**
+ * THE SCORE-ONLY PATH, AT THE ONE PLACE IT CAN BE HONEST.
+ *
+ * With forecasts switched off, the row's expandable detail is not rendered at all — `expandable`
+ * is the prop `FixtureRow` already offers for exactly that, and it keeps the brief, the per-source
+ * probabilities and the other-markets list out of the DOM entirely.
+ *
+ * The compact per-source markers on the row itself have no such prop, so they are hidden with a
+ * rule scoped to this wrapper. Hidden, NOT replaced: rendering `FixtureRow` with the forecast
+ * fields stripped off the match would make its markers say the source published nothing, which is
+ * a claim about the data and would be false. A reader who turned forecasts off asked not to see
+ * them, not to be told they do not exist. Widening `FixtureRowProps` with a `showPreview` prop is
+ * the clean fix and belongs to that file's owner; the note is in the package report.
+ */
+const HIDE_FORECAST_PREVIEW = '[&_[data-testid=fixture-row-preview]]:hidden'
+
+const FeedRow: React.FC<{ entry: FeedEntry; showForecasts: boolean }> = ({ entry, showForecasts }) => {
   const { isSaved, isPending, toggleSave, signedIn, requireSignIn } = useMatchSaving()
   const label = `${entry.match.homeTeam.name} versus ${entry.match.awayTeam.name}`
 
   return (
     <li
-      className="rounded-lg border border-dark-800 bg-dark-900/40"
+      className={clsx(
+        'rounded-lg border border-dark-800 bg-dark-900/40',
+        !showForecasts && HIDE_FORECAST_PREVIEW,
+      )}
       // `saved-match` is the anchor the live save journey asserts on, and it marks exactly one
       // thing: a row the reader saved themselves. A fixture that is only here because of a follow
       // must not carry it, or "the match I saved is on my dashboard once" stops being provable.
@@ -121,6 +141,7 @@ const FeedRow: React.FC<{ entry: FeedEntry }> = ({ entry }) => {
         onToggleSave={(matchId, next) => toggleSave(matchId, next, entry.match)}
         signedIn={signedIn}
         onRequireSignIn={() => requireSignIn({ matchId: entry.matchId, label })}
+        expandable={showForecasts}
       />
       {/* A row that is only here because of a follow carries one short line; a saved row carries
           its note as well, so it gets the taller treatment and the other does not. */}
@@ -133,7 +154,12 @@ const FeedRow: React.FC<{ entry: FeedEntry }> = ({ entry }) => {
   )
 }
 
-const FeedSection: React.FC<{ group: FeedGroup }> = ({ group }) => (
+const FeedSection: React.FC<{
+  group: FeedGroup
+  showForecasts: boolean
+  showPrompts: boolean
+  liveUpdates: boolean
+}> = ({ group, showForecasts, showPrompts, liveUpdates }) => (
   <section aria-labelledby={groupAnchor(group.phase)} data-testid={`feed-group-${group.phase}`}>
     <h3
       id={groupAnchor(group.phase)}
@@ -144,23 +170,47 @@ const FeedSection: React.FC<{ group: FeedGroup }> = ({ group }) => (
       <span className="num text-xs font-normal text-secondary-400">{group.total}</span>
     </h3>
     {group.phase === 'result' && (
-      // Said once, where a reader might otherwise expect a verdict beside the score.
+      // Said once, where a reader might otherwise expect a verdict beside the score. With
+      // forecasts off the first half of that sentence would describe something not on the page,
+      // so the claim shrinks to what is actually shown rather than staying and going stale.
       <p className="mb-2 text-xs text-secondary-400">
-        Final scores, with what each source published before kick-off. Whether a forecast was right
-        is settled separately and reported on the home page with its sample size; nothing on this
-        page is marked right or wrong, and a saved match is not a prediction you made.
+        {showForecasts
+          ? 'Final scores, with what each source published before kick-off. Whether a forecast was '
+            + 'right is settled separately and reported on the home page with its sample size; '
+            + 'nothing on this page is marked right or wrong, and a saved match is not a '
+            + 'prediction you made.'
+          : 'Final scores. Nothing on this page is marked right or wrong, and a saved match is not '
+            + 'a prediction you made.'}
+      </p>
+    )}
+    {group.phase === 'live' && !liveUpdates && (
+      /*
+       * "Never present cached data as live." With automatic updates off, these scores are
+       * whatever arrived when the page loaded, and a row headed "In play now" beside a minute and
+       * a scoreline is otherwise read as current. The reader switched this off; they are not
+       * nagged to switch it back, only told what they are looking at.
+       */
+      <p className="mb-2 text-xs text-warning-200" data-testid="feed-live-not-updating">
+        These scores are as they were when this page loaded. Automatic updates are off, so nothing
+        here is refreshing; reload the page to read them again.
       </p>
     )}
     <ul className="space-y-2">
-      {group.entries.map(entry => <FeedRow key={entry.matchId} entry={entry} />)}
+      {group.entries.map(entry => (
+        <FeedRow key={entry.matchId} entry={entry} showForecasts={showForecasts} />
+      ))}
     </ul>
     {group.hidden > 0 && (
+      // The count is a fact about this list being short, so it stays whatever the reader has
+      // switched off. Only the invitation to go somewhere else is a prompt, and only it goes.
       <p className="mt-2 text-xs text-secondary-400" data-testid={`feed-hidden-${group.phase}`}>
         <span className="num">{group.hidden}</span> more from the teams and competitions you follow
         are not listed here.{' '}
-        <Link to="/matches" className="focus-ring rounded text-primary-300 underline-offset-2 hover:underline">
-          Browse all matches
-        </Link>
+        {showPrompts && (
+          <Link to="/matches" className="focus-ring rounded text-primary-300 underline-offset-2 hover:underline">
+            Browse all matches
+          </Link>
+        )}
       </p>
     )}
   </section>
@@ -168,6 +218,11 @@ const FeedSection: React.FC<{ group: FeedGroup }> = ({ group }) => (
 
 const SavedMatchesPanel: React.FC<SavedMatchesPanelProps> = ({ className }) => {
   const { data, loading, failed, error, reload } = useFavourites()
+  const { user } = useAuth()
+  const prefs = usePersonalPreferences(user?.id ?? null)
+  const showForecasts = prefs.isOn('forecasts')
+  const showPrompts = prefs.isOn('prompts')
+  const liveUpdates = prefs.isOn('liveUpdates')
   const followed = useSyncExternalStore(
     followedFixturesStore.subscribe,
     followedFixturesStore.getState,
@@ -239,7 +294,10 @@ const SavedMatchesPanel: React.FC<SavedMatchesPanelProps> = ({ className }) => {
               fixtures appear here too.
             </>
           }
-          action={
+          /* The description above already says what saving and following do, so the reader is
+             not left without an answer; these two are invitations to go elsewhere, which is the
+             thing the prompts switch turns off. */
+          action={showPrompts ? (
             <div className="flex flex-wrap justify-center gap-2">
               <Link
                 to="/predictions/today"
@@ -254,7 +312,7 @@ const SavedMatchesPanel: React.FC<SavedMatchesPanelProps> = ({ className }) => {
                 Find a team to follow
               </Link>
             </div>
-          }
+          ) : undefined}
           data-testid="saved-matches-empty"
         />
       </div>
@@ -369,14 +427,14 @@ const SavedMatchesPanel: React.FC<SavedMatchesPanelProps> = ({ className }) => {
             >
               {followed.refreshing ? 'Trying again…' : 'Try again'}
             </button>
-          ) : (
+          ) : (showPrompts ? (
             <Link
               to="/matches"
               className="focus-ring rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-500"
             >
               Browse all matches
             </Link>
-          )}
+          ) : undefined)}
           data-testid={unreadable.length > 0 ? 'feed-partly-unreadable' : 'feed-window-empty'}
         />
       </div>
@@ -387,6 +445,21 @@ const SavedMatchesPanel: React.FC<SavedMatchesPanelProps> = ({ className }) => {
 
   return (
     <div className={clsx('space-y-6', className)} data-testid="saved-matches">
+      {/*
+        THE SCORE-ONLY STATE, STATED AND NOT SOLD.
+
+        Without this, a reader who turned forecasts off a week ago and came back to a feed with no
+        probabilities on it has no way to tell a preference from a data outage — and this build
+        genuinely has outages worth distinguishing from it. One sentence of fact, no control, no
+        invitation to change it back. The switch is on this same page, under the follow list,
+        where they set it.
+      */}
+      {!showForecasts && (
+        <p className="text-xs text-secondary-400" data-testid="feed-scores-only">
+          Scores only. Forecasts and tips are switched off for your pages
+          {prefs.paused ? ', along with everything else optional' : ''}.
+        </p>
+      )}
       {/*
         The short way to the thing the reader came back for. A result is usually the answer to a
         question they asked days ago by saving the match, and without this it sits below however
@@ -432,7 +505,15 @@ const SavedMatchesPanel: React.FC<SavedMatchesPanelProps> = ({ className }) => {
         </p>
       )}
 
-      {populated.map(group => <FeedSection key={group.phase} group={group} />)}
+      {populated.map(group => (
+        <FeedSection
+          key={group.phase}
+          group={group}
+          showForecasts={showForecasts}
+          showPrompts={showPrompts}
+          liveUpdates={liveUpdates}
+        />
+      ))}
     </div>
   )
 }

@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 import { localDateString } from '@/services/match-data-source'
+import { formatDayOfMonth, formatFullDate, formatWeekdayShort, zonedNoon } from '@/i18n'
+import { useT } from '@/i18n/react'
 
 /**
  * The compact date navigator the matches-first workspace scrolls along.
@@ -58,19 +60,22 @@ export interface DateStripProps {
   className?: string
 }
 
-const WEEKDAY = new Intl.DateTimeFormat(undefined, { weekday: 'short' })
-const FULL_DATE = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+/*
+ * The formatters used to be two module-level `Intl.DateTimeFormat`s built with `undefined` as the
+ * locale — which means the DEVICE's language and the DEVICE's zone, decided once at import. Both
+ * halves of that are wrong here: the language is the reader's choice, and so is the zone. They
+ * are now built per call in src/i18n, cached there by locale and zone, and rebuilt when either
+ * changes.
+ */
 
-/** Midday local, so a date string never lands on the wrong side of a daylight-saving boundary. */
+/**
+ * Midday in the READER'S CHOSEN ZONE, so a date string never lands on the wrong side of a
+ * daylight-saving boundary — nor on the wrong side of midnight, which is what
+ * `new Date(`${date}T12:00:00`)` did as soon as the chosen zone was not the device's: that parses
+ * in the device's zone, so noon on the 25th in Douala became 04:00 on the 25th in Los Angeles.
+ */
 function localNoon(date: string): Date {
-  return new Date(`${date}T12:00:00`)
-}
-
-function relativeLabel(date: string): string | null {
-  if (date === localDateString(0)) return 'Today'
-  if (date === localDateString(1)) return 'Tomorrow'
-  if (date === localDateString(-1)) return 'Yesterday'
-  return null
+  return zonedNoon(date)
 }
 
 function buildDays(count: number, daysBefore: number, counts?: Record<string, number>): DateStripDay[] {
@@ -80,14 +85,17 @@ function buildDays(count: number, daysBefore: number, counts?: Record<string, nu
   })
 }
 
-function describe(day: DateStripDay): { weekday: string; dayOfMonth: string; relative: string | null; full: string } {
+function describe(
+  day: DateStripDay,
+  relativeLabel: (date: string) => string | null,
+): { weekday: string; dayOfMonth: string; relative: string | null; full: string } {
   const at = localNoon(day.date)
   const valid = !Number.isNaN(at.getTime())
   return {
-    weekday: day.weekday ?? (valid ? WEEKDAY.format(at) : day.date),
-    dayOfMonth: day.dayOfMonth ?? (valid ? String(at.getDate()) : ''),
+    weekday: day.weekday ?? (valid ? formatWeekdayShort(at) : day.date),
+    dayOfMonth: day.dayOfMonth ?? (valid ? formatDayOfMonth(at) : ''),
     relative: day.relativeLabel !== undefined ? day.relativeLabel : relativeLabel(day.date),
-    full: valid ? FULL_DATE.format(at) : day.date,
+    full: (valid ? formatFullDate(at) : null) ?? day.date,
   }
 }
 
@@ -99,9 +107,18 @@ const DateStrip: React.FC<DateStripProps> = ({
   daysBefore = 2,
   counts,
   showDatePicker = true,
-  label = 'Choose a date',
+  label,
   className,
 }) => {
+  const t = useT()
+  // "Today" / "Tomorrow" / "Yesterday" against the reader's chosen zone, because that is what
+  // `localDateString` now answers in — the same zone the list and the backend request use.
+  const relativeLabel = useCallback((date: string): string | null => {
+    if (date === localDateString(0)) return t('matchday.relative.today')
+    if (date === localDateString(1)) return t('matchday.relative.tomorrow')
+    if (date === localDateString(-1)) return t('matchday.relative.yesterday')
+    return null
+  }, [t])
   const resolved = useMemo(() => days ?? buildDays(count, daysBefore, counts), [days, count, daysBefore, counts])
   const selectedIndex = Math.max(0, resolved.findIndex(day => day.date === value))
   const listRef = useRef<HTMLDivElement>(null)
@@ -154,7 +171,7 @@ const DateStrip: React.FC<DateStripProps> = ({
         type="button"
         onClick={() => step(-1)}
         className="tap-target focus-ring flex-shrink-0 rounded-lg text-secondary-300 hover:bg-dark-700 hover:text-white"
-        aria-label="Previous day"
+        aria-label={t('dateStrip.previousDay')}
       >
         <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
       </button>
@@ -162,11 +179,11 @@ const DateStrip: React.FC<DateStripProps> = ({
       <div
         ref={listRef}
         role="group"
-        aria-label={label}
+        aria-label={label ?? t('dateStrip.chooseDate')}
         className="no-scrollbar flex flex-1 items-stretch gap-1 overflow-x-auto scroll-smooth"
       >
         {resolved.map((day, index) => {
-          const info = describe(day)
+          const info = describe(day, relativeLabel)
           const selected = day.date === value
           return (
             <button
@@ -202,7 +219,7 @@ const DateStrip: React.FC<DateStripProps> = ({
               {/* The full date, and the count as a sentence, for anyone not reading the column. */}
               <span className="sr-only">
                 {info.full}
-                {typeof day.count === 'number' ? `, ${day.count} match${day.count === 1 ? '' : 'es'}` : ''}
+                {typeof day.count === 'number' ? t('dateStrip.dayMatches', { count: day.count }) : ''}
               </span>
             </button>
           )
@@ -213,7 +230,7 @@ const DateStrip: React.FC<DateStripProps> = ({
         type="button"
         onClick={() => step(1)}
         className="tap-target focus-ring flex-shrink-0 rounded-lg text-secondary-300 hover:bg-dark-700 hover:text-white"
-        aria-label="Next day"
+        aria-label={t('dateStrip.nextDay')}
       >
         <ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
       </button>
@@ -223,7 +240,7 @@ const DateStrip: React.FC<DateStripProps> = ({
         // Any date, not only the days in the window. A native input so the platform's own picker,
         // keyboard handling and locale formatting apply.
         <label className="flex-shrink-0">
-          <span className="sr-only">Jump to a specific date</span>
+          <span className="sr-only">{t('dateStrip.jumpToDate')}</span>
           <input
             type="date"
             value={value}

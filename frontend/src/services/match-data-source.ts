@@ -8,6 +8,10 @@
  */
 
 import { League, LeagueStanding, Match, Team } from '@/types';
+// The reader's chosen time zone decides what "today" is. Imported here rather than reimplemented
+// so the date the page asks the backend for, the date the strip highlights and the date a fixture
+// is filed under are one answer from one place. See src/i18n/zones.ts for the arithmetic.
+import { zonedDateString, zonedDayOffsets } from '@/i18n';
 
 export type DataSourceName = 'backend' | 'api-football';
 
@@ -261,17 +265,20 @@ export function fakePredictionsAllowed(): boolean {
 }
 
 /**
- * Calendar date (YYYY-MM-DD) in the viewer's local time zone, `offsetDays` from today.
- * "Today" and "Tomorrow" follow the user's clock; the backend interprets the date as the UTC day
- * of kick-off, which coincides with the local day for European kick-offs from the Americas/Europe.
+ * Calendar date (YYYY-MM-DD) in the READER'S CHOSEN time zone, `offsetDays` from `from`.
+ *
+ * It used to be the device's zone, via `Date`'s local getters. It is now the zone the reader
+ * picked, defaulting to the device's when they have picked none — so this function behaves
+ * exactly as it always did until somebody makes a choice, and the browser suite that pins the
+ * today/tomorrow boundaries (e2e/mocked/timezone.spec.ts, which sets the zone on the browser
+ * context) is unaffected.
+ *
+ * "Today" and "Tomorrow" follow that zone, and so does the window the backend is asked for
+ * (`localDayOffsets` below), so the day a fixture is filed under and the day the page requests
+ * can never disagree.
  */
 export function localDateString(offsetDays = 0, from: Date = new Date()): string {
-  const d = new Date(from.getTime());
-  d.setDate(d.getDate() + offsetDays);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return zonedDateString(offsetDays, from);
 }
 
 /**
@@ -283,16 +290,12 @@ export function localDateString(offsetDays = 0, from: Date = new Date()): string
  * New York on 1 November 2026 the day runs 04:00Z to 05:00Z the next day, and a single offset with a
  * fixed 24-hour window would drop the first hour along with anything kicking off in it.
  *
- * Only the browser knows the viewer's transition rules, so the boundaries are computed here rather
- * than guessed on the server.
+ * Only the IANA database knows a zone's transition rules, so the boundaries are computed from it
+ * in the browser rather than guessed on the server — and from the zone the READER CHOSE, not the
+ * one the device happens to be set to. See src/i18n/zones.ts.
  */
 export function localDayOffsets(isoDate?: string): { start: number; end: number } {
-  const base = isoDate ? new Date(`${isoDate}T00:00:00`) : new Date();
-  const midnight = Number.isNaN(base.getTime()) ? new Date() : base;
-  midnight.setHours(0, 0, 0, 0);
-  const nextMidnight = new Date(midnight.getTime());
-  nextMidnight.setDate(nextMidnight.getDate() + 1);
-  return { start: -midnight.getTimezoneOffset(), end: -nextMidnight.getTimezoneOffset() };
+  return zonedDayOffsets(isoDate);
 }
 
 /** The offset at the start of a local day. Kept for callers that only need the one value. */

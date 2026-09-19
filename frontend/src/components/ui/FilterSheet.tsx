@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef } from 'react'
 import clsx from 'clsx'
+import { useT } from '@/i18n/react'
 import { AdjustmentsHorizontalIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
 /**
@@ -35,11 +36,20 @@ export interface ActiveFilter {
   onRemove?: () => void
 }
 
-/** "match" -> "matches", "team" -> "teams". Only used for the result counter's own noun. */
-function plural(noun: string, override?: string): string {
-  if (override) return override
-  return /(s|x|z|ch|sh)$/i.test(noun) ? `${noun}es` : `${noun}s`
-}
+/*
+ * WHAT USED TO BE HERE, AND WHY IT HAD TO GO.
+ *
+ * A `plural(noun)` helper that appended "es" after s/x/z/ch/sh and "s" otherwise — English
+ * morphology, written into a shared component, applied to a noun passed in as a prop. It is wrong
+ * in French twice over: the rule itself is different, and French is singular at 0 as well as at 1,
+ * so "0 matchs" came out of it on the empty state. There is no spelling rule that can be written
+ * here for a noun the caller supplies; the CALLER has to supply the counted phrase, because only
+ * the caller knows which noun it is and only the catalogue knows how that noun counts.
+ *
+ * So the noun props are gone and `countLabel` takes their place: a function from a count to the
+ * finished phrase. The default is the one this component is used for — matches — taken from the
+ * catalogue with the active language's own plural rule.
+ */
 
 export interface FilterSummaryBarProps {
   activeFilters: ActiveFilter[]
@@ -55,10 +65,13 @@ export interface FilterSummaryBarProps {
    * Pass null while it is still loading — passing 0 would announce an empty result before we know.
    */
   resultCount?: number | null
-  /** Noun for `resultCount`, singular. Default "match". */
-  resultNoun?: string
-  /** Override the plural when the default rule gets it wrong. */
-  resultNounPlural?: string
+  /**
+   * `resultCount` as a counted phrase — "3 matches", "3 matchs", "1 match".
+   *
+   * A function rather than a noun, because pluralising somebody else's noun is a job only their
+   * language can do. Defaults to the matches phrasing from the catalogue.
+   */
+  countLabel?: (count: number) => string
   openLabel?: string
   className?: string
 }
@@ -74,11 +87,12 @@ export const FilterSummaryBar: React.FC<FilterSummaryBarProps> = ({
   onOpen,
   onClearAll,
   resultCount = null,
-  resultNoun = 'match',
-  resultNounPlural,
-  openLabel = 'Filters',
+  countLabel,
+  openLabel,
   className,
 }) => {
+  const t = useT()
+  const counted = countLabel ?? ((value: number) => t('filters.resultCount', { count: value }))
   const count = activeFilters.length
 
   return (
@@ -91,12 +105,14 @@ export const FilterSummaryBar: React.FC<FilterSummaryBarProps> = ({
           data-testid="filter-sheet-open"
         >
           <AdjustmentsHorizontalIcon className="h-4 w-4" aria-hidden="true" />
-          <span>{openLabel}</span>
+          <span>{openLabel ?? t('filters.open')}</span>
           {count > 0 && (
             <span className="num rounded-full bg-primary-700 px-1.5 text-xs font-semibold text-white">{count}</span>
           )}
           {/* The count in words too, so it is not carried by a coloured badge alone. */}
-          <span className="sr-only">{count === 0 ? ', no filters applied' : `, ${count} filter${count === 1 ? '' : 's'} applied`}</span>
+          <span className="sr-only">
+            {count === 0 ? t('filters.noneApplied') : t('filters.countApplied', { count })}
+          </span>
         </button>
       )}
 
@@ -114,7 +130,9 @@ export const FilterSummaryBar: React.FC<FilterSummaryBarProps> = ({
               <button
                 type="button"
                 onClick={filter.onRemove}
-                aria-label={`Remove filter ${filter.group ? `${filter.group} ` : ''}${filter.label}`}
+                aria-label={t('filters.removeFilter', {
+                  label: filter.group ? `${filter.group} ${filter.label}` : filter.label,
+                })}
                 className="focus-ring inline-flex h-6 w-6 items-center justify-center rounded-full text-secondary-300 hover:bg-dark-600 hover:text-white"
               >
                 <XMarkIcon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -129,14 +147,14 @@ export const FilterSummaryBar: React.FC<FilterSummaryBarProps> = ({
             className="focus-ring rounded px-2 py-1 text-xs font-medium text-primary-300 underline-offset-2 hover:text-primary-200 hover:underline"
             data-testid="filter-clear-all"
           >
-            Clear all
+            {t('filters.clearAll')}
           </button>
         )}
       </div>
 
       {typeof resultCount === 'number' && (
         <span className="num ml-auto text-xs text-secondary-300" data-testid="filter-result-count">
-          {resultCount} {resultCount === 1 ? resultNoun : plural(resultNoun, resultNounPlural)}
+          {counted(resultCount)}
         </span>
       )}
     </div>
@@ -157,8 +175,8 @@ export interface FilterSheetProps {
   applyLabel?: string
   /** Shown on the apply button so the reader knows what they are about to see. */
   resultCount?: number | null
-  resultNoun?: string
-  resultNounPlural?: string
+  /** See `FilterSummaryBarProps.countLabel`. */
+  countLabel?: (count: number) => string
   className?: string
 }
 
@@ -169,16 +187,17 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
   open,
   onClose,
   children,
-  title = 'Filters',
+  title,
   activeFilters = [],
   onClearAll,
   onApply,
-  applyLabel = 'Show results',
+  applyLabel,
   resultCount = null,
-  resultNoun = 'match',
-  resultNounPlural,
+  countLabel,
   className,
 }) => {
+  const t = useT()
+  const counted = countLabel ?? ((value: number) => t('filters.resultCount', { count: value }))
   const panelRef = useRef<HTMLDivElement>(null)
   const restoreFocusTo = useRef<HTMLElement | null>(null)
   const titleId = useId()
@@ -258,12 +277,12 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
         )}
       >
         <div className="flex items-center justify-between gap-3 border-b border-dark-700 px-4 py-3">
-          <h2 id={titleId} className="text-base font-semibold text-white">{title}</h2>
+          <h2 id={titleId} className="text-base font-semibold text-white">{title ?? t('filters.title')}</h2>
           <button
             type="button"
             onClick={onClose}
             className="tap-target focus-ring -mr-2 rounded-lg text-secondary-300 hover:bg-dark-700 hover:text-white"
-            aria-label="Close filters"
+            aria-label={t('filters.close')}
           >
             <XMarkIcon className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -288,9 +307,9 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
             className="tap-target-row focus-ring w-full rounded-lg bg-primary-700 px-4 py-2 font-medium text-white transition-colors hover:bg-primary-800"
             data-testid="filter-sheet-apply"
           >
-            {applyLabel}
+            {applyLabel ?? t('filters.apply')}
             {typeof resultCount === 'number' && (
-              <span className="num ml-1">({resultCount} {resultCount === 1 ? resultNoun : plural(resultNoun, resultNounPlural)})</span>
+              <span className="num ml-1">({counted(resultCount)})</span>
             )}
           </button>
         </div>

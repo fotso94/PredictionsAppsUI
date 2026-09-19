@@ -40,18 +40,27 @@
 
 import type { FreshnessTone } from '@/utils/brief';
 import type { ProviderStatus, SchedulerStatus, SyncTaskState } from '@/services/match-data-source';
+import type { MessageKey } from '@/i18n';
+import { formatDateTime, t } from '@/i18n';
 
-/** What each scheduled task keeps current, in the reader's terms rather than the scheduler's. */
-export const SYNC_TASK_LABEL: Record<string, string> = {
-  fixtures: 'Fixtures and kick-off times',
-  live: 'Live scores',
-  results: 'Final results',
-  forecasts: 'Model forecasts',
+/**
+ * What each scheduled task keeps current, in the reader's terms rather than the scheduler's.
+ *
+ * A map of message KEYS, resolved on every call. The map of finished strings it replaced was
+ * built once at import time, which in a product where the reader can change language without
+ * reloading means "built in whatever language happened to be active at boot".
+ */
+const SYNC_TASK_KEY: Record<string, MessageKey> = {
+  fixtures: 'sync.task.fixtures',
+  live: 'sync.task.live',
+  results: 'sync.task.results',
+  forecasts: 'sync.task.forecasts',
 };
 
 /** A task name this build has never heard of still reaches the reader, readably. */
 export function syncTaskLabel(name: string): string {
-  return SYNC_TASK_LABEL[name] ?? name.replace(/_/g, ' ');
+  const key = SYNC_TASK_KEY[name];
+  return key ? t(key) : name.replace(/_/g, ' ');
 }
 
 /** The order the tasks read best in: what is on, then what is happening, then how it ended. */
@@ -72,19 +81,40 @@ const FORECAST_TASKS = ['forecasts'];
  * One vocabulary, shared with DataSourceNotice, so the same provider is never called two
  * different things on one page. `sample` names itself as not real, because it is not.
  */
-export const FIXTURE_PROVIDER_LABEL: Record<string, string> = {
-  livescore: 'Live Score API',
-  api_football: 'API-Football (fallback)',
-  thesportsdb: 'TheSportsDB (fallback)',
-  sample: 'sample data (not real fixtures)',
+const FIXTURE_PROVIDER_KEY: Record<string, MessageKey> = {
+  livescore: 'fixtureProvider.livescore',
+  api_football: 'fixtureProvider.apiFootball',
+  thesportsdb: 'fixtureProvider.thesportsdb',
+  sample: 'fixtureProvider.sample',
 };
 
-/** The display name for a fixture provider, falling back to the raw key rather than hiding it. */
+/**
+ * The display name for a fixture provider, falling back to the raw key rather than hiding it.
+ *
+ * The product NAMES stay as they are in every language — "Live Score API" is a product, not a
+ * word — and only what we add to them is translated: which one is a fallback, and that the
+ * sample data is not real.
+ */
 export function fixtureProviderLabel(provider: string | null | undefined): string {
-  return FIXTURE_PROVIDER_LABEL[provider ?? ''] ?? provider ?? 'no provider';
+  const key = FIXTURE_PROVIDER_KEY[provider ?? ''];
+  if (key) return t(key);
+  return provider ?? t('fixtureProvider.none');
 }
 
-const plural = (count: number, word: string): string => `${count} ${word}${count === 1 ? '' : 's'}`;
+/**
+ * A rounded duration in the reader's language, with that language's own plural rule.
+ *
+ * This replaced `${count} ${word}${count === 1 ? '' : 's'}`, which is English's rule written into
+ * the code. French is singular at 0 AND 1 — "0 minute", "1 minute", "2 minutes" — so the English
+ * rule produces a mistake in French on the first value it is given.
+ */
+type DurationUnit = 'minute' | 'hour' | 'day';
+const DURATION_KEY: Record<DurationUnit, MessageKey> = {
+  minute: 'duration.minutes',
+  hour: 'duration.hours',
+  day: 'duration.days',
+};
+const duration = (count: number, unit: DurationUnit): string => t(DURATION_KEY[unit], { count });
 
 /**
  * Close a sentence built around a backend string.
@@ -97,9 +127,9 @@ const sentence = (text: string): string => (/[.!?]$/.test(text.trim()) ? text.tr
 
 /** A timestamp as the viewer's own locale string, or null when there is nothing to show. */
 export function absoluteTime(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? null : at.toLocaleString();
+  // In the reader's chosen zone, not the device's: every other time on the page is, and a
+  // timestamp in a tooltip that disagreed with the one beside it would be worse than none.
+  return formatDateTime(iso);
 }
 
 /**
@@ -117,17 +147,15 @@ export function relativeTime(iso: string | null | undefined, now: number = Date.
   const past = deltaMs <= 0;
   const seconds = Math.abs(deltaMs) / 1000;
 
-  if (seconds < 45) return past ? 'just now' : 'in under a minute';
-  if (seconds < 90 * 60) {
-    const minutes = Math.max(1, Math.round(seconds / 60));
-    return past ? `${plural(minutes, 'minute')} ago` : `in ${plural(minutes, 'minute')}`;
-  }
-  if (seconds < 36 * 3600) {
-    const hours = Math.round(seconds / 3600);
-    return past ? `${plural(hours, 'hour')} ago` : `in ${plural(hours, 'hour')}`;
-  }
-  const days = Math.round(seconds / 86400);
-  return past ? `${plural(days, 'day')} ago` : `in ${plural(days, 'day')}`;
+  if (seconds < 45) return t(past ? 'time.justNow' : 'time.inUnderAMinute');
+
+  // The duration first, then the language's own frame around it. English puts the frame at the
+  // end ("2 hours ago") and French at the front ("il y a 2 heures"): assembling the sentence in
+  // English order and translating the pieces would put "il y a" in the wrong place.
+  const span = seconds < 90 * 60 ? duration(Math.max(1, Math.round(seconds / 60)), 'minute')
+    : seconds < 36 * 3600 ? duration(Math.round(seconds / 3600), 'hour')
+      : duration(Math.round(seconds / 86400), 'day');
+  return t(past ? 'time.ago' : 'time.in', { duration: span });
 }
 
 /**
@@ -142,11 +170,15 @@ export function relativeTime(iso: string | null | undefined, now: number = Date.
  * Rounded on the same boundaries as `relativeTime`, so one instant is never described as two
  * different lengths of time within one block.
  */
-function overduePhrase(seconds: number): string {
-  if (seconds < 45) return 'due now';
-  if (seconds < 90 * 60) return `overdue by ${plural(Math.max(1, Math.round(seconds / 60)), 'minute')}`;
-  if (seconds < 36 * 3600) return `overdue by ${plural(Math.round(seconds / 3600), 'hour')}`;
-  return `overdue by ${plural(Math.round(seconds / 86400), 'day')}`;
+function overdueSentence(seconds: number): string {
+  if (seconds < 45) return t('freshness.nextAttempt.dueNow');
+  if (seconds < 90 * 60) {
+    return t('freshness.nextAttempt.overdueMinutes', { count: Math.max(1, Math.round(seconds / 60)) });
+  }
+  if (seconds < 36 * 3600) {
+    return t('freshness.nextAttempt.overdueHours', { count: Math.round(seconds / 3600) });
+  }
+  return t('freshness.nextAttempt.overdueDays', { count: Math.round(seconds / 86400) });
 }
 
 /**
@@ -157,9 +189,9 @@ function overduePhrase(seconds: number): string {
  * cadence line calling the identical span "6 hours". One duration, two numbers, in one paragraph.
  */
 function backoffWindow(seconds: number): string {
-  if (seconds < 90 * 60) return plural(Math.max(1, Math.round(seconds / 60)), 'minute');
-  if (seconds < 36 * 3600) return plural(Math.round(seconds / 3600), 'hour');
-  return plural(Math.round(seconds / 86400), 'day');
+  if (seconds < 90 * 60) return duration(Math.max(1, Math.round(seconds / 60)), 'minute');
+  if (seconds < 36 * 3600) return duration(Math.round(seconds / 3600), 'hour');
+  return duration(Math.round(seconds / 86400), 'day');
 }
 
 /**
@@ -181,9 +213,9 @@ export function nextAttemptSentence(
   if (Number.isNaN(at)) return null;
   if (at > now) {
     const ahead = relativeTime(iso, now);
-    return ahead ? `The next attempt is ${ahead}.` : null;
+    return ahead ? t('freshness.nextAttempt.ahead', { when: ahead }) : null;
   }
-  return `The next attempt is ${overduePhrase((now - at) / 1000)}.`;
+  return overdueSentence((now - at) / 1000);
 }
 
 /**
@@ -209,7 +241,9 @@ export function allowanceResetNote(now: number = Date.now()): string {
   const at = new Date(now);
   const nextMidnightUtc = Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate() + 1);
   const when = relativeTime(new Date(nextMidnightUtc).toISOString(), now);
-  return `Our daily request allowance is counted per UTC day, so it resets at 00:00 UTC${when ? ` — ${when}` : ''}.`;
+  return when
+    ? t('freshness.allowanceResetWhen', { when })
+    : t('freshness.allowanceReset');
 }
 
 /** One scheduled task, described. */
@@ -284,12 +318,23 @@ export function taskIsBehind(task: SyncTaskState, now: number = Date.now()): boo
 }
 
 /** How often a task is meant to run, spelled out. */
+/**
+ * How often a task is meant to run, spelled out.
+ *
+ * `unit` travels with the duration because the words around it agree with it in French —
+ * "toutes les 6 heures" but "tous les 2 jours" — and that agreement cannot be recovered from the
+ * finished duration string. In English the parameter changes nothing, which is exactly why it
+ * would never have been noticed without writing the French.
+ */
 function cadenceNote(task: SyncTaskState): string | null {
   if (!task.interval_seconds) return null;
   const hours = task.interval_seconds / 3600;
   return hours >= 1
-    ? `Scheduled every ${plural(Math.round(hours), 'hour')}.`
-    : `Scheduled every ${plural(Math.round(task.interval_seconds / 60), 'minute')}.`;
+    ? t('freshness.cadence', { duration: duration(Math.round(hours), 'hour'), unit: 'hour' })
+    : t('freshness.cadence', {
+      duration: duration(Math.round(task.interval_seconds / 60), 'minute'),
+      unit: 'minute',
+    });
 }
 
 /**
@@ -318,14 +363,14 @@ export function readableProviderReason(raw: string | null | undefined): string |
   const withoutLinks = text.replace(/https?:\/\/\S+/g, '').replace(/\s{2,}/g, ' ').trim()
   const lower = withoutLinks.toLowerCase()
   if (lower.includes('quota') || lower.includes('rate limit') || lower.includes('429')) {
-    return 'the provider refused the request because our daily allowance with it is spent'
+    return t('freshness.reason.quota')
   }
   if (lower.includes('budget') && lower.includes('spent')) {
-    return 'our own daily request allowance for this provider is spent'
+    return t('freshness.reason.budget')
   }
   if (lower.includes('unauthor') || lower.includes('forbidden') || lower.includes('401')
       || lower.includes('403')) {
-    return 'the provider rejected our credentials'
+    return t('freshness.reason.credentials')
   }
   if (lower.includes('timeout') || lower.includes('timed out')) {
     /*
@@ -334,9 +379,14 @@ export function readableProviderReason(raw: string | null | undefined): string |
      * "settlement store: database timeout", which is our own database and not a provider at all.
      * A summary must not reassign blame that the message did not assign.
      */
-    return 'it timed out before answering'
+    return t('freshness.reason.timeout')
   }
-  // Unrecognised: say it as it came, minus the links, and let the disclosure carry the original.
+  /*
+   * Unrecognised: say it as it came, minus the links, and let the disclosure carry the original.
+   * NOT translated, in any language — this is the provider's own sentence, and paraphrasing a
+   * source's words into another language is the one thing this package was told not to do. The
+   * branches above are different: those are OUR summaries of a refusal we recognised.
+   */
   return withoutLinks.replace(/[.\s]+$/, '')
 }
 
@@ -346,12 +396,12 @@ export function describeTask(name: string, task: SyncTaskState, now: number = Da
 
   if (!task.enabled) {
     return {
-      name, label, text: 'switched off', tone: 'unknown', exact: null,
+      name, label, text: t('freshness.task.switchedOff'), tone: 'unknown', exact: null,
       paused: false, failing: false,
       neverRun: Boolean(task.never_run), neverSucceeded: !task.last_success_at,
       pauseReason: null, failureReason: null, reason: null, resume: null, resumeParts: [],
       mechanicsParts: [],
-      detail: ['This task is not switched on for this installation, so nothing refreshes it automatically.'],
+      detail: [t('freshness.task.switchedOffDetail')],
     };
   }
 
@@ -367,7 +417,7 @@ export function describeTask(name: string, task: SyncTaskState, now: number = Da
   const failing = task.consecutive_failures > 0;
   const pauseReason = paused ? task.last_skip_reason : null;
   const failureReason = failing
-    ? (task.last_error ?? 'The backend did not report why the last attempt failed.')
+    ? (task.last_error ?? t('freshness.task.noFailureReason'))
     : null;
   const reason = pauseReason ?? failureReason;
 
@@ -402,10 +452,12 @@ export function describeTask(name: string, task: SyncTaskState, now: number = Da
      * said about failures at all rather than a failure being asserted to fit the sentence.
      */
     const failures = task.consecutive_failures;
-    const after = failures > 1 ? `After ${plural(failures, 'failure')} in a row it is waiting`
-      : failures === 1 ? 'After 1 failure it is waiting'
-        : 'It is waiting';
-    mechanicsParts.push(`${after} ${backoffWindow(task.backoff_seconds)} before trying again.`);
+    const window = backoffWindow(task.backoff_seconds);
+    mechanicsParts.push(
+      failures > 1 ? t('freshness.backoff.afterMany', { count: failures, window })
+        : failures === 1 ? t('freshness.backoff.afterOne', { window })
+          : t('freshness.backoff.none', { window }),
+    );
   }
   const resume = resumeParts.length > 0 ? resumeParts.join(' ') : null;
 
@@ -415,9 +467,9 @@ export function describeTask(name: string, task: SyncTaskState, now: number = Da
     const text = (line ?? '').trim();
     if (text && !detail.includes(text)) detail.push(text);
   };
-  if (paused) add(sentence(`Paused: ${pauseReason}`));
-  if (failing) add(sentence(`Last attempt failed: ${failureReason}`));
-  if (behind && !paused && !failing) add('This task is more than a full interval past due.');
+  if (paused) add(sentence(t('freshness.task.pausedDetail', { reason: pauseReason })));
+  if (failing) add(sentence(t('freshness.task.failedDetail', { reason: failureReason })));
+  if (behind && !paused && !failing) add(t('freshness.task.behindDetail'));
   add(resume);
   add(cadenceNote(task));
 
@@ -431,11 +483,11 @@ export function describeTask(name: string, task: SyncTaskState, now: number = Da
    * row was the half that was false.
    */
   if (task.never_run || !task.last_success_at) {
-    const base = task.never_run ? 'has never run' : 'has not succeeded yet';
+    const base = t(task.never_run ? 'freshness.task.neverRun' : 'freshness.task.neverSucceeded');
     return {
       name,
       label,
-      text: paused ? `${base} — paused` : base,
+      text: paused ? t('freshness.task.pausedSuffix', { state: base }) : base,
       tone: failing ? 'problem' : paused ? 'ageing' : 'unknown',
       exact: null,
       paused,
@@ -455,7 +507,9 @@ export function describeTask(name: string, task: SyncTaskState, now: number = Da
   return {
     name,
     label,
-    text: `updated ${relativeTime(task.last_success_at, now) ?? absoluteTime(task.last_success_at)}`,
+    text: t('freshness.task.updated', {
+      when: relativeTime(task.last_success_at, now) ?? absoluteTime(task.last_success_at),
+    }),
     tone: failing ? 'problem' : (paused || behind) ? 'ageing' : 'ok',
     exact: absoluteTime(task.last_success_at),
     paused,
@@ -534,8 +588,6 @@ export interface FreshnessSummary {
   scheduled: boolean;
 }
 
-/** The phrase every branch opens with. Nothing on any page is live, and it never pretends to be. */
-const STORED = 'Stored data';
 
 /** Worst wins, so a block holding two clocks takes the tone of the one in more trouble. */
 const TONE_RANK: Record<FreshnessTone, number> = { ok: 0, unknown: 1, ageing: 2, problem: 3 };
@@ -653,12 +705,16 @@ function clockState(scheduler: SchedulerStatus, names: string[], now: number): C
      * into the disclosure below, word for word, so nothing is lost to whoever is diagnosing it.
      */
     if (task.failing) {
-      lines.push(sentence(`${task.label}: last attempt failed — `
-        + `${readableProviderReason(task.failureReason) ?? 'the backend did not say why'}`));
+      lines.push(sentence(t('freshness.line.failed', {
+        task: task.label,
+        reason: readableProviderReason(task.failureReason) ?? t('freshness.reason.unstated'),
+      })));
     }
     if (task.paused) {
-      lines.push(sentence(`${task.label}: paused — `
-        + `${readableProviderReason(task.pauseReason) ?? 'the backend did not say why'}`));
+      lines.push(sentence(t('freshness.line.paused', {
+        task: task.label,
+        reason: readableProviderReason(task.pauseReason) ?? t('freshness.reason.unstated'),
+      })));
     }
     /*
      * A task that is simply late is the third case, and it needs a sentence of its own. Without
@@ -666,8 +722,7 @@ function clockState(scheduler: SchedulerStatus, names: string[], now: number): C
      * enough signal to worry a reader and not enough to tell them what about.
      */
     if (behind.includes(task)) {
-      lines.push(`${task.label}: more than a full interval past due, `
-        + 'so what is stored may be older than the schedule intends.');
+      lines.push(t('freshness.line.behind', { task: task.label }));
     }
     for (const part of task.resumeParts) {
       if (part === allowance) {
@@ -687,7 +742,16 @@ function clockState(scheduler: SchedulerStatus, names: string[], now: number): C
         if (allowanceSaid) continue;
         allowanceSaid = true;
       }
-      const line = `${task.label}: ${part.charAt(0).toLowerCase()}${part.slice(1)}`;
+      /*
+       * The mechanics sentence, filed under the task it was measured on. Its first letter is
+       * lower-cased because it becomes a clause rather than a sentence — which works for both
+       * languages here (English and French both write these words in lower case mid-sentence)
+       * and is the line to revisit for a language that capitalises nouns.
+       */
+      const line = t('freshness.line.mechanics', {
+        task: task.label,
+        detail: `${part.charAt(0).toLowerCase()}${part.slice(1)}`,
+      });
       if (!mechanics.includes(line)) mechanics.push(line);
     }
     noteTasks.push(task.name);
@@ -736,15 +800,13 @@ function clockState(scheduler: SchedulerStatus, names: string[], now: number): C
  *    failure as its own clause rather than folded into the headline.
  */
 /*
- * The fixed statements, named so each can be given once and then both joined into `note` and
- * listed in `notes` without the two copies drifting apart.
+ * The fixed statements used to be six `const`s here, so that each could be given once and then
+ * both joined into `note` and listed in `notes` without the two copies drifting apart. They are
+ * now catalogue keys (`freshness.note.*`), which keeps that guarantee — `t` of one key is one
+ * string — and adds the one the constants could not have: they are produced in the reader's
+ * language at the moment the panel renders, rather than in whichever language was active when
+ * this module was first imported.
  */
-const NO_STATUS_NOTE = 'The status service could not be reached, so when this was last refreshed is unknown.';
-const NO_SCHEDULE_NOTE = 'This installation reports no refresh schedule, so stored data changes only when a page asks the provider for new data.';
-const SWITCHED_OFF_NOTE = 'Automatic refreshes are switched off here. What is stored stays as it is until somebody refreshes it.';
-const NO_STATE_STORE_NOTE = 'The scheduler cannot reach its state store, so it cannot report when any task last ran.';
-const NO_FIXTURE_TASK_NOTE = 'No scheduled task on this installation refreshes fixtures, kick-off times or results.';
-const NO_PASS_YET_NOTE = 'The scheduler is running but no task has completed a pass yet, so there is no refresh time to report.';
 
 export function freshnessSummary(
   status: ProviderStatus | null | undefined,
@@ -752,10 +814,10 @@ export function freshnessSummary(
 ): FreshnessSummary {
   if (!status) {
     return {
-      text: `${STORED} · how current it is cannot be stated`,
+      text: t('freshness.summary.unknown'),
       tone: 'unknown',
-      note: NO_STATUS_NOTE,
-      notes: [NO_STATUS_NOTE],
+      note: t('freshness.note.noStatus'),
+      notes: [t('freshness.note.noStatus')],
       resume: null,
       noteTask: null,
       noteTasks: [],
@@ -766,10 +828,10 @@ export function freshnessSummary(
   const scheduler = status.scheduler;
   if (!scheduler) {
     return {
-      text: `${STORED} · no scheduled refresh is reported`,
+      text: t('freshness.summary.noSchedule'),
       tone: 'unknown',
-      note: NO_SCHEDULE_NOTE,
-      notes: [NO_SCHEDULE_NOTE],
+      note: t('freshness.note.noSchedule'),
+      notes: [t('freshness.note.noSchedule')],
       resume: null,
       noteTask: null,
       noteTasks: [],
@@ -778,10 +840,10 @@ export function freshnessSummary(
   }
   if (!scheduler.enabled) {
     return {
-      text: `${STORED} · scheduled refresh is switched off`,
+      text: t('freshness.summary.switchedOff'),
       tone: 'ageing',
-      note: SWITCHED_OFF_NOTE,
-      notes: [SWITCHED_OFF_NOTE],
+      note: t('freshness.note.switchedOff'),
+      notes: [t('freshness.note.switchedOff')],
       resume: null,
       noteTask: null,
       noteTasks: [],
@@ -790,10 +852,10 @@ export function freshnessSummary(
   }
   if (!scheduler.state_store_available) {
     return {
-      text: `${STORED} · when it last refreshed is unknown`,
+      text: t('freshness.summary.noStateStore'),
       tone: 'unknown',
-      note: NO_STATE_STORE_NOTE,
-      notes: [NO_STATE_STORE_NOTE],
+      note: t('freshness.note.noStateStore'),
+      notes: [t('freshness.note.noStateStore')],
       resume: null,
       noteTask: null,
       noteTasks: [],
@@ -808,10 +870,10 @@ export function freshnessSummary(
     // Every task this backend runs is a forecast task. Saying nothing about fixtures is the only
     // honest option: no task here refreshes them.
     return {
-      text: `${STORED} · nothing here refreshes fixtures or scores`,
+      text: t('freshness.summary.noFixtureTask'),
       tone: 'unknown',
-      note: NO_FIXTURE_TASK_NOTE,
-      notes: [NO_FIXTURE_TASK_NOTE],
+      note: t('freshness.note.noFixtureTask'),
+      notes: [t('freshness.note.noFixtureTask')],
       resume: null,
       noteTask: null,
       noteTasks: [],
@@ -821,13 +883,11 @@ export function freshnessSummary(
 
   return {
     text: state.age
-      ? `${STORED} · fixtures and scores last refreshed ${state.age}`
-      : state.neverRan
-        ? `${STORED} · no scheduled refresh has run yet`
-        : `${STORED} · no scheduled refresh has succeeded yet`,
+      ? t('freshness.summary.refreshed', { age: state.age })
+      : t(state.neverRan ? 'freshness.summary.neverRun' : 'freshness.summary.neverSucceeded'),
     tone: state.tone,
-    note: state.note ?? (state.age ? null : NO_PASS_YET_NOTE),
-    notes: state.notes.length > 0 ? state.notes : (state.age ? [] : [NO_PASS_YET_NOTE]),
+    note: state.note ?? (state.age ? null : t('freshness.note.noPassYet')),
+    notes: state.notes.length > 0 ? state.notes : (state.age ? [] : [t('freshness.note.noPassYet')]),
     mechanics: state.mechanics ?? [],
     resume: state.resume,
     noteTask: state.noteTask,
@@ -857,7 +917,7 @@ export function forecastRefresh(
   const state = clockState(scheduler, names, now);
   if (!state.present) {
     return {
-      text: 'Model forecasts · automatic refresh is switched off',
+      text: t('freshness.forecasts.switchedOff'),
       tone: 'ageing',
       note: null,
       notes: [],
@@ -870,10 +930,8 @@ export function forecastRefresh(
 
   return {
     text: state.age
-      ? `Model forecasts last refreshed ${state.age}`
-      : state.neverRan
-        ? 'Model forecasts · no refresh has run yet'
-        : 'Model forecasts · no refresh has succeeded yet',
+      ? t('freshness.forecasts.refreshed', { age: state.age })
+      : t(state.neverRan ? 'freshness.forecasts.neverRun' : 'freshness.forecasts.neverSucceeded'),
     tone: state.tone,
     // No "nothing has completed a pass" fallback here: the fixture line above already carries it
     // when it applies, and the same sentence twice in one small block reads as two problems.

@@ -5,9 +5,10 @@ import toast from 'react-hot-toast'
 import type { Match } from '@/types'
 import EmptyState from '@/components/ui/EmptyState'
 import { onLeagueLogoError, onTeamLogoError } from '@/components/ui/imageFallback'
+import useAuth from '@/hooks/useAuth'
 import useFavourites from '@/hooks/useFavourites'
 import {
-  followedFixturesStore, followIsUnreadable, FEED_DAYS_AHEAD,
+  followedFixturesStore, followIsUnreadable, usePersonalPreferences, FEED_DAYS_AHEAD,
   type FollowedFixture, type FollowedFixturesState,
 } from '@/services/favourites.service'
 import { getErrorMessage } from '@/utils/errors'
@@ -163,6 +164,10 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
     data, loading, failed, error, reload, setTeamFollowed, setLeagueFollowed,
     isTeamPending, isLeaguePending,
   } = useFavourites()
+  // Only the invitations are optional here. A follow row is what the reader came to manage, and
+  // no switch on this build hides it.
+  const { user } = useAuth()
+  const showPrompts = usePersonalPreferences(user?.id ?? null).isOn('prompts')
   const followed = useSyncExternalStore(
     followedFixturesStore.subscribe,
     followedFixturesStore.getState,
@@ -226,7 +231,7 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
         tone="empty"
         title="You do not follow any teams or competitions yet."
         description="Follow a team and their fixtures join your feed above."
-        action={
+        action={showPrompts ? (
           <div className="flex flex-wrap justify-center gap-2">
             <Link
               to="/leagues"
@@ -241,7 +246,7 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
               See today&rsquo;s matches
             </Link>
           </div>
-        }
+        ) : undefined}
         data-testid="following-empty"
       />
     )

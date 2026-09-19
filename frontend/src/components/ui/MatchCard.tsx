@@ -9,7 +9,7 @@ import { ForecastAnomalies } from './ForecastProvenance'
 import { format } from 'date-fns'
 import { isMatchLive, isMatchFinished, getMatchStatusText, getMatchStatusBadgeClasses } from '@/utils/matchFilters'
 import { predictionSourceLabel, forecastSyncMessage } from '@/utils/predictionLabels'
-import { marketLead, formatPercent, UNAVAILABLE_TEXT } from './probability'
+import { marketLead, formatPercent, unavailableText } from './probability'
 import { onTeamLogoError, onLeagueLogoError } from './imageFallback'
 
 interface MatchCardProps {
@@ -32,7 +32,7 @@ const forecastStateText = (state?: string | null): string | null => {
 
 /** A market the source did not publish. Never rendered as 0%. */
 const Unavailable: React.FC = () => (
-  <span className="text-xs text-secondary-500">{UNAVAILABLE_TEXT}</span>
+  <span className="text-xs text-secondary-500">{unavailableText()}</span>
 )
 
 const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, forecastSync = null }) => {
@@ -226,7 +226,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, fo
                           // Only one half published: showing it as the favourite would mean inferring the other.
                           <span className="text-sm font-medium text-secondary-300">
                             {btts.known[0].label} {formatPercent(btts.known[0].value)}
-                            <span className="text-secondary-500 font-normal"> · other side {UNAVAILABLE_TEXT.toLowerCase()}</span>
+                            <span className="text-secondary-500 font-normal"> · other side {unavailableText().toLowerCase()}</span>
                           </span>
                         )}
                         <ConfidenceBadge level={prediction.bothTeamsToScore.confidence} basis={confidenceBasis} />
@@ -249,7 +249,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, fo
                         ) : (
                           <span className="text-sm font-medium text-secondary-300">
                             {totals.known[0].label} {formatPercent(totals.known[0].value)}
-                            <span className="text-secondary-500 font-normal"> · other side {UNAVAILABLE_TEXT.toLowerCase()}</span>
+                            <span className="text-secondary-500 font-normal"> · other side {unavailableText().toLowerCase()}</span>
                           </span>
                         )}
                         <ConfidenceBadge level={prediction.totalGoals.confidence} basis={confidenceBasis} />

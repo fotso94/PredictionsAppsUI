@@ -2,8 +2,11 @@ import React, { useId } from 'react'
 import CompetitionChip from '@/components/ui/CompetitionChip'
 import type { CompetitionOption } from './fixtureGrouping'
 import {
-  MARKET_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS, WorkspaceState, toggleValue,
+  MARKET_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS, WorkspaceState, optionDefinition, optionLabel,
+  toggleValue,
 } from './workspaceState'
+import { marketPeriodNote } from '@/utils/brief'
+import { useT } from '@/i18n/react'
 
 /**
  * The filter controls themselves — the body of the bottom sheet.
@@ -42,13 +45,14 @@ const Section: React.FC<{ title: string; hint?: string; children: React.ReactNod
 
 const MatchFilterControls: React.FC<MatchFilterControlsProps> = ({ state, onChange, competitions }) => {
   const statusName = useId()
+  const t = useT()
 
   return (
     <div className="space-y-5" data-testid="match-filter-controls">
-      <Section title="Show" hint="Which fixtures on this date are listed.">
+      <Section title={t('filters.show')} hint={t('filters.showHint')}>
         {/* Radios, not checkboxes: these three are alternatives, and a keyboard user gets the
             arrow-key behaviour a radio group is supposed to have. */}
-        <div role="radiogroup" aria-label="Which fixtures to show" className="space-y-1">
+        <div role="radiogroup" aria-label={t('filters.whichFixtures')} className="space-y-1">
           {STATUS_OPTIONS.map(option => (
             <label key={option.value} className="tap-target-row flex cursor-pointer items-center gap-2 rounded-lg px-1">
               <input
@@ -59,17 +63,15 @@ const MatchFilterControls: React.FC<MatchFilterControlsProps> = ({ state, onChan
                 onChange={() => onChange({ ...state, status: option.value })}
                 className="focus-ring h-4 w-4 border-dark-600 bg-dark-800 text-primary-600"
               />
-              <span className="text-sm text-secondary-200">{option.label}</span>
+              <span className="text-sm text-secondary-200">{optionLabel(option)}</span>
             </label>
           ))}
         </div>
       </Section>
 
       <Section
-        title="Competitions"
-        hint={competitions.length === 0
-          ? 'Nothing is stored for this date, so there are no competitions to choose from.'
-          : 'Leave all unselected to see every competition.'}
+        title={t('filters.competitions')}
+        hint={t(competitions.length === 0 ? 'filters.competitionsHintEmpty' : 'filters.competitionsHint')}
       >
         <div className="flex flex-wrap gap-1.5">
           {competitions.map(competition => (
@@ -91,12 +93,12 @@ const MatchFilterControls: React.FC<MatchFilterControlsProps> = ({ state, onChan
       </Section>
 
       <Section
-        title="Published markets"
-        hint="Keeps only fixtures where a source actually published every market you tick. A market nobody published is absent from the data, never a zero."
+        title={t('filters.markets')}
+        hint={t('filters.marketsHint')}
       >
         <div className="space-y-1">
           {MARKET_OPTIONS.map(option => (
-            <label key={option.value} className="tap-target-row flex cursor-pointer items-center gap-2 rounded-lg px-1">
+            <label key={option.value} className="tap-target-row flex cursor-pointer items-start gap-2 rounded-lg px-1 py-1">
               <input
                 type="checkbox"
                 checked={state.markets.includes(option.value)}
@@ -104,15 +106,24 @@ const MatchFilterControls: React.FC<MatchFilterControlsProps> = ({ state, onChan
                   ...state,
                   markets: toggleValue(state.markets, option.value, event.target.checked),
                 })}
-                className="focus-ring h-4 w-4 rounded border-dark-600 bg-dark-800 text-primary-600"
+                className="focus-ring mt-0.5 h-4 w-4 rounded border-dark-600 bg-dark-800 text-primary-600"
               />
-              <span className="text-sm text-secondary-200">{option.label}</span>
+              <span className="min-w-0">
+                <span className="block text-sm text-secondary-200">{optionLabel(option)}</span>
+                {/* What the market counts. The PERIOD it covers is stated once for the whole
+                    group below, because no source publishes one and saying so four times would
+                    read as four separate problems. */}
+                <span className="block text-xs text-secondary-400">{optionDefinition(option)}</span>
+              </span>
             </label>
           ))}
         </div>
+        <p className="mt-2 text-xs text-secondary-400" data-testid="market-period-note">
+          {marketPeriodNote()}
+        </p>
       </Section>
 
-      <Section title="Sources" hint="Keeps only fixtures that have the source you tick.">
+      <Section title={t('filters.sources')} hint={t('filters.sourcesHint')}>
         <div className="space-y-1">
           {SOURCE_OPTIONS.map(option => (
             <label key={option.value} className="tap-target-row flex cursor-pointer items-center gap-2 rounded-lg px-1">
@@ -125,7 +136,7 @@ const MatchFilterControls: React.FC<MatchFilterControlsProps> = ({ state, onChan
                 })}
                 className="focus-ring h-4 w-4 rounded border-dark-600 bg-dark-800 text-primary-600"
               />
-              <span className="text-sm text-secondary-200">{option.label}</span>
+              <span className="text-sm text-secondary-200">{optionLabel(option)}</span>
             </label>
           ))}
         </div>

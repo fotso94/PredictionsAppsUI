@@ -21,6 +21,9 @@ import {
   localDateString, localDayOffsets, timezoneOffsetMinutes,
 } from './match-data-source';
 import { getErrorMessage, getErrorStatus } from '@/utils/errors';
+// Kick-off times are mapped in the reader's chosen zone, and the cache is dropped when that zone
+// changes — see `localTime` below and the `onZoneChange` registration at the foot of this file.
+import { formatTime, onZoneChange } from '@/i18n';
 
 const API = '/api/v1';
 const CACHE_TTL_MS = 60 * 1000; // the backend already caches per provider; this only de-duplicates page renders
@@ -358,10 +361,19 @@ export function mapForecast(forecast: ApiForecast | null, fallbackState: ApiMatc
   };
 }
 
+/**
+ * The kick-off as a clock reading, in the READER'S CHOSEN zone rather than the device's.
+ *
+ * This runs once per fixture at mapping time and the result is cached, so it is not on its own
+ * enough: a reader who changes zone with a day already loaded would keep the old times. Two
+ * things cover that. The cache is dropped when the zone changes (see the `onZoneChange` hook at
+ * the foot of this file), and the row itself re-formats `kickoffUtc` on every render rather than
+ * printing this string (see `FixtureRow`). This value stays correct for the same reason it always
+ * had to be: it is the sort key's tie-break and the fallback when the payload carries no instant.
+ */
 function localTime(iso: string | null): string {
   if (!iso) return '--:--';
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return formatTime(iso) ?? '--:--';
 }
 
 export function mapApiMatch(match: ApiMatch): Match {
@@ -670,4 +682,17 @@ class BackendMatchDataService implements MatchDataSource {
 }
 
 export const backendMatchDataService = new BackendMatchDataService();
+
+/**
+ * A change of time zone invalidates every cached list.
+ *
+ * `mapApiMatch` writes two zone-dependent fields onto each `Match` — `time`, the clock reading,
+ * and `date`, the calendar day the fixture falls on — at mapping time. A reader who moves from
+ * Europe/Paris to Africa/Douala with today's list already in this cache would otherwise keep
+ * Paris's calendar for as long as the TTL lasts, and a 00:30 CET kick-off would stay filed under
+ * the wrong day. Dropping the cache costs one request against the backend's stored rows; it
+ * spends no provider allowance, because every read on those routes is `refresh=false`.
+ */
+onZoneChange(() => backendMatchDataService.clearCache());
+
 export default backendMatchDataService;

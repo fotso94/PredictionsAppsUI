@@ -1,5 +1,6 @@
 import React from 'react'
 import clsx from 'clsx'
+import { useT } from '@/i18n/react'
 import { BookmarkIcon } from '@heroicons/react/24/outline'
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 
@@ -74,12 +75,19 @@ const SaveMatchButton: React.FC<SaveMatchButtonProps> = ({
   size = 'md',
   className,
 }) => {
-  const subject = matchLabel ? ` ${matchLabel}` : ' this match'
+  const t = useT()
+  /*
+   * `subject` used to carry its own leading space so it could be glued onto "Save" / "Saved" —
+   * three sentences built by concatenation in English word order. In French the subject lands
+   * somewhere else entirely ("Connectez-vous pour enregistrer Arsenal contre Chelsea"), so the
+   * whole sentence is one catalogue entry with the subject as a parameter.
+   */
+  const subject = matchLabel ?? t('save.thisMatch')
   const accessibleName = !signedIn
-    ? `Sign in to save${subject}`
+    ? t('save.signInTo', { subject })
     : saved
-      ? `Saved${subject}. Select to remove it from your saved matches.`
-      : `Save${subject} to your saved matches.`
+      ? t('save.savedRemove', { subject })
+      : t('save.addTo', { subject })
 
   const handleClick = () => {
     // The guard the `disabled` attribute used to provide, without the attribute's side effect on
@@ -121,7 +129,7 @@ const SaveMatchButton: React.FC<SaveMatchButtonProps> = ({
       {/* The icon variant carries its whole meaning in `aria-label` (which would override any
           content here anyway); the labelled variant puts the same words on screen. */}
       {variant === 'labelled' && (
-        <span>{!signedIn ? 'Sign in to save' : saved ? 'Saved' : 'Save'}</span>
+        <span>{t(!signedIn ? 'save.signInShort' : saved ? 'save.saved' : 'save.save')}</span>
       )}
     </button>
   )

@@ -471,6 +471,216 @@ test('Back to a list that arrives after the restore window still lands where the
   ]), 'a restore that landed leaves the page\'s scroll anchoring as it found it').toEqual(['', '']);
 });
 
+/* ------------------------------------ the page that is tall enough before it is finished */
+
+/**
+ * The height of the block of content that is missing when the restore reaches the offset and
+ * present a moment later.
+ *
+ * The real number, measured on the mocked journey's filtered list with nothing held back at all,
+ * is 111px at 360 and at 390 — the matchday controls above the list growing into their own
+ * content one frame after the rows render, one frame after the restore had declared itself
+ * finished. 300 is that failure made big enough that no tolerance in this file can absorb it and
+ * no sub-pixel argument can explain it away: more than seven times RESTORE_TOLERANCE.
+ */
+const LATE_BLOCK_PX = 300;
+
+/**
+ * Put a block of `height` pixels immediately above the fixture list, in its own parent.
+ *
+ * It takes the height as an argument rather than reading LATE_BLOCK_PX because this function is
+ * shipped into the page as source (see the two evaluates below) and closes over nothing here.
+ *
+ * A NODE, not a style change on something the list sits inside, and that is not a detail. Chromium
+ * SUPPRESSES its scroll anchoring for a frame in which the computed style of the anchor's own
+ * ancestors changed — measured here: shortening the page with a negative margin on <main> and
+ * putting it back moved the reader by the app's own 95px and not one pixel of the 300 the test
+ * had injected, so the defect under test was being hidden by the mechanism meant to provoke it.
+ * Content arriving above the reader is a node appearing, which is exactly what the browser's
+ * anchoring exists to react to.
+ */
+function insertLateBlock(height: number): number {
+  const list = document.querySelector('[data-testid="fixture-list"]');
+  if (!list || !list.parentNode) return 0;
+  if (document.getElementById('e2e-late-block')) return document.documentElement.scrollHeight;
+  const block = document.createElement('div');
+  block.id = 'e2e-late-block';
+  block.style.height = `${height}px`;
+  list.parentNode.insertBefore(block, list);
+  // Read back rather than adding `height` to what it was: this is the height the page ACTUALLY
+  // reached, which is what the test asserts the reader was not carried by.
+  return document.documentElement.scrollHeight;
+}
+
+/**
+ * THE DEFECT THIS PINS, and why the two tests above did not catch it.
+ *
+ * Both of them hold the fixture list back, so the page they measure is one that arrives LATE. The
+ * failure underneath this test needs the opposite: a page that arrives on time and is still a
+ * frame away from finished. The restore reached the saved offset against a layout that existed
+ * for one frame, called itself done, handed the browser's scroll anchoring back — and the page's
+ * last paint then carried the reader down by exactly the growth. Measured on mocked-desktop with
+ * the mocked journey's own list and nothing interfering at all: 2059 -> 2170 at 360, 1961 -> 2072
+ * at 390, a fixture and a half past the row they asked for. At 1440 the last converge happened to
+ * fall after that growth rather than before it, which is why the defect was invisible at that
+ * width rather than absent from it.
+ *
+ * HOW THE TIMING IS MADE DETERMINISTIC INSTEAD OF HOPED FOR. The reader leaves a list that has
+ * the block in it, so the offset they record is an offset on the finished page. Coming back, a
+ * probe puts the block in on the first frame the reader is actually standing on that offset —
+ * that instant is the landing, whatever the machine's speed, so the page always finishes on the
+ * far side of it. The probe reports the heights it saw and the test asserts them: a run in which
+ * the block never arrived fails as loudly as a run in which the reader was carried away.
+ *
+ * WHAT IT DOES WITHOUT THE FIX — measured, with ScrollBehaviour.tsx reverted to ending the watch
+ * on the first successful converge and everything else in place. It fails on all three projects,
+ * and on none of them by a margin anything here could absorb:
+ *
+ *   mocked-desktop (Chromium 1440)     "stopped at 1278", wanted 883: carried 395, the 300 of the
+ *                                      block plus the 95 the page grows by on its own at 1440.
+ *   mocked-mobile-360 (Chromium 360)   "stopped at 1949", wanted 1538: carried 411, the 300 plus
+ *                                      the app's own 111.
+ *   mocked-mobile (WebKit, iPhone 13)  "stopped at 1841", wanted 1541: carried exactly 300. This
+ *                                      one is worth spelling out, because the tests above are
+ *                                      careful to say that WebKit restores a same-document
+ *                                      history entry's offset itself and satisfies them without
+ *                                      this component. It does not cover THIS: content arriving
+ *                                      above the reader after the offset has been reached moves
+ *                                      them on WebKit exactly as it does on Chromium.
+ *
+ * One run in four at 360 failed a line earlier instead — at "the restore must reach the offset
+ * while the page is still short" — because with the defect present the reader can be carried off
+ * the offset inside the same frame it was applied, before the probe's own callback sees them
+ * standing on it. That is the same failure arriving one assertion sooner, not a flaky test: with
+ * the fix in place the reader is held on the offset for the whole settle, and the probe has
+ * roughly fifteen frames in which to see it.
+ */
+test('a page that finishes growing after the restore reaches the offset leaves the reader on it', async ({ page }) => {
+  await stubBackend(page, { day: d => crowdedDay(d) });
+  await page.goto(`/matches?date=${localDay(0)}&comp=${COMPETITION.id}`);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByTestId('fixture-list')).toBeVisible();
+
+  /*
+   * Half way down the list, and into a fixture that is ALREADY fully in view.
+   *
+   * Not the last fixture, which is what the other tests here walk into: this one needs room below
+   * the reader for a page that came back short, and a reader already at the end of the list has
+   * none. Fully in view matters for the same reason it does there — a Playwright click scrolls its
+   * target into view first, so a row at the edge of the screen would move the list on the way out
+   * and the offset this test restores would be one the reader was never at.
+   */
+  const perch = await page.evaluate(({ growth, source }) => {
+    (new Function(`return (${source})`)() as (height: number) => number)(growth);
+    const furthest = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    window.scrollTo({
+      top: Math.min(Math.round(furthest / 2), furthest - (growth + 100)), left: 0, behavior: 'instant',
+    });
+    const middle = window.innerHeight / 2;
+    let href: string | null = null;
+    let nearest = Infinity;
+    for (const link of document.querySelectorAll('[data-testid="fixture-list"] a[href^="/match/"]')) {
+      const box = link.getBoundingClientRect();
+      if (box.top < 8 || box.bottom > window.innerHeight - 8) continue;
+      const distance = Math.abs((box.top + box.bottom) / 2 - middle);
+      if (distance < nearest) { nearest = distance; href = link.getAttribute('href'); }
+    }
+    return { left: Math.round(window.scrollY), furthest: Math.round(furthest), href };
+  }, { growth: LATE_BLOCK_PX, source: insertLateBlock.toString() });
+
+  expect(perch.href, 'a fixture must be fully in view to be walked into without moving the list')
+    .not.toBeNull();
+  expect(perch.left, 'the list must be tall enough for this to mean anything').toBeGreaterThan(200);
+  expect(perch.furthest - perch.left,
+    'and there must be room below the reader for the page to come back short of the offset')
+    .toBeGreaterThan(LATE_BLOCK_PX);
+
+  const fixture = page.locator(`[data-testid="fixture-list"] a[href="${perch.href}"]`).first();
+  await expect(fixture).toBeInViewport();
+  await fixture.click();
+  await page.waitForURL('**/match/**');
+  await expect.poll(() => scrollY(page), { message: 'the fixture page opens at its top' })
+    .toBeLessThanOrEqual(2);
+
+  /*
+   * THE OFFSET IS RECORDED CORRECTLY. Stated before anything else, because it is half of the
+   * diagnosis: the component writes the right number down and the reader still ends up somewhere
+   * else. Read out of the store rather than out of the module, and matched by value, so this says
+   * nothing about how the slots are named.
+   */
+  const recorded = await page.evaluate(() => Object.values(
+    JSON.parse(window.sessionStorage.getItem('sp.scroll-positions') ?? '{}') as Record<string, number>));
+  expect(recorded.some(offset => Math.abs(offset - perch.left) <= 1),
+    `the list's offset must have been recorded as ${perch.left}; the store holds ${JSON.stringify(recorded)}`)
+    .toBe(true);
+
+  /*
+   * The page comes back without the block and finishes the instant the reader is standing on the
+   * saved offset. Installed with an evaluate rather than an init script because Back here is a
+   * same-document navigation: this loop is still running when the list comes back.
+   */
+  await page.evaluate(({ offset, growth, source }) => {
+    const insert = new Function(`return (${source})`)() as (height: number) => number;
+    const report = { arrived: false, shortHeight: 0, grownHeight: 0, landedOn: 0 };
+    (window as unknown as { __lateBlock: typeof report }).__lateBlock = report;
+    const step = (): void => {
+      if (!report.arrived && Math.abs(window.scrollY - offset) <= 2
+        && document.querySelector('[data-testid="fixture-list"]')) {
+        report.shortHeight = document.documentElement.scrollHeight;
+        report.landedOn = Math.round(window.scrollY);
+        report.grownHeight = insert(growth);
+        report.arrived = true;
+      }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, { offset: perch.left, growth: LATE_BLOCK_PX, source: insertLateBlock.toString() });
+
+  await page.goBack();
+  await page.waitForURL(url => url.pathname === '/matches');
+  await expect(page.getByTestId('fixture-list')).toBeVisible();
+
+  // The case really was set up: the reader reached their offset on a page that was still short of
+  // its finished height, and the page then finished underneath them. Without this, everything
+  // below would be satisfied just as well by a run in which nothing ever arrived.
+  await expect.poll(
+    () => page.evaluate(() => (window as unknown as { __lateBlock: { arrived: boolean } }).__lateBlock.arrived),
+    { message: 'the restore must reach the offset while the page is still short', timeout: 15_000 },
+  ).toBe(true);
+  const block = await page.evaluate(() => (window as unknown as {
+    __lateBlock: { shortHeight: number; grownHeight: number; landedOn: number };
+  }).__lateBlock);
+  expect(block.grownHeight - block.shortHeight,
+    'and the page must then have finished growing, or there is nothing to be carried by')
+    .toBeGreaterThanOrEqual(LATE_BLOCK_PX);
+  expect(Math.abs(block.landedOn - perch.left),
+    'the block must arrive on the reader, not on some other position the restore passed through')
+    .toBeLessThanOrEqual(2);
+
+  await expect.poll(async () => {
+    const { y } = await scrollState(page);
+    return Math.abs(y - perch.left) <= RESTORE_TOLERANCE ? 'restored' : `stopped at ${y}`;
+  }, {
+    message: `Back must leave the reader on ${perch.left}, not carry them down with the page`,
+    timeout: 15_000,
+  }).toBe('restored');
+
+  // And there when everything has finished, rather than for one frame on the way past.
+  await page.waitForTimeout(800);
+  const settled = await scrollState(page);
+  expect(Math.abs(settled.y - perch.left),
+    `the reader was at ${perch.left}; the page finishing under them must not move them `
+    + `(they are at ${settled.y}, and being carried by the block would have put them at `
+    + `${perch.left + LATE_BLOCK_PX})`)
+    .toBeLessThanOrEqual(RESTORE_TOLERANCE);
+
+  // This restore landed, so nothing of it may be left switched off — the settle that waits for the
+  // page to stop moving has to END, and this is what says so.
+  expect(await page.evaluate(() => [
+    document.documentElement.style.overflowAnchor, document.body.style.overflowAnchor,
+  ]), 'a restore that landed leaves the page\'s scroll anchoring as it found it').toEqual(['', '']);
+});
+
 /**
  * Wait until a running restore has actually PUT the reader somewhere, on a page that has stopped
  * growing — and report where.

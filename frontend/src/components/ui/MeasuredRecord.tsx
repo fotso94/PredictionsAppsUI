@@ -7,6 +7,8 @@ import {
   excludedCountsText, measuredMarketLabel, measuredView, ratioPercent, sourceCounts,
   sourceKindLabel, windowText,
 } from './measurement'
+import { formatDateTime, formatNumber } from '@/i18n'
+import { useT } from '@/i18n/react'
 
 /**
  * The measured record: what each source actually got right, counted from settled results.
@@ -31,6 +33,7 @@ import {
 
 /** One market's line for a measured source: the figure, its sample, and its definition. */
 const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = ({ market, minimumSample }) => {
+  const t = useT()
   const rate = ratioPercent(market.hit_rate)
   const excluded = excludedCountsText(market)
 
@@ -42,11 +45,13 @@ const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = (
           <span className="text-sm text-white" data-testid="measured-hit-rate">
             {/* Never apart: the figure and the sample it came from are one statement. */}
             <span className="num font-semibold">{rate}</span>
-            <span className="text-secondary-400"> hit rate from {market.hit_rate_sample} scored</span>
+            <span className="text-secondary-400">
+              {' '}{t('measured.hitRate', { sample: formatNumber(market.hit_rate_sample) })}
+            </span>
           </span>
         ) : (
           <span className="text-sm text-secondary-300" data-testid="measured-hit-rate-withheld">
-            no hit rate published
+            {t('measured.hitRateWithheld')}
           </span>
         )}
       </div>
@@ -59,7 +64,10 @@ const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = (
       */}
       {!market.hit_rate_available && (
         <p className="mt-0.5 text-xs text-secondary-400">
-          {market.hit_rate_sample} of {minimumSample} scored predictions needed before a rate is published.
+          {t('measured.needMore', {
+            sample: formatNumber(market.hit_rate_sample),
+            minimum: formatNumber(minimumSample),
+          })}
         </p>
       )}
 
@@ -68,11 +76,12 @@ const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = (
             disclosure, not repeated five times down the page. */}
         <details className="group">
           <summary className="cursor-pointer text-secondary-400 hover:text-secondary-300 focus-ring">
-            How this market is counted and settled
+            {t('measured.howCounted')}
           </summary>
           <div className="mt-1 space-y-0.5 pl-3">
-            <p><span className="text-secondary-400">Counted as: </span>{market.hit_rate_definition}</p>
-            <p><span className="text-secondary-400">Settled by: </span>{market.rule}</p>
+            {/* Both values are the backend's own definitions, carried through verbatim. */}
+            <p><span className="text-secondary-400">{t('measured.countedAs')}</span>{market.hit_rate_definition}</p>
+            <p><span className="text-secondary-400">{t('measured.settledBy')}</span>{market.rule}</p>
           </div>
         </details>
         {/*
@@ -84,41 +93,44 @@ const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = (
           against it.
         */}
         <div>
-          <dt className="inline text-secondary-400">Sample size: </dt>
+          <dt className="inline text-secondary-400">{t('measured.sampleSize')}</dt>
           <dd className="inline" data-testid="measured-sample-size">
             <span className="num">{market.scored}</span>{' '}
-            scored {market.scored === 1 ? 'prediction' : 'predictions'}
+            {t('measured.sampleSizeValue', { count: market.scored })}
           </dd>
         </div>
         <div>
-          <dt className="inline text-secondary-400">Correct outcomes: </dt>
-          <dd className="inline" data-testid="measured-hit-count">
-            {market.scored === 0 ? (
-              'nothing in this market has been scored yet, so none of it is right or wrong'
-            ) : (
-              <>
-                <span className="num">{market.hits}</span> of those{' '}
-                <span className="num">{market.scored}</span>
-              </>
-            )}
+          <dt className="inline text-secondary-400">{t('measured.correctOutcomes')}</dt>
+          {/*
+            ONE MESSAGE, NOT TWO SPANS WITH A WORD BETWEEN THEM. This read
+            `{hits}</span> of those <span>{scored}` — the connector hardcoded in the JSX, so it
+            was English on a French page and no catalogue-generated check could see it, because
+            a string that never entered a catalogue is not in either catalogue to compare.
+            `num` moves to the `dd`: it sets tabular numerals only, so it changes nothing for
+            the words and keeps the digits aligned exactly as before.
+          */}
+          <dd className="num inline" data-testid="measured-hit-count">
+            {market.scored === 0
+              ? t('measured.nothingScoredInMarket')
+              : t('measured.hitCount', { hits: market.hits, scored: market.scored })}
           </dd>
         </div>
         {excluded && (
           <div>
             {/* Real counts, and deliberately outside the sample: a void is never a loss. */}
-            <dt className="inline text-secondary-400">Not in the sample: </dt>
+            <dt className="inline text-secondary-400">{t('measured.notInSample')}</dt>
             <dd className="inline" data-testid="measured-excluded">{excluded}</dd>
           </div>
         )}
         <div>
-          <dt className="inline text-secondary-400">Brier score: </dt>
+          <dt className="inline text-secondary-400">{t('measured.brier')}</dt>
           <dd className="inline">
             {market.brier_available && typeof market.brier_score === 'number' ? (
               <>
-                <span className="num">{market.brier_score}</span> from{' '}
-                <span className="num">{market.brier_sample}</span> predictions
+                <span className="num">{market.brier_score}</span> {t('measured.brierFrom')}{' '}
+                <span className="num">{market.brier_sample}</span> {t('measured.brierPredictions')}
                 {typeof market.brier_baseline === 'number' && (
-                  <> · an uninformative forecast scores <span className="num">{market.brier_baseline}</span></>
+                  <>{t('measured.brierBaseline')} <span className="num">{market.brier_baseline}</span></>
                 )}
               </>
             ) : (
@@ -132,8 +144,10 @@ const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = (
                 predictions, which would read as an impossible 5 of 4.
               */
               <span className="text-secondary-500">
-                computable for {market.brier_sample} predictions so far; {minimumSample} needed
-                before a Brier score is published
+                {t('measured.brierWithheld', {
+                  sample: formatNumber(market.brier_sample),
+                  minimum: formatNumber(minimumSample),
+                })}
               </span>
             )}
           </dd>
@@ -144,7 +158,9 @@ const MarketRow: React.FC<{ market: MeasuredMarket; minimumSample: number }> = (
 }
 
 /** One source: measured or not, its counts are always real and always shown. */
-const SourceBlock: React.FC<{ source: MeasuredSource; minimumSample: number }> = ({ source, minimumSample }) => (
+const SourceBlock: React.FC<{ source: MeasuredSource; minimumSample: number }> = ({ source, minimumSample }) => {
+  const t = useT()
+  return (
   <div
     className="rounded-lg border border-dark-700 bg-dark-800/40 px-3 py-2"
     data-testid="measured-source"
@@ -165,7 +181,8 @@ const SourceBlock: React.FC<{ source: MeasuredSource; minimumSample: number }> =
     ) : (
       /* The whole source is unmeasured: one sentence, the backend's, rather than a row of dashes. */
       <p className="mt-1 text-xs text-secondary-300" data-testid="measured-source-unmeasured">
-        {source.not_measured_reason ?? 'Nothing from this source has been scored in this window yet.'}
+        {/* The backend's own sentence wherever it gave one; ours only when it did not. */}
+        {source.not_measured_reason ?? t('measured.sourceUnmeasured')}
       </p>
     )}
 
@@ -173,13 +190,15 @@ const SourceBlock: React.FC<{ source: MeasuredSource; minimumSample: number }> =
       <ul className="mt-1 space-y-0.5 text-xs text-secondary-500">
         {source.not_scored_reasons.map(entry => (
           <li key={entry.reason}>
-            <span className="num">{entry.count}</span> not scored — {entry.reason}
+            <span className="num">{entry.count}</span>{' '}
+            {t('measured.notScoredReason', { reason: entry.reason })}
           </li>
         ))}
       </ul>
     )}
   </div>
-)
+  )
+}
 
 export interface MeasuredRecordProps {
   /** The service result. Null while it is still loading. */
@@ -194,6 +213,7 @@ export interface MeasuredRecordProps {
 const MeasuredRecord: React.FC<MeasuredRecordProps> = ({
   result, loading = false, className, headingLevel = 2,
 }) => {
+  const t = useT()
   const Heading = (headingLevel === 2 ? 'h2' : 'h3') as 'h2' | 'h3'
   const view = measuredView(result)
   const performance = view.performance
@@ -201,16 +221,12 @@ const MeasuredRecord: React.FC<MeasuredRecordProps> = ({
   return (
     <section className={clsx('space-y-3', className)} data-testid="measured-record" data-state={loading ? 'loading' : view.state}>
       <div>
-        <Heading className="text-xl font-bold text-white sm:text-2xl">How the sources have actually done</Heading>
-        <p className="mt-1 max-w-3xl text-sm text-secondary-400">
-          Counted from settled results by comparing what a source published before kick-off with
-          what happened. Scoring a forecast is arithmetic against a real result — it is not a new
-          prediction, and none of it says what will happen next.
-        </p>
+        <Heading className="text-xl font-bold text-white sm:text-2xl">{t('measured.heading')}</Heading>
+        <p className="mt-1 max-w-3xl text-sm text-secondary-400">{t('measured.intro')}</p>
       </div>
 
       {loading ? (
-        <p className="text-sm text-secondary-400" role="status">Loading the measured record&hellip;</p>
+        <p className="text-sm text-secondary-400" role="status">{t('measured.loading')}</p>
       ) : (
         <>
           <p
@@ -224,9 +240,15 @@ const MeasuredRecord: React.FC<MeasuredRecordProps> = ({
           {performance && (
             <>
               <p className="text-xs text-secondary-500" data-testid="measured-window">
-                {/* The window travels with every figure: "62%" over ninety days is not an all-time claim. */}
-                Window: {windowText(performance)} — {performance.window.basis}. Measured{' '}
-                {new Date(performance.measured_at).toLocaleString()}.
+                {/* The window travels with every figure: "62%" over ninety days is not an all-time claim.
+                    `{basis}` is the backend's own description of what the window is measured on. */}
+                {t('measured.windowLine', {
+                  window: windowText(performance),
+                  basis: performance.window.basis,
+                  // Falls back to the raw timestamp rather than leaving the sentence with a
+                  // hole in it, on the one payload whose `measured_at` will not parse.
+                  when: formatDateTime(performance.measured_at) ?? performance.measured_at,
+                })}
               </p>
 
               {(view.measured.length > 0 || view.unmeasured.length > 0) && (
@@ -249,17 +271,17 @@ const MeasuredRecord: React.FC<MeasuredRecordProps> = ({
               <details className="group rounded-lg border border-dark-700 bg-dark-800/40" data-testid="measured-rules">
                 <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-xs text-secondary-300 hover:text-white">
                   <ChevronRightIcon className="h-3.5 w-3.5 flex-shrink-0 transition-transform group-open:rotate-90" aria-hidden="true" />
-                  The rules every figure here was settled by
+                  {t('measured.rulesDisclosure')}
                 </summary>
                 <dl className="space-y-1.5 border-t border-dark-700 px-3 py-2 text-xs text-secondary-400">
-                  <div><dt className="inline text-secondary-300">Ruleset: </dt><dd className="inline">{performance.rules.version}</dd></div>
-                  <div><dt className="inline text-secondary-300">Basis: </dt><dd className="inline">{performance.rules.basis}</dd></div>
-                  <div><dt className="inline text-secondary-300">Only pre-kickoff evidence: </dt><dd className="inline">{performance.rules.prematch_only}</dd></div>
-                  <div><dt className="inline text-secondary-300">Void fixtures: </dt><dd className="inline">{performance.rules.void}</dd></div>
+                  <div><dt className="inline text-secondary-300">{t('measured.rules.ruleset')}</dt><dd className="inline">{performance.rules.version}</dd></div>
+                  <div><dt className="inline text-secondary-300">{t('measured.rules.basis')}</dt><dd className="inline">{performance.rules.basis}</dd></div>
+                  <div><dt className="inline text-secondary-300">{t('measured.rules.prematchOnly')}</dt><dd className="inline">{performance.rules.prematch_only}</dd></div>
+                  <div><dt className="inline text-secondary-300">{t('measured.rules.void')}</dt><dd className="inline">{performance.rules.void}</dd></div>
                   {/* The rule this whole application is built on, restated where it is enforced. */}
-                  <div><dt className="inline text-secondary-300">A market a source did not publish: </dt><dd className="inline">{performance.rules.unsupplied_market}</dd></div>
-                  <div><dt className="inline text-secondary-300">Hit rate: </dt><dd className="inline">{performance.rules.hit_rate}</dd></div>
-                  <div><dt className="inline text-secondary-300">Brier score: </dt><dd className="inline">{performance.rules.brier}</dd></div>
+                  <div><dt className="inline text-secondary-300">{t('measured.rules.unsuppliedMarket')}</dt><dd className="inline">{performance.rules.unsupplied_market}</dd></div>
+                  <div><dt className="inline text-secondary-300">{t('measured.rules.hitRate')}</dt><dd className="inline">{performance.rules.hit_rate}</dd></div>
+                  <div><dt className="inline text-secondary-300">{t('measured.rules.brier')}</dt><dd className="inline">{performance.rules.brier}</dd></div>
                 </dl>
               </details>
             </>

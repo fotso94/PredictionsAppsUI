@@ -7,6 +7,7 @@
  */
 
 import axios from 'axios';
+import { t } from '@/i18n';
 
 /** FastAPI's validation errors arrive as a list of objects; its HTTPExceptions as a string or object. */
 interface ApiErrorDetail {
@@ -47,8 +48,11 @@ export function getErrorMessage(err: unknown, fallback: string): string {
     const fromDetail = detailToMessage(data?.detail);
     if (fromDetail) return fromDetail;
     if (typeof data?.message === 'string' && data.message.trim()) return data.message;
-    if (err.response?.status === 503) return 'The service is temporarily unavailable.';
-    if (err.code === 'ECONNABORTED') return 'The request timed out.';
+    // Only OUR two sentences are translated. `data.detail`, `data.message` and `err.message`
+    // above are the server's own words and the transport's, and are passed through unchanged in
+    // every language — a paraphrase of somebody else's error is a different error.
+    if (err.response?.status === 503) return t('error.serviceUnavailable');
+    if (err.code === 'ECONNABORTED') return t('error.timedOut');
     if (err.message) return err.message;
     return fallback;
   }

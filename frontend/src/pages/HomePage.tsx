@@ -15,6 +15,8 @@ import MatchdayWorkspace from '@/components/matches/MatchdayWorkspace'
 import { footballDataService } from '@/services/football-data.service'
 import { CoverageSummary, localDateString } from '@/services/match-data-source'
 import { performanceService, PerformanceResult } from '@/services/performance.service'
+import { formatDateTime, formatNumber } from '@/i18n'
+import { useT } from '@/i18n/react'
 
 /**
  * The home page.
@@ -55,6 +57,7 @@ import { performanceService, PerformanceResult } from '@/services/performance.se
  */
 
 const HomePage: React.FC = () => {
+  const t = useT()
   const [coverage, setCoverage] = useState<CoverageSummary | null>(null)
   const [coverageLoaded, setCoverageLoaded] = useState(false)
   /**
@@ -85,43 +88,48 @@ const HomePage: React.FC = () => {
     return () => { cancelled = true }
   }, [])
 
+  /*
+   * `toLocaleString()` on a number is the DEVICE's convention. `formatNumber` is the reader's —
+   * 1,234 in English and 1 234 in French — which is the same rule every other figure on the
+   * page now follows.
+   */
   const stats = [
     {
-      name: 'Competitions covered',
-      value: coverage ? String(coverage.competitions_covered) : null,
+      name: t('home.stat.competitions'),
+      value: coverage ? formatNumber(coverage.competitions_covered) : null,
       icon: TrophyIcon,
-      detail: 'Top five European leagues and the Champions League',
+      detail: t('home.stat.competitionsDetail'),
     },
     {
-      name: 'Upcoming fixtures loaded',
-      value: coverage ? coverage.upcoming_matches.toLocaleString() : null,
+      name: t('home.stat.fixtures'),
+      value: coverage ? formatNumber(coverage.upcoming_matches) : null,
       icon: CalendarDaysIcon,
-      detail: 'Scheduled and in-play matches currently stored',
+      detail: t('home.stat.fixturesDetail'),
     },
     {
-      name: 'Model forecasts available',
-      value: coverage ? coverage.upcoming_matches_with_forecast.toLocaleString() : null,
+      name: t('home.stat.forecasts'),
+      value: coverage ? formatNumber(coverage.upcoming_matches_with_forecast) : null,
       icon: CpuChipIcon,
       // A share needs its denominator on the same card. "34 model forecasts" beside "43 upcoming
       // fixtures" leaves the reader to notice that the first is a subset of the second, and a
       // reader who does not notice reads full coverage where nine fixtures have none.
       detail: coverage
-        ? `Of the ${coverage.upcoming_matches.toLocaleString()} upcoming matches stored; the rest have no model forecast attached`
-        : 'Upcoming matches with a GameForecast model prediction attached',
+        ? t('home.stat.forecastsDetailOf', { total: formatNumber(coverage.upcoming_matches) })
+        : t('home.stat.forecastsDetail'),
     },
     {
-      name: 'Expert predictions published',
-      value: coverage ? coverage.expert_predictions_published.toLocaleString() : null,
+      name: t('home.stat.expertPredictions'),
+      value: coverage ? formatNumber(coverage.expert_predictions_published) : null,
       icon: ChartBarIcon,
-      detail: 'Published by experts registered on this site',
+      detail: t('home.stat.expertPredictionsDetail'),
     },
   ]
 
   return (
     <>
       <Helmet>
-        <title>Soccer Predictions - Fixtures, Model Forecasts and Expert Analysis</title>
-        <meta name="description" content="Fixtures and results for the top five European leagues and the Champions League, with GameForecastAPI model forecasts and predictions published by registered experts." />
+        <title>{t('home.documentTitle')}</title>
+        <meta name="description" content={t('home.documentDescription')} />
       </Helmet>
 
       <div className="min-h-screen bg-dark-950">
@@ -130,7 +138,7 @@ const HomePage: React.FC = () => {
           <MatchdayWorkspace
             defaultDate={localDateString(0)}
             headingLevel={1}
-            title="Today's matches"
+            title={t('matchday.title.today')}
             variant="panel"
             limit={8}
             moreHref="/predictions/today"
@@ -150,32 +158,42 @@ const HomePage: React.FC = () => {
         <section className="border-t border-dark-800 bg-dark-900 py-8" aria-labelledby="home-coverage">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
             <h2 id="home-coverage" className="text-xl font-bold text-white sm:text-2xl">
-              How much football is loaded right now
+              {t('home.coverageHeading')}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-secondary-300" data-testid="coverage-summary">
               {!coverageLoaded
-                ? 'Counting what is stored…'
+                ? t('home.coverageCounting')
                 : coverage
                   ? <>
                     {/* Every figure with what it is a figure OF: a bare "34 forecasts" beside
                         "43 fixtures" leaves the reader to notice the second is the denominator
-                        of the first, and a reader who does not notice reads full coverage. */}
-                    <span className="num">{coverage.upcoming_matches.toLocaleString()}</span> upcoming
-                    fixtures stored across <span className="num">{coverage.competitions_covered}</span> competitions.{' '}
-                    <span className="num">{coverage.upcoming_matches_with_forecast.toLocaleString()}</span> of
-                    them carry a model forecast; the other{' '}
-                    <span className="num">{(coverage.upcoming_matches - coverage.upcoming_matches_with_forecast).toLocaleString()}</span>{' '}
-                    have none. {coverage.expert_predictions_published > 0
-                      ? <><span className="num">{coverage.expert_predictions_published.toLocaleString()}</span> expert predictions have been published.</>
-                      : 'No expert has published a prediction yet.'}
+                        of the first, and a reader who does not notice reads full coverage.
+                        Three whole sentences rather than fragments around <span>s: the numbers
+                        do not sit in the same places in French, and the `.num` styling is not
+                        worth an ungrammatical sentence. */}
+                    {t('home.coverageStored', {
+                      fixtures: formatNumber(coverage.upcoming_matches),
+                      competitions: formatNumber(coverage.competitions_covered),
+                    })}{' '}
+                    {t('home.coverageForecasts', {
+                      withForecast: formatNumber(coverage.upcoming_matches_with_forecast),
+                      without: formatNumber(coverage.upcoming_matches - coverage.upcoming_matches_with_forecast),
+                    })}{' '}
+                    {coverage.expert_predictions_published > 0
+                      ? t('home.coverageExperts', { count: formatNumber(coverage.expert_predictions_published) })
+                      : t('home.coverageNoExperts')}
                   </>
-                  : 'The stored-data counts could not be loaded, so nothing is claimed about how much is here.'}
+                  : t('home.coverageFailed')}
             </p>
 
-            <Disclosure summary="The counts one by one" className="mt-3" testId="coverage-detail">
+            <Disclosure summary={t('home.coverageDisclosure')} className="mt-3" testId="coverage-detail">
               <p className="mb-3 text-secondary-500">
-                Counted from the stored data
-                {coverage?.measured_at ? ` on ${new Date(coverage.measured_at).toLocaleString()}` : ''}.
+                {(() => {
+                  const when = formatDateTime(coverage?.measured_at)
+                  return when
+                    ? t('home.coverageCountedFromWhen', { when })
+                    : t('home.coverageCountedFrom')
+                })()}
                 {/*
                   This used to append the coverage endpoint's own "no accuracy figure is shown"
                   clause. The measured record below now answers that question properly — per
@@ -200,7 +218,7 @@ const HomePage: React.FC = () => {
                             // be mistaken for a figure.
                             <span className="inline-block h-7 w-16 animate-pulse rounded bg-dark-700" aria-hidden="true" />
                           ) : stat.value ?? (
-                            <span className="text-base font-medium text-secondary-500">Unavailable</span>
+                            <span className="text-base font-medium text-secondary-500">{t('home.statUnavailable')}</span>
                           )}
                         </div>
                         <div className="text-sm text-secondary-400">{stat.name}</div>
@@ -226,42 +244,24 @@ const HomePage: React.FC = () => {
         <section className="py-8" aria-labelledby="home-about">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
             <h2 id="home-about" className="text-xl font-bold text-white sm:text-2xl">
-              Where these numbers come from
+              {t('home.aboutHeading')}
             </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-secondary-300">
-              Fixtures and results from Europe&rsquo;s top five leagues and the Champions League,
-              with model forecasts from GameForecastAPI and predictions published by registered
-              experts. Every probability comes from a named source and is reproduced as that source
-              published it. None of this is betting advice.
-            </p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-secondary-300">{t('home.aboutBody')}</p>
 
-            <Disclosure summary="The rules this site holds itself to" className="mt-3" testId="home-method">
+            <Disclosure summary={t('home.methodDisclosure')} className="mt-3" testId="home-method">
               <div className="max-w-3xl space-y-2 leading-6 text-secondary-300">
-                <p>
-                  Nothing here is computed on your behalf. When a source did not publish a market,
-                  the match says so in the source&rsquo;s own words instead of showing a zero, and
-                  when a forecast is older than it should be, the fixture says that too.
-                </p>
-                <p>
-                  How often each source has been right is not guessed at either: it is counted from
-                  settled results, and the measured record below shows exactly how much has been
-                  counted so far. Below the minimum sample no rate is published at all — the counts
-                  are shown and the percentage is withheld, because a rate from a handful of results
-                  would mislead.
-                </p>
-                <p>
-                  A probability is not a forecast of what will happen, and a probability published
-                  for one fixture is not a record of how often its source has been right.
-                </p>
+                <p>{t('home.method1')}</p>
+                <p>{t('home.method2')}</p>
+                <p>{t('home.method3')}</p>
               </div>
             </Disclosure>
 
             <div className="mt-5 flex flex-wrap gap-3">
               <Button asChild>
-                <Link to="/matches">Browse matches by date</Link>
+                <Link to="/matches">{t('home.browseByDate')}</Link>
               </Button>
               <Button variant="outline" asChild>
-                <Link to="/leagues">Competitions</Link>
+                <Link to="/leagues">{t('home.competitions')}</Link>
               </Button>
             </div>
           </div>
@@ -291,7 +291,7 @@ const HomePage: React.FC = () => {
 
         <section className="bg-gradient-to-r from-primary-900 to-primary-800 py-10">
           <div className="mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
-            <h2 className="text-2xl font-bold text-white">Follow the fixtures that matter</h2>
+            <h2 className="text-2xl font-bold text-white">{t('home.followHeading')}</h2>
             <p className="mx-auto mt-3 max-w-2xl text-base text-primary-100">
               {/*
                 This used to offer expert reasoning as something an account unlocks. It is not:
@@ -299,16 +299,14 @@ const HomePage: React.FC = () => {
                 carries an expert's reasoning when an expert has published one for it. An account
                 changes what is remembered for you, not what you are allowed to read.
               */}
-              Create an account to save matches and follow the teams and competitions you care
-              about. Forecasts and expert analysis are public either way, on every fixture where a
-              source has published them.
+              {t('home.followBody')}
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Button size="lg" variant="secondary" asChild>
-                <Link to="/register">Create an account</Link>
+                <Link to="/register">{t('home.createAccount')}</Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link to="/predictions/tomorrow">Tomorrow&rsquo;s matches</Link>
+                <Link to="/predictions/tomorrow">{t('home.tomorrowsMatches')}</Link>
               </Button>
             </div>
           </div>

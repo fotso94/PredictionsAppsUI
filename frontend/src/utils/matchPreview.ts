@@ -20,7 +20,8 @@ import type {
   BriefConfidenceScope, BriefMissingReason, BriefSourceKey, BriefSourceState, Match,
   MatchPredictions,
 } from '@/types';
-import { leadOutcome, marketBlock, percentText, SOURCE_LABEL } from './brief';
+import { leadOutcome, marketBlock, percentText, sourceLabel } from './brief';
+import { t } from '@/i18n';
 
 /** Which 1X2 outcome leads. The key is kept so a row can label it with the real team name. */
 export type OutcomeKey = 'home_win' | 'draw' | 'away_win';
@@ -94,11 +95,9 @@ export interface FixturePreview {
   accuracyMeasured: boolean;
 }
 
-const OUTCOME_LABEL: Record<OutcomeKey, string> = {
-  home_win: 'Home win',
-  draw: 'Draw',
-  away_win: 'Away win',
-};
+/** Read per call, not built once at import: the reader can change language without reloading. */
+const outcomeLabel = (key: OutcomeKey): string =>
+  t(key === 'home_win' ? 'outcome.homeWin' : key === 'away_win' ? 'outcome.awayWin' : 'outcome.draw');
 
 /**
  * The 1X2 outcomes a source published, strongest first.
@@ -119,7 +118,7 @@ function outcomesFromPredictions(prediction: MatchPredictions | null | undefined
     .filter(entry => typeof entry.percent === 'number' && Number.isFinite(entry.percent))
     .map(entry => ({
       key: entry.key,
-      label: OUTCOME_LABEL[entry.key],
+      label: outcomeLabel(entry.key),
       percent: entry.percent,
       percentText: percentText(entry.percent) ?? String(entry.percent),
     }))
@@ -154,7 +153,7 @@ function publishedConfidence(
 function emptyPreview(source: BriefSourceKey, reason: BriefMissingReason, detail: string): SourcePreview {
   return {
     source,
-    label: SOURCE_LABEL[source],
+    label: sourceLabel(source),
     present: false,
     state: 'unavailable',
     lead: null,
@@ -187,7 +186,7 @@ export function fixturePreview(match: Match): FixturePreview {
     const outcomes = outcomesFromBlock(modelBlock);
     model = {
       source: 'model',
-      label: SOURCE_LABEL.model,
+      label: sourceLabel('model'),
       present: Boolean(brief && brief.known.sources.some(entry => entry.source === 'model' && entry.present)),
       state: modelBlock.state,
       lead: modelBriefLead && isOutcomeKey(modelBriefLead.key)
@@ -204,20 +203,20 @@ export function fixturePreview(match: Match): FixturePreview {
     // No forecast object at all in the payload: the one thing we can say is that nothing has been
     // retrieved. Not "the market is missing" — there is no forecast for a market to be missing from.
     model = emptyPreview('model', 'no_forecast_retrieved',
-      "No forecast has ever been retrieved for this fixture, so the model's view of it is unknown.");
+      t('preview.noForecastRetrieved'));
   } else {
     const outcomes = outcomesFromPredictions(forecast);
     const lead = outcomes[0] ?? null;
     model = {
       source: 'model',
-      label: SOURCE_LABEL.model,
+      label: sourceLabel('model'),
       present: true,
       state: forecastState(forecast),
       lead,
       outcomes,
       // A forecast exists, so a missing market can only be a market this forecast did not carry.
       reason: lead ? null : 'market_not_in_forecast',
-      detail: lead ? null : 'A forecast was retrieved for this fixture, but it did not include this market.',
+      detail: lead ? null : t('preview.marketNotInForecast'),
       confidence: publishedConfidence(forecast, 'prediction'),
     };
   }
@@ -229,7 +228,7 @@ export function fixturePreview(match: Match): FixturePreview {
   if (expertBlock) {
     expert = {
       source: 'expert',
-      label: SOURCE_LABEL.expert,
+      label: sourceLabel('expert'),
       present: Boolean(brief && brief.known.sources.some(entry => entry.source === 'expert' && entry.present)),
       state: expertBlock.state,
       lead: expertBriefLead && isOutcomeKey(expertBriefLead.key)
@@ -244,19 +243,19 @@ export function fixturePreview(match: Match): FixturePreview {
     };
   } else if (!expertPrediction) {
     expert = emptyPreview('expert', 'no_expert_prediction',
-      'No expert has published a prediction for this fixture.');
+      t('preview.noExpertPrediction'));
   } else {
     const outcomes = outcomesFromPredictions(expertPrediction);
     const lead = outcomes[0] ?? null;
     expert = {
       source: 'expert',
-      label: SOURCE_LABEL.expert,
+      label: sourceLabel('expert'),
       present: true,
       state: 'available',
       lead,
       outcomes,
       reason: lead ? null : 'market_not_supplied',
-      detail: lead ? null : 'The expert published a prediction for this fixture, but left this market out of it.',
+      detail: lead ? null : t('preview.marketNotSupplied'),
       confidence: publishedConfidence(expertPrediction, 'prediction'),
     };
   }
@@ -268,9 +267,9 @@ export function fixturePreview(match: Match): FixturePreview {
     anyLead: model.lead !== null || expert.lead !== null,
     stale: brief?.freshness.stale ?? compact?.stale ?? (forecast?.state === 'stale'),
     refreshBlockedReason: brief?.freshness.refresh_blocked
-      ? (brief.freshness.refresh_blocked_reason ?? 'Forecast refreshes are paused right now.')
+      ? (brief.freshness.refresh_blocked_reason ?? t('preview.refreshBlocked'))
       : compact?.refresh_blocked
-        ? (compact.refresh_blocked_reason ?? 'Forecast refreshes are paused right now.')
+        ? (compact.refresh_blocked_reason ?? t('preview.refreshBlocked'))
         : null,
     // Hard-wired false, and read from the payload where the payload says it, because nothing here
     // has ever been scored against a result. A published confidence is not a measured accuracy.

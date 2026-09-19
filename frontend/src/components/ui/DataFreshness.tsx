@@ -7,6 +7,7 @@ import {
   allowanceResetNote, describeTasks, freshnessReport, fixtureProviderLabel, retrievalFact, worseTone,
 } from './freshness'
 import { forecastAvailability } from './forecastStatus'
+import { useT } from '@/i18n/react'
 
 /**
  * "Last updated", where the reader actually needs it — and now as TWO answers, not one.
@@ -83,6 +84,7 @@ export interface DataFreshnessProps {
 }
 
 const DataFreshness: React.FC<DataFreshnessProps> = ({ status, variant = 'line', className }) => {
+  const t = useT()
   // One clock for the whole render, so the summaries and the rows cannot disagree by a second.
   const now = Date.now()
   const report = freshnessReport(status, now)
@@ -145,7 +147,7 @@ const DataFreshness: React.FC<DataFreshnessProps> = ({ status, variant = 'line',
    */
   const forecastLine = report.forecasts
     ?? (availability
-      ? { text: 'Model forecasts · when they last refreshed is not reported', tone: 'unknown' as FreshnessTone }
+      ? { text: t('freshness.forecasts.ageNotReported'), tone: 'unknown' as FreshnessTone }
       : null)
 
   const tone = availabilityNote ? worseTone(report.tone, 'ageing') : report.tone
@@ -165,11 +167,11 @@ const DataFreshness: React.FC<DataFreshnessProps> = ({ status, variant = 'line',
       className={clsx('rounded-lg border border-dark-700 bg-dark-800/40', className)}
       data-testid="data-freshness"
       data-tone={tone}
-      aria-label="How current this page is"
+      aria-label={t('freshness.panel.label')}
     >
       <div className="px-3 py-2">
         {variant === 'panel' && (
-          <h2 className="mb-1 text-sm font-semibold text-white">How current this is</h2>
+          <h2 className="mb-1 text-sm font-semibold text-white">{t('freshness.panel.heading')}</h2>
         )}
         <StatementLine tone={report.fixtures.tone} testId="freshness-summary">
           {report.fixtures.text}
@@ -201,7 +203,7 @@ const DataFreshness: React.FC<DataFreshnessProps> = ({ status, variant = 'line',
         <details className="group border-t border-dark-700" data-testid="freshness-detail">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-xs text-secondary-400 hover:text-white">
             <ChevronRightIcon className="h-3.5 w-3.5 flex-shrink-0 transition-transform group-open:rotate-90" aria-hidden="true" />
-            What was refreshed, and when
+            {t('freshness.panel.disclosure')}
           </summary>
           <div className="space-y-2 border-t border-dark-700 px-3 py-2 text-xs">
             {/*
@@ -237,16 +239,36 @@ const DataFreshness: React.FC<DataFreshnessProps> = ({ status, variant = 'line',
                     like a broken site.
                   */}
                   {(() => {
-                    const alreadySaid = ['Paused:', 'Last attempt failed:', 'This task is more than']
+                    /*
+                     * WHAT THE SUMMARY ABOVE ALREADY SAID, matched by identity rather than by
+                     * prefix.
+                     *
+                     * This used to be a list of English prefixes — 'Paused:', 'Last attempt
+                     * failed:' — which is a language-shaped test: in French the same three lines
+                     * begin "En pause :" and "Dernière tentative en échec :", so every prefix
+                     * missed and the reader met each sentence twice, once in the note and once
+                     * a few pixels below. `describeTask` builds those lines from the same three
+                     * catalogue entries the check below rebuilds, so comparing the finished
+                     * strings works in any language and cannot drift from the wording.
+                     */
+                    const alreadySaid = [
+                      t('freshness.task.pausedDetail', { reason: task.pauseReason }),
+                      t('freshness.task.failedDetail', { reason: task.failureReason }),
+                      t('freshness.task.behindDetail'),
+                    ].map(line => line.replace(/[.\s]+$/, ''))
                     // The upstream message word for word. The note above carries a readable
                     // summary of it instead, without the vendor's name, plan tier or upgrade link.
                     const verbatim = [task.failureReason, task.pauseReason]
                       .filter((line): line is string => Boolean(line))
                     const lines = report.noteTasks.includes(task.name)
                       ? task.detail.filter(line =>
-                        line !== task.resume && !alreadySaid.some(prefix => line.startsWith(prefix)))
+                        line !== task.resume
+                        && !alreadySaid.some(said => line.replace(/[.\s]+$/, '') === said))
                       : task.detail
-                    const all = [...lines, ...verbatim.map(line => `The provider said: ${line}`)]
+                    const all = [
+                      ...lines,
+                      ...verbatim.map(line => t('freshness.task.providerSaid', { reason: line })),
+                    ]
                     return all.length > 0
                       ? <p className="mt-0.5 break-words text-secondary-500">{all.join(' ')}</p>
                       : null
@@ -262,12 +284,17 @@ const DataFreshness: React.FC<DataFreshnessProps> = ({ status, variant = 'line',
                   succeed without asking the provider for anything.
                 */}
                 <p>
-                  Last answer from {fixtureProviderLabel(retrieval.provider)}:{' '}
+                  {t('freshness.panel.lastAnswerFrom', { provider: fixtureProviderLabel(retrieval.provider) })}{' '}
                   <span className={retrieval.relative ? 'text-secondary-400' : undefined} title={retrieval.exact ?? undefined}>
-                    {retrieval.relative ?? 'it has not answered successfully yet'}
+                    {retrieval.relative ?? t('freshness.panel.notAnswered')}
                   </span>
                 </p>
-                {retrieval.coolingDown && <p className="mt-0.5 break-words">Paused after a failure: {retrieval.coolingDown}</p>}
+                {retrieval.coolingDown && (
+                  <p className="mt-0.5 break-words">
+                    {/* The provider's own words in `{reason}`; only the frame is translated. */}
+                    {t('freshness.panel.pausedAfterFailure', { reason: retrieval.coolingDown })}
+                  </p>
+                )}
               </div>
             )}
 
@@ -278,8 +305,7 @@ const DataFreshness: React.FC<DataFreshnessProps> = ({ status, variant = 'line',
                 published beside it on the match page — often as "not published by the provider",
                 which is the honest answer when the provider gave none.
               */}
-              These are our own retrieval and refresh times. When a provider&rsquo;s model actually
-              ran is a different fact, published with each forecast on its match page.
+              {t('freshness.panel.ourTimes')}
             </p>
           </div>
         </details>

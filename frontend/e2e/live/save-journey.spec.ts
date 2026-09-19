@@ -352,7 +352,11 @@ test('a save made from the keyboard never moves focus off the control that made 
         active === null ? 'null' : active.getAttribute('data-testid') ?? active.tagName,
       );
     }, 5);
-    const status = document.querySelector('[role="status"]');
+    // NAMED, not positional. document.querySelector('[role="status"]') returns the first such
+    // element in the document, which is the provider status banner whenever a provider is
+    // faulted — so this observer used to watch the wrong node and see nothing, and the test
+    // passed or failed on whether Live Score happened to be down.
+    const status = document.querySelector('[data-testid="match-save-status"]');
     if (status) {
       probe.__statusWatcher = new MutationObserver(() => {
         const text = (status.textContent ?? '').trim();

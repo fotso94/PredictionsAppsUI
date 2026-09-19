@@ -24,6 +24,8 @@
  *    can tell the user it did not happen. A star that stays filled after a failed save is a lie.
  */
 
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
+
 import apiClient from './api-client';
 import {
   ApiLeague, ApiMatch, ApiTeam, mapApiLeague, mapApiMatch, mapApiTeam,
@@ -251,6 +253,20 @@ function removeSaved(saved: SavedMatchesSnapshot, matchId: string): SavedMatches
   return { upcoming, live, finished, counts: countsOf(upcoming, live, finished) };
 }
 
+/**
+ * The instant a saved fixture kicks off, or null when we were not given one.
+ *
+ * DELIBERATELY NOT `kickoffMsOf` (further down this file, for the feed). That one falls back to
+ * the calendar date at midnight UTC, which is right for ORDERING a fixture into its day and wrong
+ * for deciding whether it has started: it would make every fixture on today's date look overdue
+ * from midnight onwards, and start a poll for each one. A fixture whose payload carries no
+ * kick-off time is not watched for a kick-off we do not know.
+ */
+function kickoffTimeOf(entry: SavedMatch): number | null {
+  const parsed = entry.match.kickoffUtc ? Date.parse(entry.match.kickoffUtc) : NaN;
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 // ----------------------------------------------------------------------------- staying current
 /**
  * WHY ANYTHING REFRESHES AT ALL, AND WHY IT COSTS NO PROVIDER REQUEST
@@ -297,6 +313,57 @@ const FOCUS_REFRESH_MIN_AGE_MS = 5_000;
 const LIVE_REFRESH_MS = 60_000;
 
 /**
+ * WHY A SAVED FIXTURE THAT IS ONLY ABOUT TO START IS WATCHED AT ALL.
+ *
+ * `syncLivePoll()` used to start its interval only when `savedMatches.live` was non-empty. A
+ * fixture that is still upcoming leaves that bucket empty, so no interval ran, so nothing noticed
+ * the kick-off: the poll that would have discovered the transition was gated on the state it
+ * would have discovered. A reader with the page in front of them watched "Coming up" all through
+ * the first half, because the focus refresh only fires on the way BACK to a tab and nothing else
+ * re-read anything.
+ *
+ * WHAT IS WATCHED, AND FOR HOW LONG. Only a saved fixture the record still says is going to be
+ * played (`scheduled` — a postponed or cancelled one will not kick off at this time, and watching
+ * it would poll for hours over nothing), and only from shortly before its kick-off until the
+ * window in which it could still plausibly start has passed. Outside that, nothing is polled: a
+ * reader with a fixture saved for Saturday costs one read when they open the page and no more.
+ *
+ * THE LEAD is for the two clocks involved. The kick-off time is the server's and the comparison
+ * is made against the browser's, which can be a minute or two out either way, and the backend's
+ * own live pass runs on its schedule rather than on the whistle.
+ *
+ * THE GRACE is how long a fixture that has not started is still worth watching. Delayed kick-offs
+ * are ordinary football. A saved fixture still `scheduled` two hours after its time is either
+ * postponed without the record being updated or a row nothing is moving; either way the answer
+ * is not going to arrive in the next minute, and the reader's next return to the tab is a better
+ * moment to find out than another sixty polls.
+ */
+const KICKOFF_WATCH_LEAD_MS = 2 * 60 * 1000;
+const KICKOFF_WATCH_GRACE_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * How often a saved fixture that is DUE to start is re-read, which is deliberately slower than
+ * the in-play cadence.
+ *
+ * `LIVE_REFRESH_MS` is 60s because that is how often a score can change for us. Waiting for a
+ * kick-off is not a score: it is one status flip, applied by the backend's own live pass, and
+ * `SYNC_LIVE_INTERVAL_SECONDS` is 120. Asking twice inside one of those passes cannot see the
+ * flip any sooner, so it is asked once.
+ */
+const KICKOFF_REFRESH_MS = 120_000;
+
+/**
+ * The longest a single "a saved fixture is about to start" timer is allowed to run before it
+ * re-arms itself.
+ *
+ * A fixture three days away must not park a three-day `setTimeout` — a laptop that suspends and
+ * resumes, or a clock that is corrected, leaves one of those pointing at the wrong moment, and
+ * anything past 2^31 ms fires immediately instead. A clamped wake costs nothing at all: it finds
+ * nothing due and schedules the next one.
+ */
+const KICKOFF_WAKE_MAX_MS = 30 * 60 * 1000;
+
+/**
  * The same guard for the FOLLOW FAN-OUT, which is not the same size of request.
  *
  * `FOCUS_REFRESH_MIN_AGE_MS` guards one indexed read of the reader's own rows, so five seconds is
@@ -334,11 +401,283 @@ function onReaderReturns(handler: () => void): () => void {
 const tabIsVisible = (): boolean =>
   typeof document === 'undefined' || document.visibilityState === 'visible';
 
+// ------------------------------------------------------- what the personal surfaces may show
+/**
+ * The reader's own settings for their own pages: what these surfaces are allowed to show them,
+ * and one switch that stops all of it.
+ *
+ * WHAT IS ACTUALLY OPTIONAL HERE, ENUMERATED
+ *
+ * This application has no alerts. It sends no push message, no SMS and no marketing email — the
+ * only mail it ever sends is account mail the reader asked for, such as a password reset. So the
+ * complete list of things these surfaces raise without being asked is three items long, and all
+ * three only ever happen while the reader is looking at the page:
+ *
+ *   `forecasts`    the model and expert probabilities, tips and briefs shown beside a fixture;
+ *   `prompts`      the invitations to go and browse more, or follow more;
+ *   `liveUpdates`  automatically re-reading a saved match while it is in play.
+ *
+ * WHY A PAUSE IS A SEPARATE FLAG AND NOT JUST "TURN ALL THREE OFF". A pause has to be immediate
+ * and, more importantly, REVERSIBLE WITHOUT LOSS: a reader who had forecasts off and prompts on
+ * before they paused gets exactly that back when they resume. Writing the three flags to false
+ * and back would forget which was which and hand them a configuration they never chose.
+ *
+ * WHAT A PAUSE IS NOT, AND THIS MATTERS MORE THAN ANYTHING ELSE IN THIS FILE. It stops what THIS
+ * application shows on these pages. It is not a bookmaker self-exclusion, it blocks no betting
+ * site, app, account or payment, and it reaches nothing outside this browser. Software on one
+ * page cannot do those things, and a control that implied it could would be worse than no control
+ * at all — a reader who believed it would stop looking for the tool that actually helps. Every
+ * sentence rendered next to this switch has to keep saying so.
+ *
+ * WHERE IT IS STORED. `localStorage`, keyed per signed-in user id so a shared machine never hands
+ * one reader another's settings. The API has no field for any of this (`PUT /users/me/preferences`
+ * accepts theme, notification flags, favourite ids and an odds format, and nothing else), so these
+ * do not follow a reader to another device, and the panel says so rather than letting them assume.
+ */
+export interface PersonalPreferences {
+  /** Show model forecasts, expert tips and probabilities on the reader's own pages. */
+  forecasts: boolean;
+  /** Show invitations to browse more matches or follow more teams. */
+  prompts: boolean;
+  /** Re-read a saved match automatically while it is in play. */
+  liveUpdates: boolean;
+  /** While true, none of the three above is shown or run, whatever their own values say. */
+  paused: boolean;
+}
+
+/** The three things a reader can switch individually. `paused` is the one that governs them. */
+export type OptionalSurface = 'forecasts' | 'prompts' | 'liveUpdates';
+
+/**
+ * The defaults, which are what this build already did before there was anything to set.
+ *
+ * Deliberately not "everything off": silently changing what an existing reader sees, because a
+ * preference they never expressed now has an opinion, is its own kind of dishonesty. Quiet by
+ * default is delivered by there being no channel that can reach anybody who is not on the page —
+ * see the enumeration above — not by blanking the page of the reader who is.
+ */
+export const DEFAULT_PREFERENCES: PersonalPreferences = Object.freeze({
+  forecasts: true,
+  prompts: true,
+  liveUpdates: true,
+  paused: false,
+});
+
+const PREFERENCES_KEY_PREFIX = 'personal.preferences.v1';
+
+const preferencesKeyFor = (userId: string | null | undefined): string =>
+  `${PREFERENCES_KEY_PREFIX}.${userId || 'anonymous'}`;
+
+/** Field by field, never a cast: what is in storage is last week's shape, or corrupt. */
+function coercePreferences(raw: unknown): PersonalPreferences {
+  const source = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const flag = (value: unknown, fallback: boolean): boolean =>
+    (typeof value === 'boolean' ? value : fallback);
+  return {
+    forecasts: flag(source.forecasts, DEFAULT_PREFERENCES.forecasts),
+    prompts: flag(source.prompts, DEFAULT_PREFERENCES.prompts),
+    liveUpdates: flag(source.liveUpdates, DEFAULT_PREFERENCES.liveUpdates),
+    paused: flag(source.paused, DEFAULT_PREFERENCES.paused),
+  };
+}
+
+/**
+ * The settings store.
+ *
+ * Every read and write is wrapped: `localStorage` throws outright in a browser set to block site
+ * data, and losing a preference must never take the dashboard down with it. A browser that
+ * refuses storage simply gets the defaults for the session, and the panel says the setting could
+ * not be kept rather than pretending it was.
+ */
+class PersonalPreferencesStore {
+  private state: PersonalPreferences = { ...DEFAULT_PREFERENCES };
+  private key = preferencesKeyFor(null);
+  private listeners = new Set<Listener>();
+  /** True when the last write to storage threw. Rendered, not swallowed. */
+  private storageFailed = false;
+
+  getState = (): PersonalPreferences => this.state;
+
+  /** True when this browser refused to keep the last change. */
+  isDurable = (): boolean => !this.storageFailed;
+
+  subscribe = (listener: Listener): (() => void) => {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  };
+
+  private emit(): void {
+    this.listeners.forEach(listener => listener());
+  }
+
+  /**
+   * Point the store at one account's settings. Idempotent, and safe to call on every render.
+   *
+   * Signing out rebinds to the anonymous key rather than clearing: the next reader on this machine
+   * must not inherit the last one's settings, and the last one's must still be there when they
+   * come back.
+   */
+  bindAccount = (userId: string | null | undefined): void => {
+    const key = preferencesKeyFor(userId);
+    if (key === this.key) return;
+    this.key = key;
+    this.state = this.read();
+    this.emit();
+  };
+
+  private read(): PersonalPreferences {
+    try {
+      const raw = window.localStorage.getItem(this.key);
+      return raw ? coercePreferences(JSON.parse(raw)) : { ...DEFAULT_PREFERENCES };
+    } catch {
+      return { ...DEFAULT_PREFERENCES };
+    }
+  }
+
+  private write(next: PersonalPreferences): void {
+    this.state = next;
+    try {
+      window.localStorage.setItem(this.key, JSON.stringify(next));
+      this.storageFailed = false;
+    } catch {
+      // Kept for this session in memory; the panel reports that it will not survive a reload.
+      this.storageFailed = true;
+    }
+    this.emit();
+  }
+
+  /** Change one setting. Changing an individual switch never silently lifts a pause. */
+  setSurface = (surface: OptionalSurface, on: boolean): void => {
+    if (this.state[surface] === on) return;
+    this.write({ ...this.state, [surface]: on });
+  };
+
+  /**
+   * Pause or resume everything optional.
+   *
+   * The three individual settings are left exactly as they are, so resuming restores the reader's
+   * own configuration rather than a default one.
+   */
+  setPaused = (paused: boolean): void => {
+    if (this.state.paused === paused) return;
+    this.write({ ...this.state, paused });
+  };
+
+  /** Forget this account's settings entirely. Used by "delete my data". */
+  forget = (): void => {
+    try {
+      window.localStorage.removeItem(this.key);
+      this.storageFailed = false;
+    } catch {
+      this.storageFailed = true;
+    }
+    this.state = { ...DEFAULT_PREFERENCES };
+    this.emit();
+  };
+
+  /** Whether one optional surface may run right now. A pause beats every individual setting. */
+  isOn = (surface: OptionalSurface): boolean => !this.state.paused && this.state[surface];
+}
+
+export const personalPreferencesStore = new PersonalPreferencesStore();
+
+/** Whether `surface` may appear, given these settings. The one place the pause rule is applied. */
+export function surfaceIsOn(prefs: PersonalPreferences, surface: OptionalSurface): boolean {
+  return !prefs.paused && prefs[surface];
+}
+
+export interface UsePersonalPreferencesResult extends PersonalPreferences {
+  /** Whether this surface may appear right now — the individual setting AND the pause. */
+  isOn: (surface: OptionalSurface) => boolean;
+  setSurface: (surface: OptionalSurface, on: boolean) => void;
+  setPaused: (paused: boolean) => void;
+  /** False when this browser refused to keep the last change. */
+  durable: boolean;
+}
+
+/**
+ * React access to the settings, bound to whoever is signed in.
+ *
+ * WHY THIS HOOK IS IN THE SERVICE AND NOT BESIDE THE PANEL THAT RENDERS THE SWITCHES. Every
+ * surface that hides something on a preference has to apply the pause rule as well as the
+ * individual switch, and a panel that honoured one and forgot the other would be the exact defect
+ * the pause exists to prevent. Keeping the store, `surfaceIsOn` and this binding in one module is
+ * what makes that impossible to get half right. It cannot live in the component file either: a
+ * module that exports both a component and a hook breaks Fast Refresh, which this project lints
+ * as an error (`react-refresh/only-export-components`), and src/hooks belongs to another owner.
+ *
+ * The account is bound in an effect rather than during render, because `bindAccount` notifies its
+ * subscribers and notifying a store mid-render is how React ends up warning that one component is
+ * updating another while it renders. The cost is the defaults for a single frame after a sign-in.
+ */
+export function usePersonalPreferences(userId: string | null | undefined): UsePersonalPreferencesResult {
+  const prefs = useSyncExternalStore(
+    personalPreferencesStore.subscribe,
+    personalPreferencesStore.getState,
+    personalPreferencesStore.getState,
+  );
+
+  useEffect(() => { personalPreferencesStore.bindAccount(userId); }, [userId]);
+
+  const isOn = useCallback((surface: OptionalSurface) => surfaceIsOn(prefs, surface), [prefs]);
+
+  return {
+    ...prefs,
+    isOn,
+    setSurface: personalPreferencesStore.setSurface,
+    setPaused: personalPreferencesStore.setPaused,
+    durable: personalPreferencesStore.isDurable(),
+  };
+}
+
+/**
+ * A read whose answer belongs to a session that has ended, refused rather than applied.
+ *
+ * It is never shown to anybody and never means "the request failed": the request was made on
+ * behalf of a reader who is no longer here, and the honest thing to tell whoever is here now is
+ * nothing at all. Every caller inside this file swallows it, and the three panels that can reach
+ * `reload()` already `.catch(() => undefined)`.
+ */
+class DiscardedRead extends Error {
+  constructor() {
+    super('This favourites read belongs to a session that has ended, and was discarded.');
+    this.name = 'DiscardedRead';
+  }
+}
+
+/**
+ * How many times one `load()` will discard a snapshot that turned out to predate a local write
+ * and read again before giving up.
+ *
+ * A retry only happens when the reader completed a write WHILE the read was on the wire, so in
+ * practice it happens once or not at all — a person cannot press a star faster than the round
+ * trip indefinitely. The bound is here so that a stuck caller writing in a loop cannot turn this
+ * into one; on exhaustion the optimistic state stands, which is the newer of the two, and the
+ * next tab return reconciles it.
+ */
+const MAX_SUPERSEDED_REREADS = 4;
+
 /**
  * One shared, optimistic view of what this user follows and has saved.
  *
  * Subscribe with `useFavourites()` (src/hooks/useFavourites.ts) rather than reading `getState()`
  * in a render: the hook wires it to `useSyncExternalStore`, which handles tearing for you.
+ *
+ * TWO COUNTERS DECIDE WHETHER AN ANSWER MAY BE APPLIED, and they are the whole of the concurrency
+ * design in this class. A read is one round trip; anything can happen during it.
+ *
+ *   `session`  bumped whenever the identity behind this store changes — signing in, signing out,
+ *              or one account replacing another on the same machine. A read captures it when it
+ *              is ISSUED. If it no longer matches when the answer lands, the answer belonged to
+ *              somebody else's session and is dropped WITHOUT A TRACE: no data, no error, no
+ *              `loadedAt`, no focus watcher, no poll. `reset()` cannot cancel a request that is
+ *              already on the wire, so this is what stops it being applied.
+ *
+ *   `writes`   bumped whenever a local write changes what we hold. A snapshot the server built
+ *              before that write cannot contain it, so applying it would silently undo the
+ *              reader's own action — the star going back off on its own. Such a read is
+ *              discarded AND REPLACED by a fresh one, because the reader is still owed the
+ *              server's current answer and not merely the absence of a wrong one.
  */
 class FavouritesStore {
   private state: FavouritesState = EMPTY_STATE;
@@ -347,9 +686,50 @@ class FavouritesStore {
   /** When the last snapshot genuinely arrived. Not part of `state`: nothing renders it. */
   private loadedAt = 0;
   private livePoll: ReturnType<typeof setInterval> | null = null;
+  /** The period the running interval was created with, so a change of cadence restarts it. */
+  private livePollPeriodMs = 0;
+  /** The one-shot timer that wakes this store when a saved fixture reaches its kick-off. */
+  private kickoffWake: ReturnType<typeof setTimeout> | null = null;
   private stopWatchingReturns: (() => void) | null = null;
+  /**
+   * Whose favourites these are.
+   *
+   * The store held no identity at all before, which is why an answer could not be told apart from
+   * one belonging to another account: `reset()` on sign-out was the only signal, and a sign-out
+   * immediately followed by a different sign-in looked, from in here, like one continuous
+   * session. It is a key rather than the user object — `useFavourites` passes the signed-in id —
+   * and nothing is done with it but comparison.
+   */
+  private accountId: string | null = null;
+
+  private session = 0;
+
+  private writes = 0;
 
   getState = (): FavouritesState => this.state;
+
+  /**
+   * Which session this store is on. Bumped by every identity change and every reset.
+   *
+   * Exposed so `followedFixturesStore`, whose fan-out is built from this store's snapshot and
+   * takes far longer than one request, can make the same check before applying its own answer.
+   */
+  sessionId = (): number => this.session;
+
+  /**
+   * Point the store at one account, invalidating anything in flight for the previous one.
+   *
+   * Idempotent, and safe to call on every render. Signing out binds `null`. An ACCOUNT CHANGE is
+   * the case this exists for: it is not the same event as a sign-out, it is the one that can put
+   * one person's saved matches in front of another, and before this the store could not see the
+   * difference.
+   */
+  bindAccount = (userId: string | null | undefined): void => {
+    const next = userId ?? null;
+    if (next === this.accountId) return;
+    this.accountId = next;
+    this.reset();
+  };
 
   /** Milliseconds since the last successful load, or Infinity when nothing has ever loaded. */
   ageMs = (): number => (this.loadedAt === 0 ? Number.POSITIVE_INFINITY : Date.now() - this.loadedAt);
@@ -372,32 +752,71 @@ class FavouritesStore {
    * the failure for "this user follows nothing". Any snapshot already held is kept: stale truth
    * beats invented emptiness.
    */
-  load = async (): Promise<FavouritesSnapshot> => {
+  load = (): Promise<FavouritesSnapshot> => {
     if (this.inFlight) return this.inFlight;
-    const hadData = this.state.data !== null;
-    this.set(hadData ? { refreshing: true } : { status: 'loading', error: null });
-    const request = favouritesApi.getFavourites();
-    this.inFlight = request;
-    try {
-      const snapshot = await request;
+    const attempt = this.readUntilCurrent();
+    this.inFlight = attempt;
+    /*
+     * ONLY THE OWNER OF THE SLOT MAY CLEAR IT. The old code cleared `inFlight` in a `finally`
+     * with no such check, so a read that outlived a `reset()` — which nulls the handle and lets
+     * the next `load()` put its own there — cleared a handle belonging to a NEWER request, and
+     * from then on concurrent callers each started a request of their own.
+     */
+    const release = (): void => { if (this.inFlight === attempt) this.inFlight = null; };
+    attempt.then(release, release);
+    return attempt;
+  };
+
+  /**
+   * One read, repeated only while its answer keeps turning out to be older than something local.
+   *
+   * Every mutation below is guarded by the two counters described on the class. Nothing is
+   * written on a discarded read — not the state, not `loadedAt`, not the watcher and not the
+   * poll — because the only honest trace of a request made for a session that has ended is none.
+   */
+  private async readUntilCurrent(): Promise<FavouritesSnapshot> {
+    for (let attempt = 0; attempt <= MAX_SUPERSEDED_REREADS; attempt += 1) {
+      const session = this.session;
+      const writes = this.writes;
+      const hadData = this.state.data !== null;
+      this.set(hadData ? { refreshing: true } : { status: 'loading', error: null });
+
+      let snapshot: FavouritesSnapshot;
+      try {
+        snapshot = await favouritesApi.getFavourites();
+      } catch (error) {
+        // The failure path has the same hole as the success path and needs the same guard: an
+        // older read's 503 must not put whoever is signed in NOW into an error state about a
+        // request that was never theirs.
+        if (this.session !== session) throw new DiscardedRead();
+        this.set({
+          status: 'error',
+          error: getErrorMessage(error, 'Your saved teams, leagues and matches could not be loaded.'),
+          refreshing: false,
+        });
+        throw error;
+      }
+
+      if (this.session !== session) throw new DiscardedRead();
+      // Older than a local write. Discard it and read again rather than apply a snapshot that
+      // predates the reader's own save or follow. Not solved by serialising reads behind writes,
+      // which would make every star wait for a round trip it does not need.
+      if (this.writes !== writes) continue;
+
       this.loadedAt = Date.now();
       this.set({ status: 'ready', data: snapshot, error: null, refreshing: false });
       // Only now is there something worth keeping current, and only now do we know whether
-      // anything is in play.
+      // anything is in play or about to be.
       this.watchForReturns();
       this.syncLivePoll();
       return snapshot;
-    } catch (error) {
-      this.set({
-        status: 'error',
-        error: getErrorMessage(error, 'Your saved teams, leagues and matches could not be loaded.'),
-        refreshing: false,
-      });
-      throw error;
-    } finally {
-      this.inFlight = null;
     }
-  };
+
+    // Writes kept landing faster than the server could answer. Stop rather than spin: what we
+    // hold optimistically is the newer of the two, and a tab return will reconcile it.
+    this.set(this.state.data ? { refreshing: false } : { status: 'idle', refreshing: false });
+    throw new DiscardedRead();
+  }
 
   /** Load only if nothing has ever been loaded. Never throws: a caller mounting a widget on every
    *  page should not have to catch. The failure is still visible in `status` and `error`. */
@@ -408,6 +827,10 @@ class FavouritesStore {
 
   /** Drop everything, e.g. on sign-out. `idle` (not an empty snapshot) so the next reader reloads. */
   reset = (): void => {
+    // FIRST, and this is the whole point: anything already on the wire now belongs to a session
+    // that has ended, and `readUntilCurrent` will refuse to apply it. Dropping the handle below
+    // stops the next caller sharing that request; it has never been able to cancel it.
+    this.session += 1;
     this.inFlight = null;
     this.loadedAt = 0;
     // Signed out, there is nothing to keep current and nobody to keep it current for. Leaving the
@@ -416,9 +839,21 @@ class FavouritesStore {
     this.stopWatchingReturns?.();
     this.stopWatchingReturns = null;
     this.stopLivePoll();
+    this.stopKickoffWake();
     this.state = EMPTY_STATE;
     this.listeners.forEach(listener => listener());
   };
+
+  /**
+   * Record that a local write has changed what this store holds.
+   *
+   * Called on the optimistic change, on the reconciliation with the server's answer, and on a
+   * rollback — all three change what we hold, and a read issued before any of them is older than
+   * the store. The cost of being generous here is at most one extra stored read.
+   */
+  private noteLocalWrite(): void {
+    this.writes += 1;
+  }
 
   // ------------------------------------------------------------------- staying current
   /**
@@ -442,33 +877,135 @@ class FavouritesStore {
       this.refreshIfStale();
     });
     // `onReaderReturns` only fires on the way BACK. This is its pair: the moment the tab goes
-    // away, so an interval is not left running behind a hidden tab.
-    const onHidden = () => { if (!tabIsVisible()) this.stopLivePoll(); };
+    // away, so neither an interval nor a pending wake is left running behind a hidden tab.
+    const onHidden = () => {
+      if (tabIsVisible()) return;
+      this.stopLivePoll();
+      this.stopKickoffWake();
+    };
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onHidden);
+    // Turning live updates off, or pausing everything optional, has to stop the interval THEN —
+    // not at the next tab switch. A pause a reader can still see working is not a pause.
+    const stopWatchingPreferences = personalPreferencesStore.subscribe(() => this.syncLivePoll());
     this.stopWatchingReturns = () => {
       stopWake();
+      stopWatchingPreferences();
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onHidden);
     };
   }
 
-  /** Poll only while a saved match is in play and the tab is in front; otherwise not at all. */
+  /**
+   * How often this store should be re-reading right now, or null for not at all.
+   *
+   * TWO REASONS TO BE READING, AND NOTHING ELSE IS ONE.
+   *   a saved match IN PLAY            — its score changes; `LIVE_REFRESH_MS`.
+   *   a saved match DUE TO KICK OFF    — its status is about to change once; `KICKOFF_REFRESH_MS`.
+   *
+   * The second is what was missing, and its absence is why an upcoming fixture never became a
+   * live one while the tab stayed in front. It is not a general-purpose poller: a reader with
+   * nothing saved, nothing saved for today, or nothing saved inside its kick-off window is
+   * polled at no cadence at all, and every read on this path is one indexed query over that
+   * reader's own rows that reaches no provider.
+   *
+   * The preference is checked here rather than at the call sites because this is the only place
+   * the interval is created, and a background re-read the reader has switched off is exactly the
+   * kind of optional behaviour a pause has to reach.
+   */
+  private pollPeriodMs(): number | null {
+    if (typeof window === 'undefined' || !tabIsVisible()) return null;
+    if (!personalPreferencesStore.isOn('liveUpdates')) return null;
+    if ((this.state.data?.savedMatches.live.length ?? 0) > 0) return LIVE_REFRESH_MS;
+    if (this.savedDueToStart() > 0) return KICKOFF_REFRESH_MS;
+    return null;
+  }
+
+  /** Saved fixtures whose kick-off has arrived and which the record still says will be played. */
+  private savedDueToStart(now: number = Date.now()): number {
+    const upcoming = this.state.data?.savedMatches.upcoming ?? [];
+    return upcoming.filter(entry => {
+      // `upcoming` is everything that is neither live nor finished, postponed and cancelled
+      // included. Those two are not about to kick off and must not be watched as if they were.
+      if (entry.match.status !== 'scheduled') return false;
+      const kickoff = kickoffTimeOf(entry);
+      if (kickoff === null) return false;
+      return now >= kickoff - KICKOFF_WATCH_LEAD_MS && now <= kickoff + KICKOFF_WATCH_GRACE_MS;
+    }).length;
+  }
+
+  /** When the next saved fixture starts being worth watching, or null when none does. */
+  private nextKickoffWatchAt(now: number = Date.now()): number | null {
+    const upcoming = this.state.data?.savedMatches.upcoming ?? [];
+    let soonest: number | null = null;
+    upcoming.forEach(entry => {
+      if (entry.match.status !== 'scheduled') return;
+      const kickoff = kickoffTimeOf(entry);
+      if (kickoff === null) return;
+      const from = kickoff - KICKOFF_WATCH_LEAD_MS;
+      // Already inside its window: the interval has it, and a wake for a moment in the past
+      // would fire in a tight loop.
+      if (from <= now) return;
+      if (soonest === null || from < soonest) soonest = from;
+    });
+    return soonest;
+  }
+
+  /**
+   * Start, stop or re-pitch the poll, and arm the wake for the next kick-off.
+   *
+   * Both halves are decided here so they cannot disagree, and both are re-evaluated on every
+   * load, every tab return and every change of preference.
+   */
   private syncLivePoll(): void {
-    const inPlay = this.state.data?.savedMatches.live.length ?? 0;
-    const shouldPoll = inPlay > 0 && tabIsVisible() && typeof window !== 'undefined';
-    if (shouldPoll && !this.livePoll) {
+    const period = this.pollPeriodMs();
+    if (period === null) {
+      this.stopLivePoll();
+    } else if (this.livePoll === null || this.livePollPeriodMs !== period) {
+      // A fixture that kicks off moves from the kick-off cadence to the in-play one; the
+      // interval is recreated rather than left running at the wrong pitch.
+      this.stopLivePoll();
+      this.livePollPeriodMs = period;
       this.livePoll = setInterval(() => {
         if (!tabIsVisible()) return;
-        this.refreshIfStale(LIVE_REFRESH_MS - 1_000);
-      }, LIVE_REFRESH_MS);
-    } else if (!shouldPoll) {
-      this.stopLivePoll();
+        this.refreshIfStale(period - 1_000);
+      }, period);
     }
+    this.scheduleKickoffWake();
+  }
+
+  /**
+   * Wake up when the next saved fixture is about to start — and only then.
+   *
+   * This is what stops the kick-off watch being a poller. Between now and that moment nothing is
+   * requested at all; the timer costs nothing and holds no connection. When it fires, the store
+   * reads once immediately (rather than waiting out a first full interval) and lets
+   * `syncLivePoll` decide whether there is now a reason to keep reading.
+   */
+  private scheduleKickoffWake(): void {
+    this.stopKickoffWake();
+    if (typeof window === 'undefined' || !tabIsVisible()) return;
+    if (!personalPreferencesStore.isOn('liveUpdates')) return;
+    const from = this.nextKickoffWatchAt();
+    if (from === null) return;
+    const delay = Math.min(Math.max(from - Date.now(), 250), KICKOFF_WAKE_MAX_MS);
+    this.kickoffWake = setTimeout(() => {
+      this.kickoffWake = null;
+      // A clamped wake finds nothing due and simply re-arms below; a real one reads.
+      if (this.savedDueToStart() > 0) this.refreshIfStale(FOCUS_REFRESH_MIN_AGE_MS);
+      this.syncLivePoll();
+    }, delay);
+  }
+
+  private stopKickoffWake(): void {
+    if (this.kickoffWake === null) return;
+    clearTimeout(this.kickoffWake);
+    this.kickoffWake = null;
   }
 
   private stopLivePoll(): void {
     if (this.livePoll === null) return;
     clearInterval(this.livePoll);
     this.livePoll = null;
+    this.livePollPeriodMs = 0;
   }
 
   // ------------------------------------------------------------------- reads
@@ -507,6 +1044,7 @@ class FavouritesStore {
       const optimistic: FavouritesSnapshot = kind === 'team'
         ? { ...data, teamIds: ids, teams: following ? data.teams : data.teams.filter(team => team.id !== id) }
         : { ...data, leagueIds: ids, leagues: following ? data.leagues : data.leagues.filter(league => league.id !== id) };
+      this.noteLocalWrite();
       this.set({
         data: optimistic,
         ...(kind === 'team'
@@ -514,6 +1052,7 @@ class FavouritesStore {
           : { pendingLeagueIds: withId(before.pendingLeagueIds, id) }),
       });
     } else {
+      this.noteLocalWrite();
       this.set(kind === 'team'
         ? { pendingTeamIds: withId(before.pendingTeamIds, id) }
         : { pendingLeagueIds: withId(before.pendingLeagueIds, id) });
@@ -522,6 +1061,9 @@ class FavouritesStore {
     try {
       const result = await favouritesApi.follow(kind, id, following);
       const current = this.state.data;
+      // The reconciliation is a second local write: a read issued between the optimistic change
+      // and this line is older than the server's own answer too.
+      this.noteLocalWrite();
       this.set({
         // The server's list is the truth. Reconciling rather than trusting the optimistic guess is
         // what makes a refused follow (limit reached) show up as the star going back off.
@@ -539,6 +1081,7 @@ class FavouritesStore {
     } catch (error) {
       // Put back exactly what was there, pending flags included. Leaving the optimistic state up
       // after a failure would show a follow that does not exist on the server.
+      this.noteLocalWrite();
       this.set({
         data: before.data,
         pendingTeamIds: without(this.state.pendingTeamIds, id),
@@ -572,25 +1115,32 @@ class FavouritesStore {
         updatedAt: now,
         match: fixture,
       };
+      this.noteLocalWrite();
       this.set({
         data: { ...before.data, savedMatches: insertSaved(before.data.savedMatches, optimisticEntry) },
         pendingMatchIds: withId(before.pendingMatchIds, matchId),
       });
     } else {
+      this.noteLocalWrite();
       this.set({ pendingMatchIds: withId(before.pendingMatchIds, matchId) });
     }
 
     try {
       const result = await favouritesApi.saveMatch(matchId, options?.note);
       const current = this.state.data;
+      this.noteLocalWrite();
       this.set({
         // Replace the optimistic entry with the server's, which carries the real saved_at and the
         // fixture exactly as every other endpoint serialises it.
         data: current ? { ...current, savedMatches: insertSaved(current.savedMatches, result) } : current,
         pendingMatchIds: without(this.state.pendingMatchIds, matchId),
       });
+      // Saving a fixture that is in play, or one that kicks off in ten minutes, is a reason to
+      // start watching that did not exist a moment ago.
+      this.syncLivePoll();
       return result;
     } catch (error) {
+      this.noteLocalWrite();
       this.set({ data: before.data, pendingMatchIds: without(this.state.pendingMatchIds, matchId) });
       throw error;
     }
@@ -599,6 +1149,7 @@ class FavouritesStore {
   /** Unsave a match, optimistically. Unsaving something that was not saved is not an error. */
   unsaveMatch = async (matchId: string): Promise<UnsaveMatchResult> => {
     const before = this.state;
+    this.noteLocalWrite();
     if (before.data) {
       this.set({
         data: { ...before.data, savedMatches: removeSaved(before.data.savedMatches, matchId) },
@@ -610,9 +1161,13 @@ class FavouritesStore {
 
     try {
       const result = await favouritesApi.unsaveMatch(matchId);
+      this.noteLocalWrite();
       this.set({ pendingMatchIds: without(this.state.pendingMatchIds, matchId) });
+      // The fixture that was being watched may be the one just removed.
+      this.syncLivePoll();
       return result;
     } catch (error) {
+      this.noteLocalWrite();
       this.set({ data: before.data, pendingMatchIds: without(this.state.pendingMatchIds, matchId) });
       throw error;
     }
@@ -804,9 +1359,13 @@ class FollowedFixturesStore {
     const stopFollowing = favouritesStore.subscribe(() => this.onFavouritesChanged());
     const onHidden = () => { if (!tabIsVisible()) this.stopLivePoll(); };
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onHidden);
+    // Same reason as in FavouritesStore: a pause has to stop this fan-out the moment it is asked
+    // for, and this one costs a request per follow per minute.
+    const stopWatchingPreferences = personalPreferencesStore.subscribe(() => this.syncLivePoll());
     this.detach = () => {
       stopWake();
       stopFollowing();
+      stopWatchingPreferences();
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onHidden);
     };
   }
@@ -826,12 +1385,23 @@ class FollowedFixturesStore {
    * single request, and it is spent only in the one situation that justifies it: a reader
    * watching a dashboard with a match running on it. It stops the moment the tab goes away, the
    * match ends, or they navigate off the page.
+   *
+   * KNOWN, AND DELIBERATELY NOT CLOSED HERE. This is still gated on the state it would discover:
+   * a fixture reached only through a FOLLOW that kicks off while the reader watches is not
+   * noticed until they return to the tab. `FavouritesStore` now has a kick-off watch for exactly
+   * this (see `savedDueToStart`), and it is affordable there because one read answers for the
+   * whole reader. The same watch here is one request PER FOLLOW — up to fifteen — repeated for
+   * as long as a kick-off is pending, and that is a different order of load on the backend for a
+   * fixture the reader did not ask for by name. A saved fixture, which is the one they did ask
+   * for, is covered. Closing this properly wants the single `GET /api/v1/me/feed` already
+   * written up for the backend's owner above, not fifteen requests a minute from here.
    */
   private syncLivePoll(): void {
     const inPlay = this.state.fixtures.some(entry => (
       entry.match.status === 'live' || entry.match.status === 'halftime'
     ));
-    const shouldPoll = inPlay && this.listeners.size > 0 && tabIsVisible() && typeof window !== 'undefined';
+    const shouldPoll = inPlay && this.listeners.size > 0 && tabIsVisible()
+      && typeof window !== 'undefined' && personalPreferencesStore.isOn('liveUpdates');
     if (shouldPoll && !this.livePoll) {
       this.livePoll = setInterval(() => {
         if (!tabIsVisible()) return;
@@ -855,6 +1425,10 @@ class FollowedFixturesStore {
       if (this.state.status !== 'idle') {
         this.builtFrom = '';
         this.loadedAt = 0;
+        // Let go of the fan-out that is still running: it belongs to the session that has just
+        // ended, `load()` will refuse to apply it, and holding the handle would make the next
+        // session's first `load()` return this one's promise instead of starting its own.
+        this.inFlight = null;
         this.stopLivePoll();
         this.set({ status: 'idle', fixtures: [], unreadable: [], refreshing: false, error: null });
       }
@@ -886,11 +1460,19 @@ class FollowedFixturesStore {
    * and the panels can both count the missing follows and say, on the row of each one, that its
    * fixtures are unknown rather than absent.
    */
-  load = async (): Promise<void> => {
+  load = (): Promise<void> => {
     if (this.inFlight) return this.inFlight;
     const snapshot = favouritesStore.getState().data;
-    if (!snapshot) return;
+    if (!snapshot) return Promise.resolve();
 
+    /*
+     * WHOSE FEED THIS IS. The same hole as in `FavouritesStore.load`, and worse here: this is one
+     * request PER FOLLOW, so it is in flight for far longer and far more likely to still be
+     * running when a reader signs out or somebody else signs in. Captured when the fan-out is
+     * issued and checked before anything is written, so an answer built for a session that has
+     * ended is dropped rather than shown to whoever is here now.
+     */
+    const session = favouritesStore.sessionId();
     const key = followKey(snapshot);
     const teamName = new Map(snapshot.teams.map(team => [team.id, team.name]));
     const leagueName = new Map(snapshot.leagues.map(league => [league.id, league.name]));
@@ -904,7 +1486,7 @@ class FollowedFixturesStore {
       this.loadedAt = Date.now();
       this.stopLivePoll();
       this.set({ status: 'ready', fixtures: [], unreadable: [], refreshing: false, error: null });
-      return;
+      return Promise.resolve();
     }
 
     this.set(this.state.status === 'ready'
@@ -914,6 +1496,8 @@ class FollowedFixturesStore {
       const settled = await mapWithLimit(follows, FEED_CONCURRENCY, follow => (
         follow.kind === 'team' ? feedApi.teamFixtures(follow.id) : feedApi.leagueFixtures(follow.id)
       ));
+      // Discarded whole: no fixtures, no `unreadable`, no `builtFrom`, no `loadedAt`, no poll.
+      if (favouritesStore.sessionId() !== session) return;
 
       const byMatch = new Map<string, FollowedFixture>();
       const unreadable: FeedReason[] = [];
@@ -944,8 +1528,13 @@ class FollowedFixturesStore {
       this.syncLivePoll();
     })();
 
-    this.inFlight = run.finally(() => {
-      this.inFlight = null;
+    const settle: Promise<void> = run.finally(() => {
+      // Only the owner of the slot may clear it: `onFavouritesChanged` drops the handle on a
+      // sign-out, and by now it may belong to the next session's fan-out.
+      if (this.inFlight === settle) this.inFlight = null;
+      // Nothing of this load belongs to the session that is current now, so there is nothing of
+      // ours to tidy up in it either.
+      if (favouritesStore.sessionId() !== session) return;
       // Belt and braces: nothing in `run` throws today, but a load that ended without clearing
       // this would leave every Retry control disabled for the rest of the session.
       if (this.state.refreshing) this.set({ refreshing: false });
@@ -954,7 +1543,8 @@ class FollowedFixturesStore {
       // fixtures would never appear — the exact failure the guard exists to avoid causing.
       if (followKey(favouritesStore.getState().data) !== this.builtFrom) void this.load();
     });
-    return this.inFlight;
+    this.inFlight = settle;
+    return settle;
   };
 }
 

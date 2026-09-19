@@ -6,8 +6,10 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import SavedMatchesPanel from '@/components/favourites/SavedMatchesPanel'
 import FollowingPanel from '@/components/favourites/FollowingPanel'
+import PersonalControls from '@/components/favourites/PersonalControls'
 import { useAuth } from '@/hooks/useAuth'
 import useFavourites from '@/hooks/useFavourites'
+import { usePersonalPreferences } from '@/services/favourites.service'
 import { footballDataService } from '@/services/football-data.service'
 import { CoverageSummary } from '@/services/match-data-source'
 
@@ -44,6 +46,7 @@ import { CoverageSummary } from '@/services/match-data-source'
 const DashboardPage: React.FC = () => {
   const { user } = useAuth()
   const { savedMatches, loaded, failed } = useFavourites()
+  const prefs = usePersonalPreferences(user?.id ?? null)
   const [coverage, setCoverage] = useState<CoverageSummary | null>(null)
   const [coverageLoading, setCoverageLoading] = useState(true)
 
@@ -148,6 +151,29 @@ const DashboardPage: React.FC = () => {
           </Card>
 
           {/*
+            THE CONTROLS SIT HERE, AND NOT ON A SETTINGS ROUTE.
+
+            Directly under the follow list, because that is the card a reader is already on when
+            they are deciding what their own pages contain — and because a preference filed behind
+            /profile is a preference most people never find. It is the last of the three cards
+            about THIS reader, before the page turns to site-wide facts.
+          */}
+          <Card className="mb-8" data-testid="dashboard-personal-controls">
+            <Card.Header>
+              <div>
+                <h2 className="text-lg font-semibold text-white">Your settings and your data</h2>
+                <p className="text-xs text-secondary-500">
+                  What these pages are allowed to show you, how to take a copy of your data, and
+                  how to delete it.
+                </p>
+              </div>
+            </Card.Header>
+            <Card.Body>
+              <PersonalControls />
+            </Card.Body>
+          </Card>
+
+          {/*
             The footnote. It used to be the whole page; it is still true, so it stays — short, plain,
             and out of the way of the part of the page that is actually usable.
           */}
@@ -174,10 +200,21 @@ const DashboardPage: React.FC = () => {
                 How the model providers and the experts have actually done, counted from settled
                 results, is published on the home page with the sample size behind every figure.
               </p>
+              {/*
+                The first of these is an invitation to go and read something else, so it answers
+                to the prompts switch; and with forecasts off it points at the fixtures rather
+                than at the predictions page, because sending a reader who asked for scores only
+                to a page of tips would make the switch a lie. The second is not an invitation —
+                it is how somebody reaches their own account — and nothing hides it.
+              */}
               <div className="flex flex-wrap gap-3 pt-1">
-                <Button asChild>
-                  <Link to="/predictions/today">Browse today&rsquo;s predictions</Link>
-                </Button>
+                {prefs.isOn('prompts') && (
+                  <Button asChild>
+                    {prefs.isOn('forecasts')
+                      ? <Link to="/predictions/today">Browse today&rsquo;s predictions</Link>
+                      : <Link to="/matches">Browse the fixtures</Link>}
+                  </Button>
+                )}
                 <Button variant="outline" asChild>
                   <Link to="/profile">Account settings</Link>
                 </Button>

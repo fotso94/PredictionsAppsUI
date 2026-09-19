@@ -5,8 +5,33 @@ import { HelmetProvider } from 'react-helmet-async'
 import { QueryClient, QueryClientProvider } from 'react-query'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './contexts/AuthContext'
+import { LowDataProvider } from './contexts/LowDataContext'
+import { LocaleProvider } from './i18n/LocaleProvider'
+import { localeReady } from './i18n'
 import App from './App.tsx'
 import './index.css'
+
+/**
+ * The language catalogue is fetched before anything is drawn.
+ *
+ * `localeReady()` is a promise created while src/i18n/index.ts was being EVALUATED — that is, as
+ * part of loading this entry chunk — so for a French reader the request for the French chunk is
+ * already in flight by the time this line runs, rather than starting after it. Awaiting it here
+ * is what stops the reader seeing a frame of English before their own language arrives; if the
+ * chunk never comes, the promise still resolves, English stands in, and the settings panel says
+ * so rather than the page silently changing language.
+ *
+ * English readers await a promise that is already resolved: the English catalogue is part of
+ * this chunk, so there is nothing to wait for and nothing extra to download.
+ */
+
+/**
+ * LowDataContext is imported for its provider, and also for its module body: evaluating it reads
+ * the reader's stored text-only choice and — if it is on — puts the image guard in place before
+ * `createRoot(...).render()` below. That ordering is deliberate. A reader who turned the mode on
+ * must not pay for a screen of club crests in the milliseconds before a React effect could have
+ * stopped them; see the comment at the top of src/contexts/LowDataContext.tsx.
+ */
 
 /**
  * Defaults for react-query.
@@ -45,39 +70,47 @@ const queryClient = new QueryClient({
   },
 })
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <HelmetProvider>
-        <BrowserRouter>
-          <AuthProvider>
-            <App />
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                duration: 4000,
-                style: {
-                  background: '#1e293b',
-                  color: '#ffffff',
-                  border: '1px solid #475569',
-                },
-                success: {
-                  iconTheme: {
-                    primary: '#22c55e',
-                    secondary: '#ffffff',
+function mount(): void {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <HelmetProvider>
+          <BrowserRouter>
+            <AuthProvider>
+              <LocaleProvider>
+                <LowDataProvider>
+                  <App />
+                </LowDataProvider>
+              </LocaleProvider>
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  duration: 4000,
+                  style: {
+                    background: '#1e293b',
+                    color: '#ffffff',
+                    border: '1px solid #475569',
                   },
-                },
-                error: {
-                  iconTheme: {
-                    primary: '#ef4444',
-                    secondary: '#ffffff',
+                  success: {
+                    iconTheme: {
+                      primary: '#22c55e',
+                      secondary: '#ffffff',
+                    },
                   },
-                },
-              }}
-            />
-          </AuthProvider>
-        </BrowserRouter>
-      </HelmetProvider>
-    </QueryClientProvider>
-  </React.StrictMode>,
-)
+                  error: {
+                    iconTheme: {
+                      primary: '#ef4444',
+                      secondary: '#ffffff',
+                    },
+                  },
+                }}
+              />
+            </AuthProvider>
+          </BrowserRouter>
+        </HelmetProvider>
+      </QueryClientProvider>
+    </React.StrictMode>,
+  )
+}
+
+void localeReady().then(mount)

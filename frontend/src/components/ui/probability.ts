@@ -8,12 +8,19 @@
  *
  * NOTE: this is presentation-layer glue that would sit better in src/utils, which this package does
  * not own. It is kept under components/ui so no data-layer file is touched; see the package report.
+ *
+ * THE TWO FALLBACK WORDINGS ARE FUNCTIONS, NOT CONSTANTS. They used to be exported strings, which
+ * a module evaluates once at import time — before the reader's catalogue has necessarily been
+ * applied, and long before they can change language. Reading them per call is the only way a
+ * language change reaches a default parameter value.
  */
 
+import { formatPercentValue, t } from '@/i18n'
+
 /** Wording for a market the source did not publish. Never "0%". */
-export const UNAVAILABLE_TEXT = 'Unavailable'
+export const unavailableText = (): string => t('probability.unavailable')
 /** Wording for an optional field an author chose to leave blank. */
-export const NOT_SET_TEXT = 'not set'
+export const notSetText = (): string => t('probability.notSet')
 
 /** True only for a real, finite number — null, undefined and NaN all mean "not published". */
 export function isPublished(value: number | null | undefined): value is number {
@@ -27,9 +34,9 @@ export function isPublished(value: number | null | undefined): value is number {
 export function formatUnitProbability(
   value: number | null | undefined,
   digits = 1,
-  fallback: string = NOT_SET_TEXT,
+  fallback: string = notSetText(),
 ): string {
-  return isPublished(value) ? `${(value * 100).toFixed(digits)}%` : fallback
+  return isPublished(value) ? formatPercentValue(value * 100, digits) : fallback
 }
 
 /**
@@ -38,9 +45,9 @@ export function formatUnitProbability(
  */
 export function formatPercent(
   value: number | null | undefined,
-  fallback: string = UNAVAILABLE_TEXT,
+  fallback: string = unavailableText(),
 ): string {
-  return isPublished(value) ? `${Math.round(value)}%` : fallback
+  return isPublished(value) ? formatPercentValue(Math.round(value), 0) : fallback
 }
 
 /** One side of a two-way market (e.g. BTTS yes/no, over/under 2.5). */

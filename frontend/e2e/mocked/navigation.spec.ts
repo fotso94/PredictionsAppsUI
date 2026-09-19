@@ -205,3 +205,42 @@ test('a failed search reports the failure, not an empty result', async ({ page }
   // and it must NOT claim there is no such club
   await expect(page.getByText(/no results found for "Arsenal"/i)).toHaveCount(0);
 });
+
+/**
+ * The competition filter while the day is still arriving.
+ *
+ * An independent reviewer opened the desktop filters during a load, waited ten seconds for a
+ * competition option that never appeared, and recorded it as an unexplained failure. It was not a
+ * hang. The options are derived from the fixtures, so before those arrive there are none, and the
+ * whole strip was guarded on having more than one competition — which meant it was absent from
+ * the document rather than empty. An absent control and a control with nothing in it read exactly
+ * the same to a reader and to a test, and neither was the truth.
+ */
+test('the competition filter says it is loading rather than not existing', async ({ page }) => {
+  let releaseDay: (() => void) | null = null;
+  const held = new Promise<void>(resolve => { releaseDay = resolve; });
+
+  await stubBackend(page, { day: d => dayPayload(d) });
+  // Hold the day's fixtures open so the loading window is long enough to look at.
+  await page.route('**/api/v1/matches**', async route => {
+    await held;
+    await route.fallback();
+  });
+
+  const navigation = page.goto('/matches');
+
+  const loading = page.getByTestId('competition-chip-row-loading');
+  await expect(loading, 'the strip exists and explains itself while the day is arriving')
+    .toBeVisible();
+  await expect(loading).toHaveAttribute('role', 'status');
+  // And it is not pretending to offer a filter it cannot yet populate.
+  await expect(page.getByTestId('competition-chip-row')).toHaveCount(0);
+
+  releaseDay!();
+  await navigation;
+  await page.waitForLoadState('networkidle');
+
+  // Once the fixtures land the real strip replaces it, and the placeholder goes.
+  await expect(page.getByTestId('competition-chip-row')).toBeVisible();
+  await expect(page.getByTestId('competition-chip-row-loading')).toHaveCount(0);
+});

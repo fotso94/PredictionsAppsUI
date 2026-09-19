@@ -63,18 +63,36 @@ const EMPTY_SAVED: SavedMatchesSnapshot = {
 
 export function useFavourites(options: UseFavouritesOptions = {}): UseFavouritesResult {
   const { autoLoad = true } = options;
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const state = useSyncExternalStore(favouritesStore.subscribe, favouritesStore.getState, favouritesStore.getState);
 
+  /**
+   * WHO the store is holding favourites for.
+   *
+   * The id where there is one; otherwise the address, and failing both a constant. The fallbacks
+   * matter: `bindAccount(null)` means SIGNED OUT, so handing it an accidental null for a signed-in
+   * reader whose payload was thin would leave the store reset and never loaded. Signed-out is
+   * decided by `isAuthenticated` below and nothing else.
+   */
+  const accountKey = user?.id || user?.email || 'signed-in';
+
   useEffect(() => {
-    // Signed out: reset rather than leaving the previous user's list on screen. The store goes back
-    // to `idle`, not to an empty snapshot, so nothing reads as "this user follows nothing".
-    if (!isAuthenticated) {
-      if (favouritesStore.getState().status !== 'idle') favouritesStore.reset();
-      return;
-    }
+    /*
+     * IDENTITY FIRST, on every change of it.
+     *
+     * `bindAccount` is what tells the store that a response already on the wire belongs to
+     * somebody who is no longer here — a reader who signed out, or one who has been replaced by
+     * another account on this machine. It resets the store (back to `idle`, not to an empty
+     * snapshot, so nothing reads as "this user follows nothing") and invalidates the in-flight
+     * read, which `reset()` alone could never do.
+     *
+     * An ACCOUNT CHANGE is a distinct event from a sign-out and the one that can put one
+     * person's saved matches in front of another; both arrive here as a changed key.
+     */
+    favouritesStore.bindAccount(isAuthenticated ? accountKey : null);
+    if (!isAuthenticated) return;
     if (autoLoad) favouritesStore.ensureLoaded();
-  }, [isAuthenticated, autoLoad]);
+  }, [isAuthenticated, accountKey, autoLoad]);
 
   const isTeamFollowed = useCallback((teamId: string) => Boolean(state.data?.teamIds.includes(teamId)), [state.data]);
   const isLeagueFollowed = useCallback((leagueId: string) => Boolean(state.data?.leagueIds.includes(leagueId)), [state.data]);

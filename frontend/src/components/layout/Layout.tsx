@@ -4,6 +4,7 @@ import Header from './Header'
 import Footer from './Footer'
 import ScrollBehaviour from './ScrollBehaviour'
 import ProviderStatusBanner from '@/components/ui/ProviderStatusBanner'
+import { useT } from '@/i18n/react'
 
 /**
  * The shell every page inside the app renders into.
@@ -19,6 +20,8 @@ import ProviderStatusBanner from '@/components/ui/ProviderStatusBanner'
  * match page landed on the team page at its own footer.
  */
 const Layout: React.FC = () => {
+  const t = useT()
+
   return (
     <div className="min-h-screen bg-dark-950 flex flex-col">
       <ScrollBehaviour />
@@ -26,7 +29,7 @@ const Layout: React.FC = () => {
         href="#main"
         className="focus-ring sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-[60] focus:rounded-lg focus:bg-primary-700 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
       >
-        Skip to the matches
+        {t('app.skipToMatches')}
       </a>
       <Header />
       <ProviderStatusBanner />

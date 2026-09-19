@@ -2,6 +2,8 @@ import React from 'react'
 import { ChevronRightIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { ForecastSyncStatus } from '@/services/match-data-source'
 import { forecastSyncMessage } from '@/utils/predictionLabels'
+import { formatDateTime } from '@/i18n'
+import { useT } from '@/i18n/react'
 
 interface ForecastSyncNoticeProps {
   sync: ForecastSyncStatus | null | undefined
@@ -31,17 +33,18 @@ interface ForecastSyncNoticeProps {
  * away, because they are operator detail rather than a reason to doubt the numbers below.
  */
 const ForecastSyncNotice: React.FC<ForecastSyncNoticeProps> = ({ sync, resume = null, className = '' }) => {
+  const t = useT()
   const message = forecastSyncMessage(sync)
   if (!message) return null
 
-  const detail: string[] = [
-    'Forecasts already loaded stay visible and are unchanged — they are just not being updated right now.',
-  ]
+  const detail: string[] = [t('forecastSync.stayVisible')]
   if (resume) detail.push(resume)
   if (sync && sync.deferred.length > 0) {
-    detail.push(`Waiting for the next allowance reset: ${sync.deferred.join(', ')}`)
+    // Competition names as the provider publishes them: a list of names, not of words.
+    detail.push(t('forecastSync.waitingFor', { competitions: sync.deferred.join(', ') }))
   }
-  if (sync?.syncedAt) detail.push(`Last refresh attempt ${new Date(sync.syncedAt).toLocaleString()}`)
+  const attemptedAt = formatDateTime(sync?.syncedAt)
+  if (attemptedAt) detail.push(t('forecastSync.lastAttempt', { when: attemptedAt }))
 
   return (
     <div
@@ -59,7 +62,7 @@ const ForecastSyncNotice: React.FC<ForecastSyncNoticeProps> = ({ sync, resume = 
       <details className="group ml-7 mt-1">
         <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs text-yellow-300/80 hover:text-yellow-100">
           <ChevronRightIcon className="h-3.5 w-3.5 flex-shrink-0 transition-transform group-open:rotate-90" aria-hidden="true" />
-          What this means for what you are reading
+          {t('forecastSync.disclosure')}
         </summary>
         <ul className="mt-1 space-y-0.5 text-xs text-yellow-300/80">
           {detail.map(line => <li key={line} className="break-words">{line}</li>)}

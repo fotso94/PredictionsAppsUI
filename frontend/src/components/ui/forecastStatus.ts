@@ -12,6 +12,7 @@
  */
 
 import { ProviderStatus } from '@/services/match-data-source'
+import { t } from '@/i18n'
 import { allowanceResetNote, relativeTime } from './freshness'
 
 export interface ForecastAvailability {
@@ -49,7 +50,7 @@ function resumeNote(
   const task = status?.scheduler?.tasks?.forecasts
   if (task?.enabled !== false && task?.next_due_at) {
     const when = relativeTime(task.next_due_at, now)
-    if (when) parts.push(`The next scheduled attempt is ${when}.`)
+    if (when) parts.push(t('freshness.nextScheduled', { when }))
   }
   return parts.length > 0 ? parts.join(' ') : null
 }
@@ -68,15 +69,14 @@ export function forecastAvailability(
   if (!forecasts.configured && forecasts.active_provider !== 'none') {
     return {
       paused: false,
-      message: `Prediction provider "${forecasts.active_provider}" is not configured; model forecasts are unavailable.`,
+      message: t('forecast.notConfigured', { provider: forecasts.active_provider }),
       resume: null,
     }
   }
   if (forecasts.budget && forecasts.budget.enforced && forecasts.budget.remaining_today === 0) {
     return {
       paused: true,
-      message: 'Model forecast updates are paused until the daily request allowance resets; '
-        + 'forecasts already loaded stay visible.',
+      message: t('forecast.pausedAllowance'),
       resume: resumeNote(status, true, now),
     }
   }
@@ -86,8 +86,8 @@ export function forecastAvailability(
     const allowance = /\ballowance\b|\bbudget\b|\bquota\b/i.test(forecasts.cooling_down)
     return {
       paused: true,
-      message: `Model forecast updates are paused after a provider error: ${forecasts.cooling_down}. `
-        + 'Forecasts already loaded stay visible.',
+      // `{reason}` is the backend's own wording, carried through untranslated in every language.
+      message: t('forecast.pausedError', { reason: forecasts.cooling_down }),
       resume: resumeNote(status, allowance, now),
     }
   }

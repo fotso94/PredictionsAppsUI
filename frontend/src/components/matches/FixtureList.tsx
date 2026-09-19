@@ -5,6 +5,7 @@ import FixtureRow from '@/components/ui/FixtureRow'
 import useMatchSaving, { fixtureHrefFrom } from '@/components/favourites/useMatchSaving'
 import type { Match } from '@/types'
 import type { CompetitionGroup } from './fixtureGrouping'
+import { useT } from '@/i18n/react'
 
 /**
  * The day's fixtures, grouped by competition.
@@ -47,6 +48,7 @@ const FixtureList: React.FC<FixtureListProps> = ({
   expandable = true,
 }) => {
   const location = useLocation()
+  const t = useT()
   // The failure is shown in place, beside the list, so a toast saying the same thing twice would
   // be noise — and a toast that has already faded cannot answer "did that save work?".
   const saving = useMatchSaving({ toastErrors: false })
@@ -91,7 +93,7 @@ const FixtureList: React.FC<FixtureListProps> = ({
                 )}
                 <span className="num ml-auto flex-shrink-0 rounded bg-dark-800 px-1.5 text-[11px] text-secondary-200">
                   {group.matches.length}
-                  <span className="sr-only"> {group.matches.length === 1 ? 'match' : 'matches'}</span>
+                  <span className="sr-only">{t('fixture.groupCount', { count: group.matches.length })}</span>
                 </span>
               </h3>
             )}
@@ -111,7 +113,7 @@ const FixtureList: React.FC<FixtureListProps> = ({
                   // finish itself afterwards without the reader hunting for the star again.
                   onRequireSignIn={() => saving.requireSignIn({
                     matchId: match.id,
-                    label: `${match.homeTeam.name} versus ${match.awayTeam.name}`,
+                    label: t('fixture.versus', { home: match.homeTeam.name, away: match.awayTeam.name }),
                   })}
                   onToggleSave={(_matchId, next) => onToggleSave(match, next)}
                 />

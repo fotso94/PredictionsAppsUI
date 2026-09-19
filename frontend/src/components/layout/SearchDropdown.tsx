@@ -4,12 +4,14 @@ import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import searchService, { SearchResults } from '@/services/search.service';
 import { onTeamLogoError, onLeagueLogoError } from '@/components/ui/imageFallback';
 import clsx from 'clsx';
+import { useT } from '@/i18n/react';
 
 interface SearchDropdownProps {
   className?: string;
 }
 
 const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResults>({ teams: [], leagues: [] });
   const [isLoading, setIsLoading] = useState(false);
@@ -41,7 +43,7 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
         setSelectedIndex(-1);
       } catch (err) {
         console.error('Search error:', err);
-        setError('Failed to search. Please try again.');
+        setError(t('search.failed'));
         setResults({ teams: [], leagues: [] });
         // The panel has to open for the message to be seen at all. Without this the dropdown stayed
         // shut on failure and the reader was told nothing, which is how a failed search came to be
@@ -53,7 +55,9 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
     }, 400); // 400ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [query]);
+    // `t` is a stable module-level lookup, so listing it costs nothing and keeps the failure
+    // message in the language the reader is actually in when the search fails.
+  }, [query, t]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -131,7 +135,7 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => query.length >= 3 && setIsOpen(true)}
-          placeholder="Search teams, leagues..."
+          placeholder={t('search.placeholder')}
           className="block w-full rounded-lg border-0 bg-dark-800 py-2 pl-10 pr-10 text-white placeholder:text-secondary-400 focus:ring-2 focus:ring-primary-500 sm:text-sm"
         />
         {query && (
@@ -151,7 +155,7 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
           {isLoading && (
             <div className="px-4 py-8 text-center">
               <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-500 border-r-transparent"></div>
-              <p className="mt-2 text-sm text-secondary-400">Searching...</p>
+              <p className="mt-2 text-sm text-secondary-400">{t('search.searching')}</p>
             </div>
           )}
 
@@ -165,8 +169,8 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
           {/* No Results */}
           {!isLoading && !error && query.length >= 3 && !hasResults && (
             <div className="px-4 py-6 text-center">
-              <p className="text-sm text-secondary-400">No results found for "{query}"</p>
-              <p className="mt-1 text-xs text-secondary-500">Try a different search term</p>
+              <p className="text-sm text-secondary-400">{t('search.noResults', { query })}</p>
+              <p className="mt-1 text-xs text-secondary-500">{t('search.tryAnother')}</p>
             </div>
           )}
 
@@ -178,7 +182,7 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
                 <div className="border-b border-dark-700">
                   <div className="px-4 py-2 bg-dark-900">
                     <h3 className="text-xs font-semibold text-secondary-400 uppercase tracking-wider">
-                      Teams ({results.teams.length})
+                      {t('search.teams', { count: results.teams.length })}
                     </h3>
                   </div>
                   <div className="py-1">
@@ -212,7 +216,7 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
                 <div>
                   <div className="px-4 py-2 bg-dark-900">
                     <h3 className="text-xs font-semibold text-secondary-400 uppercase tracking-wider">
-                      Leagues ({results.leagues.length})
+                      {t('search.leagues', { count: results.leagues.length })}
                     </h3>
                   </div>
                   <div className="py-1">
@@ -249,7 +253,7 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
           {hasResults && !isLoading && (
             <div className="px-4 py-2 bg-dark-900 border-t border-dark-700">
               <p className="text-xs text-secondary-500">
-                Use ↑↓ to navigate, Enter to select, Esc to close
+                {t('search.keyboardHint')}
               </p>
             </div>
           )}
