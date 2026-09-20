@@ -19,7 +19,24 @@
  *
  * PUBLICATION IS DIRECT. Pressing publish makes the prediction public immediately: there is no
  * approval step, no queue and no pending state. The draft this page keeps is local to the browser
- * and is never sent anywhere; autosaving it cannot publish anything.
+ * and is never sent anywhere; autosaving it cannot publish anything. That is a statement of fact
+ * in both languages — the French is « Publier rend ceci public immédiatement », indicative, not a
+ * conditional. A warning that softens into a suggestion on the way into another language has been
+ * mistranslated whatever else is true of it.
+ *
+ * THE "55 / 0.55" EXAMPLES ARE FORMATTED VALUES, NOT LITERALS. French writes them « 55 % » and
+ * « 0,55 ». The sentence that teaches an expert how to type a number is the last place to ship
+ * English number formatting, so the examples arrive through `formatNumber` and
+ * `formatPercentValue` and the catalogue only decides where in the sentence they go. Nothing
+ * about the composer's own arithmetic changed: 55 typed in a field is still stored as 0.55, which
+ * `e2e/live/expert-composer.spec.ts` pins against the API.
+ *
+ * WHAT IS STILL ENGLISH ON THIS PAGE. The editor itself — `components/expert/PredictionMarketsEditor`,
+ * `PercentField`, `PublishPreview`, `FixtureEvidence`, `FixturePicker` and the validation messages
+ * in `components/expert/composer.ts` — belongs to another package and is not translated. So a
+ * French expert reads this page's frame in French and the field labels, hints and validation
+ * errors in English. The package report lists every string and `e2e/mocked/expert-localisation.spec.ts`
+ * counts them on the French page rather than letting the gap stay invisible.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
@@ -40,7 +57,11 @@ import PublishPreview from '@/components/expert/PublishPreview'
 import {
   buildCreateRequest, ComposerValues, composerIsEmpty, EMPTY_COMPOSER, validateComposer,
 } from '@/components/expert/composer'
-import { ComposerDraft, clearDraft, DraftFixture, readDraft, savedAgo, writeDraft } from '@/components/expert/draft'
+import { ComposerDraft, clearDraft, DraftFixture, readDraft, writeDraft } from '@/components/expert/draft'
+import { relativeTime } from '@/components/ui/freshness'
+import { formatDateTime, formatNumber, formatPercentValue } from '@/i18n'
+import { useT } from '@/i18n/react'
+import Emphasised from '@/i18n/Emphasised'
 
 /** The little the draft needs to describe the fixture it belongs to. */
 function draftFixtureOf(match: Match | null): DraftFixture | null {
@@ -55,6 +76,7 @@ function draftFixtureOf(match: Match | null): DraftFixture | null {
 }
 
 const ExpertCreatePredictionPage: React.FC = () => {
+  const t = useT()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -119,7 +141,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
         if (cancelled) return
         if (!found) {
           setFixture(null)
-          setFixtureError('That fixture could not be found. Choose one from the list instead.')
+          setFixtureError(t('expert.compose.fixtureNotFound'))
           return
         }
         setFixture(found)
@@ -127,7 +149,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
         console.error('Failed to load the fixture:', err)
         if (!cancelled) {
           setFixture(null)
-          setFixtureError(getErrorMessage(err, 'The fixture could not be loaded.'))
+          setFixtureError(getErrorMessage(err, t('expert.compose.fixtureLoadFailed')))
         }
       } finally {
         if (!cancelled) setFixtureLoading(false)
@@ -135,7 +157,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
     }
     run()
     return () => { cancelled = true }
-  }, [matchId])
+  }, [matchId, t])
 
   // ------------------------------------------------------------------ autosave (local only)
   useEffect(() => {
@@ -144,6 +166,49 @@ const ExpertCreatePredictionPage: React.FC = () => {
   }, [hydrated, published, userId, fixture, matchId, values])
 
   const validation = useMemo(() => validateComposer(values, matchId), [values, matchId])
+
+  /*
+   * The two example figures the composer teaches with, and the kick-off.
+   *
+   * `percentExamples` is "55" and "55%" in English and « 55 » / « 55 % » in French; the
+   * arithmetic behind the fields is untouched, so 55 typed in a box is still stored as 0.55.
+   *
+   * `kickoffLine` is the fixture's UTC instant formatted in the reader's CHOSEN zone rather than
+   * `${fixture.date} ${fixture.time}`, which the match services map at fetch time in whatever
+   * zone was current then. An expert reads this line to decide whether a fixture is still
+   * prematch; it falls back to the mapped pair only when the payload carried no UTC instant.
+   */
+  const percentExamples = { typed: formatNumber(55), whole: formatPercentValue(55, 0) }
+  const kickoffLine = (fixture && formatDateTime(fixture.kickoffUtc))
+    ?? (fixture ? `${fixture.date} ${fixture.time}`.trim() : '')
+
+  /*
+   * "You have an unfinished draft for X v Y · saved 3 minutes ago." as ONE catalogue sentence.
+   *
+   * Four variants rather than a stem and two optional tails: both the fixture and the "saved"
+   * phrase sit inside the sentence in English, and only a whole-sentence key lets another
+   * language put them somewhere else. `relativeTime` supplies the duration already framed by the
+   * language — "3 minutes ago", « il y a 3 minutes » — which `savedAgo` in
+   * components/expert/draft.ts, a module this package does not own, cannot do: it returns
+   * hard-coded English.
+   */
+  const otherDraftFixture = otherDraft?.fixture?.homeTeam
+    ? t('expert.fixtureShort', {
+      home: otherDraft.fixture.homeTeam,
+      away: otherDraft.fixture.awayTeam,
+    })
+    : ''
+  const otherDraftAgo = otherDraft ? relativeTime(otherDraft.savedAt) : null
+  const otherDraftSentence = !otherDraft ? '' : otherDraftFixture
+    ? (otherDraftAgo
+      ? t('expert.draft.unfinishedForSaved', { fixture: otherDraftFixture, ago: otherDraftAgo })
+      : t('expert.draft.unfinishedFor', { fixture: otherDraftFixture }))
+    : (otherDraftAgo
+      ? t('expert.draft.unfinishedSaved', { ago: otherDraftAgo })
+      : t('expert.draft.unfinished'))
+
+  /** The same for the restore notice, which is two sentences and keeps both of them whole. */
+  const restoredAgo = restoredAt ? relativeTime(restoredAt) : null
 
   const chooseFixture = useCallback((match: Match) => {
     setMatchId(match.id)
@@ -201,7 +266,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
       setRestoredAt(null)
     } catch (err) {
       console.error('Failed to publish the prediction:', err)
-      setPublishError(getErrorMessage(err, 'The prediction could not be published.'))
+      setPublishError(getErrorMessage(err, t('expert.compose.publishFailed')))
     } finally {
       setPublishing(false)
     }
@@ -225,17 +290,14 @@ const ExpertCreatePredictionPage: React.FC = () => {
           <div className="flex items-start gap-3">
             <CheckCircleIcon className="mt-0.5 h-6 w-6 flex-shrink-0 text-success-400" aria-hidden="true" />
             <div className="min-w-0">
-              <h1 className="text-xl font-bold text-white">Published</h1>
-              <p className="mt-1 text-sm text-secondary-300">
-                Your prediction is on the public match page now. Nothing is waiting for approval — experts publish
-                directly. You can edit or remove it at any time from My predictions.
-              </p>
+              <h1 className="text-xl font-bold text-white">{t('expert.published.title')}</h1>
+              <p className="mt-1 text-sm text-secondary-300">{t('expert.published.body')}</p>
             </div>
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link to={`/match/${published.match_id}`} className="btn btn-md btn-primary">View the match page</Link>
-            <button type="button" onClick={startAnother} className="btn btn-md btn-secondary">Write another</button>
-            <Link to="/expert/predictions/my-predictions" className="btn btn-md btn-ghost">My predictions</Link>
+            <Link to={`/match/${published.match_id}`} className="btn btn-md btn-primary">{t('expert.published.viewMatch')}</Link>
+            <button type="button" onClick={startAnother} className="btn btn-md btn-secondary">{t('expert.published.writeAnother')}</button>
+            <Link to="/expert/predictions/my-predictions" className="btn btn-md btn-ghost">{t('expert.dashboard.myPredictions')}</Link>
           </div>
         </div>
       </div>
@@ -248,24 +310,31 @@ const ExpertCreatePredictionPage: React.FC = () => {
       <div className="container mx-auto max-w-4xl px-4 py-8">
         <button type="button" onClick={() => navigate('/expert/dashboard')} className="focus-ring mb-4 inline-flex items-center gap-1 text-sm text-primary-300 hover:text-primary-200">
           <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" />
-          Back to dashboard
+          {t('expert.backToDashboard')}
         </button>
-        <h1 className="text-2xl font-bold text-white sm:text-3xl">Write a prediction</h1>
-        <p className="mt-1 text-sm text-secondary-300">
-          Start by choosing the fixture. Publication is immediate once you press publish — there is no approval step.
-        </p>
+        <h1 className="text-2xl font-bold text-white sm:text-3xl">{t('expert.compose.title')}</h1>
+        <p className="mt-1 text-sm text-secondary-300">{t('expert.compose.chooseIntro')}</p>
 
         {otherDraft && (
           <div className="card mt-6 border-primary-800 p-4">
+            {/*
+              One whole sentence from the catalogue with the fixture picked out inside it, rather
+              than a prefix, a <span> and a suffix. The three-fragment form freezes English word
+              order and leaves a language no way to put the fixture anywhere else; `Emphasised`
+              finds the rendered value inside the rendered sentence instead, and falls back to the
+              plain sentence if a translation moves or drops the hole.
+            */}
             <p className="text-sm text-white">
-              You have an unfinished draft
-              {otherDraft.fixture ? <> for <span className="font-semibold">{otherDraft.fixture.homeTeam} v {otherDraft.fixture.awayTeam}</span></> : null}
-              {savedAgo(otherDraft.savedAt) ? <span className="text-secondary-400"> · saved {savedAgo(otherDraft.savedAt)}</span> : null}.
+              <Emphasised
+                sentence={otherDraftSentence}
+                value={otherDraftFixture}
+                className="font-semibold"
+              />
             </p>
-            <p className="mt-1 text-xs text-secondary-400">It is stored in this browser only and has not been published.</p>
+            <p className="mt-1 text-xs text-secondary-400">{t('expert.draft.notPublishedNote')}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" onClick={continueOtherDraft} className="btn btn-sm btn-primary">Continue that draft</button>
-              <button type="button" onClick={() => { clearDraft(userId); setOtherDraft(null) }} className="btn btn-sm btn-ghost">Discard it</button>
+              <button type="button" onClick={continueOtherDraft} className="btn btn-sm btn-primary">{t('expert.draft.continueThat')}</button>
+              <button type="button" onClick={() => { clearDraft(userId); setOtherDraft(null) }} className="btn btn-sm btn-ghost">{t('expert.draft.discardIt')}</button>
             </div>
           </div>
         )}
@@ -273,29 +342,26 @@ const ExpertCreatePredictionPage: React.FC = () => {
         <FixturePicker
           className="mt-6"
           onChoose={chooseFixture}
-          actionLabel="Write a prediction"
+          actionLabel={t('expert.action.writePrediction')}
           heading={<>
-            <h2 className="text-sm font-semibold text-white">Choose a fixture</h2>
-            <p className="mt-1 text-xs text-secondary-400">Filter by day, competition or team name.</p>
+            <h2 className="text-sm font-semibold text-white">{t('expert.compose.chooseFixture')}</h2>
+            <p className="mt-1 text-xs text-secondary-400">{t('expert.compose.filterHint')}</p>
           </>}
         />
 
         <details className="card mt-6 p-4">
           <summary className="focus-ring cursor-pointer text-sm font-medium text-secondary-200">
-            Advanced: paste a match id
+            {t('expert.compose.advancedPaste')}
           </summary>
-          <p className="mt-2 text-xs text-secondary-400">
-            Only needed when you already have an internal match id or a provider fixture id to hand. The list above is
-            the normal way in.
-          </p>
+          <p className="mt-2 text-xs text-secondary-400">{t('expert.compose.advancedPasteHint')}</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <label htmlFor="manual-match-id" className="sr-only">Match id</label>
+            <label htmlFor="manual-match-id" className="sr-only">{t('expert.compose.matchIdLabel')}</label>
             <input
               id="manual-match-id"
               type="text"
               value={manualId}
               onChange={event => setManualId(event.target.value)}
-              placeholder="Internal match id or provider fixture id"
+              placeholder={t('expert.compose.matchIdPlaceholder')}
               className="form-input min-w-0 flex-1 py-2"
             />
             <button
@@ -304,7 +370,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
               onClick={() => setMatchId(manualId.trim())}
               className="btn btn-md btn-secondary"
             >
-              Use this id
+              {t('expert.compose.useThisId')}
             </button>
           </div>
         </details>
@@ -317,34 +383,38 @@ const ExpertCreatePredictionPage: React.FC = () => {
     <div className="container mx-auto max-w-6xl px-4 py-8">
       <button type="button" onClick={() => navigate('/expert/dashboard')} className="focus-ring mb-4 inline-flex items-center gap-1 text-sm text-primary-300 hover:text-primary-200">
         <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" />
-        Back to dashboard
+        {t('expert.backToDashboard')}
       </button>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-white sm:text-3xl">Write a prediction</h1>
+          <h1 className="text-2xl font-bold text-white sm:text-3xl">{t('expert.compose.title')}</h1>
           {fixture ? (
             <p className="mt-1 truncate text-sm text-secondary-300">
-              <span className="font-medium text-white">{fixture.homeTeam.name} v {fixture.awayTeam.name}</span>
-              <span className="text-secondary-400"> · {fixture.league.name} · {fixture.date} {fixture.time}</span>
+              <span className="font-medium text-white">
+                {t('expert.fixtureShort', { home: fixture.homeTeam.name, away: fixture.awayTeam.name })}
+              </span>
+              {/* The kick-off in the reader's chosen zone — what tells them it is still prematch. */}
+              <span className="text-secondary-400"> · {fixture.league.name} · {kickoffLine}</span>
             </p>
           ) : (
-            <p className="mt-1 text-sm text-secondary-400">Loading the fixture…</p>
+            <p className="mt-1 text-sm text-secondary-400">{t('expert.compose.loadingFixture')}</p>
           )}
         </div>
         <button type="button" onClick={changeFixture} className="btn btn-sm btn-secondary flex-shrink-0">
-          Change fixture
+          {t('expert.compose.changeFixture')}
         </button>
       </div>
 
       {restoredAt && (
         <div className="mt-4 rounded-lg border border-dark-700 bg-dark-900/60 px-4 py-2.5">
           <p className="text-xs text-secondary-300">
-            Draft restored{savedAgo(restoredAt) ? ` · saved ${savedAgo(restoredAt)}` : ''}. It lives in this browser only
-            and publishes nothing by itself.
+            {restoredAgo
+              ? t('expert.draft.restoredSaved', { ago: restoredAgo })
+              : t('expert.draft.restored')}
             {!composerIsEmpty(values) && (
               <button type="button" onClick={discardDraft} className="focus-ring ml-2 font-medium text-primary-300 hover:text-primary-200">
-                Start again
+                {t('expert.draft.startAgain')}
               </button>
             )}
           </p>
@@ -355,10 +425,10 @@ const ExpertCreatePredictionPage: React.FC = () => {
         <div className="mt-4">
           <EmptyState
             tone="failed"
-            title="That fixture could not be opened"
+            title={t('expert.compose.fixtureNotOpened')}
             description={fixtureError}
             variant="inline"
-            action={<button type="button" onClick={changeFixture} className="btn btn-sm btn-secondary">Choose from the list</button>}
+            action={<button type="button" onClick={changeFixture} className="btn btn-sm btn-secondary">{t('expert.compose.chooseFromList')}</button>}
           />
         </div>
       )}
@@ -372,10 +442,9 @@ const ExpertCreatePredictionPage: React.FC = () => {
           {/* ------------------------------------------------------------- the editor */}
           <div className="min-w-0 space-y-6">
             <div className="card p-4 sm:p-6">
-              <h2 className="text-lg font-semibold text-white">Your view</h2>
+              <h2 className="text-lg font-semibold text-white">{t('expert.compose.yourView')}</h2>
               <p className="mb-5 mt-1 text-sm text-secondary-400">
-                Enter percentages, not decimals — type 55 for 55%. Only the markets you tick are published; the rest
-                stay unavailable.
+                {t('expert.compose.percentNote', percentExamples)}
               </p>
 
               <PredictionMarketsEditor
@@ -391,13 +460,13 @@ const ExpertCreatePredictionPage: React.FC = () => {
 
               {showErrors && !validation.ready && (
                 <p className="mt-4 text-sm text-warning-200" role="status">
-                  Fix the fields marked above, then preview.
+                  {t('expert.compose.fixThenPreview')}
                 </p>
               )}
 
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <button type="button" onClick={handlePreview} disabled={publishing} className="btn btn-md btn-secondary">
-                  Preview
+                  {t('expert.action.preview')}
                 </button>
                 {/* Never disabled for being incomplete: a dead button explains nothing. Pressing it
                     on an incomplete form marks exactly which fields need attention. */}
@@ -407,9 +476,9 @@ const ExpertCreatePredictionPage: React.FC = () => {
                   disabled={publishing}
                   className="btn btn-md btn-primary"
                 >
-                  {publishing ? 'Publishing…' : 'Publish'}
+                  {publishing ? t('expert.action.publishing') : t('expert.action.publish')}
                 </button>
-                <span className="text-xs text-secondary-400">Publishing makes this public immediately.</span>
+                <span className="text-xs text-secondary-400">{t('expert.compose.publishImmediate')}</span>
               </div>
 
               {publishError && (
@@ -429,12 +498,12 @@ const ExpertCreatePredictionPage: React.FC = () => {
 
       <details className="card mt-8 p-4">
         <summary className="focus-ring cursor-pointer text-sm font-medium text-secondary-200">
-          Advanced: fixture identifiers
+          {t('expert.compose.advancedIds')}
         </summary>
         <p className="mt-2 break-all text-xs text-secondary-400">
-          Internal match id: <span className="num">{matchId}</span>
+          {t('expert.compose.internalMatchId')} <span className="num">{matchId}</span>
           {fixture?.provider && fixture.externalId && (
-            <><br />{fixture.provider}: <span className="num">{fixture.externalId}</span></>
+            <><br />{t('expert.compose.providerId', { provider: fixture.provider })} <span className="num">{fixture.externalId}</span></>
           )}
         </p>
       </details>

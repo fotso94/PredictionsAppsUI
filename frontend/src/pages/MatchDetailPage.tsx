@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { backendInstant, formatDateTime } from '@/i18n'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
@@ -572,7 +573,15 @@ const MatchDetailPage: React.FC = () => {
                     )}
                     <p className="mt-2 text-xs text-secondary-500">
                       Expert · {expert.source_type || 'expert_manual'}
-                      {expert.publishedAt ? ` · published ${new Date(expert.publishedAt).toLocaleString()}` : ''}
+                      {/*
+                        The reader's chosen zone, not the device's. `new Date(iso).toLocaleString()`
+                        formatted in whatever zone the machine happens to sit in and read an
+                        offset-less backend timestamp as local rather than as the UTC it is — two
+                        errors that can compound to a whole day. When an expert published is the
+                        fact that decides whether their prediction was prematch, so the zone it is
+                        read in is not cosmetic.
+                      */}
+                      {expert.publishedAt ? ` · published ${formatDateTime(backendInstant(expert.publishedAt).at) ?? ''}` : ''}
                     </p>
                   </div>
                 ))}
@@ -660,7 +669,7 @@ const MatchDetailPage: React.FC = () => {
                 <div className="flex justify-between gap-3"><dt className="text-secondary-400">Fixture source</dt><dd className="text-white">{match.provider || 'unknown'}</dd></div>
                 {match.externalId && <div className="flex justify-between gap-3"><dt className="text-secondary-400">Provider fixture id</dt><dd className="font-mono text-xs text-white">{match.externalId}</dd></div>}
                 {match.kickoffUtc && <div className="flex justify-between gap-3"><dt className="text-secondary-400">Kick-off (UTC)</dt><dd className="text-white">{match.kickoffUtc.replace('T', ' ').replace('Z', '')}</dd></div>}
-                {match.lastSyncedAt && <div className="flex justify-between gap-3"><dt className="text-secondary-400">Last synced</dt><dd className="text-white">{new Date(match.lastSyncedAt).toLocaleString()}</dd></div>}
+                {match.lastSyncedAt && <div className="flex justify-between gap-3"><dt className="text-secondary-400">Last synced</dt><dd className="text-white">{formatDateTime(backendInstant(match.lastSyncedAt).at) ?? ''}</dd></div>}
               </dl>
             </Disclosure>
             {!match.odds && (

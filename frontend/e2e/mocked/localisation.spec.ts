@@ -1,10 +1,15 @@
-import { expect, test, Page, Request } from '@playwright/test';
+import { expect, test, Page, Request, Route } from '@playwright/test';
 import en from '../../src/i18n/messages/en';
 import fr from '../../src/i18n/messages/fr';
+import coreEn from '../../src/i18n/messages/core.en';
+import authEn from '../../src/i18n/messages/auth.en';
+import expertEn from '../../src/i18n/messages/expert.en';
+import readerEn from '../../src/i18n/messages/reader.en';
 import { compileMessage, renderMessage } from '../../src/i18n/format';
 import {
   ApiMatch, dayPayload, fixtureAt, selectLocalDay, stubBackend, withoutForecast,
 } from '../support/api-stub';
+import { signIn } from '../support/auth';
 
 /**
  * English and French, and a time zone the reader chose.
@@ -220,6 +225,344 @@ for (const language of ['en', 'fr'] as const) {
   }
 }
 
+/* ====================================================== the auth and account screens */
+
+/**
+ * THE ACCOUNT ENDPOINTS, which stubBackend does not model.
+ *
+ * `/users/me`, `/subscriptions/me` and `/subscriptions/tiers` fall through its catch-all and
+ * answer `{}`, which renders a profile with no fields and a subscription page with no tiers —
+ * a page with nothing on it passes a "no English here" check trivially. These answers give
+ * those screens something to render, so the assertions below are about the screens.
+ *
+ * Registered AFTER stubBackend on purpose: Playwright tries the most recently added route
+ * first, so these win for the two prefixes they claim and stubBackend keeps everything else.
+ *
+ * WHAT IS DELIBERATELY ENGLISH IN THESE PAYLOADS. `tier_name`, `name`, `description`,
+ * `status`, `user_type` and `account_status` are the BACKEND's words, and the interface renders
+ * them as sent in both languages — translating a server's own message would be putting words in
+ * its mouth. `the backend's own words are not translated, in either language` below asserts
+ * that, and the package report records it as a gap a backend change has to close.
+ */
+interface AccountStubOptions {
+  /** Overrides merged into the profile `/users/me` returns. */
+  profile?: Record<string, unknown>;
+  /** Whether `/auth/verify-reset-token/:token` accepts the token. Default: it does. */
+  resetTokenValid?: boolean;
+}
+
+/** The backend's own description of a tier: English prose we do not rewrite. */
+const TIER_DESCRIPTION = 'Everything in the free tier, plus every market';
+
+/**
+ * A timestamp with no offset on it, which is what this backend actually sends.
+ *
+ * `created_at` is a `DateTime` column written with `datetime.utcnow()`
+ * (backend/app/models/base.py:34), and Pydantic serialises a naive datetime WITHOUT a zone. At
+ * 21:00 UTC on 5 January the calendar date is the 5th in New York (the device) and the 6th in
+ * Dubai (the choice), so this value separates the two bugs of FORMATTING: in the device's zone,
+ * and in the device's locale.
+ *
+ * IT DOES NOT SEPARATE THE THIRD — reading the offset-less string in the device's zone instead
+ * of as the UTC the server wrote. Against this pair the two readings are 06 Jan 01:00 and 06 Jan
+ * 06:00 in Dubai: five hours apart, same calendar day, and the assertions here are on the date.
+ * That bug is pinned separately, in a zone where the two readings fall on different days — see
+ * "an offset-less timestamp is read as the UTC the server wrote" below.
+ */
+const JOINED_NAIVE = '2026-01-05T21:00:00';
+/** The same instant, said properly. Used to prove the anchored path is not the same code path. */
+const JOINED_ANCHORED = '2026-01-05T21:00:00Z';
+
+async function stubAccount(page: Page, options: AccountStubOptions = {}): Promise<void> {
+  const json = (route: Route, body: unknown, status = 200) =>
+    route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+
+  const profile = {
+    id: '00000000-0000-4000-8000-000000000001',
+    email: 'qa.regular@predictions-local.dev',
+    username: 'qa-regular',
+    first_name: 'QA',
+    last_name: 'Regular',
+    avatar_url: null,
+    user_type: 'regular',
+    account_status: 'active',
+    email_verified: true,
+    created_at: JOINED_NAIVE,
+    updated_at: JOINED_NAIVE,
+    last_login_at: null,
+    ...options.profile,
+  };
+
+  const features = {
+    daily_predictions: 10,
+    markets: ['1X2', 'BTTS'],
+    history_days: 30,
+    confidence_visible: true,
+    expert_predictions: true,
+    advanced_analytics: false,
+    api_access: false,
+    priority_support: false,
+  };
+
+  const subscription = {
+    subscription_id: '00000000-0000-4000-8000-0000000000a1',
+    user_id: profile.id,
+    tier: 'basic',
+    tier_name: 'Basic',
+    status: 'active',
+    price: 9.99,
+    currency: 'USD',
+    billing_period: 'month',
+    features,
+    starts_at: JOINED_NAIVE,
+    ends_at: null,
+    usage: { predictions_today: 3, predictions_limit: 10, predictions_remaining: 7 },
+  };
+
+  const tiers = [
+    {
+      tier: 'free',
+      name: 'Free',
+      description: TIER_DESCRIPTION,
+      price: 0,
+      currency: 'USD',
+      billing_period: 'month',
+      features: { ...features, daily_predictions: 1, history_days: 1 },
+      is_current: false,
+      is_popular: false,
+      savings_percentage: 0,
+    },
+    {
+      tier: 'basic',
+      name: 'Basic',
+      description: TIER_DESCRIPTION,
+      price: 9.99,
+      currency: 'USD',
+      billing_period: 'month',
+      features,
+      is_current: true,
+      is_popular: true,
+      savings_percentage: 0,
+    },
+    {
+      tier: 'pro',
+      name: 'Pro',
+      description: TIER_DESCRIPTION,
+      price: 29.99,
+      currency: 'USD',
+      billing_period: 'month',
+      features: { ...features, daily_predictions: null, history_days: null, api_access: true },
+      is_current: false,
+      is_popular: false,
+      savings_percentage: 0,
+    },
+  ];
+
+  await page.route('**/api/v1/users/**', (route: Route) => json(route, profile));
+  await page.route('**/api/v1/subscriptions/**', (route: Route, request: Request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith('/tiers')) return json(route, tiers);
+    return json(route, subscription);
+  });
+  await page.route('**/api/v1/auth/verify-reset-token/**', (route: Route) => (
+    options.resetTokenValid === false
+      ? json(route, { detail: 'Invalid or expired reset token' }, 400)
+      : json(route, { valid: true, message: 'Token is valid' })
+  ));
+}
+
+/**
+ * The account screens, the URL each is reached at, and one string that proves it arrived.
+ *
+ * THE ANCHOR IS NOT DECORATION. "No text from the other catalogue" is derived from the
+ * catalogues, so it can only ever see a string that is IN one — and before this package the
+ * English on these forms was hard-coded in the JSX, where no generated check could reach it.
+ * That check alone would therefore have passed on the broken page, which is precisely the shape
+ * of false green this project has been bitten by twice. So each route also has to SHOW its own
+ * language's heading and NOT show the other's, which fails the moment a `t()` call is replaced
+ * by a literal again.
+ */
+const SIGNED_OUT_AUTH_ROUTES: Array<[string, keyof typeof en]> = [
+  ['/login', 'auth.login.heading'],
+  ['/register', 'auth.register.heading'],
+  ['/forgot-password', 'auth.forgot.heading'],
+  ['/reset-password?token=qa-token', 'auth.reset.heading'],
+];
+const SIGNED_IN_AUTH_ROUTES: Array<[string, keyof typeof en]> = [
+  ['/profile', 'auth.profile.heading'],
+  ['/password-change', 'auth.change.heading'],
+  ['/subscription', 'auth.subscription.heading'],
+];
+
+/**
+ * The heading this language must show, and the one it must not.
+ *
+ * Both sides are whitespace-normalised, because `bodyText` is: French puts a NO-BREAK space
+ * before « ? » and the catalogue holds it as one, so a raw comparison of "Mot de passe oublié ?"
+ * against the rendered text fails on an invisible character rather than on anything real.
+ */
+const flat = (value: string): string => value.replace(/\s+/g, ' ');
+
+function assertHeading(text: string, key: keyof typeof en, language: 'en' | 'fr', route: string): void {
+  const mine = flat(language === 'fr' ? fr[key] : (en[key] as string));
+  const theirs = flat(language === 'fr' ? (en[key] as string) : fr[key]);
+  expect(text, `${route} did not show its ${language} heading (${key})`).toContain(mine);
+  if (mine !== theirs) {
+    expect(text, `${route} in ${language} still shows the other language's heading`)
+      .not.toContain(theirs);
+  }
+}
+
+for (const language of ['en', 'fr'] as const) {
+  /**
+   * SIGN-IN WAS THE ONE FORM A FRENCH READER WAS GUARANTEED TO MEET AND THE ONE STILL ENTIRELY
+   * IN ENGLISH. A save control sends a signed-out reader here, so the page most likely to be
+   * their first was the page with none of their language on it. The reviewer reproduced the
+   * French-to-English jump in the browser; this is the assertion that was missing.
+   *
+   * It is the same generated check the core journey uses — every catalogue string from the
+   * other language, derived from the catalogues rather than listed by hand — applied to each of
+   * the seven auth and account screens in turn.
+   */
+  test(`the auth and account screens are in ${language} and carry nothing from the other CATALOGUE`, async ({ page }) => {
+    await seedPreferences(page, { language, zone: DOUALA });
+    await stubBackend(page);
+    await stubAccount(page);
+
+    for (const [route, heading] of SIGNED_OUT_AUTH_ROUTES) {
+      await page.goto(route);
+      await page.waitForLoadState('networkidle');
+      await expect(page.locator('html')).toHaveAttribute('lang', language);
+      const text = await bodyText(page);
+      expect(strays(text, language === 'fr' ? ENGLISH_ONLY : FRENCH_ONLY),
+        `${route} in ${language} carried text from the other catalogue`).toEqual([]);
+      assertHeading(text, heading, language, route);
+      // And it is the screen this test thinks it is, not a redirect to somewhere emptier.
+      expect(new URL(page.url()).pathname, `${route} did not stay put`)
+        .toBe(new URL(route, 'http://localhost').pathname);
+    }
+
+    await signIn(page);
+    for (const [route, heading] of SIGNED_IN_AUTH_ROUTES) {
+      await page.goto(route);
+      await page.waitForLoadState('networkidle');
+      await expect(page.locator('html')).toHaveAttribute('lang', language);
+      const text = await bodyText(page);
+      expect(strays(text, language === 'fr' ? ENGLISH_ONLY : FRENCH_ONLY),
+        `${route} in ${language} carried text from the other catalogue`).toEqual([]);
+      assertHeading(text, heading, language, route);
+      expect(new URL(page.url()).pathname, `${route} redirected: is the session stub still good?`)
+        .toBe(route);
+    }
+  });
+
+  /**
+   * The reset link that has expired, and the one that has not.
+   *
+   * Both states of this page exist and only one of them is reachable from the route above, so
+   * both are visited. The expired one carries the sentence with the link's lifetime counted in
+   * it — a number the page holds as a named constant and the catalogue counts, rather than a
+   * digit written into two catalogues.
+   */
+  test(`both states of the reset screen are in ${language}`, async ({ page }) => {
+    await seedPreferences(page, { language, zone: DOUALA });
+    await stubBackend(page);
+    await stubAccount(page, { resetTokenValid: false });
+    await page.goto('/reset-password?token=stale');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByText(
+      language === 'fr' ? fr['auth.reset.invalidHeading'] : en['auth.reset.invalidHeading'],
+    )).toBeVisible();
+    const text = await bodyText(page);
+    expect(strays(text, language === 'fr' ? ENGLISH_ONLY : FRENCH_ONLY),
+      `the expired-link screen in ${language} carried the other catalogue`).toEqual([]);
+    // One hour, counted by the language's own rule rather than spelled out in the catalogue.
+    expect(text).toContain(language === 'fr' ? '1 heure' : '1 hour');
+    expect(text, 'a plural at one is the bug this package exists to remove')
+      .not.toContain(language === 'fr' ? '1 heures' : '1 hours');
+  });
+
+  /**
+   * THE SAVE-INTENT NOTICE, which is the reason a reader is on the sign-in form at all.
+   *
+   * Reached the way a reader reaches it — by pressing save on a fixture while signed out — so
+   * this also proves the handoff still carries the label after the notice became one catalogue
+   * sentence instead of three fragments in English word order.
+   *
+   * The fixture's own name inside it is the PROVIDER's and is not translated. What is
+   * translated is the word joining the two clubs (`fixture.versus`), so the French notice reads
+   * "… contre …" and the English "… versus …" — and the emphasis follows the name wherever the
+   * sentence puts it.
+   */
+  test(`the save-intent notice on sign-in is in ${language}, with the fixture named as published`, async ({ page }) => {
+    await seedPreferences(page, { language, zone: DOUALA });
+    await stubBackend(page);
+
+    await page.goto('/predictions/today');
+    await page.waitForLoadState('networkidle');
+    await page.getByTestId('save-match-button').first().click();
+    await page.waitForURL('**/login**');
+
+    const notice = page.getByTestId('login-save-intent');
+    await expect(notice).toBeVisible();
+    const noticeText = (await notice.innerText()).replace(/\s+/g, ' ');
+
+    // The whole sentence, in this language, with a real fixture in the hole.
+    const joiner = language === 'fr' ? ' contre ' : ' versus ';
+    expect(noticeText, 'the two clubs are joined by the word this language uses')
+      .toContain(joiner);
+    expect(strays(noticeText, language === 'fr' ? ENGLISH_ONLY : FRENCH_ONLY),
+      'the notice carried text from the other catalogue').toEqual([]);
+
+    // The club names are emphasised INSIDE the sentence, not bolted to the end of it: the run in
+    // the span has to be a strict substring with catalogue text on at least one side of it.
+    const emphasised = (await notice.locator('span').first().innerText()).trim();
+    expect(emphasised, 'the fixture is what is picked out').toContain(joiner.trim());
+    expect(noticeText.indexOf(emphasised), 'the sentence does not begin with the fixture')
+      .toBeGreaterThan(0);
+    expect(noticeText.endsWith(emphasised), 'nor end with it').toBe(false);
+
+    /*
+     * AND THE SENTENCE AROUND IT IS THIS LANGUAGE'S, character for character.
+     *
+     * The stray check above cannot see this one: the message carries a hole, and ENGLISH_ONLY
+     * skips anything with ICU syntax in it because a template is not a literal. Without this
+     * line the French notice could still be the English sentence with a French fixture name in
+     * it — which is exactly what it was — and every assertion above would pass.
+     */
+    expect(noticeText, 'the notice is the catalogue sentence for this language').toBe(
+      renderMessage(
+        compileMessage((language === 'fr' ? FR : EN)['auth.saveIntent.signIn']),
+        language,
+        { match: emphasised },
+      ).replace(/\s+/g, ' '),
+    );
+  });
+}
+
+/**
+ * The backend's own words are the backend's own words.
+ *
+ * A tier's description is English prose the server sends, and it is rendered as sent on the
+ * French page too. That is deliberate — a French paraphrase of a server's message would be
+ * putting words in its mouth — and it is a real gap for a French reader, so it is asserted
+ * rather than left for someone to discover. Closing it is a backend change.
+ */
+for (const language of ['en', 'fr'] as const) {
+  test(`the backend's own words are not translated in ${language}`, async ({ page }) => {
+    await seedPreferences(page, { language, zone: DOUALA });
+    await stubBackend(page);
+    await stubAccount(page);
+    await signIn(page);
+    await page.goto('/subscription');
+    await page.waitForLoadState('networkidle');
+    const text = await bodyText(page);
+    expect(text, `the server's description must survive into ${language} unchanged`)
+      .toContain(TIER_DESCRIPTION);
+  });
+}
+
 /**
  * Keys that are deliberately identical in both catalogues, each with its reason.
  *
@@ -243,6 +586,39 @@ const SAME_IN_BOTH_ON_PURPOSE: Record<string, string> = {
   'filters.sources': 'the same word in French',
   'filters.group.source': 'the same word in French',
 };
+
+/**
+ * THE AREAS CLAIM NO KEY TWICE.
+ *
+ * ./messages/en.ts composes four area modules with a spread, and a spread resolves a duplicate
+ * silently by taking the last one. Three packages are writing into this catalogue at the same
+ * time; the way that goes wrong is two of them choosing the same key and one of them quietly
+ * losing, on a page nobody in that package is looking at. This is the only place that can see
+ * it, because by the time the catalogue is composed the collision is gone.
+ */
+test('the four catalogue areas claim no key twice', () => {
+  const areas: Array<[string, Record<string, string>]> = [
+    ['core', coreEn as Record<string, string>],
+    ['auth', authEn as Record<string, string>],
+    ['expert', expertEn as Record<string, string>],
+    ['reader', readerEn as Record<string, string>],
+  ];
+  const owner = new Map<string, string>();
+  const clashes: string[] = [];
+  for (const [name, area] of areas) {
+    for (const key of Object.keys(area)) {
+      const already = owner.get(key);
+      if (already) clashes.push(`${key}: claimed by ${already} and by ${name}`);
+      else owner.set(key, name);
+    }
+  }
+  expect(clashes, 'two areas define the same key; the spread in en.ts silently picks one')
+    .toEqual([]);
+
+  // And the composition holds exactly what the areas hold — no key added directly to en.ts,
+  // where the per-area French typing could never see it.
+  expect(Object.keys(en).sort()).toEqual([...owner.keys()].sort());
+});
 
 test('the two catalogues hold the same keys, and no French entry is still its English', () => {
   // `Catalog` in src/i18n/messages/types.ts makes the first half a compile error rather than a
@@ -824,6 +1200,137 @@ const COUNT_CASES: CountCase[] = [
       '11 sur 1',
     ],
   },
+
+  /* ---------------------------------------------- the auth and account screens */
+
+  /*
+   * Four of these count something that used to be a digit written into a sentence: the minimum
+   * password length, how long a reset link lasts, a tier's daily allowance and its history
+   * window. Each is now a value the page passes in from the payload or from a named constant,
+   * which is what lets the sentence agree — and "1 predictions/day" and "1 days history" were
+   * wrong in English too, not only untranslatable.
+   */
+  {
+    key: 'auth.validation.tooShortLong',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      'Le mot de passe doit comporter au moins 0 caractère',
+      'Le mot de passe doit comporter au moins 1 caractère',
+      'Le mot de passe doit comporter au moins 2 caractères',
+      'Le mot de passe doit comporter au moins 11 caractères',
+    ],
+  },
+  {
+    key: 'auth.validation.tooShort',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      'Le mot de passe doit comporter au moins 0 caractère',
+      'Le mot de passe doit comporter au moins 1 caractère',
+      'Le mot de passe doit comporter au moins 2 caractères',
+      'Le mot de passe doit comporter au moins 11 caractères',
+    ],
+  },
+  {
+    key: 'auth.reset.invalidBody',
+    params: (n: number) => ({ hours: n }),
+    fr: [
+      'Ce lien de réinitialisation est invalide ou a expiré. Les liens de réinitialisation ne sont valables que 0 heure.',
+      'Ce lien de réinitialisation est invalide ou a expiré. Les liens de réinitialisation ne sont valables que 1 heure.',
+      'Ce lien de réinitialisation est invalide ou a expiré. Les liens de réinitialisation ne sont valables que 2 heures.',
+      'Ce lien de réinitialisation est invalide ou a expiré. Les liens de réinitialisation ne sont valables que 11 heures.',
+    ],
+  },
+  {
+    key: 'auth.reset.newPasswordPlaceholder',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      'Saisissez un nouveau mot de passe (0 caractère minimum)',
+      'Saisissez un nouveau mot de passe (1 caractère minimum)',
+      'Saisissez un nouveau mot de passe (2 caractères minimum)',
+      'Saisissez un nouveau mot de passe (11 caractères minimum)',
+    ],
+  },
+  {
+    key: 'auth.change.rules',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      'Doit comporter au moins 0 caractère, dont une majuscule, une minuscule et un chiffre',
+      'Doit comporter au moins 1 caractère, dont une majuscule, une minuscule et un chiffre',
+      'Doit comporter au moins 2 caractères, dont une majuscule, une minuscule et un chiffre',
+      'Doit comporter au moins 11 caractères, dont une majuscule, une minuscule et un chiffre',
+    ],
+  },
+  {
+    key: 'auth.subscription.predictionsPerDay',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      '0 pronostic/jour',
+      '1 pronostic/jour',
+      '2 pronostics/jour',
+      '11 pronostics/jour',
+    ],
+  },
+  {
+    key: 'auth.subscription.historyDays',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      '0 jour d’historique',
+      '1 jour d’historique',
+      '2 jours d’historique',
+      '11 jours d’historique',
+    ],
+  },
+];
+
+/**
+ * The same seven, in English — because four of them changed the English too.
+ *
+ * "1 predictions/day", "1 days history", "min. 1 characters" and "valid for 1 hours" were what
+ * this interface printed before this package; they were frozen at the plural because the count
+ * was interpolated into a fixed string. Fixing the French would not have fixed those, and a
+ * table that only checks French would not have noticed either way.
+ */
+const ENGLISH_COUNT_CASES: Array<{ key: keyof typeof en; params: (n: number) => Record<string, string | number>; en: [string, string, string, string] }> = [
+  {
+    key: 'auth.validation.tooShortLong',
+    params: (n: number) => ({ count: n }),
+    en: [
+      'Password must be at least 0 characters long',
+      'Password must be at least 1 character long',
+      'Password must be at least 2 characters long',
+      'Password must be at least 11 characters long',
+    ],
+  },
+  {
+    key: 'auth.reset.invalidBody',
+    params: (n: number) => ({ hours: n }),
+    en: [
+      'This password reset link is invalid or has expired. Reset links are only valid for 0 hours.',
+      'This password reset link is invalid or has expired. Reset links are only valid for 1 hour.',
+      'This password reset link is invalid or has expired. Reset links are only valid for 2 hours.',
+      'This password reset link is invalid or has expired. Reset links are only valid for 11 hours.',
+    ],
+  },
+  {
+    key: 'auth.subscription.predictionsPerDay',
+    params: (n: number) => ({ count: n }),
+    en: [
+      '0 predictions/day',
+      '1 prediction/day',
+      '2 predictions/day',
+      '11 predictions/day',
+    ],
+  },
+  {
+    key: 'auth.subscription.historyDays',
+    params: (n: number) => ({ count: n }),
+    en: [
+      '0 days history',
+      '1 day history',
+      '2 days history',
+      '11 days history',
+    ],
+  },
 ];
 
 /** Both catalogues under one type, so a message can be rendered from either by key. */
@@ -854,6 +1361,19 @@ test('every count-bearing French string has the right form at 0, 1, 2 and 11', (
     });
   }
   expect(wrong, 'these French messages render the wrong form at these counts').toEqual([]);
+});
+
+test('the English counts this package changed are right at 0, 1, 2 and 11', () => {
+  const wrong: Array<{ at: string; expected: string; actual: string }> = [];
+  for (const testCase of ENGLISH_COUNT_CASES) {
+    COUNTS.forEach((count, index) => {
+      const actual = render(EN, 'en', testCase.key, testCase.params(count));
+      if (actual !== testCase.en[index]) {
+        wrong.push({ at: `${testCase.key} at ${count}`, expected: testCase.en[index], actual });
+      }
+    });
+  }
+  expect(wrong, 'these English messages render the wrong form at these counts').toEqual([]);
 });
 
 test('every message with a plural is in the table above', () => {
@@ -1142,6 +1662,156 @@ test('changing the zone re-asks for the day and re-times the fixtures already on
     .toHaveText('21:00');
   await expect(page.getByTestId('matchday-zone')).toContainText('Paris');
   await expect(page.getByTestId('matchday-zone')).not.toContainText('New York');
+});
+
+/* ============================================ a date on an account page, in the chosen zone */
+
+/**
+ * "MEMBER SINCE" WAS THREE BUGS IN ONE EXPRESSION.
+ *
+ * `new Date(profile.created_at).toLocaleDateString()` read the timestamp in the DEVICE's zone,
+ * formatted it in the DEVICE's zone, and formatted it in the DEVICE's locale. Only the second of
+ * those is the one everybody thinks of; the first is the nastiest, because this backend writes
+ * `created_at` with `datetime.utcnow()` into a column with no zone, and ECMAScript reads an
+ * offset-less date-time string as LOCAL time.
+ *
+ * WHY Asia/Dubai AND NOT America/New_York. New York is the browser context's own zone (see the
+ * note at the top of this file), so a test that chose it would pass whether the reader's choice
+ * was honoured or thrown away. At 21:00 UTC the calendar date is the 5th in New York and the 6th
+ * in Dubai: the two answers are different days, so only one of them can be given.
+ */
+for (const language of ['en', 'fr'] as const) {
+  test(`Member Since follows the chosen zone and language, not the device's, in ${language}`, async ({ page }) => {
+    await seedPreferences(page, { language, zone: DUBAI });
+    await stubBackend(page);
+    await stubAccount(page);
+    await signIn(page);
+    await page.goto('/profile');
+    await page.waitForLoadState('networkidle');
+
+    const since = page.getByTestId('profile-member-since');
+    await expect(since).toBeVisible();
+    const shown = (await since.innerText()).trim();
+
+    // The day the reader's chosen zone is on, spelled out in the reader's language.
+    expect(shown, 'the chosen zone decides the calendar date')
+      .toBe(language === 'fr' ? '6 janvier 2026' : '6 January 2026');
+    // The device's answer, which is a different DAY, must not be what is on screen.
+    expect(shown, "the device's zone is one day behind here and must not decide this")
+      .not.toContain('5 ');
+    // Nor the device's locale, which writes this date as a slashed numeral.
+    expect(shown, 'the device locale must not decide the format either').not.toContain('/');
+
+    /*
+     * And the page says that the date rests on reading an offset-less timestamp as UTC. That is
+     * a claim about the backend rather than something the payload states, so it is made out
+     * loud — with the zone it was then shown in named.
+     */
+    const note = page.getByTestId('profile-member-since-note');
+    await expect(note, 'an unzoned timestamp must say so').toBeVisible();
+    await expect(note).toContainText('Dubai');
+  });
+}
+
+/**
+ * The other half of the same rule: when the server DOES say which zone it meant, the page does
+ * not caveat it.
+ *
+ * Without this, "always show the note" would pass the test above, and the caveat would become
+ * noise a reader learns to skip — which is how a warning stops being read.
+ */
+test('a timestamp that carries its own offset is shown without the caveat', async ({ page }) => {
+  await seedPreferences(page, { language: 'fr', zone: DUBAI });
+  await stubBackend(page);
+  await stubAccount(page, { profile: { created_at: JOINED_ANCHORED } });
+  await signIn(page);
+  await page.goto('/profile');
+  await page.waitForLoadState('networkidle');
+
+  await expect(page.getByTestId('profile-member-since')).toHaveText('6 janvier 2026');
+  await expect(page.getByTestId('profile-member-since-note'),
+    'nothing was assumed here, so nothing should be disclaimed').toHaveCount(0);
+});
+
+/**
+ * THE READ, ON ITS OWN — which the Dubai tests above cannot see.
+ *
+ * "Member Since" was three bugs in one expression: the string was READ in the device's zone, then
+ * FORMATTED in the device's zone, and formatted in the device's locale. The tests above pin the
+ * second and third. They cannot pin the first, and the fixture comment overstates when it says
+ * one value separates all three.
+ *
+ * Work it through with their pair. Device New York (-5 in January), choice Dubai (+4), value
+ * 21:00 with no offset. Read as UTC it is 06 Jan 01:00 in Dubai; read in the device's zone it is
+ * 06 Jan 06:00 in Dubai. Five hours apart and the SAME CALENDAR DAY — and the assertion is on the
+ * date alone, so both readings satisfy it. Removing the `Z` that `backendInstant` appends leaves
+ * every test in this file green, which was verified by doing it.
+ *
+ * So this test picks the zone where the two readings fall on different days, and it is the zone
+ * this product is actually for. In Douala (+1) the correct read is 05 Jan 22:00 and the device
+ * read is 06 Jan 03:00 — a different DAY, and only one of them can be shown. That is the whole
+ * point of `backendInstant`: against an offset-less timestamp the error is up to a full day, not
+ * a few hours, and a date-only assertion in a zone that does not straddle midnight cannot say so.
+ */
+test('an offset-less timestamp is read as the UTC the server wrote, not in the device\'s zone', async ({ page }) => {
+  await seedPreferences(page, { language: 'fr', zone: DOUALA });
+  await stubBackend(page);
+  await stubAccount(page);
+  await signIn(page);
+  await page.goto('/profile');
+  await page.waitForLoadState('networkidle');
+
+  const shown = (await page.getByTestId('profile-member-since').innerText()).trim();
+
+  // 21:00 UTC on the 5th is 22:00 on the 5th in Douala.
+  expect(shown, 'the server wrote 21:00 UTC, so in Douala this is still the 5th')
+    .toBe('5 janvier 2026');
+  // Reading the same string in the device's New York would carry it over into the 6th.
+  expect(shown, "reading it in the device's zone would move it to the next day")
+    .not.toContain('6 janvier');
+
+  // And the page still says the reading rests on an assumption, naming the zone it then used.
+  await expect(page.getByTestId('profile-member-since-note')).toContainText('Douala');
+});
+
+/* ================================================= a price, in the reader's own convention */
+
+/**
+ * `` `$${price.toFixed(2)}` `` wrote an American price for a French reader.
+ *
+ * French writes "9,99 $": the symbol after the figure, a comma for the decimal, and a no-break
+ * space between them. None of that can come out of a template literal, and the currency was
+ * assumed rather than read from the `currency` the payload carries.
+ *
+ * The assertion is about the CONVENTION rather than about CLDR's exact bytes — a runtime is
+ * free to change which flavour of space it puts before the symbol, and a test that pinned that
+ * would fail on an ICU upgrade for no reason. What may not change is that the French page is
+ * not showing the English string.
+ */
+test('the subscription price is written the way the reader\'s language writes money', async ({ page }) => {
+  await seedPreferences(page, { language: 'en', zone: DOUALA });
+  await stubBackend(page);
+  await stubAccount(page);
+  await signIn(page);
+  await page.goto('/subscription');
+  await page.waitForLoadState('networkidle');
+  // English is unchanged by this package, to the character.
+  await expect(page.getByTestId('subscription-price')).toHaveText('$9.99/month');
+});
+
+test('the same price in French is not the English one', async ({ page }) => {
+  await seedPreferences(page, { language: 'fr', zone: DOUALA });
+  await stubBackend(page);
+  await stubAccount(page);
+  await signIn(page);
+  await page.goto('/subscription');
+  await page.waitForLoadState('networkidle');
+
+  const price = (await page.getByTestId('subscription-price').innerText()).trim();
+  expect(price, 'French puts the decimal comma in').toContain('9,99');
+  expect(price, 'and the period in French').toContain('/mois');
+  expect(price, 'and it is not the English rendering').not.toContain('$9.99');
+  expect(price, 'nor the English period').not.toContain('/month');
 });
 
 /* ================================================================ 200% text zoom, both languages */

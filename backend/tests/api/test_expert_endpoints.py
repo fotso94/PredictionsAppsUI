@@ -153,7 +153,11 @@ def _enriched(prediction) -> Dict[str, Any]:
         "home_win_prob": float(prediction.home_win_prob),
         "draw_prob": float(prediction.draw_prob),
         "away_win_prob": float(prediction.away_win_prob),
-        "confidence_score": float(prediction.confidence_score),
+        # Mirrors the real method, which now guards this: predictions.confidence_score is
+        # nullable, so a prediction whose author supplied no conviction reaches here as None and a
+        # bare float() would both crash and, if it did not, invent a conviction of zero.
+        "confidence_score": (float(prediction.confidence_score)
+                             if prediction.confidence_score is not None else None),
         # Unavailable markets stay None
         "btts_yes_prob": None,
         "btts_no_prob": None,
@@ -262,6 +266,83 @@ class TestCreateManualPrediction:
                        "total_goals_over_35_prob", "total_goals_under_35_prob",
                        "total_goals_confidence"):
             assert data[market] is None, f"{market} must be unavailable (null), not {data[market]!r}"
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    @patch("app.api.v1.endpoints.expert.PredictionAuditService")
+    def test_a_conviction_the_expert_did_not_supply_is_serialised_as_null(
+        self, mock_audit_service, mock_expert_service, client
+    ):
+        """The headline conviction gets the same treatment every optional market already had.
+
+        It did not used to. predictions.confidence_score was NOT NULL, the service coerced a
+        missing conviction to Decimal("0.0") on the way in, and ExpertPredictionResponse declared
+        the field a required float - three separate places that made "the author said nothing"
+        indistinguishable from "the author said zero". This request supplies no conviction and the
+        response must carry null, because that is the only value that means nobody claimed one.
+        """
+        stored = _make_prediction()
+        stored.confidence_score = None
+        mock_service_instance = _service_mock()
+        mock_service_instance.create_manual_prediction.return_value = stored
+        mock_expert_service.return_value = mock_service_instance
+
+        response = client.post(
+            "/api/v1/expert/predictions/manual",
+            json={
+                "match_id": str(uuid.uuid4()),
+                "home_win_prob": 0.6,
+                "draw_prob": 0.25,
+                "away_win_prob": 0.15,
+                "reasoning": "No conviction offered on this one",
+            },
+            headers={"Authorization": "Bearer mock-token"}
+        )
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert "confidence_score" in data, "the field must be present and null, not omitted"
+        assert data["confidence_score"] is None, (
+            f"an unsupplied conviction was serialised as {data['confidence_score']!r}")
+
+        # And the request really did reach the service without one, rather than the endpoint
+        # having filled a default in on the way past.
+        sent = mock_service_instance.create_manual_prediction.call_args.args[0]
+        assert sent.confidence_score is None
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    @patch("app.api.v1.endpoints.expert.PredictionAuditService")
+    def test_a_conviction_of_zero_is_still_serialised_as_zero(
+        self, mock_audit_service, mock_expert_service, client
+    ):
+        """The control. An expert who types 0 has claimed something and the API must transmit it.
+
+        If this test and the one above ever agree, the distinction has been collapsed again -
+        usually by somebody writing `if data.confidence_score` instead of `is not None`.
+        """
+        stored = _make_prediction()
+        stored.confidence_score = Decimal("0.0000")
+        mock_service_instance = _service_mock()
+        mock_service_instance.create_manual_prediction.return_value = stored
+        mock_expert_service.return_value = mock_service_instance
+
+        response = client.post(
+            "/api/v1/expert/predictions/manual",
+            json={
+                "match_id": str(uuid.uuid4()),
+                "home_win_prob": 0.6,
+                "draw_prob": 0.25,
+                "away_win_prob": 0.15,
+                "confidence_score": 0.0,
+                "reasoning": "I stand behind this one not at all",
+            },
+            headers={"Authorization": "Bearer mock-token"}
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["confidence_score"] == 0.0
+
+        sent = mock_service_instance.create_manual_prediction.call_args.args[0]
+        assert sent.confidence_score == 0.0, "a claimed zero was dropped before it reached the service"
 
     @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
     @patch("app.api.v1.endpoints.expert.PredictionAuditService")

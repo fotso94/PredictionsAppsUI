@@ -333,6 +333,63 @@ function asDate(value: Date | string | number | null | undefined): Date | null {
   return Number.isNaN(at.getTime()) ? null : at
 }
 
+// --------------------------------------------------------- a timestamp the backend wrote
+
+/** A timestamp that already carries its offset: a trailing `Z`, `+01:00` or `-0400`. */
+const CARRIES_AN_OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i
+
+/** A calendar date with no time at all. ECMAScript already reads this form as UTC midnight. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+
+/** What `backendInstant` could establish about a timestamp from the server. */
+export interface BackendInstant {
+  /** The moment, or null when the value was absent or unreadable. */
+  at: Date | null
+  /**
+   * True when the server said which zone the timestamp was in. False when it did not and this
+   * read it as UTC — which is a claim, and the page that shows it should say so.
+   */
+  anchored: boolean
+}
+
+/**
+ * Read a timestamp from this backend, and report whether it actually named an instant.
+ *
+ * WHY THIS EXISTS AND WHY EVERY PAGE SHOWING A SERVER TIMESTAMP SHOULD USE IT. Several of this
+ * backend's columns are `DateTime` with no time zone, written with `datetime.utcnow()` — see
+ * `TimestampMixin` in backend/app/models/base.py:34, which is where `created_at` and `updated_at`
+ * come from. Pydantic serialises a naive datetime with NO offset at all: "2026-01-05T09:00:00".
+ * And ECMAScript reads a date-TIME string without an offset in the DEVICE's zone, not UTC. So
+ * `new Date(profile.created_at)` was silently shifted by whatever the reader's laptop was set to,
+ * and then `toLocaleDateString()` shifted it again into the device's zone and the device's
+ * language. On a phone in Douala that is how a 23:30 UTC sign-up became the following day.
+ *
+ * Reading it as UTC is not a guess: it is what the server wrote. But it IS an assumption about
+ * the server rather than something the payload states, so it is reported rather than hidden —
+ * `anchored: false` is the caller's cue to say on the page that the date is being read as UTC
+ * and shown in the reader's chosen zone. ProfilePage.tsx does exactly that.
+ *
+ * A DATE-ONLY value ("2026-01-05") is a calendar date and not an instant at all. ECMAScript
+ * already reads that form as UTC midnight, and it comes back `anchored: false` for the same
+ * reason: showing it in a zone behind UTC would move it to the day before, and the caller needs
+ * to be able to say so.
+ */
+export function backendInstant(value: string | number | Date | null | undefined): BackendInstant {
+  if (value === null || value === undefined || value === '') return { at: null, anchored: true }
+  if (value instanceof Date || typeof value === 'number') {
+    return { at: asDate(value), anchored: true }
+  }
+  const trimmed = value.trim()
+  // A calendar date parses on its own; appending "Z" to it would only make it unreadable.
+  if (DATE_ONLY.test(trimmed)) return { at: asDate(trimmed), anchored: false }
+  const anchored = CARRIES_AN_OFFSET.test(trimmed)
+  // Appending "Z" is what makes the browser read the server's UTC as UTC. Nothing else here
+  // touches the string: a value that is already anchored is parsed exactly as it arrived.
+  const at = asDate(anchored ? trimmed : `${trimmed}Z`)
+  // A string that does not parse even with the offset added is unreadable, not unanchored.
+  return at ? { at, anchored } : { at: null, anchored: true }
+}
+
 /** "19 September 2026" / "19 septembre 2026". Null in, null out — never "Invalid Date". */
 export function formatDate(value: Date | string | number | null | undefined): string | null {
   const at = asDate(value)
@@ -383,6 +440,48 @@ export function formatDayOfMonth(value: Date): string {
 /** A number in the reader's own convention: 1,234 in English, 1 234 in French. */
 export function formatNumber(value: number): string {
   return formatNumberIn(currentLocale(), value)
+}
+
+const moneyFormats = new Map<string, Intl.NumberFormat>()
+
+/**
+ * A price, in the reader's own convention and in the currency the payload names.
+ *
+ * `` `$${price.toFixed(2)}` `` was English with an American currency symbol welded on, for every
+ * reader: it wrote "$9.99" in French too, where the convention is "9,99 $" — the symbol after
+ * the figure, a comma for the decimal, and a no-break space between them that `Intl` supplies
+ * and a template literal cannot.
+ *
+ * `currencyDisplay: 'narrowSymbol'` rather than the default: the default renders USD in en-GB as
+ * "US$9.99", so the plain symbol is both what this interface already showed and the less
+ * cluttered of the two. The currency itself is never assumed — it is the `currency` field the
+ * subscription payload carries.
+ *
+ * An unknown currency code, or a runtime without `narrowSymbol`, makes `Intl` throw rather than
+ * degrade. The fallback below prints the grouped figure and the code beside it, which is
+ * readable and true, instead of taking the page down over a price.
+ */
+export function formatMoney(amount: number, currency: string): string {
+  const code = (currency || '').trim().toUpperCase()
+  const key = `${currentLocale()}|${code}`
+  let format = moneyFormats.get(key)
+  if (!format) {
+    try {
+      format = new Intl.NumberFormat(currentLocale(), {
+        style: 'currency',
+        currency: code,
+        currencyDisplay: 'narrowSymbol',
+      })
+    } catch {
+      try {
+        format = new Intl.NumberFormat(currentLocale(), { style: 'currency', currency: code })
+      } catch {
+        return `${formatNumber(amount)}${code ? ` ${code}` : ''}`
+      }
+    }
+    moneyFormats.set(key, format)
+  }
+  return format.format(amount)
 }
 
 const percentFormats = new Map<string, Intl.NumberFormat>()

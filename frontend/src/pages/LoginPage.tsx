@@ -7,6 +7,8 @@ import Card from '@/components/ui/Card'
 import { useAuth } from '@/hooks/useAuth'
 import type { ReturnedFromSignIn } from '@/components/favourites/useMatchSaving'
 import { pendingSaveIntent, safeReturnPath, useResumeSave } from '@/components/favourites/useMatchSaving'
+import Emphasised from '@/i18n/Emphasised'
+import { useT } from '@/i18n/react'
 
 /**
  * Sign in — and, when something sent the visitor here, carry on with it afterwards.
@@ -23,9 +25,16 @@ import { pendingSaveIntent, safeReturnPath, useResumeSave } from '@/components/f
  * afterwards is what puts the visitor back where they were without leaving the role page in their
  * history; `replace` rather than `push` so Back does not bounce them forward again. With no return
  * destination nothing is replaced, and AuthContext's role landing page stands exactly as before.
+ *
+ * EVERY WORD ON THIS PAGE IS NOW IN THE READER'S LANGUAGE. It was the one form a French reader
+ * was guaranteed to meet — a save control sends them here — and it was the one page still
+ * entirely in English, notice included. The strings are in src/i18n/messages/auth.en.ts and
+ * auth.fr.ts; nothing here builds a sentence out of fragments, and the fixture's name inside the
+ * notice stays exactly as the provider publishes it.
  */
 
 const LoginPage: React.FC = () => {
+  const t = useT()
   const { login, isAuthenticated, isLoading } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
@@ -42,6 +51,9 @@ const LoginPage: React.FC = () => {
   const returnTo = safeReturnPath(location.state)
   /** The save they were in the middle of, if any — used only to say so above the form. */
   const interruptedSave = pendingSaveIntent(location.state)
+
+  /** How the waiting save is named on screen: the provider's words, or ours if it carried none. */
+  const savedLabel = interruptedSave?.label ?? t('auth.saveIntent.thatMatch')
 
   /** Tells the destination it was returned to, not walked to. See ReturnedFromSignIn. */
   const arrival: ReturnedFromSignIn = { resumedFromSignIn: true }
@@ -81,8 +93,8 @@ const LoginPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>Sign In - Soccer Predictions</title>
-        <meta name="description" content="Sign in to your Soccer Predictions account to access premium features and personalized predictions." />
+        <title>{t('auth.login.documentTitle')}</title>
+        <meta name="description" content={t('auth.login.documentDescription')} />
       </Helmet>
 
       <div className="min-h-screen bg-dark-950 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -93,15 +105,15 @@ const LoginPage: React.FC = () => {
               <div className="h-10 w-10 rounded-lg bg-gradient-to-r from-primary-500 to-primary-600 flex items-center justify-center">
                 <span className="text-white font-bold text-xl">SP</span>
               </div>
-              <span className="text-2xl font-bold text-white">Soccer Predictions</span>
+              <span className="text-2xl font-bold text-white">{t('app.name')}</span>
             </Link>
-            <h2 className="text-3xl font-bold text-white">Sign in to your account</h2>
+            <h2 className="text-3xl font-bold text-white">{t('auth.login.heading')}</h2>
             <p className="mt-2 text-secondary-400">
-              Or{' '}
+              {t('auth.login.newAccountPrompt')}{' '}
               {/* The handoff rides along, so creating an account instead still finishes the save
                   and still returns to the same page. */}
               <Link to="/register" state={location.state} className="text-primary-400 hover:text-primary-300">
-                create a new account
+                {t('auth.login.newAccountLink')}
               </Link>
             </p>
           </div>
@@ -116,9 +128,17 @@ const LoginPage: React.FC = () => {
               className="rounded-lg border border-dark-700 bg-dark-900/60 px-4 py-3 text-center text-sm text-secondary-200"
               data-testid="login-save-intent"
             >
-              Saving a match needs an account. Sign in and we will finish saving{' '}
-              <span className="font-medium text-white">{interruptedSave.label ?? 'that match'}</span>
-              {' '}and take you back to where you were.
+              {/*
+                One sentence from the catalogue, with the fixture's own name emphasised inside
+                it wherever the language puts it — not a prefix and a suffix in English order.
+                The name itself is the provider's and is never translated; when the handoff
+                carried none, the catalogue supplies "that match" in the reader's language.
+              */}
+              <Emphasised
+                sentence={t('auth.saveIntent.signIn', { match: savedLabel })}
+                value={savedLabel}
+                className="font-medium text-white"
+              />
             </p>
           )}
 
@@ -128,7 +148,7 @@ const LoginPage: React.FC = () => {
               <form className="space-y-6" onSubmit={handleSubmit}>
                 <div>
                   <label htmlFor="email" className="form-label">
-                    Email address
+                    {t('auth.field.email')}
                   </label>
                   <input
                     id="email"
@@ -137,7 +157,7 @@ const LoginPage: React.FC = () => {
                     autoComplete="email"
                     required
                     className="form-input"
-                    placeholder="Enter your email"
+                    placeholder={t('auth.field.emailPlaceholder')}
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
@@ -145,7 +165,7 @@ const LoginPage: React.FC = () => {
 
                 <div>
                   <label htmlFor="password" className="form-label">
-                    Password
+                    {t('auth.field.password')}
                   </label>
                   <div className="relative">
                     <input
@@ -155,13 +175,16 @@ const LoginPage: React.FC = () => {
                       autoComplete="current-password"
                       required
                       className="form-input pr-10"
-                      placeholder="Enter your password"
+                      placeholder={t('auth.field.passwordPlaceholder')}
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     />
+                    {/* The eye had no accessible name at all before this: a screen reader was
+                        told only "button". */}
                     <button
                       type="button"
                       className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      aria-label={t(showPassword ? 'auth.field.hidePassword' : 'auth.field.showPassword')}
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? (
@@ -184,13 +207,13 @@ const LoginPage: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
                     />
                     <label htmlFor="remember-me" className="ml-2 block text-sm text-secondary-300">
-                      Remember me
+                      {t('auth.login.rememberMe')}
                     </label>
                   </div>
 
                   <div className="text-sm">
                     <Link to="/forgot-password" className="text-primary-400 hover:text-primary-300">
-                      Forgot your password?
+                      {t('auth.login.forgotPassword')}
                     </Link>
                   </div>
                 </div>
@@ -202,7 +225,7 @@ const LoginPage: React.FC = () => {
                     size="lg"
                     disabled={isSubmitting || isLoading}
                   >
-                    {isSubmitting || isLoading ? 'Signing in...' : 'Sign in'}
+                    {t(isSubmitting || isLoading ? 'auth.login.submitting' : 'auth.login.submit')}
                   </Button>
                 </div>
               </form>

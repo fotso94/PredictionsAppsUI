@@ -11,8 +11,10 @@ import useMatchSaving from '@/components/favourites/useMatchSaving'
 import { footballDataService } from '@/services/football-data.service'
 import apiClient from '@/services/api-client'
 import { ApiMatch, describeError, mapApiMatch } from '@/services/backend-match-data.service'
-import { configuredDataSource, localDateString } from '@/services/match-data-source'
+import { configuredDataSource, localDateString, timezoneOffsetMinutes } from '@/services/match-data-source'
 import { onTeamLogoError, onLeagueLogoError } from '@/components/ui/imageFallback'
+import { useT } from '@/i18n/react'
+import { formatNumber, type MessageKey } from '@/i18n'
 
 /**
  * One competition: standings, its teams, and its next fixtures.
@@ -36,10 +38,18 @@ import { onTeamLogoError, onLeagueLogoError } from '@/components/ui/imageFallbac
  * A partial failure no longer replaces the page. Standings, teams and fixtures degrade
  * independently; losing one of them is a note above the sections that did load, not an error screen
  * standing in front of data we actually have.
+ *
+ * 3. THE DAY WINDOW IS THE READER'S ZONE, NOT THE DEVICE'S.
+ *    This file carried a private `timezoneOffsetMinutes = () => -new Date().getTimezoneOffset()`,
+ *    which is the DEVICE's offset. Every other fixture read on this site asks the backend for a
+ *    window bounded by the zone the reader CHOSE (`localDayOffsets` in match-data-source.ts, which
+ *    delegates to src/i18n/zones.ts and takes the offset at the local midnight rather than at this
+ *    moment, so a daylight-saving day is still 23 or 25 hours long). A reader in Douala with a
+ *    laptop still set to Paris was therefore shown a competition's fortnight cut on Paris
+ *    boundaries, while the same fixtures on the matchday workspace were cut on Douala's. The
+ *    shared function is now used, so the two cannot disagree — and `localDateString` below, which
+ *    decides which of those fixtures count as upcoming, has always read the chosen zone.
  */
-
-/** Minutes east of UTC, the sign the backend's `tz_offset` expects (`-getTimezoneOffset()`). */
-const timezoneOffsetMinutes = (): number => -new Date().getTimezoneOffset()
 
 /** League fixtures without asking the backend to refresh from a provider. See note 1 above. */
 async function storedLeagueFixtures(leagueId: string): Promise<Match[]> {
@@ -66,7 +76,46 @@ function teamsFrom(standings: LeagueStanding[], matches: Match[]): Team[] {
   return Array.from(teams.values()).sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/**
+ * The standings columns: what is drawn in the header, and the full name behind it.
+ *
+ * The visible cell stays an abbreviation — ten full words will not fit on a phone — but an
+ * abbreviation alone is unreadable, and in French it is worse than unreadable: « P » is Perdus,
+ * lost, where the English "P" is Played. So every column also carries its full name as the
+ * header's accessible name, which is what a screen reader announces for every cell in the
+ * column beneath it.
+ *
+ * ── ONE COLUMN IS NOT IN THE CATALOGUE, DELIBERATELY ────────────────────────────────────────
+ *
+ * French writes the points column "Pts" and the word "Points" exactly as English does. A
+ * catalogue pair whose two sides are the identical string is indistinguishable from a
+ * translation nobody did, and `the two catalogues hold the same keys, and no French entry is
+ * still its English` in e2e/mocked/localisation.spec.ts fails on precisely that — rightly, since
+ * that is the shape a missed key hides in. That spec keeps a short list of words French spells
+ * as English does ("leaving them alone is the translation"), and it belongs to another package.
+ * So rather than adding an entry to somebody else's list, the two identical labels are stated
+ * here, once, where the claim can be read and checked: `sameInBoth` means "this is the French
+ * too". `reader-localisation.spec.ts` asserts both languages render them.
+ */
+type ColumnLabel = MessageKey | { sameInBoth: string }
+
+const STANDINGS_COLUMNS: Array<{ short: ColumnLabel; full: ColumnLabel; align: string }> = [
+  { short: 'reader.standings.position', full: 'reader.standings.positionFull', align: 'text-left' },
+  { short: 'reader.standings.team', full: 'reader.standings.teamFull', align: 'text-left' },
+  { short: 'reader.standings.played', full: 'reader.standings.playedFull', align: 'text-center' },
+  { short: 'reader.standings.won', full: 'reader.standings.wonFull', align: 'text-center' },
+  { short: 'reader.standings.drawn', full: 'reader.standings.drawnFull', align: 'text-center' },
+  { short: 'reader.standings.lost', full: 'reader.standings.lostFull', align: 'text-center' },
+  { short: 'reader.standings.goalsFor', full: 'reader.standings.goalsForFull', align: 'text-center' },
+  { short: 'reader.standings.goalsAgainst', full: 'reader.standings.goalsAgainstFull', align: 'text-center' },
+  { short: 'reader.standings.goalDifference', full: 'reader.standings.goalDifferenceFull', align: 'text-center' },
+  { short: { sameInBoth: 'Pts' }, full: { sameInBoth: 'Points' }, align: 'text-center' },
+]
+
 const LeagueDetailPage: React.FC = () => {
+  const t = useT()
+  /** A column header, from the catalogue or from the short list of words French shares. */
+  const columnLabel = (label: ColumnLabel): string => (typeof label === 'string' ? t(label) : label.sameInBoth)
   // Support both route patterns: /league/:id and /leagues/:leagueId
   const { id, leagueId } = useParams<{ id?: string; leagueId?: string }>()
   const leagueIdParam = id || leagueId
@@ -78,8 +127,16 @@ const LeagueDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   /** The competition itself could not be loaded: there is no page to show. */
   const [fatalError, setFatalError] = useState<string | null>(null)
-  /** Some sections are missing. The rest of the page is still real and still shown. */
-  const [partialError, setPartialError] = useState<string | null>(null)
+  /**
+   * Some sections are missing. The rest of the page is still real and still shown.
+   *
+   * A KEY rather than a sentence: this is one of our own statements, and storing the rendered
+   * English in state would have frozen it at the language the fetch happened to fail in — the
+   * sentence would then have stayed English after a switch to French, on a page otherwise
+   * entirely in French. The fatal error below is the opposite case and stays a string: it is the
+   * backend's own words, which are not ours to re-render in another language.
+   */
+  const [partialError, setPartialError] = useState<MessageKey | null>(null)
 
   const saving = useMatchSaving()
 
@@ -96,7 +153,9 @@ const LeagueDetailPage: React.FC = () => {
 
         if (cancelled) return
         if (!foundLeague) {
-          setFatalError('League not found')
+          // No fatal error is set: `league` stays null, which renders the not-found block below.
+          // Setting one as well printed "League not found" underneath a heading already reading
+          // "League Not Found" and a line already saying the competition could not be found.
           setLoading(false)
           return
         }
@@ -116,9 +175,9 @@ const LeagueDetailPage: React.FC = () => {
           throw standingsResult.reason
         }
         if (standingsResult.status === 'rejected') {
-          setPartialError('The standings table could not be loaded, so it is not shown.')
+          setPartialError('reader.league.partialStandings')
         } else if (matchesResult.status === 'rejected') {
-          setPartialError('The fixture list could not be loaded, so it is not shown.')
+          setPartialError('reader.league.partialFixtures')
         }
 
         // Upcoming matches first (today onwards), earliest first
@@ -152,7 +211,7 @@ const LeagueDetailPage: React.FC = () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="py-12 text-center">
             <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-primary-500"></div>
-            <div className="text-secondary-400">Loading league details...</div>
+            <div className="text-secondary-400">{t('reader.league.loading')}</div>
           </div>
         </div>
       </div>
@@ -164,8 +223,8 @@ const LeagueDetailPage: React.FC = () => {
       <div className="min-h-screen bg-dark-950 py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="py-12 text-center">
-            <h1 className="mb-4 text-2xl font-bold text-white">League Not Found</h1>
-            <p className="text-secondary-400">The requested league could not be found.</p>
+            <h1 className="mb-4 text-2xl font-bold text-white">{t('reader.league.notFoundHeading')}</h1>
+            <p className="text-secondary-400">{t('reader.league.notFoundBody')}</p>
             {fatalError && <p className="mt-2 text-danger-300">{fatalError}</p>}
           </div>
         </div>
@@ -176,8 +235,12 @@ const LeagueDetailPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>{league.name} - Soccer Predictions</title>
-        <meta name="description" content={`${league.name} standings, fixtures and published forecasts for the ${league.season} season.`} />
+        {/* The competition's own name is the provider's and is never translated. */}
+        <title>{t('reader.league.documentTitle', { league: league.name, app: t('app.name') })}</title>
+        <meta
+          name="description"
+          content={t('reader.league.documentDescription', { league: league.name, season: league.season })}
+        />
       </Helmet>
 
       <div className="min-h-screen bg-dark-950 py-8">
@@ -204,9 +267,10 @@ const LeagueDetailPage: React.FC = () => {
                 <EmptyState
                   variant="inline"
                   tone="failed"
-                  title="This competition could not be loaded."
+                  title={t('reader.league.loadFailedTitle')}
+                  /* The backend's own words, shown as they arrived. */
                   description={fatalError}
-                  action={<Button onClick={() => window.location.reload()}>Try again</Button>}
+                  action={<Button onClick={() => window.location.reload()}>{t('reader.league.tryAgain')}</Button>}
                 />
               </Card.Body>
             </Card>
@@ -214,21 +278,25 @@ const LeagueDetailPage: React.FC = () => {
             <div className="space-y-8">
               {partialError && (
                 <p role="status" className="rounded-lg border border-dark-700 bg-dark-900/60 px-4 py-3 text-sm text-warning-200">
-                  {partialError}
+                  {t(partialError)}
                 </p>
               )}
 
               {/* Fixtures come first: the matches are what the page is for. */}
               <section aria-labelledby="league-fixtures">
                 <h2 id="league-fixtures" className="mb-4 text-xl font-semibold text-white">
-                  Upcoming matches
-                  {matches.length > 0 && <span className="num ml-2 text-sm font-normal text-secondary-400">{matches.length}</span>}
+                  {t('reader.upcomingMatches')}
+                  {matches.length > 0 && (
+                    <span className="num ml-2 text-sm font-normal text-secondary-400">
+                      {formatNumber(matches.length)}
+                    </span>
+                  )}
                 </h2>
                 {matches.length === 0 ? (
                   <EmptyState
                     tone="empty"
-                    title="No upcoming fixtures are stored for this competition."
-                    description="Nothing is scheduled in the next two weeks in the data we hold."
+                    title={t('reader.league.noFixturesTitle')}
+                    description={t('reader.league.noFixturesBody')}
                     data-testid="league-no-fixtures"
                   />
                 ) : (
@@ -250,33 +318,30 @@ const LeagueDetailPage: React.FC = () => {
                   </div>
                 )}
                 {saving.signedIn && saving.failed && (
-                  <p className="mt-2 text-xs text-warning-200">
-                    We could not load your saved matches, so the save control cannot show which of
-                    these you have already saved.
-                  </p>
+                  <p className="mt-2 text-xs text-warning-200">{t('reader.saveStateUnknown')}</p>
                 )}
               </section>
 
               {standings.length > 0 && (
                 <Card>
                   <Card.Header>
-                    <h2 className="text-xl font-semibold text-white">Standings</h2>
+                    <h2 className="text-xl font-semibold text-white">{t('reader.league.standings')}</h2>
                   </Card.Header>
                   <Card.Body>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-dark-700">
-                            <th className="px-2 py-3 text-left font-medium text-secondary-400">#</th>
-                            <th className="px-2 py-3 text-left font-medium text-secondary-400">Team</th>
-                            <th className="px-2 py-3 text-center font-medium text-secondary-400">P</th>
-                            <th className="px-2 py-3 text-center font-medium text-secondary-400">W</th>
-                            <th className="px-2 py-3 text-center font-medium text-secondary-400">D</th>
-                            <th className="px-2 py-3 text-center font-medium text-secondary-400">L</th>
-                            <th className="px-2 py-3 text-center font-medium text-secondary-400">GF</th>
-                            <th className="px-2 py-3 text-center font-medium text-secondary-400">GA</th>
-                            <th className="px-2 py-3 text-center font-medium text-secondary-400">GD</th>
-                            <th className="px-2 py-3 text-center font-medium text-secondary-400">Pts</th>
+                            {STANDINGS_COLUMNS.map(column => (
+                              <th
+                                key={columnLabel(column.full)}
+                                scope="col"
+                                aria-label={columnLabel(column.full)}
+                                className={`px-2 py-3 font-medium text-secondary-400 ${column.align}`}
+                              >
+                                {columnLabel(column.short)}
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
@@ -315,7 +380,10 @@ const LeagueDetailPage: React.FC = () => {
               {teams.length > 0 && (
                 <Card>
                   <Card.Header>
-                    <h2 className="text-xl font-semibold text-white">Teams ({teams.length})</h2>
+                    {/* The count is a numeral of its own beside a label that does not inflect. */}
+                    <h2 className="text-xl font-semibold text-white">
+                      {t('reader.league.teams')} (<span className="num">{formatNumber(teams.length)}</span>)
+                    </h2>
                   </Card.Header>
                   <Card.Body>
                     <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -342,8 +410,8 @@ const LeagueDetailPage: React.FC = () => {
               {teams.length === 0 && matches.length === 0 && !partialError && (
                 <EmptyState
                   tone="empty"
-                  title="No teams or fixtures are stored for this competition."
-                  description="Nothing has been loaded for it yet."
+                  title={t('reader.league.nothingTitle')}
+                  description={t('reader.league.nothingBody')}
                 />
               )}
             </div>

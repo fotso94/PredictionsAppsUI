@@ -4,8 +4,22 @@ import { EnvelopeIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import authService from '@/services/auth.service'
 import { getErrorMessage } from '@/utils/errors'
+import Emphasised from '@/i18n/Emphasised'
+import { useT } from '@/i18n/react'
 
+/**
+ * Ask for a password reset link.
+ *
+ * WHY THE SUCCESS SCREEN IS SHOWN EVEN WHEN THE REQUEST FAILED. The same answer for a known and
+ * an unknown address is what stops this form being an account-enumeration oracle. That is a
+ * deliberate property of the page and not a swallowed error; the failure is still logged.
+ *
+ * Every string is in src/i18n/messages/auth.en.ts and auth.fr.ts. The address the reader typed
+ * is picked out inside the confirmation sentence rather than glued between two fragments, so
+ * the catalogue decides where in the sentence it goes — see src/i18n/Emphasised.tsx.
+ */
 const ForgotPasswordPage: React.FC = () => {
+  const t = useT()
   const [email, setEmail] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
@@ -14,7 +28,7 @@ const ForgotPasswordPage: React.FC = () => {
     e.preventDefault()
 
     if (!email) {
-      toast.error('Please enter your email address')
+      toast.error(t('auth.forgot.missingEmail'))
       return
     }
 
@@ -23,7 +37,7 @@ const ForgotPasswordPage: React.FC = () => {
       const response = await authService.forgotPassword(email)
       
       setIsSubmitted(true)
-      toast.success('Password reset email sent!')
+      toast.success(t('auth.forgot.sent'))
       
       // Log the message for debugging
       console.log('Password reset response:', response.message)
@@ -31,7 +45,7 @@ const ForgotPasswordPage: React.FC = () => {
       console.error('Forgot password error:', getErrorMessage(error, 'Request failed'))
       // Even on error, show success message for security (prevent email enumeration)
       setIsSubmitted(true)
-      toast.success('If that email address is in our system, we have sent a password reset link to it.')
+      toast.success(t('auth.forgot.sentIfKnown'))
     } finally {
       setIsSubmitting(false)
     }
@@ -47,16 +61,21 @@ const ForgotPasswordPage: React.FC = () => {
                 <EnvelopeIcon className="h-8 w-8 text-green-600" />
               </div>
               <h2 className="text-3xl font-bold text-white mb-2">
-                Check Your Email
+                {t('auth.forgot.checkHeading')}
               </h2>
               <p className="text-secondary-300 mb-6">
-                If an account exists for <strong className="text-white">{email}</strong>, you will receive a password reset link shortly.
+                <Emphasised
+                  sentence={t('auth.forgot.checkBody', { email })}
+                  value={email}
+                  as="strong"
+                  className="text-white"
+                />
               </p>
               <div className="bg-secondary-700 border-l-4 border-primary-400 p-4 mb-6">
                 <p className="text-sm text-secondary-200">
-                  <strong>Didn't receive the email?</strong>
+                  <strong>{t('auth.forgot.notReceivedTitle')}</strong>
                   <br />
-                  Check your spam folder or try again in a few minutes.
+                  {t('auth.forgot.notReceivedBody')}
                 </p>
               </div>
               <div className="space-y-3">
@@ -65,7 +84,7 @@ const ForgotPasswordPage: React.FC = () => {
                   className="btn-primary w-full flex items-center justify-center"
                 >
                   <ArrowLeftIcon className="h-5 w-5 mr-2" />
-                  Back to Login
+                  {t('auth.backToLogin')}
                 </Link>
                 <button
                   onClick={() => {
@@ -74,7 +93,7 @@ const ForgotPasswordPage: React.FC = () => {
                   }}
                   className="btn-secondary w-full"
                 >
-                  Try Another Email
+                  {t('auth.forgot.tryAnother')}
                 </button>
               </div>
             </div>
@@ -89,10 +108,10 @@ const ForgotPasswordPage: React.FC = () => {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-4xl font-extrabold text-white">
-            Forgot Password?
+            {t('auth.forgot.heading')}
           </h2>
           <p className="mt-2 text-center text-sm text-secondary-300">
-            No worries! Enter your email address and we'll send you a link to reset your password.
+            {t('auth.forgot.body')}
           </p>
         </div>
 
@@ -100,7 +119,7 @@ const ForgotPasswordPage: React.FC = () => {
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="form-label">
-                Email Address
+                {t('auth.forgot.emailLabel')}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -113,7 +132,7 @@ const ForgotPasswordPage: React.FC = () => {
                   autoComplete="email"
                   required
                   className="form-input pl-10"
-                  placeholder="Enter your email address"
+                  placeholder={t('auth.forgot.emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isSubmitting}
@@ -149,10 +168,10 @@ const ForgotPasswordPage: React.FC = () => {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       ></path>
                     </svg>
-                    Sending...
+                    {t('auth.forgot.submitting')}
                   </>
                 ) : (
-                  'Send Reset Link'
+                  t('auth.forgot.submit')
                 )}
               </button>
             </div>
@@ -163,7 +182,7 @@ const ForgotPasswordPage: React.FC = () => {
                 className="text-sm text-primary-400 hover:text-primary-300 flex items-center justify-center"
               >
                 <ArrowLeftIcon className="h-4 w-4 mr-1" />
-                Back to Login
+                {t('auth.backToLogin')}
               </Link>
             </div>
           </form>
@@ -171,9 +190,9 @@ const ForgotPasswordPage: React.FC = () => {
 
         <div className="text-center">
           <p className="text-sm text-secondary-400">
-            Don't have an account?{' '}
+            {t('auth.forgot.noAccountPrompt')}{' '}
             <Link to="/register" className="text-primary-400 hover:text-primary-300 font-medium">
-              Sign up
+              {t('auth.forgot.signUpLink')}
             </Link>
           </p>
         </div>

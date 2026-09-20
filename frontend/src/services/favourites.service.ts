@@ -19,9 +19,23 @@
  *    dropdown announce "No results found for Arsenal" for a search that had never run.
  *
  * 2. AN OPTIMISTIC WRITE ROLLS BACK HONESTLY. A toggle applies immediately, then reconciles with
- *    the authoritative list the server returns. If the write fails, the EXACT previous state is
- *    restored and the error is rethrown, so the control goes back to where it was and the caller
- *    can tell the user it did not happen. A star that stays filled after a failed save is a lie.
+ *    the authoritative list the server returns. If the write fails, THE THING THAT FAILED is put
+ *    back and the error is rethrown, so the control goes back to where it was and the caller can
+ *    tell the user it did not happen. A star that stays filled after a failed save is a lie.
+ *
+ *    "The thing that failed", not the whole snapshot. Every rollback here used to restore
+ *    `before.data` — the entire favourites state captured before the write went out — which threw
+ *    away anything a legitimate refresh had brought in while the write was in flight, and, across
+ *    a change of account, would have put one reader's whole favourites state into another's.
+ *
+ * 3. AN ANSWER FROM A SESSION THAT HAS ENDED IS NOT APPLIED — for WRITES exactly as for reads.
+ *    Both counters described on `FavouritesStore` guard reads; only `session` can guard a write,
+ *    because a write is the local change and cannot be older than itself. A save, unsave or
+ *    follow whose response lands after the reader signed out, or after somebody else signed in on
+ *    the same machine, writes NOTHING: not the data (a private note is in that payload), not the
+ *    pending flags, not a poll, not an error. The caller is told with `DiscardedWrite` rather than
+ *    a resolved promise, because the write did happen on the server for the account that started
+ *    it and a component that believed it had succeeded HERE would be saying something false.
  */
 
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
@@ -253,8 +267,66 @@ function removeSaved(saved: SavedMatchesSnapshot, matchId: string): SavedMatches
   return { upcoming, live, finished, counts: countsOf(upcoming, live, finished) };
 }
 
+// ------------------------------------------------------- undoing ONE write, not the whole world
 /**
- * The instant a saved fixture kicks off, or null when we were not given one.
+ * REVERTING A FAILED WRITE TOUCHES ONLY WHAT THAT WRITE TOUCHED.
+ *
+ * Every rollback in this file used to be `this.set({ data: before.data })` — the whole snapshot as
+ * it stood when the write was issued. That is wrong twice over. Across a change of account it puts
+ * one reader's entire favourites state into another's; and even inside one session it silently
+ * discards whatever a legitimate refresh brought in while the write was on the wire, so a match
+ * the reader saved on their phone, arriving in a refresh, vanished again because an unrelated
+ * follow happened to fail. The helpers below invert exactly the optimistic step and nothing else,
+ * applied to whatever the store holds NOW.
+ */
+type FollowedTeam = FavouritesSnapshot['teams'][number];
+type FollowedLeague = FavouritesSnapshot['leagues'][number];
+
+function revertTeamFollow(
+  snapshot: FavouritesSnapshot, id: string, wasFollowed: boolean, rowBefore: FollowedTeam | null,
+): FavouritesSnapshot {
+  return {
+    ...snapshot,
+    teamIds: wasFollowed ? withId(snapshot.teamIds, id) : without(snapshot.teamIds, id),
+    // Only an UNFOLLOW removes a resolved row optimistically, so only its rollback puts one back;
+    // a failed follow never added one and must not invent one here.
+    teams: wasFollowed && rowBefore && !snapshot.teams.some(team => team.id === id)
+      ? [...snapshot.teams, rowBefore]
+      : snapshot.teams,
+  };
+}
+
+function revertLeagueFollow(
+  snapshot: FavouritesSnapshot, id: string, wasFollowed: boolean, rowBefore: FollowedLeague | null,
+): FavouritesSnapshot {
+  return {
+    ...snapshot,
+    leagueIds: wasFollowed ? withId(snapshot.leagueIds, id) : without(snapshot.leagueIds, id),
+    leagues: wasFollowed && rowBefore && !snapshot.leagues.some(league => league.id === id)
+      ? [...snapshot.leagues, rowBefore]
+      : snapshot.leagues,
+  };
+}
+
+/**
+ * Put one saved match back to the row it had — or to absent, when it had none.
+ *
+ * `entryBefore` is the reader's own save row as it stood before the write, note included, so a
+ * failed note edit restores the note they had rather than clearing it.
+ */
+function revertSavedMatch(
+  snapshot: FavouritesSnapshot, matchId: string, entryBefore: SavedMatch | null,
+): FavouritesSnapshot {
+  return {
+    ...snapshot,
+    savedMatches: entryBefore
+      ? insertSaved(snapshot.savedMatches, entryBefore)
+      : removeSaved(snapshot.savedMatches, matchId),
+  };
+}
+
+/**
+ * The instant a fixture kicks off, or null when we were not given one.
  *
  * DELIBERATELY NOT `kickoffMsOf` (further down this file, for the feed). That one falls back to
  * the calendar date at midnight UTC, which is right for ORDERING a fixture into its day and wrong
@@ -262,8 +334,8 @@ function removeSaved(saved: SavedMatchesSnapshot, matchId: string): SavedMatches
  * from midnight onwards, and start a poll for each one. A fixture whose payload carries no
  * kick-off time is not watched for a kick-off we do not know.
  */
-function kickoffTimeOf(entry: SavedMatch): number | null {
-  const parsed = entry.match.kickoffUtc ? Date.parse(entry.match.kickoffUtc) : NaN;
+function kickoffInstantOf(match: Match): number | null {
+  const parsed = match.kickoffUtc ? Date.parse(match.kickoffUtc) : NaN;
   return Number.isNaN(parsed) ? null : parsed;
 }
 
@@ -362,6 +434,42 @@ const KICKOFF_REFRESH_MS = 120_000;
  * nothing due and schedules the next one.
  */
 const KICKOFF_WAKE_MAX_MS = 30 * 60 * 1000;
+
+/**
+ * Whether `match` is inside the window in which it is worth watching for a kick-off.
+ *
+ * ONE RULE, used by the saved-match watch and by the followed-fixture watch further down, so the
+ * two cannot drift apart: still `scheduled` (a postponed or cancelled fixture will not kick off
+ * at this time), a kick-off time we were actually given, and now between the lead and the grace.
+ */
+function isDueToStart(match: Match, now: number): boolean {
+  if (match.status !== 'scheduled') return false;
+  const kickoff = kickoffInstantOf(match);
+  if (kickoff === null) return false;
+  return now >= kickoff - KICKOFF_WATCH_LEAD_MS && now <= kickoff + KICKOFF_WATCH_GRACE_MS;
+}
+
+/** When `match` starts being worth watching, or null when that moment has passed or is unknown. */
+function watchStartOf(match: Match, now: number): number | null {
+  if (match.status !== 'scheduled') return null;
+  const kickoff = kickoffInstantOf(match);
+  if (kickoff === null) return null;
+  const from = kickoff - KICKOFF_WATCH_LEAD_MS;
+  // Already inside its window: the interval has it, and a wake for a moment in the past would
+  // fire in a tight loop.
+  return from > now ? from : null;
+}
+
+/** The soonest moment any of `matches` starts being worth watching, or null when none does. */
+function nextWatchStart(matches: Match[], now: number): number | null {
+  let soonest: number | null = null;
+  matches.forEach(match => {
+    const from = watchStartOf(match, now);
+    if (from === null) return;
+    if (soonest === null || from < soonest) soonest = from;
+  });
+  return soonest;
+}
 
 /**
  * The same guard for the FOLLOW FAN-OUT, which is not the same size of request.
@@ -646,6 +754,38 @@ class DiscardedRead extends Error {
 }
 
 /**
+ * A WRITE whose answer came back after the session that issued it had ended.
+ *
+ * WHY THIS IS NOT THE SAME AS A DISCARDED READ, AND WHY IT IS NOT SILENT. A read that is thrown
+ * away costs nothing: nobody asked for it and nothing happened. A write DID happen — the save,
+ * the note, the follow reached the server and was applied to the account that started it. Two
+ * things then have to be true at once. Nothing of it may reach the reader who is here now, which
+ * is the store's job and is why not one field is written. And the component that asked for it
+ * must not be told it worked, because "worked" would be read as "worked for the person looking at
+ * this screen", which is exactly the sentence that is false. So the promise REJECTS with this.
+ *
+ * `settled` says what the server actually did for the old account, and the message says it in
+ * words, because `getErrorMessage` renders `err.message` and every caller in this project puts
+ * that straight into a toast. Neither the message nor this object names the match, the note or
+ * the account: the old reader's private note must not be carried into the new reader's screen by
+ * the error any more than by the data.
+ */
+export class DiscardedWrite extends Error {
+  /** What the server did for the account that issued the write, before the session ended. */
+  readonly settled: 'applied' | 'failed';
+
+  constructor(settled: 'applied' | 'failed') {
+    super(settled === 'applied'
+      ? 'That change finished after the account that started it was signed out. It was applied to '
+        + 'that account, and is not part of the session you are in now.'
+      : 'That change did not finish, and the account that started it has since been signed out. '
+        + 'Nothing was changed for the account signed in now.');
+    this.name = 'DiscardedWrite';
+    this.settled = settled;
+  }
+}
+
+/**
  * How many times one `load()` will discard a snapshot that turned out to predate a local write
  * and read again before giving up.
  *
@@ -678,6 +818,15 @@ const MAX_SUPERSEDED_REREADS = 4;
  *              reader's own action — the star going back off on its own. Such a read is
  *              discarded AND REPLACED by a fresh one, because the reader is still owed the
  *              server's current answer and not merely the absence of a wrong one.
+ *
+ * `session` GUARDS THE WRITES TOO, and for a long time it did not. Every write response path —
+ * save, unsave and follow, each with a success and a rollback — applied unconditionally, so a
+ * save that resolved after a change of account inserted the previous reader's save row, PRIVATE
+ * NOTE INCLUDED, into the new reader's store, and each rollback put the previous reader's whole
+ * snapshot there. Every one of those six paths now checks `session` first and, when it has moved,
+ * writes nothing and rejects with `DiscardedWrite`. `writes` is not a write guard: a write cannot
+ * be older than itself, and a write that raced another write is settled by the server, which
+ * answers both and whose second answer is the later truth.
  */
 class FavouritesStore {
   private state: FavouritesState = EMPTY_STATE;
@@ -921,32 +1070,16 @@ class FavouritesStore {
 
   /** Saved fixtures whose kick-off has arrived and which the record still says will be played. */
   private savedDueToStart(now: number = Date.now()): number {
+    // `upcoming` is everything that is neither live nor finished, postponed and cancelled
+    // included. Those two are not about to kick off and `isDueToStart` will not watch them.
     const upcoming = this.state.data?.savedMatches.upcoming ?? [];
-    return upcoming.filter(entry => {
-      // `upcoming` is everything that is neither live nor finished, postponed and cancelled
-      // included. Those two are not about to kick off and must not be watched as if they were.
-      if (entry.match.status !== 'scheduled') return false;
-      const kickoff = kickoffTimeOf(entry);
-      if (kickoff === null) return false;
-      return now >= kickoff - KICKOFF_WATCH_LEAD_MS && now <= kickoff + KICKOFF_WATCH_GRACE_MS;
-    }).length;
+    return upcoming.filter(entry => isDueToStart(entry.match, now)).length;
   }
 
   /** When the next saved fixture starts being worth watching, or null when none does. */
   private nextKickoffWatchAt(now: number = Date.now()): number | null {
     const upcoming = this.state.data?.savedMatches.upcoming ?? [];
-    let soonest: number | null = null;
-    upcoming.forEach(entry => {
-      if (entry.match.status !== 'scheduled') return;
-      const kickoff = kickoffTimeOf(entry);
-      if (kickoff === null) return;
-      const from = kickoff - KICKOFF_WATCH_LEAD_MS;
-      // Already inside its window: the interval has it, and a wake for a moment in the past
-      // would fire in a tight loop.
-      if (from <= now) return;
-      if (soonest === null || from < soonest) soonest = from;
-    });
-    return soonest;
+    return nextWatchStart(upcoming.map(entry => entry.match), now);
   }
 
   /**
@@ -1034,9 +1167,33 @@ class FavouritesStore {
   setLeagueFollowed = (leagueId: string, following: boolean): Promise<FollowResult> =>
     this.toggleFollow('league', leagueId, following);
 
+  /**
+   * True when the answer to a write issued in `session` belongs to a session that has ended.
+   *
+   * NOTHING is written when it does — not the data, not the pending flags, not a poll. There is
+   * no stale flag to tidy up either: `reset()` replaced the whole state, pending lists included,
+   * at the moment the session changed. Clearing one here would only notify the new session's
+   * subscribers about a write it never made, and `without()` on a list that no longer holds the
+   * id would still hand every one of them a new state object.
+   */
+  private answerIsStale(session: number): boolean {
+    return this.session !== session;
+  }
+
   private async toggleFollow(kind: 'team' | 'league', id: string, following: boolean): Promise<FollowResult> {
+    const session = this.session;
     const before = this.state;
     const data = before.data;
+    // Captured before the optimistic step, so the rollback can invert exactly that step: what this
+    // follow was, and the resolved row an unfollow is about to drop from the displayed lists.
+    const wasFollowed = data
+      ? (kind === 'team' ? data.teamIds.includes(id) : data.leagueIds.includes(id))
+      : false;
+    const teamRowBefore = data && kind === 'team'
+      ? (data.teams.find(team => team.id === id) ?? null) : null;
+    const leagueRowBefore = data && kind === 'league'
+      ? (data.leagues.find(league => league.id === id) ?? null) : null;
+    const changedData = data !== null;
     if (data) {
       const ids = following
         ? (kind === 'team' ? withId(data.teamIds, id) : withId(data.leagueIds, id))
@@ -1058,37 +1215,73 @@ class FavouritesStore {
         : { pendingLeagueIds: withId(before.pendingLeagueIds, id) });
     }
 
+    let result: FollowResult;
     try {
-      const result = await favouritesApi.follow(kind, id, following);
+      result = await favouritesApi.follow(kind, id, following);
+    } catch (error) {
+      // The rollback is the leakiest path of the three: it used to restore `before.data`, the
+      // WHOLE snapshot, which across a change of account is the previous reader's entire
+      // favourites state landing in this one's.
+      if (this.answerIsStale(session)) throw new DiscardedWrite('failed');
       const current = this.state.data;
-      // The reconciliation is a second local write: a read issued between the optimistic change
-      // and this line is older than the server's own answer too.
+      // Put back this follow and nothing else. Leaving the optimistic state up after a failure
+      // would show a follow that does not exist on the server; restoring the whole snapshot
+      // would throw away a refresh that legitimately landed while the write was in flight.
       this.noteLocalWrite();
       this.set({
-        // The server's list is the truth. Reconciling rather than trusting the optimistic guess is
-        // what makes a refused follow (limit reached) show up as the star going back off.
-        data: current
-          ? (kind === 'team' ? { ...current, teamIds: result.ids } : { ...current, leagueIds: result.ids })
-          : current,
+        ...(changedData && current
+          ? {
+            data: kind === 'team'
+              ? revertTeamFollow(current, id, wasFollowed, teamRowBefore)
+              : revertLeagueFollow(current, id, wasFollowed, leagueRowBefore),
+          }
+          : {}),
         ...(kind === 'team'
           ? { pendingTeamIds: without(this.state.pendingTeamIds, id) }
           : { pendingLeagueIds: without(this.state.pendingLeagueIds, id) }),
       });
-      // A follow that resolved to a team/league we hold no row for only appears in the resolved
-      // lists after a reload; refresh quietly so the dashboard fills in rather than staying blank.
-      if (result.changed && result.following) void this.load().catch(() => undefined);
-      return result;
-    } catch (error) {
-      // Put back exactly what was there, pending flags included. Leaving the optimistic state up
-      // after a failure would show a follow that does not exist on the server.
-      this.noteLocalWrite();
-      this.set({
-        data: before.data,
-        pendingTeamIds: without(this.state.pendingTeamIds, id),
-        pendingLeagueIds: without(this.state.pendingLeagueIds, id),
-      });
       throw error;
     }
+
+    if (this.answerIsStale(session)) throw new DiscardedWrite('applied');
+    const current = this.state.data;
+    // The reconciliation is a second local write: a read issued between the optimistic change
+    // and this line is older than the server's own answer too.
+    this.noteLocalWrite();
+    this.set({
+      /*
+       * The server's list is the truth. Reconciling rather than trusting the optimistic guess is
+       * what makes a refused follow (limit reached) show up as the star going back off.
+       *
+       * THE RESOLVED LIST IS RECONCILED TOO, and that is the same lesson as `unsaveMatch` below.
+       * Assigning `ids` alone assumed the optimistic step — which drops the row from `teams` on
+       * an unfollow — was still standing. A refresh landing in between puts the row back, and the
+       * panel that lists what you follow reads `teams`, not `teamIds`: the competition or club
+       * you had just unfollowed stayed in the list, contradicting its own star. Nothing is ADDED
+       * here, because a follow we hold no row for has no row to add; that is what the reload a
+       * few lines down is for.
+       */
+      data: current
+        ? (kind === 'team'
+          ? {
+            ...current,
+            teamIds: result.ids,
+            teams: current.teams.filter(team => result.ids.includes(team.id)),
+          }
+          : {
+            ...current,
+            leagueIds: result.ids,
+            leagues: current.leagues.filter(league => result.ids.includes(league.id)),
+          })
+        : current,
+      ...(kind === 'team'
+        ? { pendingTeamIds: without(this.state.pendingTeamIds, id) }
+        : { pendingLeagueIds: without(this.state.pendingLeagueIds, id) }),
+    });
+    // A follow that resolved to a team/league we hold no row for only appears in the resolved
+    // lists after a reload; refresh quietly so the dashboard fills in rather than staying blank.
+    if (result.changed && result.following) void this.load().catch(() => undefined);
+    return result;
   }
 
   /**
@@ -1099,6 +1292,7 @@ class FavouritesStore {
    * without it the save still runs, but the entry appears only once the server's copy comes back.
    */
   saveMatch = async (matchId: string, options?: { note?: string | null; match?: SavedMatch['match'] }): Promise<SaveMatchResult> => {
+    const session = this.session;
     const before = this.state;
     const existing = this.savedEntry(matchId);
     const fixture = options?.match ?? existing?.match ?? null;
@@ -1106,6 +1300,9 @@ class FavouritesStore {
     // optimistic entry shows the same note the server will keep.
     const note = options?.note === undefined ? (existing?.note ?? null) : (options.note || null);
 
+    // Whether the optimistic step actually touched `data`. Without it there is nothing to revert,
+    // and reverting anyway would remove an entry a refresh legitimately brought in.
+    const changedData = Boolean(before.data && fixture);
     if (before.data && fixture) {
       const now = new Date().toISOString();
       const optimisticEntry: SavedMatch = {
@@ -1125,30 +1322,52 @@ class FavouritesStore {
       this.set({ pendingMatchIds: withId(before.pendingMatchIds, matchId) });
     }
 
+    let result: SaveMatchResult;
     try {
-      const result = await favouritesApi.saveMatch(matchId, options?.note);
+      result = await favouritesApi.saveMatch(matchId, options?.note);
+    } catch (error) {
+      if (this.answerIsStale(session)) throw new DiscardedWrite('failed');
       const current = this.state.data;
       this.noteLocalWrite();
       this.set({
-        // Replace the optimistic entry with the server's, which carries the real saved_at and the
-        // fixture exactly as every other endpoint serialises it.
-        data: current ? { ...current, savedMatches: insertSaved(current.savedMatches, result) } : current,
+        // Undo THIS save — back to the row it had, note and all, or to absent where it had none.
+        ...(changedData && current ? { data: revertSavedMatch(current, matchId, existing) } : {}),
         pendingMatchIds: without(this.state.pendingMatchIds, matchId),
       });
-      // Saving a fixture that is in play, or one that kicks off in ten minutes, is a reason to
-      // start watching that did not exist a moment ago.
-      this.syncLivePoll();
-      return result;
-    } catch (error) {
-      this.noteLocalWrite();
-      this.set({ data: before.data, pendingMatchIds: without(this.state.pendingMatchIds, matchId) });
       throw error;
     }
+
+    /*
+     * THE SAVE REACHED THE SERVER FOR SOMEBODY WHO IS NO LONGER HERE.
+     *
+     * `result` is that reader's own save row and it carries their PRIVATE NOTE. Inserting it
+     * below would put that note into whoever is signed in now — the single worst thing this
+     * store can do — so nothing at all is written and the caller is told which reader it worked
+     * for. There is no pending flag to clear: `reset()` emptied that list at the boundary.
+     */
+    if (this.answerIsStale(session)) throw new DiscardedWrite('applied');
+    const current = this.state.data;
+    this.noteLocalWrite();
+    this.set({
+      // Replace the optimistic entry with the server's, which carries the real saved_at and the
+      // fixture exactly as every other endpoint serialises it.
+      data: current ? { ...current, savedMatches: insertSaved(current.savedMatches, result) } : current,
+      pendingMatchIds: without(this.state.pendingMatchIds, matchId),
+    });
+    // Saving a fixture that is in play, or one that kicks off in ten minutes, is a reason to
+    // start watching that did not exist a moment ago.
+    this.syncLivePoll();
+    return result;
   };
 
   /** Unsave a match, optimistically. Unsaving something that was not saved is not an error. */
   unsaveMatch = async (matchId: string): Promise<UnsaveMatchResult> => {
+    const session = this.session;
     const before = this.state;
+    // The row as it stood, captured before the optimistic removal, so a failed removal puts back
+    // the reader's own note rather than a bare entry.
+    const existing = this.savedEntry(matchId);
+    const changedData = before.data !== null;
     this.noteLocalWrite();
     if (before.data) {
       this.set({
@@ -1159,18 +1378,46 @@ class FavouritesStore {
       this.set({ pendingMatchIds: withId(before.pendingMatchIds, matchId) });
     }
 
+    let result: UnsaveMatchResult;
     try {
-      const result = await favouritesApi.unsaveMatch(matchId);
-      this.noteLocalWrite();
-      this.set({ pendingMatchIds: without(this.state.pendingMatchIds, matchId) });
-      // The fixture that was being watched may be the one just removed.
-      this.syncLivePoll();
-      return result;
+      result = await favouritesApi.unsaveMatch(matchId);
     } catch (error) {
+      if (this.answerIsStale(session)) throw new DiscardedWrite('failed');
+      const current = this.state.data;
       this.noteLocalWrite();
-      this.set({ data: before.data, pendingMatchIds: without(this.state.pendingMatchIds, matchId) });
+      this.set({
+        ...(changedData && current && existing
+          ? { data: revertSavedMatch(current, matchId, existing) }
+          : {}),
+        pendingMatchIds: without(this.state.pendingMatchIds, matchId),
+      });
       throw error;
     }
+
+    if (this.answerIsStale(session)) throw new DiscardedWrite('applied');
+    const current = this.state.data;
+    this.noteLocalWrite();
+    /*
+     * STATE THE END RESULT; DO NOT ASSUME THE OPTIMISTIC REMOVAL IS STILL STANDING.
+     *
+     * This path used to clear the pending flag and nothing else, on the assumption that the entry
+     * it removed a moment ago was still gone. A refresh landing between the two — and it is NOT
+     * discarded by the read guard, because it was issued after the local removal it would undo —
+     * carries a snapshot in which the match is still saved. The removal then completed, the
+     * spinner went away, and the bookmark the reader had successfully deleted was left sitting on
+     * the screen looking saved. `saveMatch` above always asserted its end state; this is the same
+     * assertion for the other direction.
+     *
+     * Unconditional, including when `result.removed` is false: "there was nothing to remove" and
+     * "it was removed" describe the same end state — the server does not hold this save.
+     */
+    this.set({
+      ...(current ? { data: { ...current, savedMatches: removeSaved(current.savedMatches, matchId) } } : {}),
+      pendingMatchIds: without(this.state.pendingMatchIds, matchId),
+    });
+    // The fixture that was being watched may be the one just removed.
+    this.syncLivePoll();
+    return result;
   };
 
   /** Save or unsave in one call, for a toggle control. */
@@ -1219,12 +1466,35 @@ export const FEED_FOLLOWED_CAP: Record<FeedPhase, number> = { live: 20, result: 
 /** Requests in flight at once while fanning out over the follows. Polite, not fast. */
 const FEED_CONCURRENCY = 4;
 
+/**
+ * HOW MANY FIXTURES THE KICK-OFF WATCH WILL ASK ABOUT ONE AT A TIME.
+ *
+ * A Saturday three o'clock can bring a whole followed competition to kick-off in the same minute.
+ * Past this many, asking per fixture stops being the cheap option and one rebuild of the feed —
+ * at most one request per follow, and it answers for every fixture at once — is fewer requests
+ * for a better answer. Six is below the fifteen a full rebuild can cost and above the one or two
+ * a kick-off usually means.
+ */
+const KICKOFF_TARGETED_MAX = 6;
+
 export const feedApi = {
   /** Everything stored for one team, both directions. A pure database read on the backend. */
   async teamFixtures(teamId: string): Promise<Match[]> {
     const { data } = await apiClient.get<{ team: ApiTeam; upcoming?: ApiMatch[]; recent?: ApiMatch[] }>(
       `/api/v1/teams/${encodeURIComponent(teamId)}`);
     return [...(data.upcoming ?? []), ...(data.recent ?? [])].map(mapApiMatch);
+  },
+
+  /**
+   * ONE fixture, by id. A pure database read: `GET /api/v1/matches/{match_id}` resolves the id
+   * and serialises the stored row (`MatchDataService.match_by_id`). It takes no `refresh`
+   * parameter and reaches no provider, which is what makes it usable for the kick-off watch
+   * below — asking about the two fixtures that are actually starting costs two stored reads,
+   * where rebuilding the whole feed costs one per follow, up to fifteen.
+   */
+  async matchById(matchId: string): Promise<Match> {
+    const { data } = await apiClient.get<ApiMatch>(`/api/v1/matches/${encodeURIComponent(matchId)}`);
+    return mapApiMatch(data);
   },
 
   /** One competition's window. `refresh=false` is the whole point — see the note above. */
@@ -1334,6 +1604,12 @@ class FollowedFixturesStore {
   private builtFrom = '';
   private detach: (() => void) | null = null;
   private livePoll: ReturnType<typeof setInterval> | null = null;
+  /** The interval that re-reads the handful of followed fixtures that are due to kick off. */
+  private kickoffPoll: ReturnType<typeof setInterval> | null = null;
+  /** The one-shot timer that wakes this store when the next followed fixture is nearly due. */
+  private kickoffWake: ReturnType<typeof setTimeout> | null = null;
+  /** True while a kick-off sweep is on the wire, so two cannot overlap. */
+  private sweeping = false;
 
   getState = (): FollowedFixturesState => this.state;
 
@@ -1353,15 +1629,15 @@ class FollowedFixturesStore {
 
   private attach(): void {
     if (this.detach) return;
-    const stopWake = onReaderReturns(() => { this.syncLivePoll(); this.refreshIfStale(); });
+    const stopWake = onReaderReturns(() => { this.syncWatches(); this.refreshIfStale(); });
     // Following or unfollowing changes what belongs in the feed, and so does signing out. Watching
     // the favourites store is what makes a newly followed team's fixtures appear without a reload.
     const stopFollowing = favouritesStore.subscribe(() => this.onFavouritesChanged());
-    const onHidden = () => { if (!tabIsVisible()) this.stopLivePoll(); };
+    const onHidden = () => { if (!tabIsVisible()) this.stopWatches(); };
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onHidden);
     // Same reason as in FavouritesStore: a pause has to stop this fan-out the moment it is asked
     // for, and this one costs a request per follow per minute.
-    const stopWatchingPreferences = personalPreferencesStore.subscribe(() => this.syncLivePoll());
+    const stopWatchingPreferences = personalPreferencesStore.subscribe(() => this.syncWatches());
     this.detach = () => {
       stopWake();
       stopFollowing();
@@ -1374,7 +1650,30 @@ class FollowedFixturesStore {
   private release(): void {
     this.detach?.();
     this.detach = null;
+    this.stopWatches();
+  }
+
+  /** Both reasons this feed re-reads anything, decided together so they cannot disagree. */
+  private syncWatches(): void {
+    this.syncLivePoll();
+    this.syncKickoffWatch();
+  }
+
+  private stopWatches(): void {
     this.stopLivePoll();
+    this.stopKickoffWatch();
+  }
+
+  /**
+   * Whether this feed may re-read anything by itself right now.
+   *
+   * The same four conditions in both watches: somebody is looking at it, the tab is in front,
+   * there is a window at all, and the reader has not switched automatic updates off or paused
+   * everything optional.
+   */
+  private mayPoll(): boolean {
+    return this.listeners.size > 0 && tabIsVisible() && typeof window !== 'undefined'
+      && personalPreferencesStore.isOn('liveUpdates');
   }
 
   /**
@@ -1386,22 +1685,15 @@ class FollowedFixturesStore {
    * watching a dashboard with a match running on it. It stops the moment the tab goes away, the
    * match ends, or they navigate off the page.
    *
-   * KNOWN, AND DELIBERATELY NOT CLOSED HERE. This is still gated on the state it would discover:
-   * a fixture reached only through a FOLLOW that kicks off while the reader watches is not
-   * noticed until they return to the tab. `FavouritesStore` now has a kick-off watch for exactly
-   * this (see `savedDueToStart`), and it is affordable there because one read answers for the
-   * whole reader. The same watch here is one request PER FOLLOW — up to fifteen — repeated for
-   * as long as a kick-off is pending, and that is a different order of load on the backend for a
-   * fixture the reader did not ask for by name. A saved fixture, which is the one they did ask
-   * for, is covered. Closing this properly wants the single `GET /api/v1/me/feed` already
-   * written up for the backend's owner above, not fifteen requests a minute from here.
+   * IT IS NOT THE ONLY REASON TO READ. On its own this is gated on the state it would discover —
+   * a fixture reached only through a FOLLOW never becomes live here, because nothing looks until
+   * something is already live. `syncKickoffWatch` below is the half that closes that.
    */
   private syncLivePoll(): void {
     const inPlay = this.state.fixtures.some(entry => (
       entry.match.status === 'live' || entry.match.status === 'halftime'
     ));
-    const shouldPoll = inPlay && this.listeners.size > 0 && tabIsVisible()
-      && typeof window !== 'undefined' && personalPreferencesStore.isOn('liveUpdates');
+    const shouldPoll = inPlay && this.mayPoll();
     if (shouldPoll && !this.livePoll) {
       this.livePoll = setInterval(() => {
         if (!tabIsVisible()) return;
@@ -1418,6 +1710,125 @@ class FollowedFixturesStore {
     this.livePoll = null;
   }
 
+  /**
+   * NOTICING A KICK-OFF FOR A FIXTURE THE READER NEVER SAVED.
+   *
+   * THE GAP THIS CLOSES. A saved fixture discovers its own kick-off: `FavouritesStore` wakes at
+   * the right moment and re-reads (see `savedDueToStart`). A fixture that is in this feed only
+   * because the reader follows one of the clubs or the competition had no equivalent, so it sat
+   * under "Coming up" through the first half unless the reader happened to leave the tab and come
+   * back. Same page, same reader, two different answers depending on how the fixture got there.
+   *
+   * WHY IT WAS LEFT OPEN, AND WHAT CHANGED. The objection was cost, and it was a fair one: the
+   * only read this store had was a REBUILD, one request per follow, up to fifteen, and running
+   * that every two minutes for every pending kick-off is a different order of load for a fixture
+   * nobody asked for by name. What changed is the granularity. `GET /api/v1/matches/{id}` is a
+   * stored read of one row, so the fixtures that are actually starting can be asked about
+   * directly: the ordinary Tuesday-night kick-off is ONE request, not fifteen. Past
+   * `KICKOFF_TARGETED_MAX` at once the arithmetic flips and one rebuild is cheaper, so that is
+   * what it does instead.
+   *
+   * WHAT IS WATCHED, AND WHEN NOTHING IS. Only a fixture the record still says will be played,
+   * and only between `KICKOFF_WATCH_LEAD_MS` before its time and `KICKOFF_WATCH_GRACE_MS` after —
+   * the same window, from the same helpers, as the saved-match watch, so the two cannot drift.
+   * Outside that window the store holds a single one-shot timer and issues nothing at all. It
+   * runs only while somebody is subscribed, the tab is in front, and the reader has automatic
+   * updates on and nothing paused; the hidden-tab handler and the preference subscription in
+   * `attach()` stop it the moment any of that stops being true.
+   *
+   * STILL BETTER SERVED BY ONE ENDPOINT. A single `GET /api/v1/me/feed`, already written up for
+   * the backend's owner above, would make both this and the rebuild one request. This is the
+   * honest version of the watch that can be built from the endpoints that exist.
+   */
+  private syncKickoffWatch(): void {
+    this.stopKickoffWatch();
+    if (!this.mayPoll()) return;
+    const now = Date.now();
+    if (this.fixturesDueToStart(now).length > 0) {
+      this.kickoffPoll = setInterval(() => {
+        if (!tabIsVisible()) return;
+        void this.sweepKickoffs();
+      }, KICKOFF_REFRESH_MS);
+      return;
+    }
+    // Nothing is due. One timer, no requests, until the next fixture is nearly on.
+    const from = nextWatchStart(this.state.fixtures.map(entry => entry.match), now);
+    if (from === null) return;
+    const delay = Math.min(Math.max(from - now, 250), KICKOFF_WAKE_MAX_MS);
+    this.kickoffWake = setTimeout(() => {
+      this.kickoffWake = null;
+      // A clamped wake finds nothing due and simply re-arms; a real one sweeps.
+      if (this.fixturesDueToStart().length > 0) void this.sweepKickoffs();
+      else this.syncKickoffWatch();
+    }, delay);
+  }
+
+  /** Followed fixtures inside their kick-off window, by the rule `isDueToStart` states. */
+  private fixturesDueToStart(now: number = Date.now()): FollowedFixture[] {
+    return this.state.fixtures.filter(entry => isDueToStart(entry.match, now));
+  }
+
+  /**
+   * Ask about the fixtures that are starting, and merge what comes back.
+   *
+   * A fixture whose read FAILS is left exactly as it was and says nothing: this is a background
+   * question the reader did not ask, `unreadable` means "a follow we could not read" and this is
+   * not one, and an error here would claim something about the fixture that we do not know.
+   */
+  private async sweepKickoffs(): Promise<void> {
+    if (this.sweeping || this.inFlight) return;
+    const due = this.fixturesDueToStart();
+    if (due.length === 0) { this.syncKickoffWatch(); return; }
+    // More of them than a rebuild costs: ask once for everything instead of once for each.
+    if (due.length > KICKOFF_TARGETED_MAX) {
+      await this.load();
+      this.syncKickoffWatch();
+      return;
+    }
+
+    const session = favouritesStore.sessionId();
+    this.sweeping = true;
+    let settled: PromiseSettledResult<Match>[];
+    try {
+      settled = await mapWithLimit(due, FEED_CONCURRENCY, entry => feedApi.matchById(entry.match.id));
+    } finally {
+      this.sweeping = false;
+    }
+    // The reader signed out, or somebody else signed in, while these were on the wire. The same
+    // rule as everywhere else in this file: their answer is not shown to whoever is here now.
+    if (favouritesStore.sessionId() !== session) return;
+
+    const updated = new Map<string, Match>();
+    settled.forEach((result, index) => {
+      if (result.status !== 'fulfilled') return;
+      // The id we asked about, not the one that came back: a resolved alias must still land on
+      // the row it was asked for.
+      updated.set(due[index].match.id, result.value);
+    });
+    if (updated.size > 0) {
+      this.set({
+        fixtures: this.state.fixtures.map(entry => {
+          const fresh = updated.get(entry.match.id);
+          return fresh ? { ...entry, match: fresh } : entry;
+        }),
+      });
+    }
+    // A fixture that has now kicked off belongs to the in-play poll; one that has not is still
+    // inside its window and stays with this one, until the grace runs out.
+    this.syncWatches();
+  }
+
+  private stopKickoffWatch(): void {
+    if (this.kickoffPoll !== null) {
+      clearInterval(this.kickoffPoll);
+      this.kickoffPoll = null;
+    }
+    if (this.kickoffWake !== null) {
+      clearTimeout(this.kickoffWake);
+      this.kickoffWake = null;
+    }
+  }
+
   private onFavouritesChanged(): void {
     const snapshot = favouritesStore.getState().data;
     if (snapshot === null) {
@@ -1429,7 +1840,7 @@ class FollowedFixturesStore {
         // ended, `load()` will refuse to apply it, and holding the handle would make the next
         // session's first `load()` return this one's promise instead of starting its own.
         this.inFlight = null;
-        this.stopLivePoll();
+        this.stopWatches();
         this.set({ status: 'idle', fixtures: [], unreadable: [], refreshing: false, error: null });
       }
       return;
@@ -1484,7 +1895,7 @@ class FollowedFixturesStore {
     if (follows.length === 0) {
       this.builtFrom = key;
       this.loadedAt = Date.now();
-      this.stopLivePoll();
+      this.stopWatches();
       this.set({ status: 'ready', fixtures: [], unreadable: [], refreshing: false, error: null });
       return Promise.resolve();
     }
@@ -1524,8 +1935,8 @@ class FollowedFixturesStore {
           ? 'The fixtures behind the teams and competitions you follow could not be loaded.'
           : null,
       });
-      // Whether anything is in play is only known once the fixtures are in hand.
-      this.syncLivePoll();
+      // Whether anything is in play, or about to be, is only known once the fixtures are in hand.
+      this.syncWatches();
     })();
 
     const settle: Promise<void> = run.finally(() => {

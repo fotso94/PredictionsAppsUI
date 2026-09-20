@@ -148,7 +148,13 @@ export interface ExpertPredictionResponse {
   home_win_prob: number;
   draw_prob: number;
   away_win_prob: number;
-  confidence_score: number;
+  /**
+   * The expert's own stated conviction, or null when they did not state one.
+   *
+   * This said `number` while the API returned null, which is the kind of lie a type system
+   * cannot catch for you: the value arrived as null and every reader believed it could not.
+   */
+  confidence_score: number | null;
 
   // Both Teams to Score (BTTS) - Optional
   btts_yes_prob?: number | null;
@@ -208,7 +214,8 @@ export interface ExpertPerformanceMetrics {
   published_predictions: number;
   pending_predictions: number;
   accuracy_rate: number | null;
-  average_confidence: number;
+  /** The mean of the convictions that were stated, or null when none were. */
+  average_confidence: number | null;
   predictions_by_league: Record<string, number>;
   recent_predictions: ExpertPredictionResponse[];
   performance_trend: Array<{

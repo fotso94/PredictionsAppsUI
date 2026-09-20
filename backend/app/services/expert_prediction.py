@@ -216,7 +216,10 @@ class ExpertPredictionService:
             home_win_prob=Decimal(str(data.home_win_prob)),
             draw_prob=Decimal(str(data.draw_prob)),
             away_win_prob=Decimal(str(data.away_win_prob)),
-            confidence_score=Decimal(str(data.confidence_score)) if data.confidence_score else Decimal("0.0"),
+            # `is not None`, never truthiness: 0.0 is a conviction an expert may deliberately
+            # claim, and None is nobody having claimed one. Coercing the second into the first
+            # is what made a blank field read back as "0%".
+            confidence_score=Decimal(str(data.confidence_score)) if data.confidence_score is not None else None,
             # Both Teams to Score (BTTS) - Optional
             btts_yes_prob=Decimal(str(data.btts_yes_prob)) if data.btts_yes_prob is not None else None,
             btts_no_prob=Decimal(str(data.btts_no_prob)) if data.btts_no_prob is not None else None,
@@ -333,7 +336,10 @@ class ExpertPredictionService:
             home_win_prob=Decimal(str(data.home_win_prob)),
             draw_prob=Decimal(str(data.draw_prob)),
             away_win_prob=Decimal(str(data.away_win_prob)),
-            confidence_score=Decimal(str(data.confidence_score)) if data.confidence_score else Decimal("0.0"),
+            # `is not None`, never truthiness: 0.0 is a conviction an expert may deliberately
+            # claim, and None is nobody having claimed one. Coercing the second into the first
+            # is what made a blank field read back as "0%".
+            confidence_score=Decimal(str(data.confidence_score)) if data.confidence_score is not None else None,
             # Both Teams to Score (BTTS) - Optional
             btts_yes_prob=Decimal(str(data.btts_yes_prob)) if data.btts_yes_prob is not None else None,
             btts_no_prob=Decimal(str(data.btts_no_prob)) if data.btts_no_prob is not None else None,
@@ -379,7 +385,7 @@ class ExpertPredictionService:
         profile = ensure_expert_profile(self.db, expert_user, verified=bool(settings.EXPERT_DIRECT_PUBLISH))
         original_confidence = (Decimal(str(original_prediction.confidence_score))
                                if original_prediction.confidence_score is not None else None)
-        new_confidence = Decimal(str(data.confidence_score)) if data.confidence_score is not None else Decimal("0")
+        new_confidence = Decimal(str(data.confidence_score)) if data.confidence_score is not None else None
         override_record = PredictionOverride(
             id=uuid.uuid4(),
             # the resulting expert prediction; original_prediction is reachable from its
@@ -401,7 +407,12 @@ class ExpertPredictionService:
                 "away_win": data.away_win_prob,
             },
             new_confidence=new_confidence,
-            confidence_adjustment=(new_confidence - original_confidence) if original_confidence is not None else None,
+            # A difference needs two numbers. With either side unsupplied there is no adjustment to
+            # record, and NULL says that; subtracting against a stand-in zero would manufacture a
+            # swing the expert never made.
+            confidence_adjustment=((new_confidence - original_confidence)
+                                   if (new_confidence is not None and original_confidence is not None)
+                                   else None),
             override_reason=data.reasoning,
             key_insights=data.key_factors or None,
         )
@@ -1047,7 +1058,9 @@ class ExpertPredictionService:
             'home_win_prob': float(prediction.home_win_prob),
             'draw_prob': float(prediction.draw_prob),
             'away_win_prob': float(prediction.away_win_prob),
-            'confidence_score': float(prediction.confidence_score),
+            # NULL travels as null, not as 0.0: the reader is told nobody claimed a conviction
+            # rather than shown a conviction of zero.
+            'confidence_score': float(prediction.confidence_score) if prediction.confidence_score is not None else None,
             # Both Teams to Score (BTTS) - Optional
             'btts_yes_prob': float(prediction.btts_yes_prob) if prediction.btts_yes_prob is not None else None,
             'btts_no_prob': float(prediction.btts_no_prob) if prediction.btts_no_prob is not None else None,

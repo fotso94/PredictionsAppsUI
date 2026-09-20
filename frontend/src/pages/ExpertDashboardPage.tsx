@@ -13,6 +13,20 @@
  *
  * NO ACCURACY IS CLAIMED. `accuracy_rate` is null until predictions are scored against results, and
  * a null renders as "Not scored yet" with the reason, never as 0% and never as a derived band.
+ * In French that stand-in is « Pas encore évaluée » — feminine, agreeing with « l'exactitude »,
+ * and still a statement that no measurement exists rather than anything a reader could scan as a
+ * figure. The same care applies to the average-conviction tile: a stored 0 means nobody ever
+ * claimed a conviction, so it reads « Aucune publiée », never « 0 % ».
+ *
+ * EVERY DATE ON THIS PAGE IS IN THE READER'S CHOSEN ZONE. It used to be
+ * `new Date(...).toLocaleDateString()`, which formats in the DEVICE's zone and the DEVICE's
+ * locale — and the competition line rendered `match_details.match_date` as the raw ISO string the
+ * API sent, "2026-09-20T18:30:00Z", which is not a date in any language. An expert reads a
+ * kick-off to decide whether a prediction is still prematch, so a kick-off in the wrong zone is a
+ * correctness defect and not a cosmetic one. `backendInstant` reads the instant (this backend
+ * anchors these columns with a trailing Z — see the field serialisers in
+ * backend/app/schemas/predictions.py) and `formatDate` spells it out in the reader's language and
+ * their chosen zone.
  */
 
 import React, { useCallback, useEffect, useState } from 'react'
@@ -29,19 +43,28 @@ import EmptyState from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { getErrorMessage } from '@/utils/errors'
 import { useAuth } from '@/hooks/useAuth'
-import { ComposerDraft, clearDraft, readDraft, savedAgo } from '@/components/expert/draft'
+import { ComposerDraft, clearDraft, readDraft } from '@/components/expert/draft'
+import { relativeTime } from '@/components/ui/freshness'
+import { backendInstant, formatDate, formatNumber } from '@/i18n'
+import { useT } from '@/i18n/react'
+import type { TranslateFn } from '@/i18n'
 
 /** One published prediction, compact: the fixture, the leading call, and what can be done with it. */
 const RecentRow: React.FC<{
   prediction: ExpertPredictionResponse
   busy: boolean
+  t: TranslateFn
   onTogglePublish: (id: string) => void
   onDelete: (id: string) => void
-}> = ({ prediction, busy, onTogglePublish, onDelete }) => {
+}> = ({ prediction, busy, t, onTogglePublish, onDelete }) => {
   const details = prediction.match_details
   const status = prediction.status.toLowerCase()
   const canToggle = status === 'published' || status === 'archived'
   const canDelete = status === 'published' || status === 'archived' || status === 'rejected'
+  // The kick-off used to be dropped into the line as the raw ISO string the API sent. It is a
+  // date now, in the reader's language and their chosen zone.
+  const kickoff = formatDate(backendInstant(details?.match_date).at)
+  const publishedOn = formatDate(backendInstant(prediction.published_at ?? prediction.created_at).at)
 
   return (
     <li className="border-b border-dark-800 p-3 last:border-b-0 sm:p-4">
@@ -52,15 +75,51 @@ const RecentRow: React.FC<{
               {details.home_team_logo && (
                 <img src={details.home_team_logo} alt="" aria-hidden="true" className="h-4 w-4 flex-shrink-0 object-contain" onError={hideBrokenImage} />
               )}
-              <p className="min-w-0 truncate text-sm font-medium text-white">
-                {details.home_team_name} v {details.away_team_name}
+              {/*
+                THE AWAY TEAM IS THE PART THAT FALLS OFF, and only in French.
+                "Coton Sport contre Union Douala" overflows a 211px box at 360px while the English
+                "Coton Sport v Union Douala" fits with room to spare — the box was measured in
+                English and French is reliably longer. Truncating hid nine pixels, which is the
+                end of the AWAY team's name, so the row silently named one club and half of
+                another.
+                Wrapping instead of truncating costs a second line on a narrow screen and keeps
+                both names, which is the same trade the kick-off line on this page already makes.
+              */}
+              <p className="min-w-0 break-words text-sm font-medium text-white">
+                {t('expert.fixtureShort', { home: details.home_team_name, away: details.away_team_name })}
               </p>
             </div>
           ) : (
-            <p className="text-sm font-medium text-white">Fixture details unavailable</p>
+            <p className="text-sm font-medium text-white">{t('expert.row.fixtureUnavailable')}</p>
           )}
-          <p className="mt-0.5 truncate text-xs text-secondary-400">
-            {[details?.league_name, details?.match_date].filter(Boolean).join(' · ') || 'Competition unavailable'}
+          {/*
+            THE SAME SHAPE AS THE DRAFT LINE ABOVE, FOUND BY MEASURING RATHER THAN BY READING.
+
+            This was one `truncate`d line holding a competition name joined to a kick-off with
+            " · ". Measured at 360px with a real competition name — « Ligue des champions de la
+            CAF · 21 septembre 2026 » — it needed 298px and had 211px, and what fell off the end
+            was the KICK-OFF, every time: the name is first, so the name always survives and the
+            date never does. An expert reads a kick-off to decide whether a prediction is still
+            prematch. This page's own header calls a kick-off in the wrong zone a correctness
+            defect and not a cosmetic one; a kick-off that is not on the screen at all is the
+            same defect with a different cause.
+
+            So the two are separate runs now, and they are NOT treated alike. A competition's
+            name is a name: abbreviating it with an ellipsis still leaves it recognisable, and it
+            can be arbitrarily long. The kick-off is a value the expert is reading off the page,
+            so it never truncates and it never breaks across lines; when the pair does not fit,
+            it is the name that gives way, and failing that the line wraps.
+          */}
+          <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1 text-xs text-secondary-400" data-testid="recent-row-competition">
+            {details?.league_name && (
+              <span className="min-w-0 max-w-full truncate" data-testid="recent-row-competition-name">{details.league_name}</span>
+            )}
+            {kickoff && (
+              <span className="whitespace-nowrap" data-testid="recent-row-kickoff">
+                {details?.league_name ? '· ' : ''}{kickoff}
+              </span>
+            )}
+            {!details?.league_name && !kickoff && <span>{t('expert.row.competitionUnavailable')}</span>}
           </p>
         </div>
         <PredictionStatusBadge status={prediction.status} size="sm" />
@@ -69,34 +128,37 @@ const RecentRow: React.FC<{
       {/* Three published probabilities. Nothing here is renormalised on the way to the screen. */}
       <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
         {([
-          ['Home', prediction.home_win_prob],
-          ['Draw', prediction.draw_prob],
-          ['Away', prediction.away_win_prob],
+          ['fixture.side.home', prediction.home_win_prob],
+          ['fixture.side.draw', prediction.draw_prob],
+          ['fixture.side.away', prediction.away_win_prob],
         ] as const).map(([label, value]) => (
           <div key={label} className="min-w-0 rounded bg-dark-800/70 px-2 py-1">
-            <p className="truncate text-[11px] text-secondary-400">{label}</p>
-            <p className="num font-semibold text-white">{formatUnitProbability(value, 1, 'Unavailable')}</p>
+            <p className="truncate text-[11px] text-secondary-400">{t(label)}</p>
+            {/* Never "0.0%": a market this expert did not publish says so. */}
+            <p className="num font-semibold text-white">{formatUnitProbability(value, 1, t('probability.unavailable'))}</p>
           </div>
         ))}
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <PredictionSourceBadge source={prediction.source} size="sm" />
-        <span className="text-[11px] text-secondary-500">
-          Published {new Date(prediction.published_at ?? prediction.created_at).toLocaleDateString()}
-        </span>
+        {publishedOn && (
+          <span className="text-[11px] text-secondary-500">
+            {t('expert.row.publishedOn', { date: publishedOn })}
+          </span>
+        )}
         <span className="ml-auto flex flex-wrap gap-2">
           <Link to="/expert/predictions/my-predictions" className="focus-ring text-xs font-medium text-primary-300 hover:text-primary-200">
-            Edit
+            {t('expert.action.edit')}
           </Link>
           {canToggle && (
             <button type="button" disabled={busy} onClick={() => onTogglePublish(prediction.id)} className="focus-ring text-xs font-medium text-secondary-200 hover:text-white disabled:opacity-50">
-              {busy ? 'Working…' : status === 'published' ? 'Unpublish' : 'Publish'}
+              {busy ? t('expert.action.working') : status === 'published' ? t('expert.action.unpublish') : t('expert.action.publish')}
             </button>
           )}
           {canDelete && (
             <button type="button" disabled={busy} onClick={() => onDelete(prediction.id)} className="focus-ring text-xs font-medium text-danger-300 hover:text-danger-200 disabled:opacity-50">
-              Delete
+              {t('expert.action.delete')}
             </button>
           )}
         </span>
@@ -106,6 +168,7 @@ const RecentRow: React.FC<{
 }
 
 const ExpertDashboardPage: React.FC = () => {
+  const t = useT()
   const { user } = useAuth()
   const userId = user?.id ?? null
 
@@ -133,11 +196,11 @@ const ExpertDashboardPage: React.FC = () => {
       setReviewQueue(queueData)
     } catch (err) {
       console.error('Failed to load dashboard data:', err)
-      setError(getErrorMessage(err, 'Failed to load dashboard data'))
+      setError(getErrorMessage(err, t('expert.dashboard.loadFailed')))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     loadDashboardData()
@@ -151,14 +214,14 @@ const ExpertDashboardPage: React.FC = () => {
       await loadDashboardData()
     } catch (err) {
       console.error('Failed to toggle publish status:', err)
-      setError(getErrorMessage(err, 'Failed to toggle publish status'))
+      setError(getErrorMessage(err, t('expert.dashboard.toggleFailed')))
     } finally {
       setProcessingId(null)
     }
   }
 
   const handleDelete = async (predictionId: string) => {
-    if (!confirm('Delete this prediction? It disappears from the public match page and cannot be undone.')) return
+    if (!confirm(t('expert.dashboard.confirmDelete'))) return
     try {
       setProcessingId(predictionId)
       setError(null)
@@ -166,7 +229,7 @@ const ExpertDashboardPage: React.FC = () => {
       await loadDashboardData()
     } catch (err) {
       console.error('Failed to delete prediction:', err)
-      setError(getErrorMessage(err, 'Failed to delete prediction'))
+      setError(getErrorMessage(err, t('expert.deleteFailed')))
     } finally {
       setProcessingId(null)
     }
@@ -177,28 +240,28 @@ const ExpertDashboardPage: React.FC = () => {
     setDraft(null)
   }
 
+  /** "3 minutes ago" / « il y a 3 minutes », in the reader's language. Null when unreadable. */
+  const savedAt = draft ? relativeTime(draft.savedAt) : null
+
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white sm:text-3xl">Expert workspace</h1>
-        <p className="mt-1 text-sm text-secondary-300">
-          Write predictions and manage what you have published. Your predictions go public the moment you press
-          publish — nothing here waits for approval.
-        </p>
+        <h1 className="text-2xl font-bold text-white sm:text-3xl">{t('expert.dashboard.title')}</h1>
+        <p className="mt-1 text-sm text-secondary-300">{t('expert.dashboard.intro')}</p>
       </div>
 
       {error && (
         <div className="mb-6 rounded-lg border border-danger-700 bg-danger-900/30 px-4 py-3" role="alert">
           <p className="text-sm text-danger-200">{error}</p>
           <button type="button" onClick={loadDashboardData} className="focus-ring mt-2 text-xs font-medium text-primary-300 hover:text-primary-200">
-            Try again
+            {t('expert.retry')}
           </button>
         </div>
       )}
 
       {/* ------------------------------------------------------------------ what to do next */}
       <section aria-labelledby="next-heading">
-        <h2 id="next-heading" className="sr-only">What to do next</h2>
+        <h2 id="next-heading" className="sr-only">{t('expert.dashboard.nextHeading')}</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {draft && (
             <div className="card border-primary-800 p-4 sm:col-span-2">
@@ -206,26 +269,56 @@ const ExpertDashboardPage: React.FC = () => {
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 text-sm font-semibold text-white">
                     <PencilSquareIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                    Continue your draft
+                    {t('expert.draft.continueTitle')}
                   </p>
-                  <p className="mt-1 truncate text-sm text-secondary-200">
+                  {/*
+                    NO `truncate` HERE, AND THAT IS THE FIX RATHER THAN A TIDY-UP.
+
+                    This line used to be `truncate` — `white-space: nowrap` with `overflow:
+                    hidden`. At 360px in French the saved-ago run ended 106px past the paragraph
+                    it lives in, and because the DOCUMENT did not scroll sideways (the overflow is
+                    hidden on this paragraph, not on the page) the words were simply gone. « il y
+                    a 7 minutes » is half as long again as "7 minutes ago", and that is the normal
+                    case, not a pathological one: French runs reliably longer than English, so a
+                    single-line box measured in English is a box that loses a French sentence.
+
+                    The answer is to let the line wrap. Nothing here needs to be one line: it is a
+                    card, not a table row, and a fixture name over two lines costs a few pixels of
+                    height where a clipped line costs the reader the information. `break-words`
+                    covers the one case wrapping cannot — a single token longer than the card.
+
+                    Shortening the French to fit would have been the other way to make the
+                    measurement pass, and it is the wrong one: it makes the language that needs
+                    the room the one that has to give it up, and the next longer string — a
+                    two-hour-old draft, a longer team name — breaks it again.
+                  */}
+                  <p className="mt-1 break-words text-sm text-secondary-200" data-testid="draft-summary">
                     {draft.fixture && draft.fixture.homeTeam
-                      ? `${draft.fixture.homeTeam} v ${draft.fixture.awayTeam}`
-                      : 'Fixture not chosen yet'}
-                    {savedAgo(draft.savedAt) && <span className="text-secondary-400"> · saved {savedAgo(draft.savedAt)}</span>}
+                      ? t('expert.fixtureShort', { home: draft.fixture.homeTeam, away: draft.fixture.awayTeam })
+                      : t('expert.draft.noFixture')}
+                    {/*
+                      `savedAgo` in components/expert/draft.ts returns hard-coded English ("3
+                      minutes ago", "yesterday") and that module is another package's. This is
+                      `relativeTime`, which is the same idea already translated: it builds the
+                      duration first and then lets the catalogue put the frame where the language
+                      wants it — "3 minutes ago", « il y a 3 minutes ».
+                    */}
+                    {savedAt && (
+                      <span className="text-secondary-400" data-testid="draft-saved-ago">
+                        {' · '}{t('expert.draft.savedAgo', { ago: savedAt })}
+                      </span>
+                    )}
                   </p>
-                  <p className="mt-1 text-xs text-secondary-400">
-                    Stored in this browser only. It has not been published and will not publish itself.
-                  </p>
+                  <p className="mt-1 text-xs text-secondary-400">{t('expert.draft.localOnly')}</p>
                 </div>
                 <div className="flex flex-shrink-0 flex-wrap gap-2">
                   <Link
                     to={draft.fixture?.id ? `/expert/predictions/create?matchId=${encodeURIComponent(draft.fixture.id)}` : '/expert/predictions/create'}
                     className="btn btn-sm btn-primary"
                   >
-                    Continue
+                    {t('expert.draft.continue')}
                   </Link>
-                  <button type="button" onClick={discardDraft} className="btn btn-sm btn-ghost">Discard</button>
+                  <button type="button" onClick={discardDraft} className="btn btn-sm btn-ghost">{t('expert.draft.discard')}</button>
                 </div>
               </div>
             </div>
@@ -238,11 +331,9 @@ const ExpertDashboardPage: React.FC = () => {
             <span className="min-w-0">
               <span className="flex items-center gap-2 text-sm font-semibold text-white">
                 <PlusIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                Choose a match
+                {t('expert.dashboard.chooseMatch')}
               </span>
-              <span className="mt-1 block text-xs text-secondary-400">
-                One filtered fixture list. Filter by day, competition or team.
-              </span>
+              <span className="mt-1 block text-xs text-secondary-400">{t('expert.dashboard.chooseMatchHint')}</span>
             </span>
             <ArrowRightIcon className="h-4 w-4 flex-shrink-0 text-primary-300" aria-hidden="true" />
           </Link>
@@ -254,11 +345,9 @@ const ExpertDashboardPage: React.FC = () => {
             <span className="min-w-0">
               <span className="flex items-center gap-2 text-sm font-semibold text-white">
                 <DocumentTextIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                My predictions
+                {t('expert.dashboard.myPredictions')}
               </span>
-              <span className="mt-1 block text-xs text-secondary-400">
-                Edit, unpublish or remove anything you have published.
-              </span>
+              <span className="mt-1 block text-xs text-secondary-400">{t('expert.dashboard.myPredictionsHint')}</span>
             </span>
             <ArrowRightIcon className="h-4 w-4 flex-shrink-0 text-primary-300" aria-hidden="true" />
           </Link>
@@ -267,7 +356,7 @@ const ExpertDashboardPage: React.FC = () => {
 
       {/* ------------------------------------------------------------------ recently published */}
       <section className="mt-8" aria-labelledby="recent-heading">
-        <h2 id="recent-heading" className="mb-3 text-lg font-semibold text-white">Recently published</h2>
+        <h2 id="recent-heading" className="mb-3 text-lg font-semibold text-white">{t('expert.dashboard.recentHeading')}</h2>
         <div className="card overflow-hidden">
           {loading ? (
             <div className="flex justify-center p-8"><LoadingSpinner /></div>
@@ -275,10 +364,10 @@ const ExpertDashboardPage: React.FC = () => {
             <div className="p-4">
               <EmptyState
                 tone="empty"
-                title="You have not published anything yet"
-                description="Choose a match and write your first prediction. It goes live as soon as you publish it."
+                title={t('expert.dashboard.emptyTitle')}
+                description={t('expert.dashboard.emptyBody')}
                 variant="inline"
-                action={<Link to="/expert/match-selection" className="btn btn-sm btn-primary">Choose a match</Link>}
+                action={<Link to="/expert/match-selection" className="btn btn-sm btn-primary">{t('expert.dashboard.chooseMatch')}</Link>}
               />
             </div>
           ) : (
@@ -288,6 +377,7 @@ const ExpertDashboardPage: React.FC = () => {
                   key={prediction.id}
                   prediction={prediction}
                   busy={processingId === prediction.id}
+                  t={t}
                   onTogglePublish={handleTogglePublish}
                   onDelete={handleDelete}
                 />
@@ -300,35 +390,41 @@ const ExpertDashboardPage: React.FC = () => {
       {/* ------------------------------------------------------------------ the record */}
       {metrics && (
         <section className="mt-8" aria-labelledby="record-heading">
-          <h2 id="record-heading" className="mb-3 text-lg font-semibold text-white">Your record</h2>
+          <h2 id="record-heading" className="mb-3 text-lg font-semibold text-white">{t('expert.dashboard.recordHeading')}</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {([
-              ['Predictions written', String(metrics.total_predictions)],
-              ['Published', String(metrics.published_predictions)],
-              ['Not published', String(metrics.pending_predictions)],
-              // A stored 0 is how "nobody has claimed a conviction" reaches us from the numeric
-              // column — printing it as "0%" would report a judgement of zero confidence that no
-              // expert ever made.
-              ['Average conviction', metrics.average_confidence > 0
-                ? formatUnitProbability(metrics.average_confidence, 0, 'None published')
-                : 'None published'],
+              ['expert.dashboard.statWritten', formatNumber(metrics.total_predictions)],
+              ['expert.dashboard.statPublished', formatNumber(metrics.published_predictions)],
+              ['expert.dashboard.statNotPublished', formatNumber(metrics.pending_predictions)],
+              // Null is "nobody has claimed a conviction"; zero is a judgement of zero, and the
+              // two are no longer the same stored value. This tested `> 0`, which was right while
+              // the column coerced a blank to zero and wrong the moment it stopped: it reported a
+              // deliberate 0% average as though nothing had been published at all.
+              // « Aucune publiée » is not a figure and must never be shortened into one.
+              ['expert.dashboard.statAverageConviction', metrics.average_confidence !== null
+                ? formatUnitProbability(metrics.average_confidence, 0, t('expert.dashboard.nonePublished'))
+                : t('expert.dashboard.nonePublished')],
             ] as const).map(([label, value]) => (
               <div key={label} className="card p-3">
-                <p className="truncate text-xs text-secondary-400">{label}</p>
+                <p className="truncate text-xs text-secondary-400">{t(label)}</p>
                 <p className="num mt-1 text-2xl font-bold text-white">{value}</p>
               </div>
             ))}
           </div>
           <div className="card mt-3 p-3">
-            <p className="text-xs text-secondary-400">Accuracy</p>
+            {/*
+              « Exactitude », not « Taux de réussite ». The latter is `measured.hitRate` in the
+              core catalogue — the settlement engine's measured hit rate over a stated sample.
+              This tile is `accuracy_rate` from the expert analytics endpoint, a different number
+              from a different pipeline, and giving the two the same French would invite a reader
+              to take an unmeasured figure for a measured one.
+            */}
+            <p className="text-xs text-secondary-400">{t('expert.dashboard.accuracy')}</p>
             <p className="num mt-1 text-2xl font-bold text-white">
-              {formatUnitProbability(metrics.accuracy_rate, 1, 'Not scored yet')}
+              {formatUnitProbability(metrics.accuracy_rate, 1, t('expert.dashboard.notScoredYet'))}
             </p>
             {metrics.accuracy_rate === null && (
-              <p className="mt-1 text-xs text-secondary-400">
-                No prediction has been settled against a final result yet, so there is no accuracy to report. The
-                average conviction above is what you claimed, not a measurement of how often you were right.
-              </p>
+              <p className="mt-1 text-xs text-secondary-400">{t('expert.dashboard.accuracyNote')}</p>
             )}
           </div>
         </section>
@@ -339,19 +435,22 @@ const ExpertDashboardPage: React.FC = () => {
         <section className="mt-8" aria-labelledby="moderation-heading">
           <h2 id="moderation-heading" className="mb-1 flex items-center gap-2 text-lg font-semibold text-white">
             <ClipboardDocumentListIcon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
-            Flagged for moderation
+            {t('expert.queue.heading')}
           </h2>
-          <p className="mb-3 text-xs text-secondary-400">
-            These are already public. Moderation happens after publication — it is not an approval gate.
-          </p>
+          <p className="mb-3 text-xs text-secondary-400">{t('expert.dashboard.moderationNote')}</p>
           <div className="card overflow-hidden">
             <ul>
               {reviewQueue.slice(0, 3).map(prediction => (
                 <li key={prediction.id} className="flex flex-wrap items-center gap-2 border-b border-dark-800 p-3 last:border-b-0">
-                  <span className="min-w-0 flex-1 truncate text-sm text-white">
+                  {/* Same reason as the published row above: in French the away team's name is
+                      what the truncation eats. */}
+                  <span className="min-w-0 flex-1 break-words text-sm text-white">
                     {prediction.match_details
-                      ? `${prediction.match_details.home_team_name} v ${prediction.match_details.away_team_name}`
-                      : 'Fixture details unavailable'}
+                      ? t('expert.fixtureShort', {
+                        home: prediction.match_details.home_team_name,
+                        away: prediction.match_details.away_team_name,
+                      })
+                      : t('expert.row.fixtureUnavailable')}
                   </span>
                   <PredictionStatusBadge status={prediction.status} size="sm" />
                 </li>
@@ -359,7 +458,7 @@ const ExpertDashboardPage: React.FC = () => {
             </ul>
             <div className="border-t border-dark-800 p-3">
               <Link to="/expert/predictions/review-queue" className="focus-ring text-xs font-medium text-primary-300 hover:text-primary-200">
-                View the moderation list
+                {t('expert.dashboard.moderationLink')}
               </Link>
             </div>
           </div>

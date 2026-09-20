@@ -8,6 +8,8 @@ import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
 import type { ReturnedFromSignIn } from '@/components/favourites/useMatchSaving'
 import { pendingSaveIntent, safeReturnPath, useResumeSave } from '@/components/favourites/useMatchSaving'
+import Emphasised from '@/i18n/Emphasised'
+import { useT } from '@/i18n/react'
 
 /**
  * Create an account — and then carry on with whatever the visitor was doing.
@@ -17,9 +19,28 @@ import { pendingSaveIntent, safeReturnPath, useResumeSave } from '@/components/f
  * same handoff as LoginPage, because "create a new account" is one click away from that form and
  * a visitor who takes it has not changed their mind about the match they were saving. The contract
  * and the destination validation both live in components/favourites/useMatchSaving.ts.
+ *
+ * ITS STRINGS ARE THE CATALOGUE'S, in src/i18n/messages/auth.en.ts and auth.fr.ts. Two things
+ * about them are not visible from the English. The password rule states its own plural, because
+ * the minimum is a number this form holds rather than a word in a sentence — MIN_PASSWORD_LENGTH
+ * below, which mirrors the backend's own `min_length=8` — and the consent line carries its
+ * ARTICLES in the catalogue rather than a bare "and", because French agrees them with the two
+ * different nouns that follow: « les Conditions d'utilisation » and « la Politique de
+ * confidentialité ».
  */
 
+/**
+ * The shortest password this form will submit.
+ *
+ * It mirrors `min_length=8` on every password field in backend/app/schemas/auth.py, and it is a
+ * value rather than a word in a sentence precisely so the sentence can count it: "at least 8
+ * characters" and "at least 1 character" are different sentences in both languages, and a
+ * catalogue that spelled the number out could not produce the second one.
+ */
+const MIN_PASSWORD_LENGTH = 8
+
 const RegisterPage: React.FC = () => {
+  const t = useT()
   const { register, isAuthenticated, isLoading } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
@@ -41,6 +62,8 @@ const RegisterPage: React.FC = () => {
   const returnTo = safeReturnPath(location.state)
   /** The save they were in the middle of, if any — used only to say so above the form. */
   const interruptedSave = pendingSaveIntent(location.state)
+  /** How the waiting save is named on screen: the provider's words, or ours if it carried none. */
+  const savedLabel = interruptedSave?.label ?? t('auth.saveIntent.thatMatch')
   /** Tells the destination it was returned to, not walked to. See ReturnedFromSignIn. */
   const arrival: ReturnedFromSignIn = { resumedFromSignIn: true }
 
@@ -56,19 +79,19 @@ const RegisterPage: React.FC = () => {
 
     // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match')
+      toast.error(t('auth.validation.passwordsDiffer'))
       return
     }
 
     // Validate terms agreement
     if (!formData.agreeToTerms) {
-      toast.error('Please agree to the terms and conditions')
+      toast.error(t('auth.register.mustAgree'))
       return
     }
 
     // Validate password strength (minimum 8 characters)
-    if (formData.password.length < 8) {
-      toast.error('Password must be at least 8 characters long')
+    if (formData.password.length < MIN_PASSWORD_LENGTH) {
+      toast.error(t('auth.validation.tooShortLong', { count: MIN_PASSWORD_LENGTH }))
       return
     }
 
@@ -82,7 +105,7 @@ const RegisterPage: React.FC = () => {
         last_name: formData.lastName,
         role: 'regular', // Default role for new users
       })
-      toast.success('Account created successfully! Welcome email sent to your inbox.')
+      toast.success(t('auth.register.created'))
       // AuthContext has already navigated to its role landing page, and this component is
       // unmounted by now; replacing that entry is what returns the visitor to the page they were
       // on, and the save they had started goes through the shared store rather than through any
@@ -104,8 +127,8 @@ const RegisterPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>Create Account - Soccer Predictions</title>
-        <meta name="description" content="Create your Soccer Predictions account to access premium features and personalized predictions." />
+        <title>{t('auth.register.documentTitle')}</title>
+        <meta name="description" content={t('auth.register.documentDescription')} />
       </Helmet>
 
       <div className="min-h-screen bg-dark-950 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -116,15 +139,15 @@ const RegisterPage: React.FC = () => {
               <div className="h-10 w-10 rounded-lg bg-gradient-to-r from-primary-500 to-primary-600 flex items-center justify-center">
                 <span className="text-white font-bold text-xl">SP</span>
               </div>
-              <span className="text-2xl font-bold text-white">Soccer Predictions</span>
+              <span className="text-2xl font-bold text-white">{t('app.name')}</span>
             </Link>
-            <h2 className="text-3xl font-bold text-white">Create your account</h2>
+            <h2 className="text-3xl font-bold text-white">{t('auth.register.heading')}</h2>
             <p className="mt-2 text-secondary-400">
-              Already have an account?{' '}
+              {t('auth.register.haveAccountPrompt')}{' '}
               {/* The handoff rides along, so going back to sign in still finishes the save and
                   still returns to the same page. */}
               <Link to="/login" state={location.state} className="text-primary-400 hover:text-primary-300">
-                Sign in
+                {t('auth.register.signInLink')}
               </Link>
             </p>
           </div>
@@ -139,9 +162,13 @@ const RegisterPage: React.FC = () => {
               className="rounded-lg border border-dark-700 bg-dark-900/60 px-4 py-3 text-center text-sm text-secondary-200"
               data-testid="register-save-intent"
             >
-              Saving a match needs an account. Create one and we will finish saving{' '}
-              <span className="font-medium text-white">{interruptedSave.label ?? 'that match'}</span>
-              {' '}and take you back to where you were.
+              {/* One sentence from the catalogue, the fixture's own name picked out inside it
+                  wherever the language puts it. See LoginPage.tsx for the reasoning. */}
+              <Emphasised
+                sentence={t('auth.saveIntent.register', { match: savedLabel })}
+                value={savedLabel}
+                className="font-medium text-white"
+              />
             </p>
           )}
 
@@ -152,7 +179,7 @@ const RegisterPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="firstName" className="form-label">
-                      First name
+                      {t('auth.register.firstName')}
                     </label>
                     <input
                       id="firstName"
@@ -160,14 +187,14 @@ const RegisterPage: React.FC = () => {
                       type="text"
                       required
                       className="form-input"
-                      placeholder="First name"
+                      placeholder={t('auth.register.firstNamePlaceholder')}
                       value={formData.firstName}
                       onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                     />
                   </div>
                   <div>
                     <label htmlFor="lastName" className="form-label">
-                      Last name
+                      {t('auth.register.lastName')}
                     </label>
                     <input
                       id="lastName"
@@ -175,7 +202,7 @@ const RegisterPage: React.FC = () => {
                       type="text"
                       required
                       className="form-input"
-                      placeholder="Last name"
+                      placeholder={t('auth.register.lastNamePlaceholder')}
                       value={formData.lastName}
                       onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                     />
@@ -184,7 +211,7 @@ const RegisterPage: React.FC = () => {
 
                 <div>
                   <label htmlFor="email" className="form-label">
-                    Email address
+                    {t('auth.field.email')}
                   </label>
                   <input
                     id="email"
@@ -193,7 +220,7 @@ const RegisterPage: React.FC = () => {
                     autoComplete="email"
                     required
                     className="form-input"
-                    placeholder="Enter your email"
+                    placeholder={t('auth.field.emailPlaceholder')}
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
@@ -201,7 +228,7 @@ const RegisterPage: React.FC = () => {
 
                 <div>
                   <label htmlFor="username" className="form-label">
-                    Username
+                    {t('auth.register.username')}
                   </label>
                   <input
                     id="username"
@@ -209,7 +236,7 @@ const RegisterPage: React.FC = () => {
                     type="text"
                     required
                     className="form-input"
-                    placeholder="Choose a username"
+                    placeholder={t('auth.register.usernamePlaceholder')}
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   />
@@ -217,7 +244,7 @@ const RegisterPage: React.FC = () => {
 
                 <div>
                   <label htmlFor="password" className="form-label">
-                    Password
+                    {t('auth.field.password')}
                   </label>
                   <div className="relative">
                     <input
@@ -226,13 +253,14 @@ const RegisterPage: React.FC = () => {
                       type={showPassword ? 'text' : 'password'}
                       required
                       className="form-input pr-10"
-                      placeholder="Create a password"
+                      placeholder={t('auth.register.passwordPlaceholder')}
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     />
                     <button
                       type="button"
                       className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      aria-label={t(showPassword ? 'auth.field.hidePassword' : 'auth.field.showPassword')}
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? (
@@ -246,7 +274,7 @@ const RegisterPage: React.FC = () => {
 
                 <div>
                   <label htmlFor="confirmPassword" className="form-label">
-                    Confirm password
+                    {t('auth.register.confirmPassword')}
                   </label>
                   <div className="relative">
                     <input
@@ -255,13 +283,14 @@ const RegisterPage: React.FC = () => {
                       type={showConfirmPassword ? 'text' : 'password'}
                       required
                       className="form-input pr-10"
-                      placeholder="Confirm your password"
+                      placeholder={t('auth.register.confirmPasswordPlaceholder')}
                       value={formData.confirmPassword}
                       onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                     />
                     <button
                       type="button"
                       className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      aria-label={t(showConfirmPassword ? 'auth.field.hidePassword' : 'auth.field.showPassword')}
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     >
                       {showConfirmPassword ? (
@@ -284,13 +313,15 @@ const RegisterPage: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, agreeToTerms: e.target.checked })}
                   />
                   <label htmlFor="agree-terms" className="ml-2 block text-sm text-secondary-300">
-                    I agree to the{' '}
+                    {/* The ARTICLE travels with each link, not with the join: French agrees it
+                        with the noun that follows, and the two nouns disagree. */}
+                    {t('auth.register.agreePrefix')}{' '}
                     <a href="#" className="text-primary-400 hover:text-primary-300">
-                      Terms of Service
+                      {t('footer.termsOfService')}
                     </a>{' '}
-                    and{' '}
+                    {t('auth.register.agreeJoin')}{' '}
                     <a href="#" className="text-primary-400 hover:text-primary-300">
-                      Privacy Policy
+                      {t('footer.privacyPolicy')}
                     </a>
                   </label>
                 </div>
@@ -302,7 +333,7 @@ const RegisterPage: React.FC = () => {
                     size="lg"
                     disabled={isSubmitting || isLoading}
                   >
-                    {isSubmitting || isLoading ? 'Creating account...' : 'Create account'}
+                    {t(isSubmitting || isLoading ? 'auth.register.submitting' : 'auth.register.submit')}
                   </Button>
                 </div>
               </form>

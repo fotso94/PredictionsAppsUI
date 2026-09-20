@@ -12,6 +12,9 @@ import useFavourites from '@/hooks/useFavourites'
 import { usePersonalPreferences } from '@/services/favourites.service'
 import { footballDataService } from '@/services/football-data.service'
 import { CoverageSummary } from '@/services/match-data-source'
+import { formatNumber, type MessageKey } from '@/i18n'
+import { useT } from '@/i18n/react'
+import Emphasised from '@/i18n/Emphasised'
 
 /**
  * The signed-in user's own page: the matches they saved, and the teams and competitions they follow.
@@ -41,9 +44,22 @@ import { CoverageSummary } from '@/services/match-data-source'
  * anchor e2e/mocked/dashboard-truthfulness.spec.ts uses to prove it is looking at this page rather
  * than the login form it redirects an anonymous visitor to. "My matches" is the first and largest
  * section, which is what the page is actually for. Renaming the h1 needs that spec updated by its
- * owner first — see the note in the package report.
+ * owner first — see the note in the package report. In French it reads « Tableau de bord », which
+ * is `nav.dashboard` — the same key the navigation entry uses, so the heading and the link a
+ * reader followed to reach it cannot say different things.
+ *
+ * ── THE THREE `toLocaleString()` CALLS HERE WERE NOT DATES ──────────────────────────────────
+ *
+ * The catalogue survey counted three raw `toLocaleString` calls on this page and they turned out
+ * to be `Number.prototype.toLocaleString`, not `Date`'s: the three coverage figures. They were
+ * still wrong for the same underlying reason — `(1234).toLocaleString()` uses the DEVICE's
+ * locale, so a French reader on an American laptop was shown "1,234" where their own convention
+ * is "1 234" — and the fourth figure beside them used `String()`, so it was not grouped at all
+ * and the row disagreed with itself past a thousand. All four now go through `formatNumber`,
+ * which reads the language the reader CHOSE. There is no date on this page.
  */
 const DashboardPage: React.FC = () => {
+  const t = useT()
   const { user } = useAuth()
   const { savedMatches, loaded, failed } = useFavourites()
   const prefs = usePersonalPreferences(user?.id ?? null)
@@ -58,31 +74,45 @@ const DashboardPage: React.FC = () => {
     return () => { cancelled = true }
   }, [])
 
+  /**
+   * The reader's own name, which is theirs and is never translated.
+   *
+   * Null when the account carries nothing to greet them by. The greeting is then a different
+   * sentence rather than this one with the word "there" dropped into the hole: French has no
+   * word that stands in for a name that way, and « Bon retour, vous ! » is not a sentence
+   * anybody says.
+   */
   const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim()
     || user?.username
     || user?.email
-    || 'there'
+    || null
 
-  /** Measured from what this installation holds — site-wide, not per user, and labelled as such. */
-  const siteStats = [
+  /**
+   * Measured from what this installation holds — site-wide, not per user, and labelled as such.
+   *
+   * The four labels are `home.stat.*`: the home page shows the same four counts under the same
+   * four names, and two keys for one label is how the two pages start disagreeing about what a
+   * figure means. Every figure goes through `formatNumber`, in the reader's own convention.
+   */
+  const siteStats: Array<{ name: MessageKey; value: string | null; icon: typeof TrophyIcon }> = [
     {
-      name: 'Competitions covered',
-      value: coverage ? String(coverage.competitions_covered) : null,
+      name: 'home.stat.competitions',
+      value: coverage ? formatNumber(coverage.competitions_covered) : null,
       icon: TrophyIcon,
     },
     {
-      name: 'Upcoming fixtures loaded',
-      value: coverage ? coverage.upcoming_matches.toLocaleString() : null,
+      name: 'home.stat.fixtures',
+      value: coverage ? formatNumber(coverage.upcoming_matches) : null,
       icon: CalendarDaysIcon,
     },
     {
-      name: 'Model forecasts available',
-      value: coverage ? coverage.upcoming_matches_with_forecast.toLocaleString() : null,
+      name: 'home.stat.forecasts',
+      value: coverage ? formatNumber(coverage.upcoming_matches_with_forecast) : null,
       icon: CpuChipIcon,
     },
     {
-      name: 'Expert predictions published',
-      value: coverage ? coverage.expert_predictions_published.toLocaleString() : null,
+      name: 'home.stat.expertPredictions',
+      value: coverage ? formatNumber(coverage.expert_predictions_published) : null,
       icon: ChartBarIcon,
     },
   ]
@@ -90,19 +120,26 @@ const DashboardPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>My matches - Soccer Predictions</title>
-        <meta name="description" content="The matches you saved and the teams and competitions you follow." />
+        <title>{t('reader.dashboard.documentTitle')}</title>
+        <meta name="description" content={t('reader.dashboard.documentDescription')} />
       </Helmet>
 
       <div className="min-h-screen bg-dark-950 py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-            <p className="text-secondary-400">Welcome back, {displayName}!</p>
+            <h1 className="text-3xl font-bold text-white">{t('nav.dashboard')}</h1>
+            <p className="text-secondary-400">
+              {displayName
+                ? t('reader.dashboard.welcome', { name: displayName })
+                : t('reader.dashboard.welcomeNoName')}
+            </p>
             {user?.email && (
               <p className="mt-1 text-sm text-secondary-500">
-                Signed in as {user.email}
-                {user.user_type && user.user_type !== 'REGULAR' ? ` · ${user.user_type.toLowerCase()} account` : ''}
+                {t('reader.dashboard.signedInAs', { email: user.email })}
+                {/* The account type is the backend's own word and is rendered as it sent it. */}
+                {user.user_type && user.user_type !== 'REGULAR'
+                  ? t('reader.dashboard.accountKind', { type: user.user_type.toLowerCase() })
+                  : ''}
               </p>
             )}
           </div>
@@ -112,19 +149,35 @@ const DashboardPage: React.FC = () => {
             <Card.Header>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Your feed</h2>
-                  <p className="text-xs text-secondary-500">
-                    What you saved and what the teams and competitions you follow are playing — in
-                    play first, then results, then what is coming up.
-                  </p>
+                  <h2 className="text-lg font-semibold text-white">{t('reader.dashboard.feedHeading')}</h2>
+                  <p className="text-xs text-secondary-500">{t('reader.dashboard.feedHint')}</p>
                 </div>
                 {/* A count is only reported once a snapshot has really arrived: on a failed load the
                     buckets are empty because we do not know, not because there is nothing. */}
+                {/*
+                  THE COUNT IS A HOLE IN A WHOLE SENTENCE, NOT A <span> GLUED TO A WORD.
+                  It used to be `<span>{n}</span> saved`, which freezes the numeral before the
+                  label; `Emphasised` finds the numeral inside the rendered sentence instead, so
+                  the catalogue decides where in the phrase it goes and keeps the `num` class
+                  (tabular figures) on exactly that run. Neither label inflects with the count in
+                  either language — see the header of src/i18n/messages/reader.fr.ts.
+                */}
                 {loaded && !failed && (
                   <p className="text-xs text-secondary-400">
-                    <span className="num">{savedMatches.counts.total}</span> saved
+                    <Emphasised
+                      sentence={t('reader.dashboard.savedCount', { count: formatNumber(savedMatches.counts.total) })}
+                      value={formatNumber(savedMatches.counts.total)}
+                      className="num"
+                    />
                     {savedMatches.counts.live > 0 && (
-                      <> · <span className="num">{savedMatches.counts.live}</span> in play now</>
+                      <>
+                        {' · '}
+                        <Emphasised
+                          sentence={t('reader.dashboard.liveCount', { count: formatNumber(savedMatches.counts.live) })}
+                          value={formatNumber(savedMatches.counts.live)}
+                          className="num"
+                        />
+                      </>
                     )}
                   </p>
                 )}
@@ -138,11 +191,8 @@ const DashboardPage: React.FC = () => {
           <Card className="mb-8" data-testid="dashboard-following">
             <Card.Header>
               <div>
-                <h2 className="text-lg font-semibold text-white">Teams and competitions you follow</h2>
-                <p className="text-xs text-secondary-500">
-                  Their fixtures appear in the feed above. Following changes what you see here; it
-                  does not change what any source publishes.
-                </p>
+                <h2 className="text-lg font-semibold text-white">{t('reader.dashboard.followingHeading')}</h2>
+                <p className="text-xs text-secondary-500">{t('reader.dashboard.followingHint')}</p>
               </div>
             </Card.Header>
             <Card.Body>
@@ -161,11 +211,8 @@ const DashboardPage: React.FC = () => {
           <Card className="mb-8" data-testid="dashboard-personal-controls">
             <Card.Header>
               <div>
-                <h2 className="text-lg font-semibold text-white">Your settings and your data</h2>
-                <p className="text-xs text-secondary-500">
-                  What these pages are allowed to show you, how to take a copy of your data, and
-                  how to delete it.
-                </p>
+                <h2 className="text-lg font-semibold text-white">{t('reader.dashboard.controlsHeading')}</h2>
+                <p className="text-xs text-secondary-500">{t('reader.dashboard.controlsHint')}</p>
               </div>
             </Card.Header>
             <Card.Body>
@@ -179,7 +226,7 @@ const DashboardPage: React.FC = () => {
           */}
           <Card className="mb-8" data-testid="dashboard-no-record">
             <Card.Header>
-              <h2 className="text-lg font-semibold text-white">Your prediction record</h2>
+              <h2 className="text-lg font-semibold text-white">{t('reader.dashboard.recordHeading')}</h2>
             </Card.Header>
             <Card.Body className="space-y-3 text-sm text-secondary-300">
               {/*
@@ -190,16 +237,8 @@ const DashboardPage: React.FC = () => {
                 this card is actually about — your own account has no scored record — so that is
                 all it claims, and the site-wide measured record is named as a separate thing.
               */}
-              <p>
-                Your own predictions are not settled against final results into a personal record,
-                so no accuracy rate, streak or profit figure is shown for your account. Saving a
-                match records that you want to come back to it; it is not a wager and nothing about
-                it is scored.
-              </p>
-              <p>
-                How the model providers and the experts have actually done, counted from settled
-                results, is published on the home page with the sample size behind every figure.
-              </p>
+              <p>{t('reader.dashboard.recordBody1')}</p>
+              <p>{t('reader.dashboard.recordBody2')}</p>
               {/*
                 The first of these is an invitation to go and read something else, so it answers
                 to the prompts switch; and with forecasts off it points at the fixtures rather
@@ -211,12 +250,12 @@ const DashboardPage: React.FC = () => {
                 {prefs.isOn('prompts') && (
                   <Button asChild>
                     {prefs.isOn('forecasts')
-                      ? <Link to="/predictions/today">Browse today&rsquo;s predictions</Link>
-                      : <Link to="/matches">Browse the fixtures</Link>}
+                      ? <Link to="/predictions/today">{t('reader.dashboard.browsePredictions')}</Link>
+                      : <Link to="/matches">{t('reader.dashboard.browseFixtures')}</Link>}
                   </Button>
                 )}
                 <Button variant="outline" asChild>
-                  <Link to="/profile">Account settings</Link>
+                  <Link to="/profile">{t('reader.dashboard.accountSettings')}</Link>
                 </Button>
               </div>
             </Card.Body>
@@ -226,10 +265,8 @@ const DashboardPage: React.FC = () => {
           <Card>
             <Card.Header>
               <div>
-                <h2 className="text-lg font-semibold text-white">What this site currently holds</h2>
-                <p className="text-xs text-secondary-500">
-                  Site-wide counts measured from stored data — not your personal statistics.
-                </p>
+                <h2 className="text-lg font-semibold text-white">{t('reader.dashboard.coverageHeading')}</h2>
+                <p className="text-xs text-secondary-500">{t('reader.dashboard.coverageHint')}</p>
               </div>
             </Card.Header>
             <Card.Body>
@@ -243,23 +280,27 @@ const DashboardPage: React.FC = () => {
                     </div>
                     <div className="mt-3 text-2xl font-bold text-white">
                       {coverageLoading ? (
-                        <span className="inline-block h-7 w-16 animate-pulse rounded bg-dark-700" aria-label="Loading" />
+                        <span
+                          className="inline-block h-7 w-16 animate-pulse rounded bg-dark-700"
+                          aria-label={t('reader.dashboard.loadingFigure')}
+                        />
                       ) : stat.value ?? (
-                        <span className="text-base font-medium text-secondary-500">Unavailable</span>
+                        <span className="text-base font-medium text-secondary-500">{t('home.statUnavailable')}</span>
                       )}
                     </div>
-                    <div className="text-sm text-secondary-400">{stat.name}</div>
+                    <div className="text-sm text-secondary-400">{t(stat.name)}</div>
                   </div>
                 ))}
               </div>
               {!coverageLoading && !coverage && (
                 <p className="mt-4 text-center text-xs text-secondary-500">
-                  The coverage endpoint could not be reached, so these counts are unavailable.
+                  {t('reader.dashboard.coverageFailed')}
                 </p>
               )}
+              {/* The reason is the backend's own sentence and is not translated. */}
               {coverage && !coverage.accuracy_available && (
                 <p className="mt-4 text-center text-xs text-secondary-500">
-                  No accuracy figure is shown: {coverage.accuracy_unavailable_reason}
+                  {t('reader.dashboard.noAccuracy', { reason: coverage.accuracy_unavailable_reason })}
                 </p>
               )}
             </Card.Body>

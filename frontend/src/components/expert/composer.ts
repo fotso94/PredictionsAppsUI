@@ -352,9 +352,16 @@ export function composerFromPrediction(prediction: ExpertPredictionResponse): Co
     homeWin: unitToPercentInput(prediction.home_win_prob),
     draw: unitToPercentInput(prediction.draw_prob),
     awayWin: unitToPercentInput(prediction.away_win_prob),
-    // A stored 0 confidence is how "none was supplied" reaches us from the numeric column, so it
-    // reopens as blank rather than as a 0% conviction the expert never claimed.
-    conviction: published(prediction.confidence_score) && prediction.confidence_score > 0
+    /*
+     * Null is how "none was supplied" reaches us now, so a stored zero is a real zero again.
+     *
+     * This used to read `published(...) && confidence_score > 0`, because the column could not
+     * hold null and the service wrote 0.0 for a blank — so zero was the only signal available.
+     * With the column nullable that clause inverted the defect: an expert who deliberately rated
+     * their conviction at 0% reopened the editor to an empty field, and the value they had chosen
+     * was gone from in front of them.
+     */
+    conviction: published(prediction.confidence_score)
       ? unitToPercentInput(prediction.confidence_score)
       : '',
     bttsEnabled: published(prediction.btts_yes_prob) || published(prediction.btts_no_prob),

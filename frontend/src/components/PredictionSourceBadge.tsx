@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useT } from '@/i18n/react';
 import { getPredictionSourceInfo, PredictionSource } from '../types/expert';
 
 interface PredictionSourceBadgeProps {
@@ -146,7 +147,14 @@ export const PredictionStatusBadge: React.FC<PredictionStatusBadgeProps> = ({
 };
 
 interface ConfidenceBadgeProps {
-  confidence: number;
+  /**
+   * The expert's own stated conviction, or null/undefined when they did not state one.
+   *
+   * This was `number`, which stopped being true when the column became nullable: the API really
+   * does return null now. Left as it was, an absent conviction banded to "Low (0%)" — a rating
+   * nobody gave, shown back to the expert who did not give it.
+   */
+  confidence: number | null | undefined;
   size?: 'sm' | 'md' | 'lg';
   showPercentage?: boolean;
   className?: string;
@@ -155,12 +163,34 @@ interface ConfidenceBadgeProps {
 /**
  * Badge component to display confidence score
  */
+const sizeClasses = {
+  sm: 'text-xs px-2 py-0.5',
+  md: 'text-sm px-2.5 py-1',
+  lg: 'text-base px-3 py-1.5',
+};
+
 export const ConfidenceBadge: React.FC<ConfidenceBadgeProps> = ({
   confidence,
   size = 'md',
   showPercentage = true,
   className = '',
 }) => {
+  const t = useT();
+
+  /*
+   * NOT STATED IS NOT A BAND. An expert who published probabilities without rating their own
+   * certainty has not rated it "Low", and banding an absent value put exactly that back in front
+   * of them. Handled here rather than at each call site: two pages render this badge and one of
+   * them was guarded while the other was not, which is how the defect survived its own fix.
+   */
+  if (confidence === null || confidence === undefined) {
+    return (
+      <span className={`inline-flex items-center rounded-full font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 ${sizeClasses[size]} ${className}`}>
+        {t('probability.notSet')}
+      </span>
+    );
+  }
+
   // Determine color based on confidence
   const getColorClass = (confidence: number): string => {
     if (confidence >= 0.85) return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
@@ -170,16 +200,10 @@ export const ConfidenceBadge: React.FC<ConfidenceBadgeProps> = ({
   };
 
   const getLabel = (confidence: number): string => {
-    if (confidence >= 0.85) return 'Very High';
-    if (confidence >= 0.70) return 'High';
-    if (confidence >= 0.50) return 'Medium';
-    return 'Low';
-  };
-
-  const sizeClasses = {
-    sm: 'text-xs px-2 py-0.5',
-    md: 'text-sm px-2.5 py-1',
-    lg: 'text-base px-3 py-1.5',
+    if (confidence >= 0.85) return t('confidence.band.veryHigh');
+    if (confidence >= 0.70) return t('confidence.band.high');
+    if (confidence >= 0.50) return t('confidence.band.medium');
+    return t('confidence.band.low');
   };
 
   return (

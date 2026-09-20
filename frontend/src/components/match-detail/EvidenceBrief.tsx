@@ -8,6 +8,9 @@ import { providerLabel } from '@/utils/predictionLabels'
 import DataStateNotice from './DataStateNotice'
 import MissingDataList from './MissingDataList'
 import { ACCURACY_STATEMENT, groupMissing } from './evidence'
+import { backendInstant, formatDateTime, formatNumber, type MessageKey } from '@/i18n'
+import { t as translate } from '@/i18n'
+import { useT } from '@/i18n/react'
 
 /**
  * The evidence panel: what is known about this match, what is missing, and why.
@@ -23,20 +26,28 @@ import { ACCURACY_STATEMENT, groupMissing } from './evidence'
  * coverage row and the single data-state statement, built from the mapped prediction alone.
  */
 
-/** Legacy coverage, for a payload that carries no brief. Same wording as the brief's own labels. */
-const LEGACY_MARKETS: Array<[keyof PredictionMarkets, string]> = [
-  ['matchResult', 'Match result'],
-  ['btts', 'Both teams to score'],
-  ['overUnder25', 'Total goals 2.5'],
-  ['overUnder35', 'Total goals 3.5'],
-  ['exactScore', 'Exact score'],
+/**
+ * Legacy coverage, for a payload that carries no brief.
+ *
+ * The five names were English literals that happened to match `marketLabel`'s output word for
+ * word. They are the same catalogue keys `marketLabel` uses now, so the legacy path and the
+ * brief path cannot drift apart and neither of them can be left behind in one language.
+ */
+const LEGACY_MARKETS: Array<[keyof PredictionMarkets, MessageKey]> = [
+  ['matchResult', 'market.matchResult'],
+  ['btts', 'market.btts'],
+  ['overUnder25', 'market.overUnder25'],
+  ['overUnder35', 'market.overUnder35'],
+  ['exactScore', 'market.exactScore'],
 ]
 
 const legacyMarketNames = (prediction: MatchPredictions | null | undefined): string[] => {
   if (!prediction) return []
   const markets = prediction.markets
   if (!markets) return []
-  return LEGACY_MARKETS.filter(([key]) => markets[key]).map(([, label]) => label)
+  // The module-level `t`, not the hook: this is a plain helper called during the render below,
+  // and src/i18n/index.ts guarantees the two never disagree about the active catalogue.
+  return LEGACY_MARKETS.filter(([key]) => markets[key]).map(([, key]) => translate(key))
 }
 
 const CoverageRow: React.FC<{
@@ -55,22 +66,25 @@ const CoverageRow: React.FC<{
    * the one that is about who published what — is where it belongs.
    */
   absentText: string
-}> = ({ source, present, markets, note, absentText }) => (
-  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1" data-testid={`brief-coverage-${source}`}>
-    <SourceMarker source={source} state={present ? 'available' : 'unavailable'} />
-    <div className="min-w-0 flex-1 text-xs">
-      {present ? (
-        <span className="text-secondary-200">
-          {/* A source can be present without the payload listing its markets; that is not "nothing". */}
-          {markets.length > 0 ? markets.join(' · ') : 'Published for this fixture; the markets covered were not listed.'}
-        </span>
-      ) : (
-        <span className="text-secondary-300">{absentText}</span>
-      )}
-      {note && <span className="block text-secondary-500">{note}</span>}
+}> = ({ source, present, markets, note, absentText }) => {
+  const t = useT()
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1" data-testid={`brief-coverage-${source}`}>
+      <SourceMarker source={source} state={present ? 'available' : 'unavailable'} />
+      <div className="min-w-0 flex-1 text-xs">
+        {present ? (
+          <span className="text-secondary-200">
+            {/* A source can be present without the payload listing its markets; that is not "nothing". */}
+            {markets.length > 0 ? markets.join(' · ') : t('reader.brief.marketsNotListed')}
+          </span>
+        ) : (
+          <span className="text-secondary-300">{absentText}</span>
+        )}
+        {note && <span className="block text-secondary-500">{note}</span>}
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 const EvidenceBrief: React.FC<{
   brief?: MatchBrief | null
@@ -79,6 +93,7 @@ const EvidenceBrief: React.FC<{
   availability: ForecastAvailability | null
   className?: string
 }> = ({ brief = null, forecast, experts, availability, className }) => {
+  const t = useT()
   const groups = groupMissing(brief?.missing)
   /**
    * A source-scoped gap ("nothing at all from this source") is stated by the coverage row above;
@@ -108,14 +123,27 @@ const EvidenceBrief: React.FC<{
   const modelNote = modelPresent
     ? [
       providerLabel(modelPresence?.provider ?? forecast?.providerName ?? null),
-      modelPresence?.match_confidence ? `fixture link: ${modelPresence.match_confidence}` : null,
+      /* The provider's own word for the link confidence, in a sentence the catalogue owns. */
+      modelPresence?.match_confidence ? t('reader.brief.fixtureLink', { confidence: modelPresence.match_confidence }) : null,
     ].filter(Boolean).join(' · ')
     : null
   const expertNote = expertPresent
     ? (() => {
       const published = expertPresence?.published_at ?? experts[0]?.publishedAt ?? null
-      const count = experts.length > 1 ? `${experts.length} experts published` : null
-      return [count, published ? `published ${new Date(published).toLocaleString()}` : null]
+      // Only stated above one, so the French agrees in the plural with no branch to get wrong.
+      const count = experts.length > 1
+        ? t('reader.brief.expertsPublished', { count: formatNumber(experts.length) })
+        : null
+      /*
+        WHEN AN EXPERT PUBLISHED, IN THE READER'S ZONE.
+        `new Date(published).toLocaleString()` read an offset-less timestamp in the DEVICE's zone
+        and printed it in the device's zone and locale. A publication time is an instant a reader
+        judges against their own clock — "was this written before the team news" — so it belongs
+        in the zone they chose, exactly like the kickoff two lines above it on the same page.
+      */
+      const readAt = backendInstant(published)
+      const when = readAt.at ? formatDateTime(readAt.at) : null
+      return [count, when ? t('reader.brief.published', { when }) : null]
         .filter(Boolean).join(' · ') || null
     })()
     : null
@@ -124,7 +152,7 @@ const EvidenceBrief: React.FC<{
     <Card className={className} data-testid="match-brief">
       <Card.Body className="space-y-4 sm:space-y-5">
         <div className="space-y-2">
-          <h2 className="text-base font-semibold text-white">What this page knows about the match</h2>
+          <h2 className="text-base font-semibold text-white">{t('reader.brief.heading')}</h2>
           {headline && !headlineIsRepeated && (
             <p className="text-sm text-secondary-200" data-testid="brief-headline">{headline}</p>
           )}
@@ -141,7 +169,8 @@ const EvidenceBrief: React.FC<{
             present={modelPresent}
             markets={modelMarkets}
             note={modelNote}
-            absentText={sourceGap('model') ?? 'No model forecast has been retrieved for this fixture.'}
+            /* The backend's own sentence where it gave one; ours only where it did not. */
+            absentText={sourceGap('model') ?? t('reader.brief.noModelForecast')}
           />
           <CoverageRow
             source="expert"
@@ -149,8 +178,8 @@ const EvidenceBrief: React.FC<{
             markets={expertMarkets}
             /* What would change this, for the one source a reader can actually wait on. Never a
                promise about when: experts publish directly, and nobody schedules them. */
-            note={expertNote ?? (expertPresent ? null : 'Experts publish directly, so one appears here as soon as it is published.')}
-            absentText={sourceGap('expert') ?? 'No expert has published a prediction for this fixture.'}
+            note={expertNote ?? (expertPresent ? null : t('reader.brief.expertsAwait'))}
+            absentText={sourceGap('expert') ?? t('preview.noExpertPrediction')}
           />
         </div>
 
@@ -172,7 +201,7 @@ const EvidenceBrief: React.FC<{
         */}
         {brief && groups.length === 0 && (
           <p className="border-t border-dark-700 pt-4 text-sm text-secondary-300" data-testid="brief-missing-none">
-            Both sources published every market they offer for this fixture.
+            {t('reader.brief.allMarkets')}
           </p>
         )}
 

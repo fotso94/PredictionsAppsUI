@@ -716,3 +716,144 @@ def test_the_refusal_reason_answers_for_a_withdrawn_row_too(db):
     db.flush()
 
     assert S.not_prematch_reason(withdrawn, match.match_date) == S.NOT_STANDING_REASON
+
+
+# ---------------------------------------------- a conviction nobody supplied is not a zero
+#
+# predictions.confidence_score was NOT NULL, and create, override and the override's audit row all
+# coerced a missing conviction to Decimal("0.0"). A blank field and an expert's deliberate "I rate
+# this at nothing" therefore became the same stored number, and every reader printed both as 0%.
+# The column is nullable now and the coercions are gone, so the two are different records again.
+#
+# What these tests do NOT do is reinterpret the rows written before the fix. Those zeros are
+# genuinely ambiguous and nothing stored can tell a coerced blank from a claimed zero; turning them
+# into NULL would invent exactly the information the coercion destroyed. They stay as they are.
+
+def _scheduled(db) -> Match:
+    return _match(db, kickoff=datetime.utcnow() + timedelta(days=2), status=MatchStatus.SCHEDULED)
+
+
+def test_a_prediction_created_with_no_conviction_stores_null(db):
+    """The defect, closed at the point of writing. Was Decimal("0.0000")."""
+    match, user = _scheduled(db), _expert(db)
+    created = ExpertPredictionService(db).create_manual_prediction(
+        ExpertPredictionCreate(match_id=str(match.id), home_win_prob=0.55, draw_prob=0.25,
+                               away_win_prob=0.20, reasoning="no conviction offered"),
+        user)
+
+    db.expire_all()
+    stored = db.query(Prediction).filter(Prediction.id == created.id).one()
+    assert stored.confidence_score is None, (
+        "a conviction the author never supplied was stored as a number")
+
+
+def test_a_prediction_created_with_no_conviction_serialises_as_null(db):
+    """And it reaches the reader as null, not as 0.0 - the enrichment used to call float() flat."""
+    match, user = _scheduled(db), _expert(db)
+    service = ExpertPredictionService(db)
+    created = service.create_manual_prediction(
+        ExpertPredictionCreate(match_id=str(match.id), home_win_prob=0.55, draw_prob=0.25,
+                               away_win_prob=0.20, reasoning="no conviction offered"),
+        user)
+
+    payload = service.enrich_prediction_with_details(created)
+    assert payload["confidence_score"] is None
+
+    # And the response model can carry it. Declaring this field a required float was the last link
+    # in the chain: the column and the service could both say "not given" and the API still could
+    # not transmit it.
+    from app.schemas.predictions import ExpertPredictionResponse
+    assert ExpertPredictionResponse(**payload).confidence_score is None
+
+
+def test_a_prediction_created_with_an_explicit_zero_stores_zero(db):
+    """The other half, and the reason none of this may be written with truthiness.
+
+    An expert who types 0 has claimed something. If this test and the two above ever agree, the
+    fix has been undone by somebody reaching for `if data.confidence_score`.
+    """
+    match, user = _scheduled(db), _expert(db)
+    service = ExpertPredictionService(db)
+    created = service.create_manual_prediction(
+        ExpertPredictionCreate(match_id=str(match.id), home_win_prob=0.55, draw_prob=0.25,
+                               away_win_prob=0.20, confidence_score=0.0,
+                               reasoning="I stand behind this one not at all"),
+        user)
+
+    db.expire_all()
+    stored = db.query(Prediction).filter(Prediction.id == created.id).one()
+    assert stored.confidence_score is not None, "a claimed zero was thrown away as an absence"
+    assert float(stored.confidence_score) == 0.0
+    assert service.enrich_prediction_with_details(stored)["confidence_score"] == 0.0
+
+
+def test_an_override_with_no_conviction_does_not_silently_become_zero(db):
+    """Three rows are written by an override and all three used to say zero.
+
+    The replacement prediction, the audit row's ``new_confidence``, and the ``confidence_adjustment``
+    computed from it - which reported a swing away from the original's conviction that the expert
+    never made.
+    """
+    from app.models.predictions import PredictionOverride
+
+    match, user = _scheduled(db), _expert(db)
+    original = _prediction(db, match, user, source=PredictionSource.API_FOOTBALL_BASELINE,
+                           published_at=datetime.utcnow())
+    db.flush()
+    assert float(original.confidence_score) == 0.8  # the original DID claim one
+
+    replacement = ExpertPredictionService(db).override_prediction(
+        ExpertPredictionOverride(prediction_id=str(original.id), home_win_prob=0.15,
+                                 draw_prob=0.25, away_win_prob=0.60,
+                                 reasoning="the away side has recovered its first choice keeper"),
+        user)
+
+    db.expire_all()
+    stored = db.query(Prediction).filter(Prediction.id == replacement.id).one()
+    assert stored.confidence_score is None
+
+    audit = db.query(PredictionOverride).filter(
+        PredictionOverride.prediction_id == replacement.id).one()
+    assert audit.new_confidence is None, "the audit trail claimed a conviction of zero"
+    assert audit.original_confidence is not None and float(audit.original_confidence) == 0.8
+    assert audit.confidence_adjustment is None, (
+        "a conviction change was computed against a conviction that was never given")
+
+
+def test_an_override_that_does_claim_a_conviction_still_records_the_adjustment(db):
+    """The control: with both sides present the audit row still measures the change."""
+    from app.models.predictions import PredictionOverride
+
+    match, user = _scheduled(db), _expert(db)
+    original = _prediction(db, match, user, source=PredictionSource.API_FOOTBALL_BASELINE,
+                           published_at=datetime.utcnow())
+    db.flush()
+
+    replacement = ExpertPredictionService(db).override_prediction(
+        ExpertPredictionOverride(prediction_id=str(original.id), home_win_prob=0.15,
+                                 draw_prob=0.25, away_win_prob=0.60, confidence_score=0.5,
+                                 reasoning="the away side has recovered its first choice keeper"),
+        user)
+
+    db.expire_all()
+    audit = db.query(PredictionOverride).filter(
+        PredictionOverride.prediction_id == replacement.id).one()
+    assert float(audit.new_confidence) == 0.5
+    assert float(audit.confidence_adjustment) == -0.3
+
+
+def test_a_revision_records_a_withheld_conviction_as_null_not_as_zero(db):
+    """The preserved earlier version has to say the same thing the live row says.
+
+    ``prediction_snapshot`` feeds both sides of every revision, so a conviction rendered as 0.0
+    here would put a figure nobody claimed into the permanent record of what was published.
+    """
+    match, user = _scheduled(db), _expert(db)
+    created = ExpertPredictionService(db).create_manual_prediction(
+        ExpertPredictionCreate(match_id=str(match.id), home_win_prob=0.55, draw_prob=0.25,
+                               away_win_prob=0.20, reasoning="no conviction offered"),
+        user)
+    db.flush()
+
+    from app.services.expert_prediction import prediction_snapshot
+    assert prediction_snapshot(created)["confidence_score"] is None

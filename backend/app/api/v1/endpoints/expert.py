@@ -663,10 +663,18 @@ async def get_expert_performance(
     published_predictions = len([p for p in all_predictions if p.status == PredictionStatus.PUBLISHED])
     pending_predictions = len([p for p in all_predictions if p.status == PredictionStatus.PENDING])
 
-    # Calculate average confidence
-    avg_confidence = 0.0
-    if all_predictions:
-        avg_confidence = sum([float(p.confidence_score) for p in all_predictions]) / len(all_predictions)
+    # The average of the convictions that EXIST, and None when none do.
+    #
+    # A conviction is optional: an expert who publishes probabilities without rating their own
+    # certainty has not rated it at zero, and since the column became nullable this line was
+    # calling float() on None and returning HTTP 500 for any expert with one such prediction.
+    # Averaging over the whole list with the blanks read as zero would be the older, quieter
+    # version of the same error: it drags the mean down with a number nobody supplied.
+    #
+    # No conviction at all gives None rather than 0.0, because "nobody said" and "everybody said
+    # zero" are different answers and the response model carries the distinction.
+    stated = [float(p.confidence_score) for p in all_predictions if p.confidence_score is not None]
+    avg_confidence = (sum(stated) / len(stated)) if stated else None
 
     # Group by league (placeholder - would need match data)
     predictions_by_league = {}

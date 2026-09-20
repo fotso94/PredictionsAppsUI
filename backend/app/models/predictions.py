@@ -97,7 +97,12 @@ class Prediction(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         Index('idx_predictions_superseded_by', 'superseded_by'),
         Index('idx_predictions_match_priority_published', 'match_id', 'priority_level', 'published_at'),
         CheckConstraint('home_win_prob + draw_prob + away_win_prob = 1.0', name='ck_predictions_prob_sum'),
-        CheckConstraint('confidence_score >= 0 AND confidence_score <= 1', name='ck_predictions_confidence'),
+        # Restated for a nullable column. A CHECK is satisfied by NULL either way (NULL >= 0 is
+        # NULL, not FALSE), so the old two-clause form did not actually reject an unsupplied
+        # conviction - but it read as though it required one, and the next person to widen this
+        # column should not have to rediscover that. The IS NULL arm says the permission out loud,
+        # exactly as the three sibling confidence constraints below already do.
+        CheckConstraint('confidence_score IS NULL OR (confidence_score >= 0 AND confidence_score <= 1)', name='ck_predictions_confidence'),
         CheckConstraint('priority_level >= 0 AND priority_level <= 100', name='ck_predictions_priority_level_range'),
         CheckConstraint('btts_yes_prob IS NULL OR (btts_yes_prob >= 0 AND btts_yes_prob <= 1)', name='ck_predictions_btts_yes_prob_range'),
         CheckConstraint('btts_no_prob IS NULL OR (btts_no_prob >= 0 AND btts_no_prob <= 1)', name='ck_predictions_btts_no_prob_range'),
@@ -134,7 +139,14 @@ class Prediction(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     total_goals_confidence = Column(DECIMAL(5, 4), nullable=True, comment="Confidence score for total goals prediction (0-1)")
 
     # Confidence & Reasoning
-    confidence_score = Column(DECIMAL(5, 4), nullable=False, comment="Confidence score 0-1")
+    #: How strongly the source stands behind this prediction, 0-1, or NULL when nobody said.
+    #:
+    #: NULLABLE ON PURPOSE. It used to be NOT NULL, and the expert service coerced a missing
+    #: conviction to 0.0000 on its way in, so a blank field and a deliberate "I rate this at
+    #: nothing" became the same stored number and every reader showed both as 0%. An absence is
+    #: not a figure: the column has to be able to say "not given" for the interface to be able
+    #: to say it. Readers must test `is not None`, never truthiness - 0 is a real conviction.
+    confidence_score = Column(DECIMAL(5, 4), nullable=True, comment="Confidence score 0-1; NULL when the source supplied none")
     reasoning = Column(Text, comment="Prediction reasoning/explanation")
     key_factors = Column(JSONB, comment="Key factors influencing prediction")
     
@@ -208,7 +220,10 @@ class PredictionOverride(Base, UUIDMixin, TimestampMixin):
     
     # New Expert Prediction
     new_probabilities = Column(JSONB, nullable=False, comment="Expert-adjusted probabilities")
-    new_confidence = Column(DECIMAL(5, 4), nullable=False, comment="Expert confidence")
+    #: The conviction the override carries, or NULL when the expert supplied none. Nullable for the
+    #: same reason as Prediction.confidence_score: this row used to store 0.0000 for "not given",
+    #: which made the audit trail claim an expert had rated their own override at zero.
+    new_confidence = Column(DECIMAL(5, 4), nullable=True, comment="Expert confidence; NULL when none was supplied")
     
     # Override Details
     override_reason = Column(Text, nullable=False, comment="Reason for override")

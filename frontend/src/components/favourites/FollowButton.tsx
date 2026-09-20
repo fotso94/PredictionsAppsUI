@@ -6,6 +6,8 @@ import { StarIcon } from '@heroicons/react/24/outline'
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid'
 import useFavourites from '@/hooks/useFavourites'
 import { getErrorMessage } from '@/utils/errors'
+import type { MessageKey } from '@/i18n'
+import { useT } from '@/i18n/react'
 
 /**
  * Follow / unfollow one team or one competition.
@@ -28,6 +30,21 @@ import { getErrorMessage } from '@/utils/errors'
  * A refusal — the follow limit, most often — comes back from the server with its own sentence and
  * is shown verbatim. The store has already put the state back to what it was, so the star returns
  * to where it started rather than showing a follow that does not exist.
+ *
+ * ── EVERY WORD HERE COMES FROM THE CATALOGUE, INCLUDING THE ONES NOBODY SEES ────────────────
+ *
+ * This control used to hold its English in the JSX — the word on the button, the sentence read
+ * out after a write, the accessible name, the toast, and the count against the limit. It is on
+ * one competition, on one team and on every row of the follow list, so that was English on three
+ * screens at once, two of which had been reported as fully translated. Nothing here is assembled
+ * from fragments: each sentence is ONE catalogue entry with holes in it, so a language is free to
+ * put the entity's name, the figure or the limit wherever it needs them. See src/i18n/format.ts.
+ *
+ * THE NOUN IS PART OF THE KEY, NOT PART OF THE SENTENCE. `kind` picks between a `team.` key and a
+ * `league.` key for the three messages whose wording depends on which noun they are beside, and
+ * the catalogue writes each one out in full. That is what lets French agree — « Suivie » with
+ * « une équipe » and « une compétition », and a masculine kind added later would take « Suivi »
+ * in a key of its own rather than silently inheriting the wrong ending.
  */
 
 export interface FollowButtonProps {
@@ -45,6 +62,24 @@ export interface FollowButtonProps {
   className?: string
 }
 
+/** The keys whose wording depends on which noun the control is beside. */
+const BY_KIND: Record<FollowButtonProps['kind'], {
+  following: MessageKey
+  signInToast: MessageKey
+  count: MessageKey
+}> = {
+  team: {
+    following: 'reader.follow.team.following',
+    signInToast: 'reader.follow.team.signInToast',
+    count: 'reader.follow.team.count',
+  },
+  league: {
+    following: 'reader.follow.league.following',
+    signInToast: 'reader.follow.league.signInToast',
+    count: 'reader.follow.league.count',
+  },
+}
+
 const FollowButton: React.FC<FollowButtonProps> = ({
   kind,
   id,
@@ -59,12 +94,13 @@ const FollowButton: React.FC<FollowButtonProps> = ({
     isTeamFollowed, isLeagueFollowed, isTeamPending, isLeaguePending,
     setTeamFollowed, setLeagueFollowed,
   } = useFavourites()
+  const t = useT()
   const navigate = useNavigate()
   const location = useLocation()
   const messageId = useId()
   const [message, setMessage] = useState<string | null>(null)
 
-  const noun = kind === 'team' ? 'team' : 'competition'
+  const keys = BY_KIND[kind]
   const following = kind === 'team' ? isTeamFollowed(id) : isLeagueFollowed(id)
   const pending = kind === 'team' ? isTeamPending(id) : isLeaguePending(id)
   // Until a snapshot has really arrived we do not know, and we say so by withholding aria-pressed
@@ -76,7 +112,7 @@ const FollowButton: React.FC<FollowButtonProps> = ({
 
   const handleClick = useCallback(() => {
     if (!signedIn) {
-      toast(`Sign in to follow ${noun === 'team' ? 'teams' : 'competitions'}.`)
+      toast(t(keys.signInToast))
       navigate('/login', { state: { from: location } })
       return
     }
@@ -87,26 +123,32 @@ const FollowButton: React.FC<FollowButtonProps> = ({
       .then(result => {
         // `changed: false` means the server was already in the state asked for — not a failure,
         // and not worth a message.
-        if (result.changed) setMessage(next ? `Following ${name}.` : `No longer following ${name}.`)
+        if (result.changed) {
+          setMessage(t(next ? 'reader.follow.confirmed' : 'reader.follow.confirmedOff', { name }))
+        }
       })
       .catch((err: unknown) => {
-        const text = getErrorMessage(err, next
-          ? `${name} could not be followed. Nothing was changed.`
-          : `${name} could not be unfollowed. Nothing was changed.`)
+        // The server's own refusal, verbatim where it sent one — the follow limit says why, and
+        // a paraphrase of it would be less true, not more translated.
+        const text = getErrorMessage(err, t(next ? 'reader.follow.failed' : 'reader.follow.failedOff', { name }))
         setMessage(text)
         toast.error(text)
       })
-  }, [signedIn, noun, navigate, location, following, kind, id, name, setTeamFollowed, setLeagueFollowed])
+  }, [signedIn, t, keys, navigate, location, following, kind, id, name, setTeamFollowed, setLeagueFollowed])
 
   const accessibleName = !signedIn
-    ? `Sign in to follow ${name}`
+    ? t('reader.follow.namedSignIn', { name })
     : !known
-      ? `Follow ${name}`
+      ? t('reader.follow.namedFollow', { name })
       : following
-        ? `Following ${name}. Select to stop following.`
-        : `Follow ${name}`
+        ? t('reader.follow.namedFollowing', { name })
+        : t('reader.follow.namedFollow', { name })
 
-  const word = !signedIn ? 'Sign in to follow' : known && following ? 'Following' : 'Follow'
+  const word = !signedIn
+    ? t('reader.follow.signIn')
+    : known && following
+      ? t(keys.following)
+      : t('reader.follow.follow')
   const Icon = known && following ? StarSolidIcon : StarIcon
   const iconSize = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
 
@@ -139,20 +181,28 @@ const FollowButton: React.FC<FollowButtonProps> = ({
       {/* The outcome of the last write, announced once. Never a toast alone: a toast can be gone
           before a screen reader or a distracted reader reaches it. */}
       {message && (
-        <p id={messageId} role="status" className="max-w-xs text-xs text-secondary-300">{message}</p>
+        <p id={messageId} role="status" data-testid="follow-message" className="max-w-xs text-xs text-secondary-300">{message}</p>
       )}
 
       {signedIn && failed && (
-        <p className="max-w-xs text-xs text-warning-200">
-          We could not load what you follow, so this button cannot show whether {name} is already on
-          your list.
+        <p data-testid="follow-state-unknown" className="max-w-xs text-xs text-warning-200">
+          {t('reader.follow.unknown', { name })}
         </p>
       )}
 
+      {/*
+        THE COUNT AND THE LIMIT, AS ONE SENTENCE WITH TWO HOLES.
+
+        It used to be `<span>{n}</span> of <span>{limit}</span> {noun} followed` — the numerals
+        frozen either side of an English "of", which is precisely the assembly src/i18n/format.ts
+        exists to stop. `num` is on the paragraph rather than on two spans because
+        `font-variant-numeric` only ever reaches digits: the figures are tabular wherever in the
+        line the language decides to put them, and there is no substring search to fall silently
+        out of step with the sentence.
+      */}
       {showCount && known && typeof followedCount === 'number' && typeof limit === 'number' && (
-        <p className="text-xs text-secondary-400">
-          <span className="num">{followedCount}</span> of <span className="num">{limit}</span>{' '}
-          {kind === 'team' ? 'teams' : 'competitions'} followed
+        <p className="num text-xs text-secondary-400" data-testid="follow-count">
+          {t(keys.count, { count: followedCount, limit })}
         </p>
       )}
     </div>

@@ -10,6 +10,8 @@ import { footballDataService } from '@/services/football-data.service';
 import { TeamPage } from '@/services/match-data-source';
 import { describeError } from '@/services/backend-match-data.service';
 import { onTeamLogoError } from '@/components/ui/imageFallback'
+import { formatNumber } from '@/i18n';
+import { useT } from '@/i18n/react';
 
 /**
  * One team: who they are, what is coming up, and what has been played.
@@ -26,9 +28,21 @@ import { onTeamLogoError } from '@/components/ui/imageFallback'
  *
  * Following a team is a bookmark, not a subscription to anything, and certainly not a bet: it puts
  * the team on the personal dashboard and changes nothing about what any source publishes.
+ *
+ * ── ONE SENTENCE ON THIS PAGE HAD GONE FALSE ────────────────────────────────────────────────
+ *
+ * The note above the played fixtures ended: "Nothing on this site has been scored against a
+ * result yet, so no forecast here is marked right or wrong." That was true when it was written.
+ * Settlement runs on this installation now and model forecasts have been scored against final
+ * results, so the sentence had become the opposite of what the home page's measured record tells
+ * the same reader — a claim about the DATA frozen into a constant, which is exactly what
+ * DashboardPage.tsx records having already removed from its own footnote for the same reason.
+ * It now says only what stays true however much has been settled, in the words core.ts already
+ * uses for the same fact on the matchday list. See `reader.team.recentNote`.
  */
 
 const TeamDetailPage: React.FC = () => {
+  const t = useT();
   const { teamId } = useParams<{ teamId: string }>();
   const [page, setPage] = useState<TeamPage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,14 +106,15 @@ const TeamDetailPage: React.FC = () => {
               variant="inline"
               // A request that failed and a team that does not exist are different facts.
               tone={error ? 'failed' : 'empty'}
-              title={error ? 'This team could not be loaded.' : 'Team not found.'}
-              description={error ?? 'There is no team with that identifier in the data we hold.'}
+              title={error ? t('reader.team.loadFailedTitle') : t('reader.team.notFoundTitle')}
+              /* `error` is the backend's own words, shown as they arrived. */
+              description={error ?? t('reader.team.notFoundBody')}
               action={
                 <Link
                   to="/"
                   className="focus-ring inline-block rounded-lg bg-primary-600 px-6 py-3 text-white transition-colors hover:bg-primary-700"
                 >
-                  Go to Home
+                  {t('reader.team.goHome')}
                 </Link>
               }
             />
@@ -114,7 +129,8 @@ const TeamDetailPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>{team.name} - Soccer Predictions</title>
+        {/* The club's own name is the provider's and is never translated. */}
+        <title>{t('reader.team.documentTitle', { team: team.name, app: t('app.name') })}</title>
       </Helmet>
       <div className="min-h-screen bg-dark-950 pt-20">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -140,44 +156,38 @@ const TeamDetailPage: React.FC = () => {
           </div>
 
           {saving.signedIn && saving.failed && (
-            <p className="mb-4 text-xs text-warning-200">
-              We could not load your saved matches, so the save control cannot show which of these
-              you have already saved.
-            </p>
+            <p className="mb-4 text-xs text-warning-200">{t('reader.saveStateUnknown')}</p>
           )}
 
           <section className="mb-8" aria-labelledby="team-upcoming">
             <h2 id="team-upcoming" className="mb-4 text-2xl font-bold text-white">
-              Upcoming matches
-              <span className="num ml-2 text-base font-normal text-secondary-400">{upcoming.length}</span>
+              {t('reader.upcomingMatches')}
+              <span className="num ml-2 text-base font-normal text-secondary-400">{formatNumber(upcoming.length)}</span>
             </h2>
             {upcoming.length === 0 ? (
               <EmptyState
                 tone="empty"
-                title="No upcoming matches are stored for this team."
-                description="Nothing is scheduled for them in the competitions this site covers."
+                title={t('reader.team.noUpcomingTitle')}
+                description={t('reader.team.noUpcomingBody')}
               />
             ) : fixtureList(upcoming, 'team-upcoming-list')}
           </section>
 
           <section className="mb-8" aria-labelledby="team-recent">
             <h2 id="team-recent" className="mb-4 text-2xl font-bold text-white">
-              Recent matches
-              <span className="num ml-2 text-base font-normal text-secondary-400">{recent.length}</span>
+              {t('reader.team.recentMatches')}
+              <span className="num ml-2 text-base font-normal text-secondary-400">{formatNumber(recent.length)}</span>
             </h2>
             {recent.length === 0 ? (
               <EmptyState
                 tone="empty"
-                title="No results are recorded for this team yet."
-                description="Nothing they have played is stored here."
+                title={t('reader.team.noRecentTitle')}
+                description={t('reader.team.noRecentBody')}
               />
             ) : (
               <>
                 {/* Said where a reader might otherwise read the expanded rows as a scorecard. */}
-                <p className="mb-2 text-xs text-secondary-400">
-                  Final scores, with what each source published beforehand. Nothing on this site has
-                  been scored against a result yet, so no forecast here is marked right or wrong.
-                </p>
+                <p className="mb-2 text-xs text-secondary-400">{t('reader.team.recentNote')}</p>
                 {fixtureList(recent, 'team-recent-list')}
               </>
             )}
@@ -185,7 +195,7 @@ const TeamDetailPage: React.FC = () => {
 
           <div className="mt-8">
             <Link to="/" className="focus-ring inline-block rounded-lg bg-dark-800 px-6 py-3 text-white transition-colors hover:bg-dark-700">
-              ← Back to Home
+              ← {t('reader.backToHome')}
             </Link>
           </div>
         </div>

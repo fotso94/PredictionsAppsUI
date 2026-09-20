@@ -386,7 +386,11 @@ class ExpertPredictionResponse(BaseModel):
     home_win_prob: float
     draw_prob: float
     away_win_prob: float
-    confidence_score: float
+    #: NULL when the author supplied no conviction. Declaring this a required float was the last
+    #: link in the chain that made a blank field indistinguishable from a claim of zero: even once
+    #: the column and the service could say "not given", the response model could not carry it.
+    #: A reader must test for null, never for falsiness - 0.0 is a conviction someone chose.
+    confidence_score: Optional[float] = None
 
     # Both Teams to Score (BTTS) - Optional
     btts_yes_prob: Optional[float] = None
@@ -493,7 +497,12 @@ class ExpertPerformanceMetrics(BaseModel):
     published_predictions: int
     pending_predictions: int
     accuracy_rate: Optional[float] = None
-    average_confidence: float
+    #: Mean conviction across this expert's predictions, or NULL when none of them carries one.
+    #: An average of nothing is not zero. Widened alongside Prediction.confidence_score becoming
+    #: nullable so the shape can carry "nobody claimed a conviction"; note that the producer in
+    #: app/api/v1/endpoints/expert.py still averages float(p.confidence_score) over every row and
+    #: must skip the unsupplied ones before this can actually be NULL (see the package report).
+    average_confidence: Optional[float] = None
     predictions_by_league: Dict[str, int]
     recent_predictions: List[ExpertPredictionResponse]
     performance_trend: List[Dict[str, Any]]

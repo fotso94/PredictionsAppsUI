@@ -1,6 +1,6 @@
 import { test, expect, Page, Route, Request } from '@playwright/test';
 import {
-  ApiMatch, Json, dayPayload, fixtureAt, registerAuthHandler, stubBackend,
+  ApiMatch, ApiTeamRef, Json, dayPayload, fixtureAt, registerAuthHandler, stubBackend,
 } from '../support/api-stub';
 
 /**
@@ -93,18 +93,47 @@ class World {
   /** Every `GET /api/v1/me/favourites` the application issued. */
   favouriteReads = 0;
 
+  /** The team this reader follows, if any, and what `GET /api/v1/teams/{id}` says it has on. */
+  followedTeam: ApiTeamRef | null = null;
+
+  followedFixtures: ApiMatch[] = [];
+
+  /** `GET /api/v1/teams/{id}`: one request per follow, and the whole cost of a feed rebuild. */
+  teamReads = 0;
+
+  /** `GET /api/v1/matches/{id}`: one stored row, and the whole cost of a targeted kick-off read. */
+  matchReads = 0;
+
   save(match: ApiMatch): void {
     this.saved.set(match.id, { match, savedAt: START.toISOString() });
   }
 
+  follow(team: ApiTeamRef, fixtures: ApiMatch[]): void {
+    this.followedTeam = team;
+    this.followedFixtures = fixtures;
+  }
+
   /**
-   * What the backend's scheduler does to a stored fixture, and the only thing that moves a saved
-   * match between the buckets. No provider is involved on this path in the real system either.
+   * What the backend's scheduler does to a stored fixture, and the only thing that moves a match
+   * between the buckets or the feed's groups. No provider is involved on this path in the real
+   * system either. It reaches the saved rows and the followed ones alike, because both are views
+   * of the same stored fixture.
    */
   schedulerMoves(matchId: string, patch: Partial<ApiMatch>): void {
     const row = this.saved.get(matchId);
-    if (!row) throw new Error(`the stub holds no saved match ${matchId}`);
-    row.match = { ...row.match, ...patch };
+    const followedIndex = this.followedFixtures.findIndex(match => match.id === matchId);
+    if (!row && followedIndex < 0) throw new Error(`the stub holds no fixture ${matchId}`);
+    if (row) row.match = { ...row.match, ...patch };
+    if (followedIndex >= 0) {
+      this.followedFixtures[followedIndex] = { ...this.followedFixtures[followedIndex], ...patch };
+    }
+  }
+
+  /** The stored row for one fixture, wherever this reader reaches it from. */
+  fixtureById(matchId: string): ApiMatch | null {
+    return this.saved.get(matchId)?.match
+      ?? this.followedFixtures.find(match => match.id === matchId)
+      ?? null;
   }
 }
 
@@ -136,10 +165,11 @@ function savedMatchesPayload(world: World): Json {
 }
 
 function favouritesPayload(world: World): Json {
+  const team = world.followedTeam;
   return {
-    teams: [],
+    teams: team ? [team as unknown as Json] : [],
     leagues: [],
-    team_ids: [],
+    team_ids: team ? [team.id] : [],
     league_ids: [],
     unresolved: { teams: [], leagues: [] },
     saved_matches: savedMatchesPayload(world),
@@ -189,6 +219,16 @@ async function stubAccount(page: Page, world: World): Promise<void> {
     if (path === '/saved-matches') return json(route, savedMatchesPayload(world));
     return json(route, {});
   });
+
+  // `GET /api/v1/teams/{id}`: the follow fan-out, and the expensive way to learn anything. Counted
+  // separately from `GET /matches/{id}` so a test can say WHICH read a kick-off cost.
+  await page.route(/\/api\/v1\/teams\/(?!search)[^/?#]+$/, async (route: Route) => {
+    world.teamReads += 1;
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() ?? '');
+    const team = world.followedTeam?.id === id ? world.followedTeam : null;
+    if (!team) return json(route, { detail: 'Team not found' }, 404);
+    return json(route, { team, upcoming: world.followedFixtures, recent: [] });
+  });
 }
 
 interface StartOptions {
@@ -214,7 +254,13 @@ async function startSignedIn(page: Page, world: World, options: StartOptions = {
 
 /** Everything a lifecycle test needs stubbed, in the order the interceptors must be registered. */
 async function stubWorld(page: Page, world: World): Promise<void> {
-  await stubBackend(page, { day: iso => dayPayload(iso, []) });
+  await stubBackend(page, {
+    day: iso => dayPayload(iso, []),
+    // `GET /api/v1/matches/{id}` is a pure database read on the backend — no `refresh` parameter
+    // and no provider — which is what lets the kick-off watch ask about one fixture instead of
+    // rebuilding the feed. Counted, so a test can prove which read it used.
+    matchById: id => { world.matchReads += 1; return world.fixtureById(id); },
+  });
   await stubAuth(page, world);
   await stubAccount(page, world);
 }
@@ -322,4 +368,113 @@ test('MOCKED-ONLY: with automatic updates off, a saved fixture due to kick off i
   await expect(page.getByTestId('feed-live-not-updating'),
     'with automatic updates off, a row headed "In play now" has to say the scores are frozen')
     .toBeVisible();
+});
+
+/* --------------------------------------- a fixture reached only through a followed team */
+
+/**
+ * THE OTHER HALF OF THE SAME GAP, AND WHY IT WAS STILL OPEN.
+ *
+ * The two tests above are about a SAVED fixture, and `FavouritesStore` now watches those: it
+ * wakes at the kick-off and re-reads, so a saved match becomes live on a page nobody touched. A
+ * fixture that is in the dashboard feed only because the reader follows one of the clubs had no
+ * equivalent. `FollowedFixturesStore.syncLivePoll` polled only when something was ALREADY in
+ * play, which is the same circular gate the saved-match watch used to have: the read that would
+ * discover the kick-off was conditional on the kick-off having been discovered. Same page, same
+ * reader, two different answers depending on how the fixture got there.
+ *
+ * WHAT MAKES CLOSING IT AFFORDABLE. The only read this store had was a REBUILD — one request per
+ * follow, up to fifteen — and running that on a timer for every pending kick-off was rightly
+ * refused. `GET /api/v1/matches/{id}` is a stored row, so the watch asks about the fixtures that
+ * are actually starting: the ordinary case is ONE request. `world.teamReads` and
+ * `world.matchReads` are counted apart below precisely so that claim is asserted and not just
+ * stated.
+ *
+ * BOTH TESTS MOCKED-ONLY, for the same reason as the two above: a kick-off cannot be ordered.
+ */
+
+const FOLLOWED_TEAM: ApiTeamRef = {
+  id: 'team-fenchurch-rangers',
+  name: HOME,
+  short_name: 'Fenchurch',
+  logo: null,
+  country: 'England',
+};
+
+/** A fixture in the feed that the reader did NOT save — it is here because of the follow. */
+const followedRow = (page: Page, matchId: string) =>
+  page.locator(`[data-testid="feed-match"][data-match-id="${matchId}"]`);
+
+test('MOCKED-ONLY: a fixture reached only through a followed team is noticed when it kicks off, with the tab never leaving the front', async ({ page }) => {
+  const world = new World();
+  const fixture = fixtureAt(new Date(START.getTime() + KICKOFF_IN_MS).toISOString(), HOME, AWAY);
+  world.follow(FOLLOWED_TEAM, [fixture]);
+
+  await page.clock.install({ time: START });
+  await page.clock.resume();
+  await stubWorld(page, world);
+  await startSignedIn(page, world);
+
+  await page.goto('/dashboard');
+  const row = followedRow(page, fixture.id);
+  await expect(row, 'the followed fixture is on the dashboard before kick-off').toBeVisible();
+  await expect(row).toHaveAttribute('data-feed-phase', 'upcoming');
+  await expect(page.getByTestId('saved-match'),
+    'and it is not a saved match: nobody saved it').toHaveCount(0);
+
+  const teamReadsBefore = world.teamReads;
+  const matchReadsBefore = world.matchReads;
+
+  /*
+   * KICK-OFF. The scheduler has moved the stored row on, exactly as it does while a covered match
+   * is in its live window; the browser's clock passes the kick-off. The tab is not touched: no
+   * focus event, no visibility change, no reload.
+   */
+  world.schedulerMoves(fixture.id, { status: 'live', minute: '9', score: { home: 0, away: 0 } });
+  await page.clock.fastForward(KICKOFF_IN_MS + 3 * 60 * 1000);
+
+  await expect(row, 'a followed fixture whose kick-off has passed must be noticed without the reader doing anything')
+    .toHaveAttribute('data-feed-phase', 'live', { timeout: 20_000 });
+  await expect(page.getByTestId('feed-group-live')).toBeVisible();
+
+  expect(world.matchReads,
+    'the kick-off must have been discovered by asking about the fixture itself')
+    .toBeGreaterThan(matchReadsBefore);
+  expect(world.teamReads,
+    'and not by rebuilding the whole feed, which costs one request per follow')
+    .toBe(teamReadsBefore);
+});
+
+test('MOCKED-ONLY: with automatic updates off, a followed fixture due to kick off is not polled either', async ({ page }) => {
+  const world = new World();
+  const fixture = fixtureAt(new Date(START.getTime() + KICKOFF_IN_MS).toISOString(), HOME, AWAY);
+  world.follow(FOLLOWED_TEAM, [fixture]);
+
+  await page.clock.install({ time: START });
+  await page.clock.resume();
+  await stubWorld(page, world);
+  await startSignedIn(page, world, { liveUpdates: false });
+
+  await page.goto('/dashboard');
+  const row = followedRow(page, fixture.id);
+  await expect(row).toHaveAttribute('data-feed-phase', 'upcoming');
+  const matchReadsBefore = world.matchReads;
+  const teamReadsBefore = world.teamReads;
+
+  world.schedulerMoves(fixture.id, { status: 'live', minute: '9', score: { home: 0, away: 0 } });
+  await page.clock.fastForward(KICKOFF_IN_MS + 6 * 60 * 1000);
+  await page.waitForTimeout(1_000);
+
+  expect(world.matchReads,
+    'a reader who turned automatic updates off must not be polled, kick-off or no kick-off')
+    .toBe(matchReadsBefore);
+  expect(world.teamReads, 'and the feed must not be rebuilt behind their back either')
+    .toBe(teamReadsBefore);
+  await expect(row, 'so the page still shows what it last really read')
+    .toHaveAttribute('data-feed-phase', 'upcoming');
+
+  // And this is not vacuous: the new state was there to be found the whole time. Coming back to
+  // the tab is the reader asking, not us polling, so it still refreshes.
+  await returnToTheTab(page);
+  await expect(row).toHaveAttribute('data-feed-phase', 'live', { timeout: 20_000 });
 });
