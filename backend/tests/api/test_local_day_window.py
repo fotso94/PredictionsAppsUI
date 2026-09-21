@@ -83,6 +83,24 @@ def test_an_expert_cannot_publish_a_market_that_contradicts_itself():
         with pytest.raises(pydantic.ValidationError):
             model(**base, btts_yes_prob=0.8, btts_no_prob=0.8)
 
-        # a consistent pair, and a half published on its own, both stand
+        # a consistent pair stands, and so does a market nobody mentioned at all
         assert model(**base, total_goals_over_25_prob=0.6, total_goals_under_25_prob=0.4)
-        assert model(**base, total_goals_over_25_prob=0.6)
+        assert model(**base)
+
+        # A HALF PUBLISHED ON ITS OWN DOES NOT STAND. Accepting one looks like leniency - "we
+        # only object when the two numbers disagree" - but the row it admits is the one nobody
+        # can describe: btts_yes_prob 0.60 beside btts_no_prob NULL makes the reader's brief
+        # report a market at 60% and name the other side unpublished in the same breath. The
+        # database does not catch it either; its CHECK is satisfied by a NULL. So a pair is
+        # published whole or not at all, and the refusal names the side that is missing.
+        for over, under in (("total_goals_over_25_prob", "total_goals_under_25_prob"),
+                            ("total_goals_over_35_prob", "total_goals_under_35_prob"),
+                            ("btts_yes_prob", "btts_no_prob")):
+            with pytest.raises(pydantic.ValidationError) as refused:
+                model(**base, **{over: 0.6})
+            assert under in str(refused.value), (
+                f"the refusal has to name {under}, or the expert cannot tell what is missing")
+
+            with pytest.raises(pydantic.ValidationError) as refused:
+                model(**base, **{under: 0.4})
+            assert over in str(refused.value)

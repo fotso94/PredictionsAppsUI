@@ -30,9 +30,13 @@
  *     would occupy. It may never be shortened to something a reader could scan as a figure, and
  *     it may never become « 0 % ».
  *  3. `expert.dashboard.nonePublished` is « Aucune publiée » — feminine, agreeing with « la
- *     conviction ». The English stands in for a stored zero that means "no expert ever claimed a
- *     conviction", not "an expert claimed zero confidence". « Aucune publiée » says the former.
- *     « 0 % » would say the latter, and it would be false.
+ *     conviction ». It stands in for a NULL `average_confidence`, which means no expert ever
+ *     claimed a conviction. A stored 0 is a separate case: an expert who claimed zero
+ *     confidence, which the dashboard prints as « 0 % ». « 0 % » is not a wrong rendering of
+ *     this slot, it is the rendering of the other case, and the two must not be swapped in
+ *     either direction — « Aucune publiée » over a claimed zero erases a judgement somebody made
+ *     and contradicts the « Publiés » count beside it, and « 0 % » over a null invents one. The
+ *     page and frontend/e2e/mocked/expert-localisation.spec.ts distinguish them.
  *
  * And one that is about force rather than about a number: `expert.compose.publishImmediate` and
  * `expert.published.body` are in the indicative — « Publier rend ceci public immédiatement »,
@@ -146,7 +150,8 @@ const expert: Area<'expert'> = {
   'expert.dashboard.statPublished': 'Publiés',
   'expert.dashboard.statNotPublished': 'Non publiés',
   'expert.dashboard.statAverageConviction': 'Conviction moyenne',
-  /** Feminine: it agrees with « la conviction ». It is not a zero and must never look like one. */
+  /** Feminine: it agrees with « la conviction ». For a NULL `average_confidence` only — a stored
+   *  0 is a claimed zero and prints « 0 % ». This wording must never look like a figure. */
   'expert.dashboard.nonePublished': 'Aucune publiée',
   /** NOT « Taux de réussite » — that phrase is the measured hit rate. See the file header. */
   'expert.dashboard.accuracy': 'Exactitude',

@@ -46,12 +46,67 @@ export function inPercentRange(percent: number): boolean {
 /**
  * 55 -> 0.55.
  *
- * Plain division, so `percentToUnit(55)` is bit-for-bit the double written as `0.55`. The pair
- * checks below add the SAME doubles in the SAME order the backend validator adds them, so a total
- * this module accepts is one the backend accepts, and one it rejects the backend rejects too.
+ * Plain division, so `percentToUnit(55)` is bit-for-bit the double written as `0.55` — the same
+ * double the request body carries and the backend parses back.
  */
 export function percentToUnit(percent: number): number {
   return percent / 100
+}
+
+/**
+ * A 0-1 probability as the API will STORE it, counted in ten-thousandths.
+ *
+ * `predictions.predictions` holds these as NUMERIC(5, 4): Postgres rounds every value to four
+ * decimal places, half away from zero, and its CHECK constraints then add the ROUNDED values.
+ * The request validators do the same (`as_stored` in app/schemas/predictions.py). So a form that
+ * adds the raw doubles is measuring numbers nothing downstream will ever hold, and will sooner
+ * or later call a pair balanced that the API refuses: 0.98995 and 0.02005 add to exactly 1.01 as
+ * doubles and to 1.0101 as the two values that would be stored.
+ *
+ * Whole ten-thousandths rather than a fraction, because integers add exactly: three of them can
+ * be summed and compared with 10000 without a rounding error of their own.
+ *
+ * THE ROUNDING IS DONE ON THE DECIMAL TEXT, not by multiplying and not with `toFixed`. Both of
+ * those carry binary floating-point error into the decision: `0.02005 * 10000` is
+ * 200.49999999999997, which rounds DOWN to 0.0200 where the column rounds UP to 0.0201, and
+ * `(0.98995).toFixed(4)` is "0.9899" where the column gives 0.9900 — `toFixed` rounds the
+ * double's exact binary value, which sits just under the decimal midpoint. `String(unit)` is
+ * the shortest decimal that reads back as this double: the same text `JSON.stringify` puts on
+ * the wire, and the same digits Python's `str()` recovers from it, so both sides round the same
+ * number.
+ */
+export function storedTenThousandths(unit: number): number {
+  if (!Number.isFinite(unit)) return 0
+  const parsed = /^(-?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(String(unit))
+  if (!parsed) return 0
+  const [, sign, whole = '', fraction = '', exponent = '0'] = parsed
+  const digits = `${whole}${fraction}` || '0'
+  // The value is `digits` scaled by 10**shift once it is expressed in ten-thousandths.
+  const shift = Number(exponent) - fraction.length + 4
+  const magnitude = shift >= 0
+    ? Number(`${digits}${'0'.repeat(shift)}`)
+    : roundOffLastDigits(digits, -shift)
+  return sign === '-' ? -magnitude : magnitude
+}
+
+/** `digits` with its last `count` digits dropped, rounded half away from zero on the first. */
+function roundOffLastDigits(digits: string, count: number): number {
+  const padded = digits.padStart(count + 1, '0')
+  const kept = Number(padded.slice(0, padded.length - count))
+  return padded[padded.length - count] >= '5' ? kept + 1 : kept
+}
+
+/**
+ * A number of percentage points as text, to the precision the API can actually keep.
+ *
+ * Two decimals: one percentage point is 0.01 in the 0-1 units the API takes, and the columns
+ * keep four decimal places of those units, so 0.01 of a percentage point is the smallest
+ * difference that survives storage. Anything coarser would print "0" for a total that is
+ * genuinely short, and tell an expert to change nothing.
+ */
+export function formatPercentPoints(points: number): string {
+  const text = points.toFixed(2)
+  return text.includes('.') ? text.replace(/0+$/, '').replace(/\.$/, '') : text
 }
 
 /**

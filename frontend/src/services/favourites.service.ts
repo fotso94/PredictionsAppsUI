@@ -10,32 +10,58 @@
  * `Authorization: Bearer <access token>` on every request; a 401 triggers its refresh-and-retry.
  * Nothing here handles tokens itself.
  *
- * TWO RULES THIS MODULE IS BUILT AROUND
+ * THE RULES THIS MODULE IS BUILT AROUND
  *
  * 1. A FAILURE IS NEVER AN EMPTY RESULT. Every read rethrows. The store keeps the last snapshot it
  *    genuinely received and reports `status: 'error'` with the server's own message, so a caller
- *    can say "we could not load your favourites" instead of "you follow nothing". This is the same
- *    mistake search.service.ts already had to have fixed once — a swallowed network error made the
- *    dropdown announce "No results found for Arsenal" for a search that had never run.
+ *    can say "we could not load your favourites" instead of "you follow nothing". search.service.ts
+ *    holds the same rule for the same reason, and names the symptom: a swallowed network error
+ *    tells the reader "No results found for Arsenal" about a search that never ran.
  *
  * 2. AN OPTIMISTIC WRITE ROLLS BACK HONESTLY. A toggle applies immediately, then reconciles with
  *    the authoritative list the server returns. If the write fails, THE THING THAT FAILED is put
  *    back and the error is rethrown, so the control goes back to where it was and the caller can
  *    tell the user it did not happen. A star that stays filled after a failed save is a lie.
  *
- *    "The thing that failed", not the whole snapshot. Every rollback here used to restore
- *    `before.data` — the entire favourites state captured before the write went out — which threw
- *    away anything a legitimate refresh had brought in while the write was in flight, and, across
- *    a change of account, would have put one reader's whole favourites state into another's.
+ *    "The thing that failed", not the whole snapshot. A rollback must never restore `before.data`
+ *    — the entire favourites state captured before the write went out — because that throws away
+ *    anything a legitimate refresh brought in while the write was in flight, and, across a change
+ *    of account, would put one reader's whole favourites state into another's.
+ *
+ *    Not the whole ROW either, which is the same mistake one level down: a save row carries the
+ *    fixture, and a note edit does not write the fixture. See `revertSavedMatch`.
  *
  * 3. AN ANSWER FROM A SESSION THAT HAS ENDED IS NOT APPLIED — for WRITES exactly as for reads.
- *    Both counters described on `FavouritesStore` guard reads; only `session` can guard a write,
+ *    `session` and `writes` both guard reads; only `session` can guard a write against time,
  *    because a write is the local change and cannot be older than itself. A save, unsave or
  *    follow whose response lands after the reader signed out, or after somebody else signed in on
  *    the same machine, writes NOTHING: not the data (a private note is in that payload), not the
  *    pending flags, not a poll, not an error. The caller is told with `DiscardedWrite` rather than
  *    a resolved promise, because the write did happen on the server for the account that started
  *    it and a component that believed it had succeeded HERE would be saying something false.
+ *
+ * 4. AN ANSWER SPEAKS ONLY FOR WHAT NO NEWER WRITE HAS TOUCHED. Two writes can be answered in the
+ *    opposite order to the one they were issued in, and each answer carries the server's view of
+ *    the world from before it had seen the other. Letting whichever answer lands last win would
+ *    lose the reader's last intent to the network's last packet: a team put back into the
+ *    followed list by the answer to the unfollow BEFORE it, a corrected note replaced by the
+ *    version it corrected. See `writeOwner` on `FavouritesStore`.
+ *
+ * 5. AN ANSWER'S UNAUTHORED FIELDS CAN BE THE OLDER COPY, AND ONE COUNTER DECIDES WHICH. A save
+ *    answer carries the whole fixture, which no save writes; a follow answer carries the whole
+ *    followed list, of which a follow writes one id. Both are snapshots frozen when the server
+ *    processed the write, so neither is dated against anything the store learned afterwards.
+ *    USUALLY THEY ARE THE FRESHER COPY — nothing has landed since the write went out, and taking
+ *    them is what keeps the row current. They are older only when something moved underneath
+ *    them while the write was on the wire: a read snapshot (`snapshotsApplied`), or, for the
+ *    whole followed list, another write of the reader's own (`writesInFlight`, `lastWriteTicket`).
+ *    Every place that takes an unauthored field asks that question first, and when the answer is
+ *    the older copy it is believed about its own fields alone: the note and its two timestamps
+ *    (`saveMatch`), the one followed id (`followIdsAfterWrite`). That is how a match that ended
+ *    while a note edit was in flight stays finished, and how a follow a later unfollow removed
+ *    stays removed. The same distinction as 2, on the success side: a rollback undoes only what
+ *    its write did, and a success applies only what its write did — plus whatever nothing newer
+ *    has anything to say about.
  */
 
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
@@ -271,12 +297,12 @@ function removeSaved(saved: SavedMatchesSnapshot, matchId: string): SavedMatches
 /**
  * REVERTING A FAILED WRITE TOUCHES ONLY WHAT THAT WRITE TOUCHED.
  *
- * Every rollback in this file used to be `this.set({ data: before.data })` — the whole snapshot as
- * it stood when the write was issued. That is wrong twice over. Across a change of account it puts
- * one reader's entire favourites state into another's; and even inside one session it silently
- * discards whatever a legitimate refresh brought in while the write was on the wire, so a match
- * the reader saved on their phone, arriving in a refresh, vanished again because an unrelated
- * follow happened to fail. The helpers below invert exactly the optimistic step and nothing else,
+ * No rollback here may be `this.set({ data: before.data })` — the whole snapshot as it stood when
+ * the write was issued. That is wrong twice over. Across a change of account it puts one reader's
+ * entire favourites state into another's; and even inside one session it silently discards
+ * whatever a legitimate refresh brought in while the write was on the wire, so a match the reader
+ * saved on their phone, arriving in a refresh, would vanish again because an unrelated follow
+ * happened to fail. The helpers below invert exactly the optimistic step and nothing else,
  * applied to whatever the store holds NOW.
  */
 type FollowedTeam = FavouritesSnapshot['teams'][number];
@@ -309,19 +335,97 @@ function revertLeagueFollow(
 }
 
 /**
+ * The followed list to show once a follow write's answer comes back.
+ *
+ * A FOLLOW ANSWER CARRIES THE WHOLE LIST, AND THAT LIST IS ONLY AS CURRENT AS THE WRITES THE
+ * SERVER HAD PROCESSED WHEN IT BUILT IT. Assigning `result.ids` wholesale makes a claim about
+ * every id in the account rather than about the one the reader touched. Unfollow a team and then
+ * another one quickly: the server answers the first with a list that STILL CONTAINS the second,
+ * because it had not seen the second unfollow yet. Whichever way round the two answers then
+ * arrive, one of them is speaking about an id it cannot know the current value of — and when the
+ * older one lands last it puts the second team back, contradicting both the optimistic removal
+ * and the second unfollow's own confirmed answer. The dashboard is then listing a club the reader
+ * has just removed and the server no longer holds.
+ *
+ * `serverListIsCurrent` is the caller's judgement that NOTHING THIS STORE KNOWS OF HAPPENED
+ * BETWEEN THE SERVER BUILDING THAT LIST AND THIS ANSWER BEING APPLIED: no other write was in
+ * flight when this one was issued, none was issued since, and no read snapshot has been applied
+ * in the meantime. THE READ MATTERS AS MUCH AS THE WRITES, and is the easiest of the three to
+ * leave out: a follow made on another device arrives here inside a refresh, the answer to a star
+ * pressed on this tab was built by the server before that follow existed, and assigning it
+ * wholesale deletes the other device's club from the dashboard — the older of two server views
+ * overwriting the newer.
+ *
+ * All three hold for the ordinary case, one star pressed on its own, which is why the whole list
+ * is still worth taking when they do: it is how a follow refused for hitting the limit, or a
+ * change made in another tab, corrects the display instead of being papered over. When they do
+ * not hold, the answer is trusted about its own id — which its write did author — and nothing
+ * else, and the rest of the list catches up on the next read: a snapshot of one instant, rather
+ * than two instants mixed together.
+ */
+function followIdsAfterWrite(
+  serverIds: string[], localIds: string[], id: string, following: boolean,
+  serverListIsCurrent: boolean,
+): string[] {
+  if (serverListIsCurrent) return serverIds;
+  return following ? withId(localIds, id) : without(localIds, id);
+}
+
+/**
+ * Swap one saved row for a new version of ITSELF, where it already sits.
+ *
+ * Separate from `insertSaved` because the caller has already established that the FIXTURE has not
+ * changed, and therefore neither has the bucket. Re-inserting would move the row to the end of
+ * its list (or the front of `finished`) for no reason. That is a small thing and worth stating as
+ * the small thing it is: `buildFeed` re-sorts every group by kick-off time alone, so a row's
+ * position inside its bucket reaches the reader only as the tiebreak between fixtures whose
+ * kick-off times are equal or missing, and as the row order of the data export.
+ */
+function replaceSaved(saved: SavedMatchesSnapshot, entry: SavedMatch): SavedMatchesSnapshot {
+  const swap = (list: SavedMatch[]): SavedMatch[] =>
+    list.map(held => (held.matchId === entry.matchId ? entry : held));
+  // The counts cannot move: one row is exchanged for one row, in the bucket it was already in.
+  return {
+    ...saved, upcoming: swap(saved.upcoming), live: swap(saved.live), finished: swap(saved.finished),
+  };
+}
+
+/**
  * Put one saved match back to the row it had — or to absent, when it had none.
  *
  * `entryBefore` is the reader's own save row as it stood before the write, note included, so a
  * failed note edit restores the note they had rather than clearing it.
+ *
+ * ONLY THE READER'S OWN FIELDS GO BACK, NEVER THE FIXTURE, and that distinction is the whole of
+ * this function. A `SavedMatch` carries `.match` — the entire fixture payload, status and score
+ * included — and reinserting the captured row whole would throw away a result refresh that landed
+ * while the note edit was on the wire: a fixture the backend had moved to FINISHED with a final
+ * score would revert to the LIVE, scoreless copy captured before the edit, and because
+ * `insertSaved` buckets on `match.status` it would jump back under "In play now" as well — a
+ * failed note edit making a played match look like it is still being played. The write only ever
+ * touched the note and its two timestamps, so those are the only fields a rollback may touch;
+ * whatever fixture the store holds now is the freshest one anybody has.
  */
 function revertSavedMatch(
   snapshot: FavouritesSnapshot, matchId: string, entryBefore: SavedMatch | null,
 ): FavouritesSnapshot {
+  if (!entryBefore) {
+    return { ...snapshot, savedMatches: removeSaved(snapshot.savedMatches, matchId) };
+  }
+  const current = allSaved(snapshot.savedMatches).find(entry => entry.matchId === matchId) ?? null;
+  // No row at all — the optimistic removal took it out, or it was never there. Nothing fresher
+  // than the captured copy exists, so that copy goes back whole, fixture and all.
+  if (!current) {
+    return { ...snapshot, savedMatches: insertSaved(snapshot.savedMatches, entryBefore) };
+  }
   return {
     ...snapshot,
-    savedMatches: entryBefore
-      ? insertSaved(snapshot.savedMatches, entryBefore)
-      : removeSaved(snapshot.savedMatches, matchId),
+    savedMatches: replaceSaved(snapshot.savedMatches, {
+      ...current,
+      note: entryBefore.note,
+      savedAt: entryBefore.savedAt,
+      updatedAt: entryBefore.updatedAt,
+    }),
   };
 }
 
@@ -387,12 +491,12 @@ const LIVE_REFRESH_MS = 60_000;
 /**
  * WHY A SAVED FIXTURE THAT IS ONLY ABOUT TO START IS WATCHED AT ALL.
  *
- * `syncLivePoll()` used to start its interval only when `savedMatches.live` was non-empty. A
- * fixture that is still upcoming leaves that bucket empty, so no interval ran, so nothing noticed
- * the kick-off: the poll that would have discovered the transition was gated on the state it
- * would have discovered. A reader with the page in front of them watched "Coming up" all through
- * the first half, because the focus refresh only fires on the way BACK to a tab and nothing else
- * re-read anything.
+ * `syncLivePoll()` MUST NOT GATE ITS INTERVAL ON `savedMatches.live` ALONE. A fixture that is
+ * still upcoming leaves that bucket empty, so no interval would run, so nothing would notice the
+ * kick-off: the poll that discovers the transition would be gated on the state it exists to
+ * discover. A reader with the page in front of them would watch "Coming up" all through the
+ * first half, because the focus refresh only fires on the way BACK to a tab and nothing else
+ * re-reads anything.
  *
  * WHAT IS WATCHED, AND FOR HOW LONG. Only a saved fixture the record still says is going to be
  * played (`scheduled` — a postponed or cancelled one will not kick off at this time, and watching
@@ -803,30 +907,59 @@ const MAX_SUPERSEDED_REREADS = 4;
  * Subscribe with `useFavourites()` (src/hooks/useFavourites.ts) rather than reading `getState()`
  * in a render: the hook wires it to `useSyncExternalStore`, which handles tearing for you.
  *
- * TWO COUNTERS DECIDE WHETHER AN ANSWER MAY BE APPLIED, and they are the whole of the concurrency
- * design in this class. A read is one round trip; anything can happen during it.
+ * FIVE PIECES OF BOOKKEEPING DECIDE WHETHER AN ANSWER MAY BE APPLIED. A read is one round trip;
+ * anything can happen during it, and two writes are two round trips that can finish in either
+ * order. Every guard in this class is one of these or a conjunction of them, so a new guard
+ * belongs on this list — and a reader looking for all of them will find all of them here.
  *
- *   `session`  bumped whenever the identity behind this store changes — signing in, signing out,
- *              or one account replacing another on the same machine. A read captures it when it
- *              is ISSUED. If it no longer matches when the answer lands, the answer belonged to
- *              somebody else's session and is dropped WITHOUT A TRACE: no data, no error, no
- *              `loadedAt`, no focus watcher, no poll. `reset()` cannot cancel a request that is
- *              already on the wire, so this is what stops it being applied.
+ *   `session` — WHOSE STORE IS THIS STILL? Bumped by every identity change (signing in, signing
+ *   out, one account replacing another on the same machine) and by `reset()`. Captured when a
+ *   request is ISSUED and read again when its answer lands. It guards reads AND writes, and it
+ *   is the only one of the five that can date a write against the reader: `writes` cannot,
+ *   because a write cannot be older than itself, but any write can belong to somebody who has
+ *   since left. A read whose session has moved is dropped WITHOUT A
+ *   TRACE — no data, no error, no `loadedAt`, no focus watcher, no poll — because `reset()`
+ *   cannot cancel a request already on the wire and this is the only place it can be stopped. So
+ *   is a write, on all six of its answer paths (save, unsave and follow, each with a success and
+ *   a rollback): no data, because a private note is in that payload; no pending flag; no
+ *   rollback; and it rejects with `DiscardedWrite` rather than resolving, because the write did
+ *   happen for the account that started it and a caller told it succeeded HERE would be wrong.
  *
- *   `writes`   bumped whenever a local write changes what we hold. A snapshot the server built
- *              before that write cannot contain it, so applying it would silently undo the
- *              reader's own action — the star going back off on its own. Such a read is
- *              discarded AND REPLACED by a fresh one, because the reader is still owed the
- *              server's current answer and not merely the absence of a wrong one.
+ *   `writes` — DID THE READER CHANGE SOMETHING WHILE THIS READ WAS OUT? Bumped by every local
+ *   change: the optimistic step, the reconciliation with the answer, and the rollback. A
+ *   snapshot the server built before that change cannot contain it, so applying it would
+ *   silently undo the reader's own action — the star going back off on its own. Such a read is
+ *   discarded AND REPLACED by a fresh one (`readUntilCurrent`), because the reader is still owed
+ *   the server's current answer and not merely the absence of a wrong one. Reads only.
  *
- * `session` GUARDS THE WRITES TOO, and for a long time it did not. Every write response path —
- * save, unsave and follow, each with a success and a rollback — applied unconditionally, so a
- * save that resolved after a change of account inserted the previous reader's save row, PRIVATE
- * NOTE INCLUDED, into the new reader's store, and each rollback put the previous reader's whole
- * snapshot there. Every one of those six paths now checks `session` first and, when it has moved,
- * writes nothing and rejects with `DiscardedWrite`. `writes` is not a write guard: a write cannot
- * be older than itself, and a write that raced another write is settled by the server, which
- * answers both and whose second answer is the later truth.
+ *   `writeOwner`, stamped from `lastWriteTicket` — WHICH WRITE OWNS THIS KEY? One ticket per
+ *   followed id and per saved match, taken when the write is ISSUED. Two answers can arrive in
+ *   the opposite order to the writes that caused them, and each describes the world as the
+ *   server saw it before it had seen the other, so the last ANSWER is not the reader's last
+ *   INTENT: that is an unfollow undone by an older sibling's answer, or a corrected note
+ *   replaced by the version it corrected. An answer whose stamp has moved on writes nothing at
+ *   all — a newer write owns that id, its value and its pending flag, and states the end result
+ *   itself.
+ *
+ *   `snapshotsApplied` — HAS A READ LANDED SINCE THIS WRITE WENT OUT? Counted, never timed. The
+ *   fields an answer did not author (the whole fixture on a save answer, the whole followed list
+ *   on a follow answer) are frozen at the instant the server processed the write, so only a read
+ *   applied since then can hold anything newer. The three above cannot answer this: they see
+ *   local events, and a change made on the reader's phone reaches this tab through a read.
+ *   `saveMatch` asks it about the fixture, `toggleFollow` about the list.
+ *
+ *   `writesInFlight` — DID THIS WRITE HAVE THE WIRE TO ITSELF? Read through
+ *   `nothingElseInFlight()` before the write is issued and paired with `lastWriteTicket` being
+ *   unchanged when the answer lands, which together mean no other write overlapped this one at
+ *   either end. It is the other half of `toggleFollow`'s question, because a follow answer's
+ *   whole list cannot speak for an id another write of the reader's own was changing at the
+ *   same time.
+ *
+ * WHEN A GUARD SAYS AN ANSWER IS OLD, THE ANSWER IS NARROWED, NOT HALVED AT RANDOM. Out of
+ * session or superseded, it writes nothing; merely overtaken by a read, it is still believed
+ * about the fields its own write authored — the note and its two timestamps, the one followed
+ * id — and disbelieved about the rest. Rules 2 to 5 at the top of this file are that same point
+ * stated from the caller's side.
  */
 class FavouritesStore {
   private state: FavouritesState = EMPTY_STATE;
@@ -843,9 +976,9 @@ class FavouritesStore {
   /**
    * Whose favourites these are.
    *
-   * The store held no identity at all before, which is why an answer could not be told apart from
-   * one belonging to another account: `reset()` on sign-out was the only signal, and a sign-out
-   * immediately followed by a different sign-in looked, from in here, like one continuous
+   * An answer can only be told apart from one belonging to another account if the store holds an
+   * identity to compare it against. `reset()` on sign-out is not that signal on its own: a
+   * sign-out immediately followed by a different sign-in looks, from in here, like one continuous
    * session. It is a key rather than the user object — `useFavourites` passes the signed-in id —
    * and nothing is done with it but comparison.
    */
@@ -854,6 +987,54 @@ class FavouritesStore {
   private session = 0;
 
   private writes = 0;
+
+  /**
+   * WHICH WRITE OWNS EACH KEY RIGHT NOW: for every followed id and every saved match with a write
+   * on the wire, the ticket of the most recently ISSUED write for it.
+   *
+   * `session` and `writes` cannot answer this. `session` only knows that the reader has not
+   * changed, and `writes` counts local changes without saying which key they were about — so to
+   * those two, both two writes on the same id and two writes whose answers speak about each
+   * other's ids look like one write followed by another, and the LAST ANSWER wins. That is the
+   * wrong winner: the reader's last INTENT is what the screen must end up agreeing with, and the
+   * network decides the order of answers, not the reader.
+   *
+   * The stamp is taken when a write is issued and dropped when it settles, so a key present here
+   * always has a write of that vintage in flight. An answer whose ticket is no longer the one
+   * stamped for its key has been superseded: a newer write for the same key is on the wire, that
+   * newer write owns both the value and the pending flag, and this answer must write nothing.
+   */
+  private writeOwner = new Map<string, number>();
+
+  private lastWriteTicket = 0;
+
+  /**
+   * How many writes are on the wire right now, across every key.
+   *
+   * Only `toggleFollow` needs it, and only for one question: may this answer's WHOLE-LIST field
+   * be believed? Not on its own — see `snapshotsApplied` — but it is half the answer: a write
+   * that raced another write cannot speak for the id that other write was about.
+   */
+  private writesInFlight = 0;
+
+  /**
+   * HOW MANY READ SNAPSHOTS HAVE BEEN APPLIED, ever, in this store.
+   *
+   * THE ONLY WAY TO DATE A WRITE ANSWER AGAINST A READ, and therefore the guard behind rule 5:
+   * every field a write did not author is frozen at the instant the server processed it, and
+   * only a read applied since then can be newer. `session`, `writeOwner` and `writesInFlight`
+   * see local events; a change made on the reader's phone reaches this tab through a READ and is
+   * invisible to all three. Both callers compare this counter across their own round trip —
+   * `toggleFollow` for the whole followed list (the phone's club, otherwise taken straight back
+   * off the dashboard by an answer built before it existed) and `saveMatch` for the fixture (a
+   * result, otherwise un-finished by a note edit that succeeded). Unchanged means nothing landed
+   * underneath the write, and then the answer is the fresher copy.
+   *
+   * A counter rather than `loadedAt` because `loadedAt` is a clock reading: two snapshots inside
+   * one millisecond leave it unchanged, and this question must never answer "nothing landed"
+   * when something did.
+   */
+  private snapshotsApplied = 0;
 
   getState = (): FavouritesState => this.state;
 
@@ -919,9 +1100,10 @@ class FavouritesStore {
   /**
    * One read, repeated only while its answer keeps turning out to be older than something local.
    *
-   * Every mutation below is guarded by the two counters described on the class. Nothing is
-   * written on a discarded read — not the state, not `loadedAt`, not the watcher and not the
-   * poll — because the only honest trace of a request made for a session that has ended is none.
+   * Every mutation below is guarded by `session` and `writes`, the two of the five described on
+   * the class that a read is subject to. Nothing is written on a discarded read — not the state,
+   * not `loadedAt`, not the watcher and not the poll — because the only honest trace of a
+   * request made for a session that has ended is none.
    */
   private async readUntilCurrent(): Promise<FavouritesSnapshot> {
     for (let attempt = 0; attempt <= MAX_SUPERSEDED_REREADS; attempt += 1) {
@@ -953,6 +1135,10 @@ class FavouritesStore {
       if (this.writes !== writes) continue;
 
       this.loadedAt = Date.now();
+      // Counted, not timed: `loadedAt` is a clock reading and two snapshots applied inside one
+      // millisecond share it. A write that has to know whether a snapshot landed while it was on
+      // the wire needs a value that always changes. See `snapshotsApplied`.
+      this.snapshotsApplied += 1;
       this.set({ status: 'ready', data: snapshot, error: null, refreshing: false });
       // Only now is there something worth keeping current, and only now do we know whether
       // anything is in play or about to be.
@@ -982,6 +1168,12 @@ class FavouritesStore {
     this.session += 1;
     this.inFlight = null;
     this.loadedAt = 0;
+    // Every write on the wire now belongs to the session that just ended and will be refused by
+    // `session` before its stamp is ever consulted. Dropping them keeps this map from carrying
+    // one reader's keys into the next reader's session, where they would make a first write on
+    // an id look as though something else already owned it.
+    this.writeOwner.clear();
+    this.writesInFlight = 0;
     // Signed out, there is nothing to keep current and nobody to keep it current for. Leaving the
     // listeners attached would have a signed-out tab re-requesting the previous user's favourites
     // every time it came back to the front, and every one of those would be a 401.
@@ -1180,8 +1372,61 @@ class FavouritesStore {
     return this.session !== session;
   }
 
+  /** The key a write's ordering is tracked under. Namespaced so a team and a league id cannot collide. */
+  private static keyFor(kind: 'team' | 'league' | 'match', id: string): string {
+    return `${kind}:${id}`;
+  }
+
+  /** True when no write at all is on the wire. Read BEFORE issuing, never after. */
+  private nothingElseInFlight(): boolean {
+    return this.writesInFlight === 0;
+  }
+
+  /** Stamp this key as owned by a new write, and hand back the ticket that proves it. */
+  private issueWrite(key: string): number {
+    this.lastWriteTicket += 1;
+    this.writeOwner.set(key, this.lastWriteTicket);
+    this.writesInFlight += 1;
+    return this.lastWriteTicket;
+  }
+
+  /**
+   * True when a write issued AFTER this one has taken this key over.
+   *
+   * Such an answer writes nothing — not the value, not the pending flag, not a rollback. The
+   * pending flag in particular belongs to the newer write: clearing it here would stop the
+   * control spinning while a write on it is still genuinely in flight.
+   */
+  private writeSuperseded(key: string, ticket: number): boolean {
+    return this.writeOwner.get(key) !== ticket;
+  }
+
+  /**
+   * This write is over, whatever it did.
+   *
+   * Called on every path that reaches an answer, the superseded ones included — a superseded
+   * write writes nothing but it is no longer in flight, and leaving it counted would make the
+   * next write believe it had company forever. The key is released only when this write still
+   * owns it; when a newer one does, the newer one hands it back in its turn. The paths that
+   * reject with `DiscardedWrite` deliberately do NOT call this: `reset()` cleared both, and a
+   * write from a session that has ended must not touch a counter belonging to this one.
+   */
+  private closeWrite(key: string, ticket: number): void {
+    if (this.writeOwner.get(key) === ticket) this.writeOwner.delete(key);
+    this.writesInFlight = Math.max(0, this.writesInFlight - 1);
+  }
+
   private async toggleFollow(kind: 'team' | 'league', id: string, following: boolean): Promise<FollowResult> {
     const session = this.session;
+    // Stamped BEFORE the optimistic step, so a second toggle of the same control is already the
+    // owner of this id by the time the first one's answer comes back to look. `alone` is read
+    // before the stamp, because this write is about to be in flight itself.
+    const key = FavouritesStore.keyFor(kind, id);
+    const alone = this.nothingElseInFlight();
+    // Read here too, and for the same question: a snapshot applied while this write is on the
+    // wire carries follows this answer's list cannot contain. See `snapshotsApplied`.
+    const snapshotsAtIssue = this.snapshotsApplied;
+    const ticket = this.issueWrite(key);
     const before = this.state;
     const data = before.data;
     // Captured before the optimistic step, so the rollback can invert exactly that step: what this
@@ -1219,10 +1464,20 @@ class FavouritesStore {
     try {
       result = await favouritesApi.follow(kind, id, following);
     } catch (error) {
-      // The rollback is the leakiest path of the three: it used to restore `before.data`, the
-      // WHOLE snapshot, which across a change of account is the previous reader's entire
-      // favourites state landing in this one's.
+      // The rollback is the leakiest of the three paths: restoring `before.data` here, the WHOLE
+      // snapshot, would across a change of account land the previous reader's entire favourites
+      // state in this one's.
       if (this.answerIsStale(session)) throw new DiscardedWrite('failed');
+      /*
+       * A NEWER TOGGLE OF THIS SAME CONTROL IS ALREADY ON THE WIRE, so this failure is not the
+       * current state of anything. Rolling back here would put the id back to what it was two
+       * intents ago, over the newer write's optimistic state, and clearing the pending flag would
+       * stop the control spinning while that newer write is still genuinely running. The reader
+       * is still told their attempt failed; the store simply lets the write that replaced it
+       * speak for the id.
+       */
+      if (this.writeSuperseded(key, ticket)) { this.closeWrite(key, ticket); throw error; }
+      this.closeWrite(key, ticket);
       const current = this.state.data;
       // Put back this follow and nothing else. Leaving the optimistic state up after a failure
       // would show a follow that does not exist on the server; restoring the whole snapshot
@@ -1244,34 +1499,56 @@ class FavouritesStore {
     }
 
     if (this.answerIsStale(session)) throw new DiscardedWrite('applied');
+    /*
+     * SUPERSEDED BY A NEWER TOGGLE OF THE SAME ID. The reader has since asked for the opposite,
+     * or asked again; that write owns the id and the pending flag, and it will state the end
+     * result when it answers. Applying this one would let the order the network happened to
+     * deliver two answers in decide what the screen says, over the order the reader asked in.
+     * The caller still gets the result: it is a true statement about what the server did.
+     */
+    if (this.writeSuperseded(key, ticket)) { this.closeWrite(key, ticket); return result; }
+    this.closeWrite(key, ticket);
     const current = this.state.data;
     // The reconciliation is a second local write: a read issued between the optimistic change
     // and this line is older than the server's own answer too.
     this.noteLocalWrite();
+    /*
+     * The server's answer is the truth about the id this write was FOR, and reconciling against
+     * it rather than trusting the optimistic guess is what makes a refused follow (limit
+     * reached) show up as the star going back off. How much of the REST of the answer may be
+     * believed is `followIdsAfterWrite`'s subject: the whole list only while this write had the
+     * wire to itself AND no read snapshot landed underneath it, and otherwise this id alone.
+     *
+     * THE RESOLVED LIST IS RECONCILED TOO, and that is the same lesson as `unsaveMatch` below.
+     * Assigning ids alone assumed the optimistic step — which drops the row from `teams` on an
+     * unfollow — was still standing. A refresh landing in between puts the row back, and the
+     * panel that lists what you follow reads `teams`, not `teamIds`: the competition or club
+     * you had just unfollowed stayed in the list, contradicting its own star. Nothing is ADDED
+     * here, because a follow we hold no row for has no row to add; that is what the reload a
+     * few lines down is for.
+     */
+    const serverListIsCurrent = alone
+      && this.lastWriteTicket === ticket
+      && this.snapshotsApplied === snapshotsAtIssue;
+    const ids = current
+      ? followIdsAfterWrite(
+        result.ids,
+        kind === 'team' ? current.teamIds : current.leagueIds,
+        id, result.following, serverListIsCurrent,
+      )
+      : result.ids;
     this.set({
-      /*
-       * The server's list is the truth. Reconciling rather than trusting the optimistic guess is
-       * what makes a refused follow (limit reached) show up as the star going back off.
-       *
-       * THE RESOLVED LIST IS RECONCILED TOO, and that is the same lesson as `unsaveMatch` below.
-       * Assigning `ids` alone assumed the optimistic step — which drops the row from `teams` on
-       * an unfollow — was still standing. A refresh landing in between puts the row back, and the
-       * panel that lists what you follow reads `teams`, not `teamIds`: the competition or club
-       * you had just unfollowed stayed in the list, contradicting its own star. Nothing is ADDED
-       * here, because a follow we hold no row for has no row to add; that is what the reload a
-       * few lines down is for.
-       */
       data: current
         ? (kind === 'team'
           ? {
             ...current,
-            teamIds: result.ids,
-            teams: current.teams.filter(team => result.ids.includes(team.id)),
+            teamIds: ids,
+            teams: current.teams.filter(team => ids.includes(team.id)),
           }
           : {
             ...current,
-            leagueIds: result.ids,
-            leagues: current.leagues.filter(league => result.ids.includes(league.id)),
+            leagueIds: ids,
+            leagues: current.leagues.filter(league => ids.includes(league.id)),
           })
         : current,
       ...(kind === 'team'
@@ -1293,6 +1570,13 @@ class FavouritesStore {
    */
   saveMatch = async (matchId: string, options?: { note?: string | null; match?: SavedMatch['match'] }): Promise<SaveMatchResult> => {
     const session = this.session;
+    // Stamped before the optimistic step. Two note edits on one match, or a note edit and a
+    // removal, are two writes on the same key and the later-issued one owns it.
+    const key = FavouritesStore.keyFor('match', matchId);
+    // Read before the write goes out, and compared again on the success path: it is the only
+    // thing that can tell whether the answer's fixture or the store's is the older one.
+    const snapshotsAtIssue = this.snapshotsApplied;
+    const ticket = this.issueWrite(key);
     const before = this.state;
     const existing = this.savedEntry(matchId);
     const fixture = options?.match ?? existing?.match ?? null;
@@ -1327,10 +1611,14 @@ class FavouritesStore {
       result = await favouritesApi.saveMatch(matchId, options?.note);
     } catch (error) {
       if (this.answerIsStale(session)) throw new DiscardedWrite('failed');
+      // A newer write on this match is already on the wire: it owns the note and the pending
+      // flag, and rolling back to the note this write captured would undo that newer intent.
+      if (this.writeSuperseded(key, ticket)) { this.closeWrite(key, ticket); throw error; }
+      this.closeWrite(key, ticket);
       const current = this.state.data;
       this.noteLocalWrite();
       this.set({
-        // Undo THIS save — back to the row it had, note and all, or to absent where it had none.
+        // Undo THIS save — back to the note it had, or to absent where the row itself was new.
         ...(changedData && current ? { data: revertSavedMatch(current, matchId, existing) } : {}),
         pendingMatchIds: without(this.state.pendingMatchIds, matchId),
       });
@@ -1346,12 +1634,70 @@ class FavouritesStore {
      * for. There is no pending flag to clear: `reset()` emptied that list at the boundary.
      */
     if (this.answerIsStale(session)) throw new DiscardedWrite('applied');
+    /*
+     * SUPERSEDED BY A NEWER WRITE ON THE SAME MATCH. This answer is the server's row as it stood
+     * after THIS write, and a later one — a second note edit, or a removal — is already on the
+     * wire. Inserting it would let whichever answer the network delivered last decide what the
+     * note says, so a reader who corrected a note and watched the first version come back would
+     * be looking at an intent they had already replaced.
+     */
+    if (this.writeSuperseded(key, ticket)) { this.closeWrite(key, ticket); return result; }
+    this.closeWrite(key, ticket);
     const current = this.state.data;
     this.noteLocalWrite();
+    // The row as the store holds it NOW, which is not the copy `existing` captured before the
+    // optimistic step: a refresh landing while this write was on the wire may have replaced it.
+    const held = current
+      ? (allSaved(current.savedMatches).find(entry => entry.matchId === matchId) ?? null)
+      : null;
+    /*
+     * WHICH OF THE TWO FIXTURES IS THE OLDER ONE.
+     *
+     * The answer's fixture is frozen at the instant the server processed the write. With no read
+     * applied since this write went out, nothing the store holds for this match can be later
+     * than that instant, so the ANSWER is the newer copy and is taken. When a read HAS been
+     * applied the two cannot be ordered from here — the snapshot may have been built either side
+     * of the write — and the store's copy is kept, because that is the one that can carry a
+     * result this write's own transaction never saw. `session` dates this answer against the
+     * account and `writeOwner` against other writes on this match; neither sees a read, which is
+     * what `snapshotsApplied` is counted for.
+     *
+     * THE PRESENCE OF A ROW IS NOT THE TEST. The optimistic step above inserts one for every
+     * save made with a fixture, so `held` can be nothing but this write's own guess — built from
+     * whatever copy the caller had on screen, which is exactly the copy that can be stale.
+     */
+    const readLandedUnderneath = this.snapshotsApplied !== snapshotsAtIssue;
     this.set({
-      // Replace the optimistic entry with the server's, which carries the real saved_at and the
-      // fixture exactly as every other endpoint serialises it.
-      data: current ? { ...current, savedMatches: insertSaved(current.savedMatches, result) } : current,
+      /*
+       * A read landed, so the answer speaks for the note and its timestamps and not for the
+       * fixture. A note edit is issued while the fixture is live and scoreless; the server
+       * processes it and builds its answer around that live copy; the fixture then finishes 3-1
+       * and a refresh brings the result in; the answer arrives last. Handing it to `insertSaved`,
+       * which files a row by `match.status`, would put the played match back under "In play now"
+       * with its final score gone — the symptom `revertSavedMatch` fixes on the failure path,
+       * reached here by an edit that worked. A save authors the note, `saved_at` and
+       * `updated_at`, so those three are taken and the fixture is left as it stands.
+       *
+       * No read landed, so the answer is the freshest copy of the fixture anybody here has, and
+       * it is taken whole. It is the ONLY way a fixture the reader is looking at can be brought
+       * up to date by the save itself: a day page rendered two hours ago still shows the match
+       * as scheduled and hands that copy to `options.match`, and the answer to starring it
+       * carries the finished score. `insertSaved` re-files the row, so the bucket follows the
+       * status it just learned.
+       */
+      data: current
+        ? {
+          ...current,
+          savedMatches: held && readLandedUnderneath
+            ? replaceSaved(current.savedMatches, {
+              ...held,
+              note: result.note,
+              savedAt: result.savedAt,
+              updatedAt: result.updatedAt,
+            })
+            : insertSaved(current.savedMatches, result),
+        }
+        : current,
       pendingMatchIds: without(this.state.pendingMatchIds, matchId),
     });
     // Saving a fixture that is in play, or one that kicks off in ten minutes, is a reason to
@@ -1363,6 +1709,10 @@ class FavouritesStore {
   /** Unsave a match, optimistically. Unsaving something that was not saved is not an error. */
   unsaveMatch = async (matchId: string): Promise<UnsaveMatchResult> => {
     const session = this.session;
+    // The same key `saveMatch` stamps: a removal and a note edit on one match are two writes on
+    // the same thing, and the later-issued one owns what the row ends up being.
+    const key = FavouritesStore.keyFor('match', matchId);
+    const ticket = this.issueWrite(key);
     const before = this.state;
     // The row as it stood, captured before the optimistic removal, so a failed removal puts back
     // the reader's own note rather than a bare entry.
@@ -1383,6 +1733,10 @@ class FavouritesStore {
       result = await favouritesApi.unsaveMatch(matchId);
     } catch (error) {
       if (this.answerIsStale(session)) throw new DiscardedWrite('failed');
+      // A newer write on this match owns it now; putting the row back would undo that newer
+      // intent, and the pending flag it would clear belongs to a write still running.
+      if (this.writeSuperseded(key, ticket)) { this.closeWrite(key, ticket); throw error; }
+      this.closeWrite(key, ticket);
       const current = this.state.data;
       this.noteLocalWrite();
       this.set({
@@ -1395,17 +1749,21 @@ class FavouritesStore {
     }
 
     if (this.answerIsStale(session)) throw new DiscardedWrite('applied');
+    // Superseded: the reader has saved this match again since, and that write will state the end
+    // result. Removing the row here would carry out an intent they have already replaced.
+    if (this.writeSuperseded(key, ticket)) { this.closeWrite(key, ticket); return result; }
+    this.closeWrite(key, ticket);
     const current = this.state.data;
     this.noteLocalWrite();
     /*
      * STATE THE END RESULT; DO NOT ASSUME THE OPTIMISTIC REMOVAL IS STILL STANDING.
      *
-     * This path used to clear the pending flag and nothing else, on the assumption that the entry
-     * it removed a moment ago was still gone. A refresh landing between the two — and it is NOT
-     * discarded by the read guard, because it was issued after the local removal it would undo —
-     * carries a snapshot in which the match is still saved. The removal then completed, the
-     * spinner went away, and the bookmark the reader had successfully deleted was left sitting on
-     * the screen looking saved. `saveMatch` above always asserted its end state; this is the same
+     * Clearing the pending flag and nothing else would assume the entry this path removed a
+     * moment ago is still gone. A refresh landing between the two — and it is NOT discarded by
+     * the read guard, because it was issued after the local removal it would undo — carries a
+     * snapshot in which the match is still saved. The removal would then complete, the spinner
+     * would go away, and the bookmark the reader successfully deleted would be left sitting on
+     * the screen looking saved. `saveMatch` above asserts its end state; this is the same
      * assertion for the other direction.
      *
      * Unconditional, including when `result.removed` is false: "there was nothing to remove" and
@@ -1719,12 +2077,13 @@ class FollowedFixturesStore {
    * under "Coming up" through the first half unless the reader happened to leave the tab and come
    * back. Same page, same reader, two different answers depending on how the fixture got there.
    *
-   * WHY IT WAS LEFT OPEN, AND WHAT CHANGED. The objection was cost, and it was a fair one: the
-   * only read this store had was a REBUILD, one request per follow, up to fifteen, and running
-   * that every two minutes for every pending kick-off is a different order of load for a fixture
-   * nobody asked for by name. What changed is the granularity. `GET /api/v1/matches/{id}` is a
-   * stored read of one row, so the fixtures that are actually starting can be asked about
-   * directly: the ordinary Tuesday-night kick-off is ONE request, not fifteen. Past
+   * WHY THIS IS AFFORDABLE WHEN THE OBVIOUS VERSION IS NOT. Cost is the real objection, and a
+   * fair one: this store's whole-feed read is a REBUILD, one request per follow, up to fifteen,
+   * and running that every two minutes for every pending kick-off is a different order of load
+   * for a fixture nobody asked for by name. GRANULARITY IS WHAT MAKES IT CHEAP.
+   * `GET /api/v1/matches/{id}` is a stored read of one row, so the fixtures that are actually
+   * starting can be asked about directly: the ordinary Tuesday-night kick-off is ONE request,
+   * not fifteen. Past
    * `KICKOFF_TARGETED_MAX` at once the arithmetic flips and one rebuild is cheaper, so that is
    * what it does instead.
    *

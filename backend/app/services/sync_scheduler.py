@@ -346,19 +346,132 @@ class SyncScheduler:
         service = services.match
         days = max(int(settings.SYNC_FIXTURES_DAYS_AHEAD), 1)
         today = service.now.date()
+        # The previous pass's own summary is the only record of how long this has been quiet; it is
+        # carried forward below rather than kept in a second key that could disagree with it.
+        #
+        # That ties both streaks to that summary surviving. It is absent whenever the task raised
+        # (`_maybe_run` records `last_result=None`), whenever the state entry has passed its
+        # STATE_TTL_SECONDS, and on every pass when Redis is unavailable, since the cache read then
+        # returns None and the save is a no-op. In each of those the streaks restart at 0 and the
+        # sighting falls back to `_carry_last_seen`'s reconstruction. They count passes since the
+        # last stored summary, not passes since the last fixture.
+        previous = self.state(TASK_FIXTURES).get("last_result") or {}
         out: Dict[str, Any] = {"days": {}, "errors": []}
         got_data = False
+        seen = stored = forward_seen = forward_stored = 0
+        answered = from_stale = unanswered = 0
+        offered_at: List[datetime] = []
         for offset in range(days):
             day = today + timedelta(days=offset)
             meta = service.sync_day(day)
             out["days"][day.isoformat()] = meta.to_dict()
             out["errors"].extend(meta.errors)
+            seen += meta.fixtures_seen
+            stored += meta.fixtures_stored
+            forward_seen += meta.forward_fixtures_seen
+            forward_stored += meta.forward_fixtures_stored
+            if meta.forward_source in ("provider", "cache"):
+                answered += 1
+                if meta.forward_fixtures_seen:
+                    # Time the sighting by when the answer was fetched, not by when this pass read
+                    # it: a cache hit is a provider answer from up to MATCH_CACHE_TTL_FIXTURES ago.
+                    offered_at.append(_parse(meta.forward_fetched_at) or self.now)
+            elif meta.forward_source == "stale-cache":
+                from_stale += 1
+            else:
+                unanswered += 1
             if meta.source != "database":
                 got_data = True
         out["errors"] = _clip(out["errors"])
         out["days_requested"] = days
+        out["fixtures_seen"] = seen
+        out["fixtures_stored"] = stored
+        out["forward_seen"] = forward_seen
+        out["forward_stored"] = forward_stored
+        out["days_answered"] = answered
+        out["days_from_stale_cache"] = from_stale
+        out["days_unanswered"] = unanswered
+        # Reaching the provider is not the same as being given a fixture: an empty answer and a
+        # full matchday both write `source="provider"` with no errors, and neither field tells
+        # them apart. Hence the counts - but only the FORWARD list answers "did the provider hand
+        # back a fixture for a day we asked about". One `sync_day` runs three ingests through the
+        # same counters (the forward list, then results, then live scores), and one unsettled
+        # match dated today that has already kicked off - or kicks off within the next quarter of
+        # an hour - makes the other two hand back a day of fixtures on a pass whose forward list
+        # came back empty, so `fixtures_seen` cannot be read for this.
+        #
+        # `forward_answer` summarises the whole pass in one word, and a sighting outranks an
+        # outage:
+        #
+        #   fixtures      at least ONE day was offered a forward fixture, in an answer fetched for
+        #                 this pass or still inside its cache TTL. Both streaks reset. This says
+        #                 nothing about the other days: a three-day pass where today answers and
+        #                 the other two raise lands here too, and the two dead days show up only
+        #                 in `days_unanswered` / `days_from_stale_cache` beside it. Read those
+        #                 counts, not this word, to see whether every day was answered.
+        #   empty         no day was offered a forward fixture, and every day asked was answered.
+        #                 A league between rounds genuinely has none, so this stays a success -
+        #                 but the run of them is counted, because a dead forward path looks the
+        #                 same from here.
+        #   not_answered  no day was offered a forward fixture, and at least one fell back to the
+        #                 24-hour stale copy or got no answer at all. Nothing was learned about
+        #                 the calendar, so `empty_passes` is left exactly where it was rather than
+        #                 advanced - an outage must not read as a quiet week - and it gets a
+        #                 streak of its own instead.
+        #
+        # What none of this does is decide that something is wrong. These are two streaks and a
+        # timestamp on the status page; judging them is still a person's job.
+        if offered_at:
+            out["forward_answer"] = "fixtures"
+            out["last_seen_at"] = max(offered_at).isoformat()
+            out["last_seen_basis"] = "sync_pass"
+            out["empty_passes"] = out["unanswered_passes"] = 0
+        else:
+            out["last_seen_at"], out["last_seen_basis"] = self._carry_last_seen(previous, service)
+            if from_stale or unanswered:
+                out["forward_answer"] = "not_answered"
+                out["empty_passes"] = int(previous.get("empty_passes") or 0)
+                out["unanswered_passes"] = int(previous.get("unanswered_passes") or 0) + 1
+            else:
+                out["forward_answer"] = "empty"
+                out["empty_passes"] = int(previous.get("empty_passes") or 0) + 1
+                out["unanswered_passes"] = 0
         error = None if got_data else "; ".join(out["errors"]) or "no fixture data could be obtained"
         return out, got_data, error
+
+    @staticmethod
+    def _carry_last_seen(previous: Dict[str, Any],
+                         service: MatchDataService) -> Tuple[Optional[str], Optional[str]]:
+        """(when a fixture was last seen, what that timestamp is), for a pass offered none.
+
+        Normally the previous pass's answer, carried forward. When no stored summary carries one
+        there is still something knowable - the newest match row written before its own kickoff.
+        Without it a pass reports that no fixture has ever been seen on an installation whose
+        table is full of rows written days ahead of their kickoff, which reads as a broken
+        integration rather than as the calendar gap that is actually there.
+
+        "No stored summary" is not only the first pass ever. The summary is also gone after a pass
+        that raised, after the state entry passes its TTL, and on every pass while Redis is
+        unavailable - so this reconstruction can reappear long after a real sighting, and the
+        basis is the only thing that keeps the two apart.
+
+        The basis travels with the timestamp so they are never confused: "sync_pass" is a fixture
+        this task was handed, "matches_table" is the row above, and None means no fixture sighting
+        is recorded and none could be reconstructed.
+        """
+        carried = previous.get("last_seen_at")
+        if carried:
+            # A stored summary carrying a timestamp but no basis was written by a pass that was
+            # handed a fixture - nothing else writes one - so it is attributed to one.
+            return carried, previous.get("last_seen_basis") or "sync_pass"
+        stored_at = None
+        try:
+            stored_at = service.last_forward_fixture_stored_at()
+        except Exception:  # a seed for a report must never fail the pass that reports it
+            logger.debug("Could not seed the last-seen fixture time", exc_info=True)
+        if not isinstance(stored_at, datetime):
+            return None, None
+        return stored_at.isoformat(), "matches_table"
 
     def _run_results(self, services: _Services) -> Tuple[Dict[str, Any], bool, Optional[str]]:
         service = services.match

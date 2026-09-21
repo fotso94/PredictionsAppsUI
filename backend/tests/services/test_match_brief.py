@@ -419,16 +419,89 @@ def test_a_provider_confidence_is_reported_with_the_scope_it_applies_to(forecast
 
 
 def test_an_expert_who_published_no_confidence_is_not_reported_as_zero_confidence(forecasts):
-    """confidence_score is NOT NULL and defaults to 0.0, which is an absence, not a published zero."""
+    """An absence is NULL, and the brief must report it as "nobody said" rather than as a figure.
+
+    The column is nullable, so the fixture says what it means and passes NULL rather than 0.0.
+    The test below is the other half - a stored zero, which must come back as a figure - and the
+    two must never agree.
+    """
     match = _match()
-    expert = _expert_prediction(match, confidence_score=0.0)
+    expert = _expert_prediction(match, confidence_score=None)
 
     brief = _brief(forecasts, match, record=None, expert=expert)
 
     block = _market(brief, "match_result")["expert"]
     assert block["confidence_published"] is False
     assert block["confidence"] is None
+    assert block["confidence_percent"] is None
     assert brief["reliability"]["expert"]["confidence_published"] is False
+    assert brief["reliability"]["expert"]["confidence"] is None
+    assert "published no confidence" in brief["reliability"]["expert"]["detail"]
+
+
+def test_an_expert_who_published_a_conviction_of_zero_is_reported_as_zero_not_as_silence(forecasts):
+    """The control for the test above. 0% is a claim, and the brief has to carry it as one.
+
+    Rating your own prediction at nothing and never rating it are different things to tell a
+    reader, and for years the brief could not tell them apart: it tested ``<= 0`` and threw the
+    claimed zero away with the absence. If this test and the one above ever agree again, that
+    collapse has happened once more.
+    """
+    match = _match()
+    expert = _expert_prediction(match, confidence_score=0.0)
+
+    brief = _brief(forecasts, match, record=None, expert=expert)
+
+    block = _market(brief, "match_result")["expert"]
+    assert block["confidence_published"] is True
+    assert block["confidence"] == pytest.approx(0.0)
+    assert block["confidence_percent"] == pytest.approx(0.0)
+    assert block["confidence_scope"] == "prediction"
+    assert brief["reliability"]["expert"]["confidence_published"] is True
+    assert brief["reliability"]["expert"]["confidence"] == pytest.approx(0.0)
+    assert "published a confidence" in brief["reliability"]["expert"]["detail"]
+
+
+@pytest.mark.parametrize("market,stored", [
+    ("btts", {"btts_confidence": 0.9}),
+    ("over_under_25", {"total_goals_confidence": 0.9}),
+    ("over_under_35", {"total_goals_confidence": 0.9}),
+])
+def test_a_conviction_in_a_market_with_no_outcomes_is_not_reported(forecasts, market, stored):
+    """A stored conviction over an empty market is shown as no conviction at all.
+
+    The expert API refuses to write this shape now - a market is withdrawn together with the
+    conviction in it - but rows stored before that rule existed can still hold it, and reading
+    one must not produce a block that names 90% conviction beside an outcome list with nothing
+    in it. There is no market there to be 90% sure about.
+    """
+    match = _match()
+    expert = _expert_prediction(match, **stored)
+
+    brief = _brief(forecasts, match, record=None, expert=expert)
+
+    block = _market(brief, market)["expert"]
+    assert block["outcomes"] == []
+    assert block["available"] is False
+    assert block["confidence_published"] is False
+    assert block["confidence"] is None
+    assert block["confidence_percent"] is None
+    assert block["confidence_scope"] is None
+    assert "90" not in "".join(_strings(block))
+
+
+def test_a_market_conviction_is_still_reported_where_the_market_has_outcomes(forecasts):
+    """The control: dropping the orphan must not drop the conviction that has a market."""
+    match = _match()
+    expert = _expert_prediction(match, btts_yes_prob=0.6, btts_no_prob=0.4, btts_confidence=0.9)
+
+    brief = _brief(forecasts, match, record=None, expert=expert)
+
+    block = _market(brief, "btts")["expert"]
+    assert len(block["outcomes"]) == 2
+    assert block["confidence_published"] is True
+    assert block["confidence"] == pytest.approx(0.9)
+    assert block["confidence_scope"] == "market"
 
 
 # --------------------------------------------------------------------- freshness

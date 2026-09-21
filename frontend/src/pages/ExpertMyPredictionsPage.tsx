@@ -11,26 +11,25 @@
  *     "not set" — never 0%, in either language. A market an expert declined to offer is not a
  *     market they rated at zero, and the French must not let it be read as one.
  *
- *     THE HEADLINE CONVICTION NOW BEHAVES THE SAME WAY, AND DID NOT USED TO. The fallback under
- *     `expert.details.confidence` was unreachable: predictions.confidence_score was NOT NULL and
- *     the expert service coerced a missing conviction to 0.0000, so the API could not express
- *     "not given" and this page faithfully printed 0% for it. The column, the service, the
- *     response model and this page now carry null end to end, so the fallback fires for real.
- *     Two consequences to keep: `ConfidenceBadge` takes a bare number and bands it, so it is
- *     rendered only for a conviction that exists; and every test here is `isPublished`, never
- *     `value &&`, because 0 is a conviction an expert may deliberately claim.
+ *     THE HEADLINE CONVICTION BEHAVES THE SAME WAY. `confidence_score` is nullable end to end —
+ *     column, expert service, response model and this page — so "not given" is a value the API
+ *     can express and the fallback under `expert.details.confidence` really fires.
+ *     Two consequences to keep: a conviction nobody gave is not a band, so `ConfidenceBadge`
+ *     takes `number | null | undefined` and renders « non renseigné » for the absent cases
+ *     rather than banding them; and every test here is `isPublished`, never `value &&`, because
+ *     0 is a conviction an expert may deliberately claim.
  *   - THE EDIT NOTICE IS A PROMISE ABOUT READERS. Saving keeps the prediction published and keeps
  *     the superseded version, so a reader can still see what was published before. The French
  *     says exactly that, in the same indicative.
  *
  * ── EVERY DATE HERE IS IN THE READER'S CHOSEN ZONE ────────────────────────────────
  *
- * Four `toLocaleDateString` / `toLocaleString` calls used to render the kick-off, the creation
- * time and two publication times. Every one of them formatted in the DEVICE's zone and the
- * DEVICE's locale, which for an expert judging whether a fixture is still prematch is a
- * correctness defect and not a cosmetic one. They go through `backendInstant` (this backend
- * anchors these columns with a trailing Z — see the field serialisers in
- * backend/app/schemas/predictions.py) and then `formatDate` / `formatDateTime`.
+ * Four instants are rendered here: the kick-off, the creation time and two publication times.
+ * None of them may go through bare `toLocaleDateString` / `toLocaleString`, which format in the
+ * DEVICE's zone and the DEVICE's locale — for an expert judging whether a fixture is still
+ * prematch, that is a correctness defect and not a cosmetic one. All four go through
+ * `backendInstant` (this backend anchors these columns with a trailing Z — see the field
+ * serialisers in backend/app/schemas/predictions.py) and then `formatDate` / `formatDateTime`.
  *
  * ── WHAT IS STILL ENGLISH ──────────────────────────────────────────────────
  *
@@ -326,11 +325,15 @@ const ExpertMyPredictionsPage: React.FC = () => {
                       <PredictionStatusBadge status={prediction.status} size="sm" />
                     </div>
                     {/*
-                      The badge takes a plain number and derives its band from it, so a conviction
-                      nobody supplied would come out of it as the lowest band at "0%" — the loudest
-                      possible way of stating a figure that was never claimed. It is only rendered
-                      for a conviction that exists; otherwise the row says « non renseigné », the
-                      same wording the detail panel below uses for the same absence.
+                      The badge bands whatever number it is handed, and a conviction nobody
+                      supplied would band to the lowest level at "0%" — the loudest possible way
+                      of stating a figure that was never claimed. Null and undefined the badge
+                      refuses itself, so for any payload the API can send this test is
+                      belt-and-braces; it is kept because `isPublished` is the single rule this
+                      page applies to every conviction, and because it also rejects the
+                      non-finite numbers the badge's `=== null` check lets through. Either way
+                      the row reads « non renseigné », the same wording the detail panel below
+                      uses for the same absence.
                     */}
                     {isPublished(prediction.confidence_score) ? (
                       <ConfidenceBadge confidence={prediction.confidence_score} size="sm" />
@@ -558,7 +561,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Expanded record (replaces the old /expert/predictions/:id link, which had no route) */}
+                  {/* The full record opens in place: there is no /expert/predictions/:id route to link to. */}
                   {expandedIds.includes(prediction.id) && (
                     <div className="mb-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-xs" data-testid="prediction-details">
                       <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
@@ -650,13 +653,12 @@ const ExpertMyPredictionsPage: React.FC = () => {
                           {expandedIds.includes(prediction.id) ? t('expert.action.hideDetails') : t('expert.action.viewDetails')}
                         </button>
                         {/*
-                          Both controls used to be gated on `status === 'pending'`. Experts publish
+                          NEITHER CONTROL MAY BE GATED ON `status === 'pending'`. Experts publish
                           DIRECTLY, so a prediction is created PUBLISHED and never passes through
-                          pending: the effect was that an expert could not edit or delete a single
-                          one of their own predictions from this page. The backend has always
-                          allowed both — it edits PENDING, APPROVED, PUBLISHED and ARCHIVED (not
-                          REJECTED, which is a moderation outcome), and deletes PENDING, REJECTED,
-                          PUBLISHED and ARCHIVED — so the gate here is now the backend's own rule,
+                          pending: that gate hides edit and delete on every prediction an expert
+                          owns. The rule here mirrors the backend's instead — it edits PENDING,
+                          APPROVED, PUBLISHED and ARCHIVED (not REJECTED, which is a moderation
+                          outcome), and deletes PENDING, REJECTED, PUBLISHED and ARCHIVED —
                           compared case-insensitively because the API's casing is not guaranteed.
                         */}
                         {canEdit(prediction.status) && (

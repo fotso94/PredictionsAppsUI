@@ -144,9 +144,12 @@ function publishedConfidence(
   scope: BriefConfidenceScope,
 ): PreviewConfidence | null {
   const value = prediction?.confidence_score;
-  // 0 is how "no confidence supplied" reaches us from the database's numeric column, and the
-  // backend treats <= 0 the same way. A 0% confidence badge would be a judgement nobody made.
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
+  // Absence has its own value: `confidence_score` is null when no confidence was supplied, so
+  // null is the only thing that means "nobody made this judgement". A zero is a source that
+  // rated its own conviction at nothing, and the brief path in this same file keeps it
+  // (`confidence_published` with a `confidence_percent` of 0), so this path must keep it too —
+  // otherwise one fixture reads two ways depending on which payload built the row.
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   return { percent: Math.round(value * 1000) / 10, scope };
 }
 

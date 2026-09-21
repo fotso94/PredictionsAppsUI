@@ -323,6 +323,7 @@ class LiveScoreAPIProvider(MatchDataProvider):
         # The calendar is chronological and paginated (30 per page, whole season): stop as soon as a
         # page reaches past the window instead of downloading every remaining round.
         fixtures = []
+        next_in_calendar: Optional[date] = None
         page = 1
         while page <= MAX_PAGES:
             data = self._get("fixtures/list.json", reason="fetch" if page == 1 else "page",
@@ -338,9 +339,22 @@ class LiveScoreAPIProvider(MatchDataProvider):
                     fixtures.append(fixture)
                 else:
                     past_window = True
+                    day = fixture.kickoff_utc.date()
+                    if next_in_calendar is None or day < next_in_calendar:
+                        next_in_calendar = day
             if past_window or not data.get("next_page") or not chunk:
                 break
             page += 1
+        if not fixtures:
+            # "The provider has no calendar for this competition" and "its next round is three
+            # weeks out and we only looked seven days" arrive here as the same empty list, and on
+            # 2026-09-21 it was the second: every covered league had fixtures, none before 9 October.
+            # Those two want opposite responses - one is a broken integration, the other is just
+            # September - so the answer says which, at the only place that still knows.
+            logger.info("Live Score API: no %s fixture within %d day(s) of today (window ends %s); "
+                        "the competition calendar's next fixture is %s",
+                        key, days_ahead, limit.isoformat(),
+                        next_in_calendar.isoformat() if next_in_calendar else "not listed at all")
         return fixtures
     def get_live(self, keys: Iterable[str]) -> List[ProviderFixture]:
         keys = list(keys)

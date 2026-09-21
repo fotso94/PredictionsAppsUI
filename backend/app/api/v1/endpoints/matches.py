@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import replace
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -67,20 +68,42 @@ def local_day_window(day: date, tz_offset_minutes: int,
 
 
 def _merge_meta(first: Optional[SyncMeta], second: SyncMeta) -> SyncMeta:
-    """Combine the sync metadata of the two UTC days a local day can straddle."""
+    """Combine the sync metadata of the two UTC days a local day can straddle.
+
+    Built by copying `first` and overriding the fields whose combination is defined below, never
+    by naming every field in a constructor call. The rule matters because this runs only on a
+    local day that straddles two UTC days, which is the code path a reader is least likely to
+    check: a field added to SyncMeta and not named here then survives with the first day's value,
+    which is wrong for a sum but is at least not a fabricated zero reported as a real count.
+
+    `forward_source` and `forward_fetched_at` describe one and the same answer, so both are taken
+    from the same day.
+    """
     if first is None:
         return second
     weakest = min((first, second), key=lambda m: _SOURCE_RANK.get(m.source, 0))
-    return SyncMeta(
-        provider=first.provider or second.provider,
-        source=weakest.source,
-        stale=first.stale or second.stale,
-        fetched_at=first.fetched_at or second.fetched_at,
-        errors=first.errors + second.errors,
-        live_polled=first.live_polled or second.live_polled,
-        results_polled=first.results_polled or second.results_polled,
-        ambiguous=first.ambiguous + second.ambiguous,
-    )
+    merged = replace(first)
+    merged.source = weakest.source
+    merged.provider = first.provider or second.provider
+    merged.stale = first.stale or second.stale
+    merged.fetched_at = first.fetched_at or second.fetched_at
+    merged.errors = first.errors + second.errors
+    merged.live_polled = first.live_polled or second.live_polled
+    merged.results_polled = first.results_polled or second.results_polled
+    merged.ambiguous = first.ambiguous + second.ambiguous
+    merged.fixtures_seen = first.fixtures_seen + second.fixtures_seen
+    merged.fixtures_stored = first.fixtures_stored + second.fixtures_stored
+    merged.forward_fixtures_seen = first.forward_fixtures_seen + second.forward_fixtures_seen
+    merged.forward_fixtures_stored = first.forward_fixtures_stored + second.forward_fixtures_stored
+    # The forward answer of the pair is the weaker of the two, by the same ranking as `source`;
+    # a day whose forward list was never answered (None) ranks below every answered one. The
+    # timestamp comes from that same day rather than from whichever day happens to have one:
+    # merged separately, an unanswered day (source None) could be reported carrying the other
+    # day's fetch time, which reads as an answer that was never given.
+    weakest_forward = min((first, second), key=lambda m: _SOURCE_RANK.get(m.forward_source, 0))
+    merged.forward_source = weakest_forward.forward_source
+    merged.forward_fetched_at = weakest_forward.forward_fetched_at
+    return merged
 
 
 def _matches_in_window(service: MatchDataService, start: datetime, end: datetime,

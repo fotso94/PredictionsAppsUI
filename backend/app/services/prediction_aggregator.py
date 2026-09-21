@@ -269,6 +269,11 @@ class PredictionAggregatorService:
             "home_win_prob": home_win,
             "draw_prob": draw,
             "away_win_prob": away_win,
+            # A deliberate zero, and not the same mistake as the coercion in _prediction_to_dict
+            # below. This dict has no author who might have left the field blank: the aggregator
+            # itself made these numbers up out of a random number generator, and 0.0 is its own
+            # honest statement that it stands behind them not at all. Null here would say "nobody
+            # rated this", which would be the lie - somebody did, and rated it zero.
             "confidence_score": 0.0,
             "reasoning": "Randomized prediction - no data available",
             "created_at": datetime.utcnow().isoformat(),
@@ -293,7 +298,11 @@ class PredictionAggregatorService:
             "home_win_prob": float(prediction.home_win_prob),
             "draw_prob": float(prediction.draw_prob),
             "away_win_prob": float(prediction.away_win_prob),
-            "confidence_score": float(prediction.confidence_score) if prediction.confidence_score else 0.0,
+            # Null when the source supplied none, and `is not None` rather than a truth test:
+            # the column is nullable, so a falsy test would report a conviction of zero for every
+            # prediction whose author never claimed one, and Decimal("0.0") is falsy, so it would
+            # erase a real claimed zero into the same answer.
+            "confidence_score": float(prediction.confidence_score) if prediction.confidence_score is not None else None,
             "reasoning": prediction.reasoning,
             "created_at": prediction.created_at.isoformat() if prediction.created_at else None,
             "published_at": prediction.published_at.isoformat() if prediction.published_at else None,

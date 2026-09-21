@@ -3,6 +3,7 @@ Expert Endpoints
 Expert-specific API endpoints for prediction management
 """
 
+import logging
 from types import SimpleNamespace
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -39,7 +40,57 @@ from app.services.expert_prediction import (
 )
 from app.services.prediction_audit import PredictionAuditService
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+
+def _constraint_name(error: IntegrityError) -> Optional[str]:
+    """The name of the constraint the driver says was violated, when it says.
+
+    psycopg2 carries it on ``diag``; another driver, or an error raised before the statement
+    reached the server, carries nothing. For the log only - see the handler that calls it.
+    """
+    diagnostics = getattr(getattr(error, "orig", None), "diag", None)
+    return getattr(diagnostics, "constraint_name", None)
+
+
+def _database_refusal(error: IntegrityError, db: Session, nothing_happened: str,
+                      record: Optional[str] = None) -> HTTPException:
+    """The reply for a write the table refused, on every path that writes one.
+
+    THE RULE: THE DRIVER'S TEXT IS NOT A REPLY. ``str`` of an IntegrityError carries the driver's
+    own message - for a CHECK violation that is the constraint's name and the whole failing row -
+    followed by the statement and its parameters. Echoing it into ``detail`` publishes the schema
+    and the row to whoever made the request, and still tells the expert nothing they can do. It
+    goes to the log, which is where a developer can use it; the caller gets a sentence pointing
+    at their own numbers.
+
+    WHICH rule refused the row is not claimed. This handler does not parse the driver's message,
+    and the table carries several CHECK constraints; the authoritative list is
+    Prediction.__table_args__ in app/models/predictions.py. A guess at which one fired would name
+    rules the request did not break while staying silent about the one it did.
+
+    The probability rules an expert can correct are enforced on the request instead, in
+    app/schemas/predictions.py, where the 422 names the fields and the numbers as the columns
+    would hold them. What reaches this handler is therefore a refusal the request did not
+    anticipate, which is why the reply ends by saying a developer is needed rather than asking
+    the expert to keep guessing.
+
+    ``nothing_happened`` states what did not happen on this particular path, so the reply is
+    accurate about the record the caller was working on; ``record`` is the id of an existing
+    prediction the write was against, for the log, where there is one.
+    """
+    db.rollback()
+    logger.warning("A prediction write was refused by a database constraint (%s%s): %s",
+                   nothing_happened,
+                   f"; prediction {record}" if record else "",
+                   _constraint_name(error) or error.orig or error)
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=(f"The database refused these values, so nothing was saved and {nothing_happened}. "
+                f"Check the numbers you entered; if they look right, this one needs a developer.")
+    )
 
 
 @router.get("/dashboard")
@@ -148,6 +199,10 @@ async def create_manual_prediction(
         # (404, 403, ...). Letting the catch-all below swallow it turns it into a 400 with a
         # meaningless message.
         raise
+    except IntegrityError as e:
+        # Before the catch-all, which would put the driver's whole message - constraint name,
+        # failing row, INSERT statement - into `detail`. See _database_refusal.
+        raise _database_refusal(e, db, "no prediction was created")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -224,6 +279,12 @@ async def override_prediction(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except RecordClosed as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except IntegrityError as e:
+        # Before the catch-all, for the same reason as on the create path: the driver's text is
+        # not a reply. See _database_refusal.
+        raise _database_refusal(e, db,
+                                "no override was created and the original prediction is unchanged",
+                                override_data.prediction_id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -477,12 +538,8 @@ async def update_prediction(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Prediction violates a database constraint (probabilities must be within 0-1 and BTTS yes/no must sum to 1.0)"
-        )
+    except IntegrityError as e:
+        raise _database_refusal(e, db, "the stored prediction is unchanged", prediction_id)
 
 
 @router.delete("/predictions/{prediction_id}")

@@ -9,20 +9,54 @@ import { ApiMatch } from '../support/api-stub';
  * provider request is issued and no trial allowance is spent.
  */
 
+/**
+ * ASSERT THE RULE, NOT TODAY'S ANSWER.
+ *
+ * An earlier version of this test read `expect(coverage.accuracy_available).toBe(false)` and
+ * `not.toContain('accuracy rate')`. Both were true of the installation on the day they were
+ * written, when nothing had been settled yet, and neither is a rule the application promises: the
+ * settlement pass keeps scoring, and the moment a source crosses the minimum sample the backend is
+ * SUPPOSED to start publishing a figure. A test that pins a transient state fails on the day the
+ * thing it is watching finally works, and it reads as a regression when it is the opposite.
+ *
+ * So what is pinned here is the relationship. The sample rule decides availability, the payload
+ * agrees with itself about which side of it we are on, and the page says the same thing the
+ * backend does. All three hold whether or not enough has been scored today.
+ */
 test('the coverage figures the home page shows are measured, not invented', async ({ page }) => {
   const api = await apiContext();
   const response = await api.get('/api/v1/data-providers/coverage');
   expect(response.ok()).toBeTruthy();
   const coverage = await response.json();
 
-  // The backend must refuse to publish an accuracy figure while nothing has been scored
-  expect(coverage.accuracy_available).toBe(false);
+  // The payload must not contradict itself: one flag, one state and one reason, all agreeing.
+  expect(coverage.accuracy_available).toBe(coverage.accuracy_state === 'available');
+  expect(coverage.accuracy_unavailable_reason === null).toBe(coverage.accuracy_available);
+
+  // And availability is the minimum-sample rule, not a mood. Below the sample nothing may be
+  // published; at or above it the figure is owed, because withholding a measured rate is as
+  // misleading as publishing an unmeasured one.
+  const { scored, minimum_sample: minimum, published_figures: published } = coverage.scoring;
+  expect(coverage.accuracy_available, `scored ${scored} against a minimum sample of ${minimum}`)
+    .toBe(scored >= minimum);
+  expect(published > 0).toBe(coverage.accuracy_available);
 
   await page.goto('/');
   await page.waitForLoadState('networkidle');
   const text = await page.locator('body').innerText();
   expect(text).toContain(String(coverage.competitions_covered));
-  expect(text.toLowerCase()).not.toContain('accuracy rate');
+
+  // The page must not disagree with the backend in either direction. When a figure is withheld the
+  // reader is told so, in the backend's own words; when one is published that sentence must be
+  // gone, or the page would deny a measurement it is showing.
+  const withheld = 'No accuracy figure is shown';
+  if (coverage.accuracy_available) {
+    expect(text, 'the page claimed no accuracy was available while the backend published one')
+      .not.toContain(withheld);
+  } else {
+    expect(text).toContain(withheld);
+    expect(text).toContain(coverage.accuracy_unavailable_reason);
+  }
   await api.dispose();
 });
 

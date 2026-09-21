@@ -23,6 +23,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import (
     get_current_expert_user,
@@ -384,6 +385,36 @@ class TestCreateManualPrediction:
 
         assert response.status_code in [400, 422]  # Validation error
 
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    def test_a_triple_the_table_would_refuse_never_reaches_the_service(
+        self, mock_expert_service, client
+    ):
+        """34 / 33 / 34 is refused on the request, not by the insert.
+
+        It is inside a 0.99-1.01 tolerance and outside ck_predictions_prob_sum, which is exact
+        equality, so a tolerant request validator would send it on to an insert that cannot take
+        it. What the expert gets back then is a refusal nobody can act on - the write is lost and
+        the reply can only report that the database said no. A 422 naming the field and the total
+        is the answer they can act on, and the service is never reached.
+        """
+        mock_expert_service.return_value = _service_mock()
+
+        response = client.post(
+            "/api/v1/expert/predictions/manual",
+            json={
+                "match_id": str(uuid.uuid4()),
+                "home_win_prob": 0.34,
+                "draw_prob": 0.33,
+                "away_win_prob": 0.34,
+            },
+            headers={"Authorization": "Bearer mock-token"}
+        )
+
+        assert response.status_code == 422, response.text
+        assert "sum to exactly 1" in response.text
+        assert "CheckViolation" not in response.text and "INSERT" not in response.text
+        mock_expert_service.return_value.create_manual_prediction.assert_not_called()
+
 
 class TestOverridePrediction:
     """Tests for POST /api/v1/expert/predictions/override (KAN-150)"""
@@ -445,6 +476,278 @@ class TestOverridePrediction:
         # Assertions: the 404 must survive the endpoint's catch-all error handling
         assert response.status_code == 404, response.text
         assert "not found" in response.json()["detail"].lower()
+
+
+#: A constraint violation as psycopg2 reports one, with everything a raw ``str(error)`` would put
+#: in front of the caller: the constraint's name, the failing row, and the statement.
+def _check_violation() -> IntegrityError:
+    return IntegrityError(
+        "INSERT INTO predictions.predictions (id, match_id, home_win_prob, draw_prob, "
+        "away_win_prob) VALUES (%(id)s, %(match_id)s, %(home_win_prob)s, ...)",
+        {},
+        Exception('new row for relation "predictions" violates check constraint '
+                  '"ck_predictions_prob_sum"\nDETAIL:  Failing row contains '
+                  '(3f1c..., 0.3400, 0.3300, 0.3400, expert_manual, ...).'),
+    )
+
+
+#: Nothing the driver said may travel to the caller. Each of these appears in ``str`` of the
+#: error above and in none of the replies below.
+DRIVER_TEXT = ("ck_predictions", "Failing row", "INSERT", "predictions.predictions", "0.3400")
+
+
+class TestTheDatabaseRefusalIsNotDescribedWrongly:
+    """What the three write endpoints say when the table rejects the row.
+
+    TWO THINGS ARE PINNED, AND THEY FAIL IN OPPOSITE DIRECTIONS.
+
+    The driver's text is not a reply. ``str`` of a psycopg2 IntegrityError carries the constraint
+    name, every column of the failing row and the statement that carried it; putting that in
+    ``detail`` publishes the schema and the row to whoever made the request, and still tells the
+    expert nothing they can do about it.
+
+    Nor may the reply invent a cause. The handler cannot tell which constraint fired without
+    parsing the driver's message, and the table carries eight CHECKs. A reply that names two of
+    them - "every probability must be within 0-1, and btts_yes_prob and btts_no_prob must sum to
+    1.0 when both are present" - reads as the whole list and is a guess. Against a triple that
+    violates ck_predictions_prob_sum, both halves of that sentence are true of what the expert
+    sent and neither is the rule they broke.
+
+    So each reply reports the refusal, says which record is untouched, and claims nothing about
+    the cause. All three paths are covered because all three write a row, and a handler added to
+    one of them is not a rule.
+    """
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    @patch("app.api.v1.endpoints.expert.PredictionAuditService")
+    def test_the_reply_does_not_name_rules_it_cannot_know_were_broken(
+        self, mock_audit_service, mock_expert_service, client
+    ):
+        instance = _service_mock()
+        instance.update_prediction_with_revision.side_effect = IntegrityError(
+            "INSERT ...", {}, Exception('violates check constraint "ck_predictions_prob_sum"'))
+        mock_expert_service.return_value = instance
+
+        response = client.put(
+            f"/api/v1/expert/predictions/{uuid.uuid4()}",
+            json={"home_win_prob": 0.6, "draw_prob": 0.25, "away_win_prob": 0.15},
+            headers={"Authorization": "Bearer mock-token"},
+        )
+
+        assert response.status_code == 400, response.text
+        detail = response.json()["detail"]
+        assert "nothing was saved" in detail
+        assert "the stored prediction is unchanged" in detail
+        for claim in ("btts_yes_prob", "btts_no_prob", "within 0-1", "ck_predictions"):
+            assert claim not in detail, f"the reply asserts {claim!r} about a failure it cannot identify"
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    @patch("app.api.v1.endpoints.expert.PredictionAuditService")
+    def test_a_refused_create_does_not_hand_the_expert_the_drivers_message(
+        self, mock_audit_service, mock_expert_service, client
+    ):
+        """The create path answers a refused insert without quoting the driver.
+
+        A catch-all that formats ``str(exception)`` into the detail cannot tell an IntegrityError
+        from anything else, so this path needs its own handler: without one the reply carries the
+        constraint name, the failing row and the INSERT statement.
+        """
+        instance = _service_mock()
+        instance.create_manual_prediction.side_effect = _check_violation()
+        mock_expert_service.return_value = instance
+
+        response = client.post(
+            "/api/v1/expert/predictions/manual",
+            json={"match_id": str(uuid.uuid4()),
+                  "home_win_prob": 0.6, "draw_prob": 0.25, "away_win_prob": 0.15},
+            headers={"Authorization": "Bearer mock-token"},
+        )
+
+        assert response.status_code == 400, response.text
+        detail = response.json()["detail"]
+        assert "nothing was saved" in detail
+        assert "no prediction was created" in detail, "the reply has to say what did not happen"
+        for leaked in DRIVER_TEXT:
+            assert leaked not in response.text, f"the driver's {leaked!r} reached the caller"
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    @patch("app.api.v1.endpoints.expert.PredictionAuditService")
+    def test_a_refused_override_does_not_hand_the_expert_the_drivers_message(
+        self, mock_audit_service, mock_expert_service, client, mock_db, mock_prediction
+    ):
+        """The override path writes a row too, and answers a refusal the same way."""
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_prediction
+        instance = _service_mock()
+        instance.override_prediction.side_effect = _check_violation()
+        mock_expert_service.return_value = instance
+
+        response = client.post(
+            "/api/v1/expert/predictions/override",
+            json={"prediction_id": str(mock_prediction.id),
+                  "home_win_prob": 0.6, "draw_prob": 0.25, "away_win_prob": 0.15,
+                  "reasoning": "Team news changed after the line was published."},
+            headers={"Authorization": "Bearer mock-token"},
+        )
+
+        assert response.status_code == 400, response.text
+        detail = response.json()["detail"]
+        assert "nothing was saved" in detail
+        assert "the original prediction is unchanged" in detail
+        for leaked in DRIVER_TEXT:
+            assert leaked not in response.text, f"the driver's {leaked!r} reached the caller"
+
+
+class TestWithdrawingAValueSurvivesTheWire:
+    """Tests for PUT /api/v1/expert/predictions/{id} — what the request body actually said.
+
+    The service can only tell "cleared" from "not mentioned" if that distinction survives the
+    HTTP boundary, so it is worth pinning here rather than assuming it. FastAPI validates this
+    body straight from the request JSON, so ``model_fields_set`` on the schema the endpoint hands
+    the service holds exactly the keys the browser sent - an absent key is not in it, an explicit
+    ``null`` is. The first two tests are the evidence for that claim; if a future refactor builds
+    the schema some other way (from a full-body model, or with defaults filled in first), they
+    fail here rather than silently resurrecting the withdrawn conviction in the database.
+
+    The last two are the limit of the withdrawal rule. Clearing is per key, and half a
+    complementary market is not a smaller claim but an incoherent one, so the pair has to move
+    together - and the caller has to be told which other side is missing, in the answer the
+    endpoint actually sends.
+    """
+
+    @staticmethod
+    def _service_with_revision(stored):
+        instance = _service_mock()
+        revision = Mock()
+        revision.id = uuid.uuid4()
+        revision.old_values = {}
+        instance.update_prediction_with_revision.return_value = (stored, revision)
+        return instance
+
+    @staticmethod
+    def _body(**extra):
+        return {"home_win_prob": 0.6, "draw_prob": 0.25, "away_win_prob": 0.15, **extra}
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    @patch("app.api.v1.endpoints.expert.PredictionAuditService")
+    def test_an_explicit_null_reaches_the_service_as_an_explicit_null(
+        self, mock_audit_service, mock_expert_service, client
+    ):
+        stored = _make_prediction(status=PredictionStatus.PUBLISHED)
+        stored.confidence_score = None
+        instance = self._service_with_revision(stored)
+        mock_expert_service.return_value = instance
+
+        response = client.put(
+            f"/api/v1/expert/predictions/{uuid.uuid4()}",
+            json=self._body(confidence_score=None),
+            headers={"Authorization": "Bearer mock-token"},
+        )
+
+        assert response.status_code == 200, response.text
+        sent = instance.update_prediction_with_revision.call_args.args[1]
+        assert sent.confidence_score is None
+        assert "confidence_score" in sent.model_fields_set, (
+            "the endpoint lost the difference between a cleared field and an absent one")
+        assert response.json()["confidence_score"] is None
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    @patch("app.api.v1.endpoints.expert.PredictionAuditService")
+    def test_an_omitted_field_reaches_the_service_as_omitted(
+        self, mock_audit_service, mock_expert_service, client
+    ):
+        """The control. Same None on the model, and it must not be read as a withdrawal."""
+        stored = _make_prediction(status=PredictionStatus.PUBLISHED)
+        instance = self._service_with_revision(stored)
+        mock_expert_service.return_value = instance
+
+        response = client.put(
+            f"/api/v1/expert/predictions/{uuid.uuid4()}",
+            json=self._body(),
+            headers={"Authorization": "Bearer mock-token"},
+        )
+
+        assert response.status_code == 200, response.text
+        sent = instance.update_prediction_with_revision.call_args.args[1]
+        assert sent.confidence_score is None
+        assert "confidence_score" not in sent.model_fields_set
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    @patch("app.api.v1.endpoints.expert.PredictionAuditService")
+    def test_withdrawing_one_side_of_a_pair_is_refused_before_the_service_is_called(
+        self, mock_audit_service, mock_expert_service, client
+    ):
+        """The half-pair body is stopped at the boundary, and the answer names the other half.
+
+        Refusing here rather than in the service is what makes the answer usable: the database
+        would have accepted this row (its BTTS CHECK is satisfied by a NULL), and if it had
+        refused, the message would have been a constraint name.
+        """
+        instance = self._service_with_revision(_make_prediction(status=PredictionStatus.PUBLISHED))
+        mock_expert_service.return_value = instance
+
+        response = client.put(
+            f"/api/v1/expert/predictions/{uuid.uuid4()}",
+            json=self._body(btts_yes_prob=None),
+            headers={"Authorization": "Bearer mock-token"},
+        )
+
+        # 422 and not 401/403: the exact code matters here, because a body assertion alone would
+        # also be satisfied by the endpoint refusing the caller for some unrelated reason.
+        assert response.status_code == 422, response.text
+        assert "btts_no_prob" in response.text, (
+            "the refusal must name the side that was left standing")
+        instance.update_prediction_with_revision.assert_not_called()
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    @patch("app.api.v1.endpoints.expert.PredictionAuditService")
+    def test_withdrawing_both_sides_of_a_pair_reaches_the_service_as_two_explicit_nulls(
+        self, mock_audit_service, mock_expert_service, client
+    ):
+        """The control: withdrawing the market whole is exactly what the rule has to permit.
+
+        The market's conviction goes down with it. A body that took the two probabilities away
+        and said nothing about btts_confidence would leave the expert's stated conviction in
+        BTTS standing over a market with no outcomes, so it is refused - the test below.
+        """
+        stored = _make_prediction(status=PredictionStatus.PUBLISHED)
+        instance = self._service_with_revision(stored)
+        mock_expert_service.return_value = instance
+
+        response = client.put(
+            f"/api/v1/expert/predictions/{uuid.uuid4()}",
+            json=self._body(btts_yes_prob=None, btts_no_prob=None, btts_confidence=None),
+            headers={"Authorization": "Bearer mock-token"},
+        )
+
+        assert response.status_code == 200, response.text
+        sent = instance.update_prediction_with_revision.call_args.args[1]
+        assert sent.btts_yes_prob is None and sent.btts_no_prob is None
+        assert sent.btts_confidence is None
+        assert {"btts_yes_prob", "btts_no_prob", "btts_confidence"} <= sent.model_fields_set
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    @patch("app.api.v1.endpoints.expert.PredictionAuditService")
+    def test_withdrawing_a_market_while_raising_its_conviction_is_refused_by_the_endpoint(
+        self, mock_audit_service, mock_expert_service, client
+    ):
+        """One PUT took the BTTS market down and put the conviction in it up to 90%.
+
+        Both halves validate on their own, and together they store a stated conviction about a
+        market the same request had just emptied. The refusal has to happen on the way in: the
+        service writes what the body says, so nothing further down would have caught it.
+        """
+        instance = self._service_with_revision(_make_prediction(status=PredictionStatus.PUBLISHED))
+        mock_expert_service.return_value = instance
+
+        response = client.put(
+            f"/api/v1/expert/predictions/{uuid.uuid4()}",
+            json=self._body(btts_yes_prob=None, btts_no_prob=None, btts_confidence=0.9),
+            headers={"Authorization": "Bearer mock-token"},
+        )
+
+        assert response.status_code == 422, response.text
+        assert "btts_confidence" in response.text
+        instance.update_prediction_with_revision.assert_not_called()
 
 
 class TestReviewQueue:

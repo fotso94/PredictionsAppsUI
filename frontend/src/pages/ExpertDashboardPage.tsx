@@ -1,12 +1,13 @@
 /**
  * The expert's workspace: what to do next, then what has been published, then the numbers.
  *
- * WHAT CHANGED AND WHY. The dashboard used to open with four metric tiles — total, published,
- * pending, accuracy — which for a new expert read "0, 0, 0, Not scored" across the whole first
- * screen. Four empty boxes are not a starting point, and the accuracy tile in particular occupied
- * prime space to say that nothing has ever been scored. The work leads now: continue the draft you
- * left, choose a match, and what you have recently published. The counts moved below it, where they
- * are a record rather than an obstacle, and moderation — which does not gate publication — is last.
+ * THE ORDER OF THE SECTIONS IS THE POINT, AND METRICS DO NOT COME FIRST. Opening with four
+ * metric tiles — total, published, pending, accuracy — gives a new expert "0, 0, 0, Not scored"
+ * across the whole first screen: four empty boxes are not a starting point, and an accuracy tile
+ * in prime space says only that nothing has ever been scored. So the work leads — continue the
+ * draft you left, choose a match, what you have recently published — the counts sit below it
+ * where they are a record rather than an obstacle, and moderation, which does not gate
+ * publication, is last.
  *
  * PUBLICATION IS DIRECT. Nothing on this page waits for an administrator. The moderation section
  * reviews work that is ALREADY public; it is not an approval queue, and it is labelled as such.
@@ -15,14 +16,29 @@
  * a null renders as "Not scored yet" with the reason, never as 0% and never as a derived band.
  * In French that stand-in is « Pas encore évaluée » — feminine, agreeing with « l'exactitude »,
  * and still a statement that no measurement exists rather than anything a reader could scan as a
- * figure. The same care applies to the average-conviction tile: a stored 0 means nobody ever
- * claimed a conviction, so it reads « Aucune publiée », never « 0 % ».
+ * figure.
  *
- * EVERY DATE ON THIS PAGE IS IN THE READER'S CHOSEN ZONE. It used to be
+ * THE AVERAGE-CONVICTION TILE SPLITS TWO CASES THE ACCURACY TILE DOES NOT, AND THE SPLIT IS THE
+ * POINT. `average_confidence` null means nobody ever claimed a conviction, and the tile stands in
+ * with "None published" / « Aucune publiée ». A non-null 0 is a conviction an expert did claim and
+ * set to zero, and the tile prints it: "0%" / « 0 % ». Collapsing the two would make the panel
+ * contradict the count beside it — "Published 4" next to « Aucune publiée » reports a withdrawal
+ * that never happened — and would erase a judgement the expert made under their own name. Both
+ * directions are pinned, in both languages, in frontend/e2e/mocked/expert-localisation.spec.ts.
+ *
+ * THE TILE HOLDS NO CONDITIONAL OF ITS OWN FOR THAT SPLIT, BECAUSE `formatUnitProbability`
+ * ALREADY DRAWS IT: it returns the fallback for null and undefined and formats every finite
+ * number, zero included. So the tile passes the value with the stand-in wording as the fallback
+ * and stops there. An `average_confidence !== null` check in front of it would only re-derive
+ * the answer the helper gives; a `> 0` check would be wrong, reporting a deliberate 0% average
+ * as though nothing had been published at all. The rule this follows: describe the mechanism
+ * that is there, and delete a sentence rather than keep a nearly-true version of it.
+ *
+ * EVERY DATE ON THIS PAGE IS IN THE READER'S CHOSEN ZONE. Not
  * `new Date(...).toLocaleDateString()`, which formats in the DEVICE's zone and the DEVICE's
- * locale — and the competition line rendered `match_details.match_date` as the raw ISO string the
- * API sent, "2026-09-20T18:30:00Z", which is not a date in any language. An expert reads a
- * kick-off to decide whether a prediction is still prematch, so a kick-off in the wrong zone is a
+ * locale, and not `match_details.match_date` dropped in as the raw ISO string the API sends,
+ * "2026-09-20T18:30:00Z", which is not a date in any language. An expert reads a kick-off to
+ * decide whether a prediction is still prematch, so a kick-off in the wrong zone is a
  * correctness defect and not a cosmetic one. `backendInstant` reads the instant (this backend
  * anchors these columns with a trailing Z — see the field serialisers in
  * backend/app/schemas/predictions.py) and `formatDate` spells it out in the reader's language and
@@ -61,8 +77,7 @@ const RecentRow: React.FC<{
   const status = prediction.status.toLowerCase()
   const canToggle = status === 'published' || status === 'archived'
   const canDelete = status === 'published' || status === 'archived' || status === 'rejected'
-  // The kick-off used to be dropped into the line as the raw ISO string the API sent. It is a
-  // date now, in the reader's language and their chosen zone.
+  // A date in the reader's language and their chosen zone, never the API's raw ISO string.
   const kickoff = formatDate(backendInstant(details?.match_date).at)
   const publishedOn = formatDate(backendInstant(prediction.published_at ?? prediction.created_at).at)
 
@@ -272,23 +287,24 @@ const ExpertDashboardPage: React.FC = () => {
                     {t('expert.draft.continueTitle')}
                   </p>
                   {/*
-                    NO `truncate` HERE, AND THAT IS THE FIX RATHER THAN A TIDY-UP.
+                    NO `truncate` HERE, AND THAT IS LOAD-BEARING RATHER THAN A TIDY-UP.
 
-                    This line used to be `truncate` — `white-space: nowrap` with `overflow:
-                    hidden`. At 360px in French the saved-ago run ended 106px past the paragraph
-                    it lives in, and because the DOCUMENT did not scroll sideways (the overflow is
-                    hidden on this paragraph, not on the page) the words were simply gone. « il y
-                    a 7 minutes » is half as long again as "7 minutes ago", and that is the normal
-                    case, not a pathological one: French runs reliably longer than English, so a
-                    single-line box measured in English is a box that loses a French sentence.
+                    `truncate` is `white-space: nowrap` with `overflow: hidden`, and on this line
+                    it loses words outright: at 360px in French the saved-ago run ends 106px past
+                    the paragraph it lives in, and because the clipping is on this paragraph and
+                    not on the page, the DOCUMENT does not scroll sideways to show it or any test
+                    that measures the document. « il y a 7 minutes » is half as long again as
+                    "7 minutes ago", and that is the normal case, not a pathological one: French
+                    runs reliably longer than English, so a single-line box measured in English
+                    is a box that loses a French sentence.
 
                     The answer is to let the line wrap. Nothing here needs to be one line: it is a
                     card, not a table row, and a fixture name over two lines costs a few pixels of
                     height where a clipped line costs the reader the information. `break-words`
                     covers the one case wrapping cannot — a single token longer than the card.
 
-                    Shortening the French to fit would have been the other way to make the
-                    measurement pass, and it is the wrong one: it makes the language that needs
+                    Shortening the French to fit is the other way to make the measurement pass,
+                    and it is the wrong one: it makes the language that needs
                     the room the one that has to give it up, and the next longer string — a
                     two-hour-old draft, a longer team name — breaks it again.
                   */}
@@ -396,14 +412,14 @@ const ExpertDashboardPage: React.FC = () => {
               ['expert.dashboard.statWritten', formatNumber(metrics.total_predictions)],
               ['expert.dashboard.statPublished', formatNumber(metrics.published_predictions)],
               ['expert.dashboard.statNotPublished', formatNumber(metrics.pending_predictions)],
-              // Null is "nobody has claimed a conviction"; zero is a judgement of zero, and the
-              // two are no longer the same stored value. This tested `> 0`, which was right while
-              // the column coerced a blank to zero and wrong the moment it stopped: it reported a
+              // Null is "nobody has claimed a conviction"; zero is a judgement of zero. Those are
+              // different stored values and must stay different on screen, so the split is left
+              // to `formatUnitProbability`, which stands in for null and undefined and formats
+              // every finite number including 0. A truthiness or `> 0` test here would report a
               // deliberate 0% average as though nothing had been published at all.
               // « Aucune publiée » is not a figure and must never be shortened into one.
-              ['expert.dashboard.statAverageConviction', metrics.average_confidence !== null
-                ? formatUnitProbability(metrics.average_confidence, 0, t('expert.dashboard.nonePublished'))
-                : t('expert.dashboard.nonePublished')],
+              ['expert.dashboard.statAverageConviction',
+                formatUnitProbability(metrics.average_confidence, 0, t('expert.dashboard.nonePublished'))],
             ] as const).map(([label, value]) => (
               <div key={label} className="card p-3">
                 <p className="truncate text-xs text-secondary-400">{t(label)}</p>

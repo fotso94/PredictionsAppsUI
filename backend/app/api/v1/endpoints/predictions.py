@@ -18,7 +18,13 @@ router = APIRouter()
 
 
 def _optional_float(value):
-    """Convert an optional Decimal/number column value to float for JSON responses."""
+    """Convert an optional Decimal/number column value to float for JSON responses.
+
+    The `is not None` test is the whole point. Zero is a value a source can genuinely publish -
+    an expert rating their own conviction at nothing - and a truthiness test turns it into null,
+    which claims they published nothing at all. Every optional number in these payloads goes
+    through here so that no reader has to get that right on its own.
+    """
     return float(value) if value is not None else None
 
 
@@ -156,7 +162,7 @@ async def get_published_predictions(
             "home_win_prob": float(prediction.home_win_prob),
             "draw_prob": float(prediction.draw_prob),
             "away_win_prob": float(prediction.away_win_prob),
-            "confidence_score": float(prediction.confidence_score) if prediction.confidence_score else None,
+            "confidence_score": _optional_float(prediction.confidence_score),
             "reasoning": prediction.reasoning,
             "btts_yes_prob": _optional_float(prediction.btts_yes_prob),
             "btts_no_prob": _optional_float(prediction.btts_no_prob),
@@ -243,7 +249,7 @@ async def get_published_prediction_by_match(
         "home_win_prob": float(prediction.home_win_prob),
         "draw_prob": float(prediction.draw_prob),
         "away_win_prob": float(prediction.away_win_prob),
-        "confidence_score": float(prediction.confidence_score) if prediction.confidence_score else None,
+        "confidence_score": _optional_float(prediction.confidence_score),
         "reasoning": prediction.reasoning,
         "btts_yes_prob": _optional_float(prediction.btts_yes_prob),
         "btts_no_prob": _optional_float(prediction.btts_no_prob),

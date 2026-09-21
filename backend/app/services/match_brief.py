@@ -604,9 +604,13 @@ def _confidence(source: str, definition: Dict[str, Any], forecast: Optional[Dict
     """Whether this source published a confidence for this market, and which one.
 
     A confidence is not an accuracy and not a probability, so it is carried separately with the
-    scope it actually applies to. GameForecastAPI publishes no confidence at all; an expert who
-    filled nothing in is stored as 0.0 by a NOT NULL column, which is an absence rather than a
-    published zero, and is reported as such.
+    scope it actually applies to. GameForecastAPI publishes no confidence at all, and an expert
+    may publish one or not.
+
+    The test is `is None`, never a truth test, and the difference is a whole statement. The
+    confidence columns are nullable, so an absence has its own value and a stored zero means what
+    it says: an expert who rated their own conviction at nothing. A falsy test would swallow that
+    0% and report the expert as having said nothing at all, which is the opposite of what they did.
     """
     if source == MODEL:
         value = (forecast or {}).get("confidence")
@@ -616,8 +620,7 @@ def _confidence(source: str, definition: Dict[str, Any], forecast: Optional[Dict
     if not spec or not expert:
         return False, None, None
     value = expert.get(spec[0])
-    if value is None or float(value) <= 0:
-        # 0.0 is the column default for "the expert did not fill this in", not a published zero.
+    if value is None:
         return False, None, None
     return True, float(value), spec[1]
 
@@ -780,8 +783,8 @@ def build_brief(*, match: Dict[str, Any], forecast: Optional[Dict[str, Any]],
         is_scores = definition["kind"] == "scores"
         model_outcomes = _score_outcomes(forecast) if is_scores else _supplied(forecast, definition)
         other_scorelines = (forecast or {}).get("exact_score_other_prob") if is_scores else None
-        model_conf = _confidence(MODEL, definition, forecast, expert)
         if model_outcomes:
+            model_conf = _confidence(MODEL, definition, forecast, expert)
             model_markets.append(key)
             state = STATE_STALE if stale else (STATE_REFERENCE_ONLY if reference_only else STATE_AVAILABLE)
             model_block = _source_block(
@@ -813,8 +816,14 @@ def build_brief(*, match: Dict[str, Any], forecast: Optional[Dict[str, Any]],
                             "reason": NOT_OFFERED_BY_SOURCE, "detail": expert_detail})
         else:
             expert_outcomes = _supplied(expert, definition)
-            expert_conf = _confidence(EXPERT, definition, forecast, expert)
             if expert_outcomes:
+                # A conviction is only ever read where the market has outcomes to attach it to.
+                # The expert API now refuses a body that would store btts_confidence or
+                # total_goals_confidence over a withdrawn market (MARKET_CONVICTIONS in
+                # app/schemas/predictions.py), but rows written before that rule existed can
+                # still hold the shape, and a 90% conviction beside an empty outcome list is not
+                # something this brief should ever put in front of a reader.
+                expert_conf = _confidence(EXPERT, definition, forecast, expert)
                 expert_markets.append(key)
                 expert_block = _source_block(
                     EXPERT, STATE_REFERENCE_ONLY if reference_only else STATE_AVAILABLE, None,
@@ -843,8 +852,15 @@ def build_brief(*, match: Dict[str, Any], forecast: Optional[Dict[str, Any]],
         headline = missing[0]["detail"] if missing else None
 
     model_confidence = (forecast or {}).get("confidence")
+    # `is None`, not falsiness and not `<= 0`. The reliability block below turns this into two
+    # separate claims - whether the expert published a conviction at all, and what it was - and a
+    # zero has to survive as the second answer to the first question, because an expert who rates
+    # their own prediction at 0% has said something and the block renders it as 0%. The `<= 0`
+    # form this replaces came from the era when the column was NOT NULL and 0.0000 was what a
+    # blank field became; it now silently deletes real convictions of zero. (Negatives cannot
+    # occur: ck_predictions_confidence keeps the column inside 0-1.)
     expert_confidence = (expert or {}).get("confidence_score")
-    expert_confidence = None if expert_confidence is None or float(expert_confidence) <= 0 else float(expert_confidence)
+    expert_confidence = None if expert_confidence is None else float(expert_confidence)
 
     return {
         "match_id": match.get("id"),

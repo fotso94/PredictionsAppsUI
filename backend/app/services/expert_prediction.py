@@ -52,6 +52,11 @@ REVISION_VALUE_FIELDS: Tuple[str, ...] = (
     "total_goals_over_35_prob", "total_goals_under_35_prob", "total_goals_confidence",
 )
 
+#: The numeric fields an edit is allowed to write. Deliberately the same tuple a revision
+#: preserves: a value an edit can change but a revision does not record would leave a preserved
+#: version that cannot reproduce what readers actually saw.
+EDITABLE_VALUE_FIELDS: Tuple[str, ...] = REVISION_VALUE_FIELDS
+
 
 class ForeignExpertRecord(Exception):
     """Raised when an expert tries to attach an override to another expert's published record."""
@@ -696,40 +701,59 @@ class ExpertPredictionService:
         # Captured BEFORE anything is written: once the row is mutated the previous view is gone.
         previous_values = prediction_snapshot(prediction)
 
-        # Update Match Outcome fields
-        prediction.home_win_prob = Decimal(str(data.home_win_prob))
-        prediction.draw_prob = Decimal(str(data.draw_prob))
-        prediction.away_win_prob = Decimal(str(data.away_win_prob))
+        # AN EDIT MUST BE ABLE TO TAKE A VALUE AWAY, and `is not None` cannot express that.
+        # Once Pydantic has applied its defaults, "the expert never mentioned this field" and
+        # "the expert deleted what was in it" are the same None, so a guard of
+        # `if data.<field> is not None` resolves both as leave-it-alone and an expert has no way
+        # to say "I no longer stand behind this figure" short of republishing the prediction.
+        #
+        # `model_fields_set` separates the two, and it is trustworthy here: FastAPI validates this
+        # body straight from the request JSON, so the set holds exactly the keys the browser sent
+        # (an absent key is not in it; `"confidence_score": null` is). The rule is applied to every
+        # optional field rather than to conviction alone, so a BTTS probability and a reasoning
+        # note are withdrawn the same way and nobody has to remember which fields are special:
+        #
+        #     key absent  -> this edit says nothing about the field; the stored value stands
+        #     key present -> write what was sent, null included; null is how a value is withdrawn
+        #
+        # Applied field by field, that rule is enough for the single-valued fields and NOT enough
+        # for the complementary pairs. `{"btts_yes_prob": null}` on a row holding 0.60/0.40 would
+        # leave yes NULL beside no 0.4000, which the database accepts (its CHECK is satisfied by
+        # NULL - see ck_predictions_btts_prob_sum in app/models/predictions.py) and which the
+        # reader's brief then renders as a 40% market whose other side was never published. The
+        # pairs therefore have a rule of their own, enforced before this loop runs: an edit naming
+        # one side must name the other, and the two must be withdrawn together. It lives in
+        # COMPLEMENTARY_PAIRS in app/schemas/predictions.py, so an edit that breaks it is refused
+        # with a message naming the missing half and never reaches this method.
+        #
+        # The market convictions - btts_confidence, total_goals_confidence - are held to the same
+        # discipline next door, in MARKET_CONVICTIONS. A conviction is a claim ABOUT a market's
+        # outcomes, so it cannot outlive them: this loop would happily write btts_confidence
+        # 0.9000 into a row whose BTTS columns the same body had just set to NULL. Withdrawing a
+        # market withdraws its conviction, and a conviction may not be supplied for a market with
+        # no outcomes; both are refused on the request, for the same reason the pairs are.
+        supplied = data.model_fields_set
 
-        if data.confidence_score is not None:
-            prediction.confidence_score = Decimal(str(data.confidence_score))
+        for field in EDITABLE_VALUE_FIELDS:
+            if field in supplied:
+                value = getattr(data, field)
+                setattr(prediction, field, Decimal(str(value)) if value is not None else None)
 
-        # Update BTTS fields
-        if data.btts_yes_prob is not None:
-            prediction.btts_yes_prob = Decimal(str(data.btts_yes_prob))
-        if data.btts_no_prob is not None:
-            prediction.btts_no_prob = Decimal(str(data.btts_no_prob))
-        if data.btts_confidence is not None:
-            prediction.btts_confidence = Decimal(str(data.btts_confidence))
-
-        # Update Total Goals fields
-        if data.total_goals_over_25_prob is not None:
-            prediction.total_goals_over_25_prob = Decimal(str(data.total_goals_over_25_prob))
-        if data.total_goals_under_25_prob is not None:
-            prediction.total_goals_under_25_prob = Decimal(str(data.total_goals_under_25_prob))
-        if data.total_goals_over_35_prob is not None:
-            prediction.total_goals_over_35_prob = Decimal(str(data.total_goals_over_35_prob))
-        if data.total_goals_under_35_prob is not None:
-            prediction.total_goals_under_35_prob = Decimal(str(data.total_goals_under_35_prob))
-        if data.total_goals_confidence is not None:
-            prediction.total_goals_confidence = Decimal(str(data.total_goals_confidence))
-
-        if data.reasoning is not None:
+        if "reasoning" in supplied:
             prediction.reasoning = data.reasoning
 
-        if data.key_factors is not None:
-            metadata = prediction.prediction_metadata or {}
-            metadata['key_factors'] = data.key_factors
+        if "key_factors" in supplied:
+            # key_factors lives inside the prediction_metadata JSON rather than in a column, so
+            # withdrawing it has to remove the key: a stored `"key_factors": null` would assert
+            # that the expert supplied an empty set of factors. The dict is copied rather than
+            # mutated because the column is plain JSONB with no change tracking - editing the
+            # instance SQLAlchemy already loaded and assigning it back is a write the flush can
+            # miss entirely.
+            metadata = dict(prediction.prediction_metadata or {})
+            if data.key_factors is None:
+                metadata.pop('key_factors', None)
+            else:
+                metadata['key_factors'] = data.key_factors
             prediction.prediction_metadata = metadata
 
         # Only updated_at moves: status and published_at are left exactly as they were, so editing a

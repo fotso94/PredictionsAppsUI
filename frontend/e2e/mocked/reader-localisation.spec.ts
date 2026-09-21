@@ -320,8 +320,9 @@ async function stubLeague(
  * sign-in. Named here rather than in prose so the report and the test cannot disagree.
  *
  * `/predictions/today` is a two-line wrapper around the already-translated matchday workspace and
- * needed no change; it is listed because it is in this package's ownership and "we changed
- * nothing and it is still right" is worth one assertion rather than a sentence in a report.
+ * carries no wording of its own; it is listed because the route is in this package's ownership,
+ * and "nothing here to translate, and still right" is worth one assertion rather than a sentence
+ * in a report.
  */
 const ROUTES: Array<{ path: string; anchor: keyof typeof en; signedIn?: boolean }> = [
   { path: '/leagues', anchor: 'reader.leagues.subheading' },
@@ -692,10 +693,10 @@ test('a revision’s replacement time and an expert’s publication time follow 
 /**
  * The competition page asks the backend for a window bounded by the READER's zone.
  *
- * This is the half of the time-zone finding that is not about display. The page used to compute
- * `tz_offset` from `-new Date().getTimezoneOffset()`, the DEVICE's offset: a reader in Douala on
- * a laptop still set to New York was shown a fortnight cut on New York boundaries while the
- * matchday workspace beside it cut the same fixtures on Douala's.
+ * This is the half of the time-zone question that is not about display. `tz_offset` must not be
+ * computed from `-new Date().getTimezoneOffset()`, the DEVICE's offset: a reader in Douala on a
+ * laptop still set to New York would be sent a fortnight cut on New York boundaries, while the
+ * matchday workspace beside it cuts the same fixtures on Douala's.
  */
 test('the competition’s fixture window is asked for in the reader’s zone, not the device’s', async ({ page }) => {
   const offsets: string[] = [];
@@ -1012,18 +1013,18 @@ for (const language of ['en', 'fr'] as const) {
 /* ================================== French that does not fit, on the expert dashboard at 360px */
 
 /**
- * ── WHAT WENT WRONG, AND WHY "THE PAGE DOES NOT SCROLL SIDEWAYS" WAS NOT THE TEST ───────────
+ * ── WHY "THE PAGE DOES NOT SCROLL SIDEWAYS" IS NOT THE TEST ─────────────────────────────────
  *
- * The draft card's summary line was `truncate` — `white-space: nowrap` with `overflow: hidden`.
- * At 360px in French the saved-ago run ended 106px past the paragraph that holds it, measured
- * here before the fix. The overflow is hidden on that PARAGRAPH, not on the page, so
- * `document.scrollWidth === document.clientWidth` throughout: the document did not scroll, and
- * the words were simply not there. Any check written against the document would have been green
- * for the whole life of the defect.
+ * Put `truncate` on the draft card's summary line — `white-space: nowrap` with
+ * `overflow: hidden` — and at 360px in French the saved-ago run ends 106px past the paragraph
+ * that holds it. The overflow is hidden on that PARAGRAPH, not on the page, so
+ * `document.scrollWidth === document.clientWidth` throughout: the document does not scroll, and
+ * the words are simply not there. A check written against the document stays green while the
+ * reader is missing the end of the sentence.
  *
  * So what is asserted is CONTAINMENT: the run's own bounding box inside the box of the element
  * that holds it, and that element inside the card. That is the claim "a French reader can read
- * this", and it is the one the old check could not make.
+ * this", and it is the one a document-level check cannot make.
  *
  * ── AND WHY 360 AND FRENCH ──────────────────────────────────────────────────────────────────
  *
@@ -1062,8 +1063,17 @@ async function stubExpertDashboard(page: Page, competition: () => string = () =>
       return json({
         expert_id: 'qa-expert', expert_name: 'QA Expert',
         total_predictions: 12, published_predictions: 9, pending_predictions: 3,
-        // Null, never 0: nothing has been settled, and the page says so in words.
-        accuracy_rate: null, average_confidence: 0,
+        // Both null, never 0: nothing has been settled and nobody claimed a conviction, so the
+        // page says so in words. 0 would be a different payload meaning a different thing — a
+        // conviction claimed at zero, which the tile rightly prints as « 0 % ». Null is what the
+        // real API sends for an expert who claimed nothing, and it puts « Aucune publiée » in
+        // the tile.
+        //
+        // No assertion in this file reads the record grid: the three tests that use this stub
+        // measure `draft-saved-ago`, `draft-summary`, `recent-row-kickoff` and
+        // `recent-row-competition` against their own parents. Null is sent anyway, because a
+        // stub that states one thing in its comment and sends another is wrong before it is red.
+        accuracy_rate: null, average_confidence: null,
         predictions_by_league: {}, performance_trend: [],
         recent_predictions: [{
           id: 'pred-1', match_id: 'm1', source: 'EXPERT_MANUAL', priority_level: 1,
@@ -1143,7 +1153,8 @@ test('at 360px the French expert dashboard keeps its saved-ago line inside the b
   await page.waitForLoadState('networkidle');
 
   // THE PREMISE, asserted rather than assumed: this line is longer in French than in English,
-  // which is why an English-sized box loses it and why the fix had to be the layout.
+  // which is why an English-sized box loses it, and why the answer has to be the layout rather
+  // than a shorter French string.
   const ago = (from: Record<keyof typeof en, string>, locale: Language) => render(
     from, locale, 'time.ago',
     { duration: render(from, locale, 'duration.minutes', { count: DRAFT_MINUTES_AGO }) },
@@ -1171,17 +1182,19 @@ test('at 360px the French expert dashboard keeps its saved-ago line inside the b
   expect(summary.past, 'the draft summary line runs outside the card').toBeLessThanOrEqual(1);
 
   /*
-    AND THE CHECK THAT WAS NOT ENOUGH, kept and labelled as such.
+    AND THE WEAKER CHECK, kept and labelled as such.
 
-    The document never scrolled sideways while this was broken — the overflow was hidden one
-    element down — so this passing says nothing on its own. It is here so that the difference
-    between the two claims is on the record rather than in a commit message.
+    A document-level overflow test cannot see the fault the assertion above is about: text that
+    runs past the paragraph holding it is clipped there, one element down, so the DOCUMENT stays
+    exactly as wide as the viewport and this assertion is green either way. It is kept where
+    someone might reach for it INSTEAD, so the difference between the two claims is visible at
+    the point of the mistake.
   */
   const scrolls = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth,
   }));
-  expect(scrolls.scrollWidth, 'the page itself now scrolls sideways at 360px')
+  expect(scrolls.scrollWidth, 'the page itself scrolls sideways at 360px')
     .toBeLessThanOrEqual(scrolls.clientWidth);
 });
 

@@ -19,8 +19,12 @@
  *   - `expert.dashboard.notScoredYet` is what stands where an accuracy would be when nothing has
  *     ever been settled against a result. It must never render as a zero, a band, or "0%".
  *   - `expert.dashboard.nonePublished` is what stands where an average conviction would be when
- *     no conviction was ever claimed. A stored 0 means "nobody claimed one", not "zero per cent
- *     confident", and the French must not turn it into the latter.
+ *     no conviction was ever claimed — and ONLY then. `average_confidence` is nullable end to
+ *     end: null means nobody claimed one, a stored 0 means "zero per cent
+ *     confident", and the dashboard prints the second as "0%" / « 0 % ». So this string has two
+ *     ways to go wrong and the French must avoid both — it must not read as a figure, and it
+ *     must not be borrowed for a claimed zero, which would report a withdrawal that never
+ *     happened beside a count of what was published.
  *   - `expert.compose.publishImmediate` and `expert.published.body` state that publication is
  *     immediate and unreviewed. They are a warning, not a reassurance, and the French keeps the
  *     indicative: it says publishing DOES make this public, never that it may.
@@ -146,7 +150,9 @@ const expert = {
   'expert.dashboard.statPublished': 'Published',
   'expert.dashboard.statNotPublished': 'Not published',
   'expert.dashboard.statAverageConviction': 'Average conviction',
-  /** Where an average conviction would be when nobody ever claimed one. NEVER a zero. */
+  /** Where an average conviction would be when `average_confidence` is null. A stored 0 is a
+   *  claimed zero and prints as "0%" instead — this wording is for the null only, and is never
+   *  itself a figure. */
   'expert.dashboard.nonePublished': 'None published',
   'expert.dashboard.accuracy': 'Accuracy',
   /** Where an accuracy would be when nothing has been settled. NEVER a zero, never a band. */

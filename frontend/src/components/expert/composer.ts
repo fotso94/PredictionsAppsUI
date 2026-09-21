@@ -8,15 +8,33 @@
  *     across from the model forecast shown beside the editor. The model's numbers are evidence the
  *     expert reads; they are never a starting value for the expert's own view.
  *
- *  2. MARKETS ARE OPT-IN. A market the expert did not tick is not sent at all, so the API stores
- *     null and every reader renders it as unavailable. It is never sent as 0, which would publish
- *     "this will not happen" in place of "no view was offered".
+ *  2. MARKETS ARE OPT-IN, AND A CREATE SAYS SO BY SILENCE WHILE AN EDIT SAYS SO OUT LOUD. A
+ *     market the expert did not tick is never sent as 0, which would publish "this will not
+ *     happen" in place of "no view was offered". On a create there is nothing stored yet, so
+ *     leaving the keys out is the whole statement and the API stores null. On an edit there IS
+ *     something stored, and the API reads an absent key as "leave it alone" — so the edit body
+ *     built here states every optional field, with `null` where the expert withdrew one. See
+ *     `buildUpdateBody`.
  *
- *  3. THE PAIR CHECKS MATCH THE BACKEND EXACTLY. `app/schemas/predictions.py` validates 1X2,
- *     both-teams-to-score, over/under 2.5 and over/under 3.5 with `0.99 <= total <= 1.01`, summing
- *     the unit values in a fixed order. The checks here add the same doubles in the same order, so
- *     the expert sees the problem in the form instead of as a 422 after pressing publish — and the
- *     form never accepts something the API would reject, nor rejects something it would accept.
+ *  3. THE TOTALS ARE MEASURED THE WAY THE API MEASURES THEM, WHICH IS NOT THE WAY THEY WERE
+ *     TYPED. Two rules, and they differ because the database's do:
+ *
+ *       - the three match-result probabilities must total EXACTLY 100%. The column constraint
+ *         `ck_predictions_prob_sum` is an equality with no tolerance in it, so 33 / 33 / 33 and
+ *         34 / 33 / 34 are rows the table cannot hold and the API refuses on the request;
+ *       - each two-way market (both teams to score, over/under 2.5, over/under 3.5) must land
+ *         within a percentage point of 100, which is the window the API allows a pair —
+ *         `ck_predictions_btts_prob_sum` for the BTTS columns, and the request validator alone
+ *         for the goal lines, which carry no constraint of their own.
+ *
+ *     Both are measured on the values the API will STORE — four decimal places of a 0-1
+ *     probability — and not on the doubles as typed, because that is where
+ *     `app/schemas/predictions.py` measures them. See `storedTenThousandths` in ./percent.
+ *
+ *     The point of reproducing the rules here is that the expert meets an unbalanced total in
+ *     the form, while they are typing, instead of as a 422 after pressing publish. It is a claim
+ *     about the totals alone: the backend applies rules this module does not reproduce, and a
+ *     body this module builds can still be refused.
  */
 
 import {
@@ -25,8 +43,8 @@ import {
   ExpertPredictionUpdateRequest,
 } from '@/types/expert'
 import {
-  formatPercentValue, inPercentRange, isBlankPercent, isMalformedPercent, parsePercent,
-  percentToUnit, PercentInput, unitToPercentInput,
+  formatPercentPoints, inPercentRange, isBlankPercent, isMalformedPercent, parsePercent,
+  percentToUnit, PercentInput, storedTenThousandths, unitToPercentInput,
 } from './percent'
 
 /** The backend caps reasoning at 2000 characters (`max_length=2000`). */
@@ -107,10 +125,20 @@ export type ComposerIssueKey =
   | 'reasoning'
 
 export interface PairState {
-  /** The two percentages as typed, summed. Null while either side is blank or unreadable. */
+  /**
+   * The percentages summed as the API will store them. Null while a side is blank or unreadable.
+   *
+   * Not always what the eye adds up: 33.335 is stored as 33.34, so what is shown here is what
+   * the API will actually be holding.
+   */
   percent: number | null
-  /** True only when both sides are present and the pair satisfies the backend's tolerance. */
+  /** True only when every side is present and the total is one the API accepts. */
   balanced: boolean
+  /**
+   * Percentage points still to be found: positive to add, negative to take away, 0 on exactly
+   * 100. Null while the total is unknown. This is what turns "that is wrong" into "add 1".
+   */
+  gap: number | null
 }
 
 export interface ComposerValidation {
@@ -126,7 +154,26 @@ export interface ComposerValidation {
 const NOT_A_NUMBER = 'Enter a number, for example 55.'
 const OUT_OF_RANGE = 'Enter a percentage between 0 and 100.'
 
-const UNKNOWN_PAIR: PairState = { percent: null, balanced: false }
+const UNKNOWN_PAIR: PairState = { percent: null, balanced: false, gap: null }
+
+/** 1.0000 as the probability columns count it, in ten-thousandths. */
+const WHOLE = 10_000
+
+/**
+ * How far from 1.0000 each kind of market may land, in the same ten-thousandths.
+ *
+ * `EXACT` is `ck_predictions_prob_sum`, an equality: the three match-result probabilities are a
+ * distribution, every stored row sums to exactly 1, and readers render each one as a percentage
+ * without rescaling — so 34 / 33 / 34 is not a row the table will take.
+ *
+ * `TWO_WAY` is the window `ck_predictions_btts_prob_sum` allows, one percentage point either
+ * side. The over/under pairs carry no constraint of their own and the request holds them to the
+ * same window. Matching the API rather than rounding it off in either direction is the point:
+ * a form stricter than the API blocks a body the API would take, and a looser one sends a body
+ * the API refuses.
+ */
+const EXACT = 0
+const TWO_WAY = 100
 
 /**
  * A single percentage field.
@@ -143,26 +190,45 @@ function checkPercentField(text: PercentInput, required: boolean, blankMessage: 
 }
 
 /**
- * The complementary-pair check, in the backend's own arithmetic.
+ * The total of a market's sides, in the backend's own arithmetic.
  *
- * `first` and `second` must be passed in the order the backend's validator adds them (yes then no,
- * over then under, home then draw then away) so the floating-point total is identical on both
- * sides and the two can never disagree about a borderline case.
+ * Every percentage is converted to the unit value that will be sent and then rounded to what the
+ * column will hold, and the ten-thousandths are added as integers. Adding the doubles instead
+ * agrees with the API wherever the values fit the column and parts company where they do not:
+ * 98.995 and 2.005 are sent as 0.98995 and 0.02005, which total exactly 1.01 as doubles — inside
+ * the window — and 1.0101 as the two values that would be stored, which the API refuses.
+ *
+ * `slack` is how far from 100% this market may land, in the same ten-thousandths.
  */
-function checkPair(parts: Array<number | null>): PairState {
+function checkPair(parts: Array<number | null>, slack: number): PairState {
   if (parts.some(part => part === null)) return UNKNOWN_PAIR
-  const values = parts as number[]
-  const units = values.reduce((sum, value) => sum + percentToUnit(value), 0)
+  const stored = (parts as number[]).reduce(
+    (sum, value) => sum + storedTenThousandths(percentToUnit(value)), 0)
   return {
-    percent: values.reduce((sum, value) => sum + value, 0),
-    balanced: units >= 0.99 && units <= 1.01,
+    percent: stored / 100,
+    balanced: Math.abs(stored - WHOLE) <= slack,
+    gap: (WHOLE - stored) / 100,
   }
 }
 
+/**
+ * What the expert has to do about an unbalanced total, rather than only that it is wrong.
+ *
+ * A form that refuses 33 / 33 / 33 and stops there leaves them to work out that one point is
+ * missing and which box to put it in. The size is stated; which box is theirs to choose.
+ */
+export function pairAdjustment(gap: number | null): string | null {
+  if (gap === null || gap === 0) return null
+  return gap > 0
+    ? `Add ${formatPercentPoints(gap)}.`
+    : `Remove ${formatPercentPoints(-gap)}.`
+}
+
 function pairMessage(state: PairState, subject: string): string | null {
-  if (state.percent === null) return null
-  if (state.balanced) return null
-  return `${subject} currently total ${formatPercentValue(state.percent)}%. They must total 100%.`
+  if (state.percent === null || state.balanced) return null
+  const adjustment = pairAdjustment(state.gap)
+  return `${subject} currently total ${formatPercentPoints(state.percent)}%. They must total `
+    + `100%.${adjustment ? ` ${adjustment}` : ''}`
 }
 
 /**
@@ -186,7 +252,7 @@ export function validateComposer(values: ComposerValues, matchId: string | null)
 
   const outcome = homeError || drawError || awayError
     ? UNKNOWN_PAIR
-    : checkPair([parsePercent(values.homeWin), parsePercent(values.draw), parsePercent(values.awayWin)])
+    : checkPair([parsePercent(values.homeWin), parsePercent(values.draw), parsePercent(values.awayWin)], EXACT)
   const outcomeMessage = pairMessage(outcome, 'Home, draw and away')
   if (outcomeMessage) errors.outcomeTotal = outcomeMessage
 
@@ -200,7 +266,7 @@ export function validateComposer(values: ComposerValues, matchId: string | null)
     const noError = checkPercentField(values.bttsNo, true, 'Enter a percentage, or untick this market.')
     if (yesError) errors.bttsYes = yesError
     if (noError) errors.bttsNo = noError
-    btts = yesError || noError ? UNKNOWN_PAIR : checkPair([parsePercent(values.bttsYes), parsePercent(values.bttsNo)])
+    btts = yesError || noError ? UNKNOWN_PAIR : checkPair([parsePercent(values.bttsYes), parsePercent(values.bttsNo)], TWO_WAY)
     const message = pairMessage(btts, 'Yes and no')
     if (message) errors.bttsTotal = message
     const confidence = checkPercentField(values.bttsConviction, false, '')
@@ -214,7 +280,7 @@ export function validateComposer(values: ComposerValues, matchId: string | null)
     const underError = checkPercentField(values.under25, true, 'Enter a percentage, or untick this line.')
     if (overError) errors.over25 = overError
     if (underError) errors.under25 = underError
-    totals25 = overError || underError ? UNKNOWN_PAIR : checkPair([parsePercent(values.over25), parsePercent(values.under25)])
+    totals25 = overError || underError ? UNKNOWN_PAIR : checkPair([parsePercent(values.over25), parsePercent(values.under25)], TWO_WAY)
     const message = pairMessage(totals25, 'Over 2.5 and under 2.5')
     if (message) errors.total25 = message
   }
@@ -225,7 +291,7 @@ export function validateComposer(values: ComposerValues, matchId: string | null)
     const underError = checkPercentField(values.under35, true, 'Enter a percentage, or untick this line.')
     if (overError) errors.over35 = overError
     if (underError) errors.under35 = underError
-    totals35 = overError || underError ? UNKNOWN_PAIR : checkPair([parsePercent(values.over35), parsePercent(values.under35)])
+    totals35 = overError || underError ? UNKNOWN_PAIR : checkPair([parsePercent(values.over35), parsePercent(values.under35)], TWO_WAY)
     const message = pairMessage(totals35, 'Over 3.5 and under 3.5')
     if (message) errors.total35 = message
   }
@@ -331,11 +397,86 @@ export function buildCreateRequest(values: ComposerValues, matchId: string): Exp
   return { match_id: matchId, ...payload }
 }
 
+/**
+ * Every field an edit can carry, with `null` for the ones the expert withdrew.
+ *
+ * This is the shape `buildUpdateRequest` actually puts on the wire, and it is deliberately not
+ * `Partial`: an edit body is a COMPLETE statement of the prediction, because the composer it was
+ * built from was seeded by `composerFromPrediction` and holds the whole of one.
+ *
+ * Why it has to be complete. `PUT /api/v1/expert/predictions/{id}` distinguishes a key that is
+ * absent from a key carrying null (app/services/expert_prediction.py, `model_fields_set`): absent
+ * leaves the stored value alone, null withdraws it. The create rules cannot withdraw anything at
+ * all, because `unitOrAbsent` returns undefined for a cleared box and `JSON.stringify` drops the
+ * key entirely — so an edit built with them silently leaves every emptied box as it was. An edit
+ * body must therefore name every field it means, null included.
+ *
+ * Pairs move together, which is the same rule the backend enforces (COMPLEMENTARY_PAIRS in
+ * app/schemas/predictions.py): an unticked market sends BOTH of its sides as null, so the market
+ * is withdrawn whole, and a ticked one sends two numbers or the composer is not publishable at
+ * all. There is no body this builder can produce that names one side of a pair and not the other.
+ * A market's conviction goes with it (`btts_confidence` with the BTTS pair,
+ * `total_goals_confidence` with the goal lines), because the editor only shows those fields while
+ * their market is ticked, and a conviction in a market this prediction does not publish is a
+ * figure about nothing — which the backend now refuses outright (MARKET_CONVICTIONS in
+ * app/schemas/predictions.py). Clearing a conviction on a market that stays published is a
+ * different thing and a legitimate one: `PredictionMarketsEditor` locks a published market's
+ * toggle, not its conviction box, so an expert can withdraw the figure while the market stands,
+ * and this body sends that as `null` like any other withdrawal.
+ *
+ * `key_factors` is the one thing deliberately left out: the composer has no field for it, so an
+ * edit here has nothing to say about it and the stored value must stand.
+ */
+export interface ExpertPredictionUpdateBody {
+  home_win_prob: number
+  draw_prob: number
+  away_win_prob: number
+  confidence_score: number | null
+  btts_yes_prob: number | null
+  btts_no_prob: number | null
+  btts_confidence: number | null
+  total_goals_over_25_prob: number | null
+  total_goals_under_25_prob: number | null
+  total_goals_over_35_prob: number | null
+  total_goals_under_35_prob: number | null
+  total_goals_confidence: number | null
+  reasoning: string | null
+}
+
 /** The update body for an existing prediction, or null when the composer is not publishable. */
-export function buildUpdateRequest(values: ComposerValues): ExpertPredictionUpdateRequest | null {
+export function buildUpdateBody(values: ComposerValues): ExpertPredictionUpdateBody | null {
   const payload = publishableValues(values)
   if (!payload) return null
-  return payload
+  // `?? null` and not `|| null`: a conviction of 0 is a claim the expert made and has to survive.
+  return {
+    home_win_prob: payload.home_win_prob,
+    draw_prob: payload.draw_prob,
+    away_win_prob: payload.away_win_prob,
+    confidence_score: payload.confidence_score ?? null,
+    btts_yes_prob: payload.btts_yes_prob ?? null,
+    btts_no_prob: payload.btts_no_prob ?? null,
+    btts_confidence: payload.btts_confidence ?? null,
+    total_goals_over_25_prob: payload.total_goals_over_25_prob ?? null,
+    total_goals_under_25_prob: payload.total_goals_under_25_prob ?? null,
+    total_goals_over_35_prob: payload.total_goals_over_35_prob ?? null,
+    total_goals_under_35_prob: payload.total_goals_under_35_prob ?? null,
+    total_goals_confidence: payload.total_goals_confidence ?? null,
+    reasoning: payload.reasoning ?? null,
+  }
+}
+
+/**
+ * The same body, typed as the service's parameter expects.
+ *
+ * `ExpertPredictionUpdateRequest` in src/types/expert.ts still declares every optional field as
+ * `number | undefined`, which no longer describes what this endpoint accepts or what is sent.
+ * Widening it belongs with that file; until then the honest shape is `ExpertPredictionUpdateBody`
+ * above and the mismatch is absorbed by exactly one cast, here, rather than by building a body
+ * that the type happens to fit.
+ */
+export function buildUpdateRequest(values: ComposerValues): ExpertPredictionUpdateRequest | null {
+  const body = buildUpdateBody(values)
+  return body === null ? null : (body as unknown as ExpertPredictionUpdateRequest)
 }
 
 /**

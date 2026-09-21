@@ -96,6 +96,12 @@ class Prediction(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         Index('idx_predictions_created_at', 'created_at'),
         Index('idx_predictions_superseded_by', 'superseded_by'),
         Index('idx_predictions_match_priority_published', 'match_id', 'priority_level', 'published_at'),
+        # Exact equality, with no tolerance in it. outcome_probabilities_sum_to_one in
+        # app/schemas/predictions.py refuses the same triples on the way in, measured at this
+        # column's NUMERIC(5, 4) scale, so an expert who types 34 / 33 / 34 is told which numbers
+        # are wrong instead of being handed this constraint's name. The two have to say the same
+        # thing: a request validator looser than this CHECK turns a correctable mistake into a
+        # failed insert, and one stricter than it refuses rows the table would accept.
         CheckConstraint('home_win_prob + draw_prob + away_win_prob = 1.0', name='ck_predictions_prob_sum'),
         # Restated for a nullable column. A CHECK is satisfied by NULL either way (NULL >= 0 is
         # NULL, not FALSE), so the old two-clause form did not actually reject an unsupplied
@@ -108,6 +114,36 @@ class Prediction(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         CheckConstraint('btts_no_prob IS NULL OR (btts_no_prob >= 0 AND btts_no_prob <= 1)', name='ck_predictions_btts_no_prob_range'),
         CheckConstraint('btts_confidence IS NULL OR (btts_confidence >= 0 AND btts_confidence <= 1)', name='ck_predictions_btts_confidence_range'),
         CheckConstraint('total_goals_confidence IS NULL OR (total_goals_confidence >= 0 AND total_goals_confidence <= 1)', name='ck_predictions_total_goals_confidence_range'),
+        # WHAT THIS REJECTS: two BTTS probabilities that are both present and do not sum to 1.
+        # WHAT IT DOES NOT REJECT: one side present and the other NULL. With btts_yes_prob NULL
+        # the expression is FALSE OR NULL, which is NULL, and Postgres violates a CHECK only on
+        # FALSE - so a half-published pair is stored without complaint, and always has been. It is
+        # written out here because the two-clause shape reads as though the first clause forbade
+        # exactly that, and anyone relying on it to do so is relying on nothing.
+        #
+        # WHAT "SUM" MEANS HERE: the two STORED values added. Postgres rounds each to this
+        # column's NUMERIC(5, 4) before the expression sees it, so 0.98995 and 0.02005 are added
+        # as 0.9900 and 0.0201 and the CHECK is FALSE at 1.0101 - although those two request
+        # floats sum to exactly 1.01. _pairs_sum_to_one in app/schemas/predictions.py rounds the
+        # same way before it compares, so the request and this line judge the same numbers and
+        # the strip between them where a row is accepted and then refused does not exist.
+        #
+        # The half-pair rule is enforced instead on the request, in COMPLEMENTARY_PAIRS in
+        # app/schemas/predictions.py, where the caller can be told which other side is missing.
+        # It is deliberately NOT restated as a constraint here, and the total-goals pairs are
+        # given none, because a half-published market is a state the rest of this system is built
+        # to HOLD rather than to refuse: app/services/settlement.py::_score_two_way stores such a
+        # row and declines to score that market ("the source published only one side of this
+        # market"), and tests/services/test_settlement.py::
+        # test_one_published_side_of_a_two_way_market_is_not_enough stores one to prove it. A
+        # CHECK here would turn a state settlement can already report honestly into a failed
+        # insert. What is closed is composing one through the expert API, and that is closed on
+        # the request.
+        #
+        # The stored rows were counted before deciding, in case a constraint was wanted: on
+        # 2026-09-21 this installation held 250 predictions, four with a complete BTTS pair, none
+        # half-published, and no total-goals pair stored at all. Nothing stored would have blocked
+        # a migration; the reason for not writing one is the paragraph above, not the data.
         CheckConstraint('(btts_yes_prob IS NULL AND btts_no_prob IS NULL) OR (btts_yes_prob + btts_no_prob BETWEEN 0.99 AND 1.01)', name='ck_predictions_btts_prob_sum'),
         {'schema': 'predictions', 'comment': 'Core predictions'}
     )

@@ -93,7 +93,14 @@ export interface FollowResult {
   limit: number;
 }
 
-/** Result of saving a match. `created` is false when it was already saved. */
+/**
+ * Result of saving a match. `created` is false when it was already saved.
+ *
+ * THE INHERITED `match` IS FROZEN AT THE INSTANT THE SERVER PROCESSED THE WRITE, unlike the one
+ * on a row that came from a read. A save authors the note and its two timestamps and nothing
+ * else, so whether this copy of the fixture is the newer one depends on whether anything landed
+ * while the write was on the wire. See rule 5 in services/favourites.service.ts.
+ */
 export interface SaveMatchResult extends SavedMatch {
   created: boolean;
 }

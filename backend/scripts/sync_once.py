@@ -71,15 +71,97 @@ def _print_run(report) -> None:
             print(f"  {name:10} skipped ({entry.get('skipped')}): {entry.get('reason')}")
             continue
         state = "ok" if entry.get("ok") else "FAILED"
-        print(f"  {name:10} ran [{state}] in {entry.get('duration_ms')} ms")
+        duration = entry.get("duration_ms")
+        print(f"  {name:10} ran [{state}]" + (f" in {duration} ms" if duration is not None else ""))
         if entry.get("error"):
             print(f"{'':13}error: {entry['error']}")
             print(f"{'':13}backing off; next due at {entry.get('next_due_at')}")
         else:
             print(f"{'':13}next due at {entry.get('next_due_at')}")
-        result = entry.get("result") or {}
+        result = entry.get("result")
+        if result is None:
+            # A task whose exception reached the scheduler has no summary: the report entry then
+            # carries an error and no "result" at all. The error above is everything that is
+            # known about the pass, and a summary line read off an empty dict would be a
+            # diagnosis of a pass that never got far enough to have one.
+            continue
         for line in _summarise(name, result):
             print(f"{'':13}{line}")
+
+
+def _last_seen(result):
+    """When a fixture was last offered, said in a way that does not overclaim.
+
+    Three different things can be true and they must not print the same. A timestamp recorded by a
+    pass is exactly that. A timestamp reconstructed from the matches table is evidence a fixture
+    arrived, not evidence a pass saw one, and says so. Nothing at all means this pass had no
+    recorded sighting to carry forward and none could be reconstructed - which is not the same as
+    "never": the stored summary these are carried in is also lost when a pass raises, when its
+    state entry expires, and whenever Redis is unavailable.
+    """
+    at = result.get("last_seen_at")
+    if not at:
+        return "no sighting recorded and none could be reconstructed"
+    if result.get("last_seen_basis") == "matches_table":
+        return f"{at} (newest fixture stored ahead of its kickoff; no recorded sighting to carry)"
+    return str(at)
+
+
+def _fixture_pass_lines(result):
+    """What the fixtures pass was offered, in words.
+
+    The pass is reported "ok" above whether it was handed a matchday, an empty calendar or a stale
+    copy of last night's answer, so this says which of the three happened. Only the forward
+    fixtures list is read for that: results and live scores come back through the same counters in
+    the same pass, and one unsettled match dated today that has already kicked off - or kicks off
+    within the next quarter of an hour - keeps those non-zero on a pass that was offered nothing at
+    all to come.
+
+    `forward_answer` is "fixtures" as soon as any ONE day was offered a fixture, so a pass that
+    lands there can still have had days that nobody answered. Those are printed beside it rather
+    than left in the JSON, because the word alone would read as a clean pass.
+
+    A result holding none of the three is not a fourth outcome to describe: it is a pass that
+    never recorded one, and there is nothing here to read.
+    """
+    lines = []
+    answer = result.get("forward_answer")
+    if answer is None:
+        # The answer and the counters are written together at the end of a pass, so a result
+        # without `forward_answer` has no counters either. Falling through to the branches below
+        # reads them anyway and prints an absence as a measurement: "unanswered for 0 of None
+        # day(s)", which is a confident diagnosis of a pass that produced no data at all.
+        return ["no forward-list summary was recorded on this pass"]
+    forward_seen = int(result.get("forward_seen") or 0)
+    stale_days = int(result.get("days_from_stale_cache") or 0)
+    dead_days = int(result.get("days_unanswered") or 0)
+    if answer == "fixtures":
+        lines.append(f"{forward_seen} forward fixture(s) offered, "
+                     f"{result.get('forward_stored')} stored "
+                     f"(stored counts rows updated as well as rows created)")
+        if stale_days or dead_days:
+            lines.append(f"but {stale_days + dead_days} of {result.get('days_requested')} day(s) "
+                         f"were not answered ({stale_days} served from the 24-hour stale copy, "
+                         f"{dead_days} not answered at all); the streaks reset anyway, because a "
+                         f"fixture did arrive on another day")
+    elif answer == "empty":
+        lines.append(f"no forward fixture offered on any of the {result.get('days_answered')} "
+                     f"day(s) the provider answered "
+                     f"({result.get('empty_passes')} answered pass(es) in a row with none; "
+                     f"last fixture seen: {_last_seen(result)})")
+    else:
+        lines.append(f"the forward list went unanswered for {stale_days + dead_days} of "
+                     f"{result.get('days_requested')} day(s) ({stale_days} served from the "
+                     f"24-hour stale copy, {dead_days} not answered at all); "
+                     f"{result.get('unanswered_passes')} pass(es) in a row")
+        lines.append(f"the empty-calendar streak stays at {result.get('empty_passes')}: this pass "
+                     f"was told nothing either way. Last fixture seen: {_last_seen(result)}")
+    other = int(result.get("fixtures_seen") or 0) - forward_seen
+    if other > 0:
+        lines.append(f"{other} further fixture(s) came back on this pass from the results and "
+                     f"live ingests; those do not answer the forward question and are not counted "
+                     f"towards the streaks above")
+    return lines
 
 
 def _summarise(name, result):
@@ -87,8 +169,19 @@ def _summarise(name, result):
     lines = []
     if "days" in result:
         for day, meta in result["days"].items():
-            lines.append(f"{day}: source={meta.get('source')} provider={meta.get('provider')} "
-                         f"stale={meta.get('stale')} ambiguous={meta.get('ambiguous')}")
+            line = (f"{day}: source={meta.get('source')} provider={meta.get('provider')} "
+                    f"stale={meta.get('stale')} seen={meta.get('fixtures_seen')} "
+                    f"stored={meta.get('fixtures_stored')} ambiguous={meta.get('ambiguous')}")
+            if name == "fixtures":
+                # `source` belongs to whichever call answered last for this day: the fixtures list
+                # runs first, then results, then the live poll. So the forward list's own answer is
+                # printed beside it rather than inferred from a field it does not own.
+                line += (f" forward={meta.get('forward_fixtures_seen')}/"
+                         f"{meta.get('forward_fixtures_stored')} "
+                         f"from={meta.get('forward_source') or 'no answer'}")
+            lines.append(line)
+    if name == "fixtures":
+        lines.extend(_fixture_pass_lines(result))
     if name == "live" and not result.get("live_window_open"):
         lines.append(result.get("note", "no live window open"))
     if name == "forecasts":

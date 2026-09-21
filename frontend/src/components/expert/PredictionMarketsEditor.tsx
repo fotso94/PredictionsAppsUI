@@ -3,9 +3,9 @@ import clsx from 'clsx'
 import PercentField from './PercentField'
 import {
   ComposerIssueKey, ComposerValidation, ComposerValues, OPTIONAL_MARKET_LABEL, OptionalMarketKey,
-  PairState, REASONING_MAX,
+  pairAdjustment, PairState, REASONING_MAX,
 } from './composer'
-import { formatPercentValue } from './percent'
+import { formatPercentPoints } from './percent'
 
 /**
  * The markets an expert is publishing, and only those.
@@ -42,24 +42,35 @@ export interface PredictionMarketsEditorProps {
 }
 
 /**
- * The running total of a complementary pair — the only place the pair rule is stated.
+ * The running total of a market's sides — the only place the total rule is stated.
  *
  * It is on screen from the first keystroke rather than appearing as an error afterwards, which is
  * the point: the expert watches the total approach 100 instead of being told, after pressing
  * publish, that the API refused it. Once errors are being shown it turns from a caution into a
  * problem, and it is announced, but it is never printed twice.
+ *
+ * An unbalanced total says how far off it is as well as that it is off. The three match-result
+ * outcomes have to reach exactly 100, and "33% + 33% + 33% is wrong" leaves the expert to work
+ * out that a point is missing; "Add 1." does not. Which box takes it is theirs to decide, so the
+ * hint never names one.
+ *
+ * The total is the sum the API will hold, not the sum of the digits on screen (see `checkPair`),
+ * so it is printed to the same two decimals: a total of 99.99 must not round to "100%" beside a
+ * sentence saying it is short.
  */
 const PairTotal: React.FC<{ state: PairState; label: string; error?: string | null }> = ({ state, label, error }) => {
   if (state.percent === null) {
     return <p className="mt-2 text-xs text-secondary-400">{label} must total 100%.</p>
   }
+  const adjustment = state.balanced ? null : pairAdjustment(state.gap)
   return (
     <p
       className={clsx('mt-2 text-xs', state.balanced ? 'text-success-300' : error ? 'text-danger-300' : 'text-warning-200')}
       role={error ? 'alert' : undefined}
     >
-      <span className="num font-semibold">{formatPercentValue(state.percent)}%</span> total
+      <span className="num font-semibold">{formatPercentPoints(state.percent)}%</span> total
       {state.balanced ? '.' : ` — ${label} must total 100%.`}
+      {adjustment ? ` ${adjustment}` : ''}
     </p>
   )
 }

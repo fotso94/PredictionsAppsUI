@@ -241,3 +241,46 @@ class TestPredictionAggregatorService:
             total = result["home_win_prob"] + result["draw_prob"] + result["away_win_prob"]
             assert 0.99 <= total <= 1.01, f"Probabilities sum to {total}, expected ~1.0"
 
+
+    def test_a_conviction_nobody_supplied_is_not_reported_as_a_conviction_of_zero(
+        self, aggregator_service, sample_expert_prediction
+    ):
+        """NULL means the author never rated this prediction, and the dict has to say so.
+
+        The column is nullable, so an ``else 0.0`` fallback on this line would assert that every
+        expert who skipped the field had rated their own work at rock bottom. This pins the
+        absence through to the dict the aggregator hands out.
+        """
+        sample_expert_prediction.confidence_score = None
+
+        result = aggregator_service._prediction_to_dict(sample_expert_prediction)
+
+        assert "confidence_score" in result, "the key must be present and null, not dropped"
+        assert result["confidence_score"] is None, (
+            f"an unsupplied conviction was reported as {result['confidence_score']!r}")
+
+    def test_a_conviction_of_zero_survives_as_zero(
+        self, aggregator_service, sample_expert_prediction
+    ):
+        """The control. Decimal("0.0") is falsy, so a truthiness test loses a real claim.
+
+        Whichever fallback the falsy branch carries - 0.0 as it used to, None as it would now -
+        this is the case that proves the test is on the value rather than on its truthiness.
+        """
+        sample_expert_prediction.confidence_score = Decimal("0.0000")
+
+        result = aggregator_service._prediction_to_dict(sample_expert_prediction)
+
+        assert result["confidence_score"] == 0.0
+        assert result["confidence_score"] is not None
+
+    def test_the_randomized_placeholder_still_claims_a_conviction_of_zero(self, aggregator_service):
+        """Not the same case, and deliberately not changed with the others.
+
+        The randomised fallback has no absent author: the aggregator invented these probabilities
+        itself and 0.0 is its own statement that it stands behind them not at all. Null would
+        claim nobody rated it, which is the one thing that is untrue here.
+        """
+        result = aggregator_service._generate_randomized_prediction(str(uuid.uuid4()), "match_winner")
+
+        assert result["confidence_score"] == 0.0

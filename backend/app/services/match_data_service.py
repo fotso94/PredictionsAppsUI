@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -48,11 +49,45 @@ class SyncMeta:
     #: Fixtures the registry refused to store because they could not be told apart from an existing
     #: match. Counted and reported rather than guessed into a duplicate row.
     ambiguous: int = 0
+    #: How many fixtures were handed over and how many of those reached the database, summed over
+    #: every ingest this meta covers. One `sync_day` makes three: the forward fixtures list, then
+    #: results, then live scores. Without these a pass answered with an empty list is written down
+    #: exactly like one handed a full matchday - `source="provider"`, `errors: []` - which is how
+    #: the fixtures task reported success for three days while storing nothing at all.
+    fixtures_seen: int = 0
+    fixtures_stored: int = 0
+    #: The same two counts for the FORWARD fixtures list alone. Kept apart because the three
+    #: ingests answer different questions, and only this one answers "did the forward list hand
+    #: back a fixture for a day we asked about". One unsettled match dated today that has already
+    #: kicked off - or kicks off within the next quarter of an hour - is enough to make
+    #: `_sync_results` (at least 150 minutes after kickoff) or `_sync_live` (from 15 minutes before
+    #: kickoff to 150 after) hand back a day of fixtures on a pass whose forward list was empty, so
+    #: the combined counts above cannot tell a dead forward path from a matchday.
+    #:
+    #: `..._stored` counts the fixtures the registry accepted, which includes one it merely updated
+    #: on a row already held: `upsert_fixture` returns the existing match for those. So a forward
+    #: list that re-offers matches already stored counts as seen and stored alike, and neither
+    #: number says anything was new.
+    forward_fixtures_seen: int = 0
+    forward_fixtures_stored: int = 0
+    #: Where the FORWARD list came from - "provider", "cache", "stale-cache" - or None when that
+    #: question was never answered. `source` above cannot be read for this: the results and live
+    #: calls that follow inside the same `sync_day` overwrite it.
+    forward_source: Optional[str] = None
+    #: When that forward answer was fetched from the provider. For a cache hit that is minutes
+    #: before this pass rather than during it, so a sighting can be timed by when the fixture was
+    #: really offered instead of by when it was read back out.
+    forward_fetched_at: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {"provider": self.provider, "source": self.source, "stale": self.stale, "fetched_at": self.fetched_at,
                 "errors": self.errors, "live_polled": self.live_polled, "results_polled": self.results_polled,
-                "ambiguous": self.ambiguous}
+                "ambiguous": self.ambiguous, "fixtures_seen": self.fixtures_seen,
+                "fixtures_stored": self.fixtures_stored,
+                "forward_fixtures_seen": self.forward_fixtures_seen,
+                "forward_fixtures_stored": self.forward_fixtures_stored,
+                "forward_source": self.forward_source,
+                "forward_fetched_at": self.forward_fetched_at}
 
 
 def _fixture_to_dict(f: ProviderFixture) -> Dict[str, Any]:
@@ -185,19 +220,32 @@ class MatchDataService:
         return [l.id for l in self.competitions()]
 
     # ------------------------------------------------------------------ fixtures
-    def _store_fixtures(self, fixtures, meta: SyncMeta) -> int:
+    def _store_fixtures(self, fixtures, meta: SyncMeta, *, forward: bool = False) -> int:
         """Persist fixtures, counting the ones the registry refused as too ambiguous to identify.
 
         `upsert_fixture` returns None when a provider fixture cannot be told apart from an existing
         match. Storing it anyway would create a second card for the same game and split the expert
         predictions across the two rows, so the refusal is recorded instead.
+
+        The counts accumulate rather than overwrite: one `sync_day` stores fixtures, then results,
+        then live scores through this same method, and the day's total is the sum of the three.
+        `forward=True` marks the callers that fetched a list of matches to come - the day's fixture
+        list and the competition calendar - so those are also counted on their own. Every ingest
+        arriving in one shared counter is what made an empty forward list invisible whenever any
+        other ingest had something to hand over.
         """
-        stored = 0
+        stored = seen = 0
         for fixture in fixtures:
+            seen += 1
             if self.registry.upsert_fixture(fixture) is None:
                 meta.ambiguous += 1
             else:
                 stored += 1
+        meta.fixtures_seen += seen
+        meta.fixtures_stored += stored
+        if forward:
+            meta.forward_fixtures_seen += seen
+            meta.forward_fixtures_stored += stored
         if meta.ambiguous:
             logger.warning("%d fixture(s) were not stored because they could not be identified unambiguously",
                            meta.ambiguous)
@@ -212,9 +260,16 @@ class MatchDataService:
         except ProviderError as exc:
             meta.errors.append(str(exc))
             meta.source = "database"
+            # `forward_source` stays None: the chain never answered, so this pass learned nothing
+            # about the calendar. Leaving it None is what lets the caller tell an outage apart from
+            # a week with no fixtures in it.
             return meta
+        # Pin where the forward answer came from before anything else can overwrite `source`:
+        # `_sync_results` and `_sync_live` below run through the same `_call_chain` and each
+        # rewrites `meta.source`, `meta.provider` and `meta.fetched_at` with their own.
+        meta.forward_source, meta.forward_fetched_at = meta.source, meta.fetched_at
         fixtures = [_fixture_from_dict(d) for d in payload]
-        self._store_fixtures(fixtures, meta)
+        self._store_fixtures(fixtures, meta, forward=True)
         self.db.commit()
         if day <= self.now.date():
             self._sync_results(day, meta)
@@ -276,9 +331,42 @@ class MatchDataService:
         except ProviderError as exc:
             meta.errors.append(str(exc))
             return meta
-        self._store_fixtures((_fixture_from_dict(d) for d in payload), meta)
+        # Also a list of matches to come, so it is counted the same way `sync_day`'s fixture list
+        # is. Nothing reads these counters off this path today; they are here so the two forward
+        # fetches cannot drift into meaning different things.
+        meta.forward_source, meta.forward_fetched_at = meta.source, meta.fetched_at
+        self._store_fixtures((_fixture_from_dict(d) for d in payload), meta, forward=True)
         self.db.commit()
         return meta
+
+    def last_forward_fixture_stored_at(self) -> Optional[datetime]:
+        """When a match row was most recently written before its own kickoff, or None.
+
+        The fixtures task reports when a fixture was last offered to it. When it holds no
+        recorded sighting to carry forward there is still something knowable here, and without it
+        the task reports "never on this installation" while rows written ahead of kickoff sit in
+        this table - which reads as a broken integration rather than a quiet calendar.
+
+        `created_at < match_date` is the mark a fixture stored in advance leaves behind. It does
+        not prove which ingest wrote the row, so the caller reports it under its own basis and
+        never as something a pass of this task saw. The strict comparison is the point of the
+        filter: a row created at or after its own kickoff is not evidence of a calendar arriving
+        early. The live poll writes one when it meets a fixture it cannot identify against a row
+        already held — it updates the row and leaves `created_at` alone when it can — and so does
+        the placeholder match the expert-prediction flow creates dated `utcnow()`; dating a
+        sighting from either would report a fixture arriving in advance where none did.
+        """
+        try:
+            value = self.db.query(func.max(Match.created_at)).filter(
+                Match.created_at < Match.match_date).scalar()
+        except Exception:  # a seed for a report must never be the thing that fails a sync pass
+            logger.debug("Could not read the newest stored forward fixture", exc_info=True)
+            return None
+        if not isinstance(value, datetime):
+            # None on an empty table. Anything else did not come from the timestamp column and is
+            # not evidence that a fixture was ever stored.
+            return None
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
     def matches_for_day(self, day: date, refresh: bool = True) -> Tuple[List[Match], SyncMeta]:
         meta = self.sync_day(day) if refresh else SyncMeta()

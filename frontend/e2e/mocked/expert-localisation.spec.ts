@@ -146,8 +146,14 @@ function prediction(over: Partial<Json> = {}): Json {
 
 /**
  * The honest empty record: nothing has ever been settled, and no conviction has ever been
- * claimed. `accuracy_rate: null` and `average_confidence: 0` are exactly the two values whose
+ * claimed. `accuracy_rate: null` and `average_confidence: null` are exactly the two values whose
  * stand-in wording this file exists to check.
+ *
+ * `average_confidence` is null here and not 0, because the two say different things: null is
+ * "nobody claimed a conviction" and 0 is a conviction claimed at zero, which the dashboard
+ * prints as "0 %". A 0 in this helper would make its own first line disagree with the payload
+ * it hands the page, and would fail the page for printing exactly what a claimed zero must
+ * print. Pass `average_confidence: 0` explicitly when a claimed zero is the case under test.
  */
 function metrics(over: Partial<Json> = {}): Json {
   return {
@@ -157,7 +163,7 @@ function metrics(over: Partial<Json> = {}): Json {
     published_predictions: 0,
     pending_predictions: 0,
     accuracy_rate: null,
-    average_confidence: 0,
+    average_confidence: null,
     predictions_by_league: {},
     recent_predictions: [],
     performance_trend: [],
@@ -264,24 +270,23 @@ const ROUTES: Array<{ path: string; anchor: keyof typeof en }> = [
  * these pages fails the test, and so does removing one of these without deleting its line, which
  * means the gap can only shrink deliberately.
  *
- * WHY THIS LIST MOVED, AND WHY THE COMPOSER'S HALF OF IT GREW.
+ * WHY THE TWO ROUTES' ENTRIES LOOK NOTHING ALIKE.
  *
- * It used to name one string on two routes. `components/expert/FixturePicker.tsx` hard-coded
- * twenty-two English literals, and exactly ONE of them — "No forecast held" — happened to be the
- * same sentence as `brief.noForecastHeld` in the core catalogue, which is the only reason a
- * catalogue-derived check could see it. The other twenty-one were in no catalogue and therefore
- * invisible to every check in this file.
+ * A CATALOGUE-DERIVED CHECK CAN ONLY SEE A LITERAL SOME CATALOGUE ALSO HOLDS AS A SENTENCE.
+ * `components/expert/FixturePicker.tsx` hard-codes twenty-two English literals; a check built by
+ * filtering the catalogue finds one of them for every catalogue entry that happens to say the
+ * same thing, and is blind to the rest.
  *
- * `/expert/match-selection` no longer renders that component. `pages/ExpertMatchSelectionPage.tsx`
- * renders the list itself, from `expert.picker.*`, so its entry is now EMPTY — and being empty
+ * `/expert/match-selection` does not render that component. `pages/ExpertMatchSelectionPage.tsx`
+ * renders the list itself, from `expert.picker.*`, so its entry here is EMPTY — and being empty
  * rather than absent is the point: the route is still in ROUTES, still checked, and the day it
  * grows English again this line turns red.
  *
- * `/expert/predictions/create` still renders `FixturePicker`, unchanged, and the entry below grew
- * from one string to four. NOTHING ON THAT PAGE GOT WORSE. Putting the picker's wording into the
- * catalogue is what made three more of its literals VISIBLE to a generated check that could
- * previously see one, and this is where they are counted until the owner of that component
- * translates it.
+ * `/expert/predictions/create` does render `FixturePicker`, and its entry names four strings.
+ * THAT IS NOT FOUR FAULTS AGAINST ONE. Those four are the picker's literals that a catalogue can
+ * name — `brief.noForecastHeld` in core, three `expert.picker.*` written for the page above — and
+ * naming a string is what makes it visible to this check at all. The count is a measure of what
+ * can be seen, not of how much English the composer has; the eighteen below are there too.
  *
  * WHY ONLY FOUR OF THE TWENTY-TWO, which is a property of the generator and not a claim that the
  * other eighteen are gone. `otherLanguageStrings` above drops anything holding ICU syntax, and
@@ -335,7 +340,16 @@ for (const language of ['en', 'fr'] as const) {
     await openAsExpert(page, { language, zone: DOUALA }, {
       mine: [prediction()],
       queue: [prediction({ id: 'pred-2', status: 'UNDER_REVIEW' })],
-      performance: metrics({ total_predictions: 1, published_predictions: 1, recent_predictions: [prediction()] }),
+      // The conviction has to be overridden alongside the counts, not left at the empty record's
+      // null: a dashboard reading "Published 1" beside "None published" contradicts itself on
+      // screen, and this test walks all five screens with a screenshot on failure. 0.8 is what
+      // the one prediction in `recent_predictions` claims, so the average agrees with the row.
+      performance: metrics({
+        total_predictions: 1,
+        published_predictions: 1,
+        average_confidence: 0.8,
+        recent_predictions: [prediction()],
+      }),
     });
 
     for (const route of ROUTES) {
@@ -364,11 +378,15 @@ for (const language of ['en', 'fr'] as const) {
  * The three stand-ins, in both languages, on a brand-new expert's dashboard.
  *
  * This is the assertion this whole package is for. `accuracy_rate` is null because nothing has
- * been settled; `average_confidence` is 0 because nobody ever claimed a conviction. Both slots
- * hold a number everywhere else on the page, and in both languages they must hold a SENTENCE.
- * The French adds a trap the English does not have: « Pas encore évaluée » and « Aucune
- * publiée » are feminine, agreeing with « l'exactitude » and « la conviction », and a masculine
- * form here would be the visible sign that the agreement was done by eye.
+ * been settled; `average_confidence` is null because nobody ever claimed a conviction. NULL, not
+ * 0: the column is nullable end to end, so the two are different payloads, and this test is
+ * about the empty one only. A 0 in that slot is a conviction someone wrote down,
+ * the tile correctly prints it as "0 %", and this test would fail on wording the page is right
+ * to show; the zero case has its own test directly below. Both slots hold a number everywhere
+ * else on the page, and in both languages the empty ones must hold a SENTENCE. The French adds a
+ * trap the English does not have: « Pas encore évaluée » and « Aucune publiée » are feminine,
+ * agreeing with « l'exactitude » and « la conviction », and a masculine form here would be the
+ * visible sign that the agreement was done by eye.
  */
 for (const language of ['en', 'fr'] as const) {
   test(`an unscored accuracy and an unclaimed conviction are sentences, not zeros, in ${language}`, async ({ page }) => {
@@ -393,6 +411,51 @@ for (const language of ['en', 'fr'] as const) {
     expect(figures).toContain(catalogue['expert.dashboard.nonePublished']);
   });
 
+  /**
+   * THE OTHER HALF OF THAT DISTINCTION, ON THE RECORD PANEL.
+   *
+   * An average of zero conviction over published work is a CLAIM the experts made, not a blank.
+   * Print « Aucune publiée » over it and the tile reports a withdrawal that never happened,
+   * directly beside a count saying four predictions are published — the page contradicts its own
+   * neighbouring figure and erases a judgement made under the expert's name.
+   *
+   * Nothing in this tile is a measurement, and the test's wording keeps that straight:
+   * `average_confidence` averages what was claimed, and the accuracy tile below it is the only
+   * slot on the page that would ever hold a figure measured against results. Null is the blank
+   * and stands in with the wording; any finite number, 0 included, is a claim and is printed.
+   * Both directions are asserted — here the figure appears and the stand-in wording appears
+   * NOWHERE in the panel, and in the test above the reverse — so neither case can quietly decay
+   * into the other.
+   */
+  test(`an average conviction of zero is a claim, not a blank, in ${language}`, async ({ page }) => {
+    await openAsExpert(page, { language, zone: DOUALA }, {
+      // Four published predictions averaging zero conviction. The counts matter: an average over
+      // nothing would make the stand-in wording the honest answer and the assertion meaningless.
+      performance: metrics({ total_predictions: 4, published_predictions: 4, average_confidence: 0 }),
+    });
+    await page.goto('/expert/dashboard');
+    await page.waitForLoadState('networkidle');
+
+    const catalogue = language === 'en' ? en : fr;
+    const record = page.locator('section[aria-labelledby="record-heading"]');
+    // The four tiles only. The accuracy card below them is a `card` too, and its note names the
+    // average conviction in prose, so an unscoped filter would match it as well.
+    const tile = record.locator('div.grid > div.card')
+      .filter({ hasText: catalogue['expert.dashboard.statAverageConviction'] });
+    await expect(tile, 'the average-conviction tile is not on the dashboard at all').toHaveCount(1);
+
+    // French puts an insécable before the sign, so the separator is normalised rather than named.
+    const figure = (await tile.locator('p.num').innerText()).replace(/\s+/g, ' ').trim();
+    expect(figure, 'a conviction of zero was hidden behind the "none published" wording')
+      .toMatch(/^0\s?%$/);
+    await expect(record, 'a claimed zero was reported as nothing having been published')
+      .not.toContainText(catalogue['expert.dashboard.nonePublished']);
+
+    // The unsettled accuracy beside it is still null, and still a sentence: fixing one slot must
+    // not be done by making every slot print its number.
+    await expect(record).toContainText(catalogue['expert.dashboard.notScoredYet']);
+  });
+
   test(`a market the expert never published reads as unset, not 0%, in ${language}`, async ({ page }) => {
     await openAsExpert(page, { language, zone: DOUALA }, { mine: [prediction()] });
     await page.goto('/expert/predictions/my-predictions');
@@ -412,17 +475,18 @@ for (const language of ['en', 'fr'] as const) {
   });
 
   /**
-   * THE HEADLINE CONVICTION, WHICH THE TEST ABOVE NEVER TOUCHED.
+   * THE HEADLINE CONVICTION, WHICH THE TEST ABOVE NEVER EXERCISES.
    *
-   * `prediction()` sets `confidence_score: 0.8`, a real claim, so the panel's conviction row
-   * rendered "80%" and the market assertion passed without ever reaching the fallback beside it.
-   * Worse, `confidence_score: null` was not a payload the backend could produce: the column was
-   * NOT NULL and `ExpertPredictionService` coerced a missing conviction to Decimal("0.0") on
-   * three paths, so the page's own comment — "a conviction nobody claimed is not a conviction of
-   * zero" — described a guarantee nothing upstream could keep, and this fallback was dead code.
-   * The column, the service, the response model and this page now carry null end to end; the
-   * payload below is what the API really returns for a prediction whose author gave no
-   * conviction, and this is the test that would have gone red before that change.
+   * `prediction()` sets `confidence_score: 0.8`, a real claim, so in that test the panel's
+   * conviction row prints "80%" and its assertions pass without the absent-conviction wording
+   * ever being rendered. Only a fixture whose conviction is null exercises it.
+   *
+   * Null is a payload this API really sends, which is what makes the wording worth pinning
+   * rather than defensive: `Prediction.confidence_score` is nullable, the three paths in
+   * `ExpertPredictionService` that build a conviction pass None through instead of coercing it
+   * to Decimal("0.0"), and the response carries None out as JSON null. So a prediction whose
+   * author published probabilities without rating their own certainty arrives here with nothing
+   * in that field, and the page must not answer it with a rating.
    */
   test(`a conviction the expert never claimed reads as unset, not 0%, in ${language}`, async ({ page }) => {
     await openAsExpert(page, { language, zone: DOUALA },
@@ -432,9 +496,22 @@ for (const language of ['en', 'fr'] as const) {
 
     const catalogue = language === 'en' ? en : fr;
 
-    // The summary row first. `ConfidenceBadge` takes a bare number and bands it, so an absent
-    // conviction reaching it comes out as the lowest band at "(0%)" — the loudest possible way
-    // of stating a figure nobody gave. The badge must not be rendered at all.
+    // The summary row first. A conviction nobody gave must not be banded: banding it prints the
+    // lowest band at "(0%)", the loudest possible way of stating a figure nobody gave. Two
+    // guards stand against that, one inside the other. The OUTER one is the call site in
+    // ExpertMyPredictionsPage, which tests `isPublished(confidence_score)` — false for null — and
+    // renders a plain span instead of the badge; the INNER one is `ConfidenceBadge`'s own
+    // `null | undefined` branch. With this fixture the outer guard decides, so the badge is
+    // never mounted and the words asserted below come from that span.
+    //
+    // WHAT THIS PINS IS THE PAIR, NOT EITHER HALF, and that is deliberate. Remove the call-site
+    // guard and the badge renders the same wording itself; remove the badge's branch and the
+    // call site never reaches it; remove both and null bands to "(0%)" and the first assertion
+    // goes red. No assertion could separate the two here: they disagree only about a value that
+    // is neither null/undefined nor a finite number, and this endpoint cannot send one — JSON
+    // has no literal for NaN or Infinity, and anything that is not a number at all contradicts
+    // the field's own `number | null` typing. The redundancy is the point: the test holds the
+    // outcome the reader sees, not the mechanism that produces it.
     const summary = (await bodyText(page));
     expect(summary, 'the conviction badge banded a conviction nobody claimed')
       .not.toMatch(/\(\s*0\s?%\s*\)/);
@@ -917,9 +994,10 @@ test('a percentage typed as 55 in the French composer is still sent as 0.55', as
  * the ledger by what is on the page, so it fails when a listed string is GONE — translated,
  * reworded or removed — and the number therefore comes down deliberately rather than by accident.
  * It does NOT fail when new English appears, because a string that is in no catalogue and in no
- * list here is in nothing this test iterates over. An earlier version of this comment claimed
- * both directions; it was wrong, and the ledger was eleven strings short for exactly as long as
- * the claim stood. Catching new English needs a different mechanism — an allow-list of the
+ * list here is in nothing this test iterates over. READ AS A TWO-DIRECTIONAL CHECK IT IS WORSE
+ * THAN NOTHING: it goes green over untranslated wording it was never able to look at, and the
+ * ledger can then sit short by a dozen strings with no test saying so. Catching new English
+ * needs a different mechanism — an allow-list of the
  * French the page may contain, rather than a deny-list of the English it may not — and that is
  * not built here. Until it is, adding to this ledger is a manual act and the package report, not
  * this test, is what says the list is complete.
@@ -948,14 +1026,14 @@ const ENGLISH_LEFT_ON_THE_FRENCH_COMPOSER = [
 ];
 
 /*
- * WHY THIS LIST GREW, AND WHAT IS STILL OUTSIDE IT.
+ * WHY THIS LIST IS THIS LONG, AND WHAT IS STILL OUTSIDE IT.
  *
- * It previously held four entries, on the stated grounds that the optional markets' labels "are
- * not in the DOM until the market is ticked". That was checked against the running page and it is
- * not true: `PredictionMarketsEditor` renders every market's label, its checkbox and its
- * "Left unticked…" hint on arrival, unticked. Every entry added above was verified present in
- * this very test's DOM before being listed, and each is named with the file it comes from, so the
- * count a reader takes from this ledger is the count a French expert actually meets.
+ * A shorter ledger here would rest on the optional markets' labels being "not in the DOM until
+ * the market is ticked". Checked against the running page, that is not true:
+ * `PredictionMarketsEditor` renders every market's label, its checkbox and its "Left unticked…"
+ * hint on arrival, unticked. Every entry above was verified present in this very test's DOM
+ * before being listed, and each is named with the file it comes from, so the count a reader
+ * takes from this ledger is the count a French expert actually meets.
  *
  * "The three outcomes must total 100%." is the 1X2 pair hint in its UNBALANCED state, which is the
  * state this test's composer is in — it opens with three empty fields and touches nothing. When
@@ -1228,12 +1306,13 @@ test('the French match picker carries no English the catalogue cannot account fo
   /*
    * AND IT STILL FITS ON THE NARROWEST PHONE, IN THE LONGER LANGUAGE.
    *
-   * This list is the page that used to scroll sideways: a 23-fixture day measured 11 CSS pixels
-   * of overflow at 390px, so the layout that fixed it is load-bearing rather than decorative.
-   * Two things this package did could put it back — French is reliably longer than English, and
-   * the day is now spelled out in words above the list where only a date control used to be —
-   * and neither mocked project would notice, because they are 1440px and 390px and the phone
-   * that broke is 360. Galaxy S8, 360x740, which is what a budget Android reports.
+   * This list has the least horizontal room to spare of any page in this file: a 23-fixture day
+   * at 390px has been measured 11 CSS pixels wider than the viewport when its layout slips, so
+   * the layout that keeps it inside is load-bearing rather than decorative. Two things about
+   * this page press on it — French is reliably longer than English, and the day is spelled out
+   * in words above the list rather than left to a date control — and neither mocked project
+   * would catch the result, because they run at 1440px and 390px and the narrowest phone to
+   * worry about is 360. Galaxy S8, 360x740, which is what a budget Android reports.
    */
   await page.setViewportSize({ width: 360, height: 740 });
   await expect(body).toContainText(fr['expert.picker.dayLabel']);
@@ -1429,8 +1508,15 @@ test('changing the zone asks the backend again, because the local day is a diffe
 
   await page.getByTestId('footer-region-settings').first().click();
   await page.getByTestId('time-zone-choice').first().selectOption('Africa/Nairobi');
-  await page.waitForLoadState('networkidle');
 
-  expect(dayRequests, 'a change of zone is a change of window, so it must be asked again')
-    .toBeGreaterThan(beforeZoneChange);
+  // Polled, not waited on with `networkidle`. The refetch is issued by a React effect after the
+  // preference commits, and the page is already idle at the moment the option is chosen, so
+  // `waitForLoadState('networkidle')` can return before the request is ever made — which reads
+  // as "no second request" and fails a page that refetches correctly. The claim is unchanged:
+  // if `zone` leaves the effect's dependency array, no second request is ever issued and this
+  // poll runs out.
+  await expect.poll(
+    () => dayRequests,
+    { message: 'a change of zone is a change of window, so it must be asked again' },
+  ).toBeGreaterThan(beforeZoneChange);
 });
