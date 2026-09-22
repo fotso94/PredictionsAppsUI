@@ -176,7 +176,11 @@ async def coverage(db: Session = Depends(get_db)):
 async def force_sync(days: int = Query(2, ge=1, le=7), forecasts: bool = Query(True),
                      db: Session = Depends(get_db), current_user: User = Depends(get_current_admin_user)):
     service = MatchDataService(db)
-    service.clear_cooldowns()  # an admin-triggered sync retries providers even after recent failures
+    # An admin-triggered sync retries providers even after recent failures, and the competition
+    # calendar's own backoff is forgotten with them: it is keyed separately from the per-provider
+    # cool-downs, so without this an operator who has just fixed credentials would get the days
+    # below back at once and the empty-state calendar only when its wait ran out.
+    service.clear_cooldowns()
     today = datetime.now(timezone.utc).date()
     report = {"days": {}}
     for offset in range(days):

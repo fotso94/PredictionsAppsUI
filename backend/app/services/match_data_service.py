@@ -21,6 +21,7 @@ from app.services.providers import competitions as comps
 from app.services.providers.base import (
     MatchDataProvider, ProviderError, ProviderFixture, ProviderNotConfiguredError,
     ProviderQuotaError, ProviderAuthError, ProviderStanding, ProviderUnavailableError,
+    parse_utc,
 )
 from app.services.providers.registry import data_provider_chain
 
@@ -46,14 +47,9 @@ UNAVAILABLE_COOLDOWN_SECONDS = 2 * 60  # upstream errors / network problems
 #: day it is announced. Four sweeps x six competitions is 24 requests a day against a 1200/day
 #: allowance, and only when every one of those four windows has a reader of an empty day in it.
 #:
-#: That figure is what SUCCESSFUL sweeps cost, and it is not the worst case. Only a success is
-#: written to the cache, so a sweep that fails leaves this TTL nothing to hold and the next
-#: reader starts another one. The floor is then the lock below, 120 seconds, and the cool-down
-#: `_call_chain` sets for an ordinary upstream failure, also 120 seconds: the two expire
-#: together, so a provider that fails on the LAST competition of a sweep spends the whole sweep,
-#: six requests, every two minutes for as long as readers keep arriving. That is of the order of
-#: four thousand requests a day, several times the allowance. Only the far longer cool-downs for
-#: quota and authentication failures (above) bound themselves; an ordinary failure does not.
+#: That figure is what SUCCESSFUL sweeps cost, and only a success is written here: a sweep that
+#: fails leaves this TTL nothing to hold, so what bounds a FAILING calendar is the backoff and
+#: the daily ceiling below, not this.
 CALENDAR_HEAD_TTL_SECONDS = 6 * 3600
 
 #: Fixtures kept per competition. Enough to name a round; deliberately not a calendar page.
@@ -77,6 +73,72 @@ CALENDAR_HEAD_SHAPE = "fixtures+unanswered"
 #: times should not be asked again by the next page load, only after this has expired.
 CALENDAR_HEAD_LOCK_KEY = "matchdata:calendar-head:refreshing"
 CALENDAR_HEAD_LOCK_SECONDS = 120
+
+#: How long a failed sweep waits before another is paid for, and how that wait grows.
+#:
+#: Only a success is cached, so the TTL above holds nothing after a failure and every reader of
+#: an empty day meets a cold cache again. Without this the floor is the lock, 120 seconds, which
+#: a stream of readers turns into six requests every two minutes.
+#:
+#: The FIRST retry is still that 120 seconds, so a single bad minute costs the reader nothing
+#: extra; it is a failure that REPEATS which is expensive, and each repeat doubles the wait.
+#: The ceiling is 40 minutes because the answer this feature gives changes on the timescale of a
+#: cup draw or a broadcaster's reschedule - a week, not a minute - so a reader waiting up to 40
+#: minutes for a retry loses nothing real, while the provider is asked 9 times in the span one
+#: successful answer would have covered rather than 180 times.
+#:
+#: The record outlives its own wait by a further ceiling, so a failure that keeps being met by
+#: readers keeps escalating, while a streak nobody has retried for a whole ceiling window is
+#: forgotten and starts again at 120 seconds.
+#:
+#: Deliberately separate from `COOLDOWN_KEY`, which `_call_chain` sets for the provider as a
+#: whole: the live and results paths run through that cool-down and need it to stay short. This
+#: key suppresses the calendar sweep alone.
+CALENDAR_HEAD_BACKOFF_KEY = "matchdata:calendar-head:backoff"
+CALENDAR_HEAD_BACKOFF_BASE_SECONDS = 120
+CALENDAR_HEAD_BACKOFF_CEILING_SECONDS = 40 * 60
+
+#: The most this feature may spend at one provider in a UTC day, counted from the budget's own
+#: `calendar` reason rather than a counter of our own.
+#:
+#: PER PROVIDER, because a budget is. A chain of three providers therefore carries three of these
+#: ceilings, one guarding each plan, and not one share of three plans put together: the provider
+#: whose share is spent is passed over for the rest of the day and the sweep moves down the chain
+#: to one that still has room, at that provider's own expense and under its own ceiling. That is
+#: the deliberate answer to "may an empty-state notice spend a fallback's allowance": yes, because
+#: the fallback's allowance is protected by the fallback's own copy of this number, and because
+#: the scheduled tasks fall down the same chain when the primary is out - so the share that
+#: protects them travels with the work. What no provider does is serve this feature after its own
+#: share is gone.
+#:
+#: Sits BESIDE `SYNC_SCHEDULER_BUDGET_RESERVE`, not inside it. That reserve holds allowance back
+#: from the scheduler so interactive page loads always have some; this holds allowance back from
+#: one interactive page load so the scheduler always has some. They protect opposite sides of the
+#: same plan and neither substitutes for the other.
+#:
+#: 120 is a tenth of the Live Score plan (1,200/day) and five times what four successful sweeps
+#: cost, so a healthy day never comes near it. What it has to leave room for is the scheduler:
+#: fixtures at 6 competitions x 3 days every 6 hours is 72 requests a day, results and live add
+#: what a matchday actually needs, and the heaviest day this installation has recorded came to
+#: 683. 1200 - 120 - 50 held back leaves 1,030 for those, which clears that heaviest day by more
+#: than 300.
+#:
+#: Scaled down for a small plan the same way the scheduler scales its reserve, so this can never
+#: be most of a tiny allowance: on a 10/day plan the share is 1, which is less than one sweep
+#: costs, and the calendar simply never runs - which is the right answer for a 6-request sweep on
+#: a 10-request plan.
+CALENDAR_HEAD_DAILY_REQUEST_CEILING = 120
+
+#: What a GRANTED calendar request is attributed to in the budget's `by_reason` hash. The provider
+#: records its spending under this name; the ceiling above reads the same name back.
+#:
+#: A provider may charge itself more than the caller asked for, and what it adds does not land
+#: here: `livescore_api._get` retries once after a burst 401 and attributes that second outbound
+#: request to `retry`, so it counts against the day's total and not against this share. What the
+#: ceiling bounds exactly is therefore GRANTED calendar requests; what those cost the plan is the
+#: same number, doubled in the worst case where every one of them meets a burst 401, since one
+#: retry is the most `_get` will make.
+CALENDAR_BUDGET_REASON = "calendar"
 
 
 def _seconds_until_utc_midnight(now: datetime) -> int:
@@ -206,15 +268,43 @@ class MatchDataService:
         return payload.get("reason") if isinstance(payload, dict) else None
 
     def clear_cooldowns(self) -> None:
-        """Forget recent failures (used by the admin sync after credentials were fixed)."""
+        """Forget recent failures (used by the admin sync after credentials were fixed).
+
+        The calendar's own backoff goes with them. It is keyed separately from the per-provider
+        cool-downs on purpose, so nothing that deletes those touches it, and it can hold the sweep
+        off for up to `CALENDAR_HEAD_BACKOFF_CEILING_SECONDS`: an operator who has just fixed
+        credentials would get the fixtures, live and results paths back immediately and the
+        empty-state calendar only after a wait of up to forty minutes they have no way to end.
+
+        `CALENDAR_HEAD_LOCK_KEY` is deliberately left in place. It expires in two minutes by
+        itself, so it costs the operator a short wait rather than a long one, and dropping it
+        while a sweep is genuinely in flight would let a second one start and pay the whole
+        per-competition cost over again.
+
+        The daily ceiling is not cleared and cannot be: it is read from the provider's own
+        spending, and an operator who has fixed credentials has not given the plan its requests
+        back.
+        """
         for p in self.providers:
             self.cache.delete(COOLDOWN_KEY.format(name=p.name))
+        self.cache.delete(CALENDAR_HEAD_BACKOFF_KEY)
 
     def _set_cooldown(self, name: str, reason: str, seconds: int) -> None:
         self.cache.set(COOLDOWN_KEY.format(name=name), {"reason": reason, "until_seconds": seconds}, ttl=seconds, stale_ttl=seconds)
 
-    def _call_chain(self, cache_key: str, ttl: int, meta: SyncMeta, fn):
-        """Run `fn(provider)` on the first working provider, with fresh/stale cache around it."""
+    def _call_chain(self, cache_key: str, ttl: int, meta: SyncMeta, fn, skip=None):
+        """Run `fn(provider)` on the first working provider, with fresh/stale cache around it.
+
+        `skip(provider)` lets a caller refuse to spend at one provider without refusing the whole
+        chain: it returns the reason that provider is unaffordable FOR THIS CALLER, or None. A
+        named provider is passed over exactly like one in cool-down - recorded, not called, not
+        put in cool-down, and carried as the error to report only if nobody further down answers
+        either. It is consulted per provider rather than once for the chain because the thing it
+        usually guards, a request budget, is per provider too; asking it once and then calling
+        whoever happens to be first is how a per-provider limit stops binding on anybody.
+
+        It is not consulted at all when the cache answers, because then nothing is spent.
+        """
         cached = self.cache.get(cache_key)
         if cached is not None:
             meta.source, meta.provider, meta.fetched_at = "cache", cached.get("provider"), cached.get("fetched_at")
@@ -225,6 +315,11 @@ class MatchDataService:
             if cooling:
                 meta.errors.append(f"{provider.name}: skipped (recent failure: {cooling})")
                 last_error = last_error or ProviderUnavailableError(cooling, provider=provider.name)
+                continue
+            unaffordable = skip(provider) if skip is not None else None
+            if unaffordable:
+                meta.errors.append(unaffordable)
+                last_error = last_error or ProviderQuotaError(unaffordable, provider=provider.name)
                 continue
             try:
                 data = fn(provider)
@@ -440,6 +535,131 @@ class MatchDataService:
             logger.debug("Calendar-head refresh guard unavailable (%s); proceeding without it", exc)
             return True
 
+    # ------------------------------------------------ what a failing sweep is allowed to cost
+    def _calendar_backoff_record(self) -> Dict[str, Any]:
+        """The current failure streak, or an empty mapping when there is none to serve."""
+        record = self.cache.get(CALENDAR_HEAD_BACKOFF_KEY)
+        return record if isinstance(record, dict) else {}
+
+    def _calendar_backoff_refusal(self) -> Optional[str]:
+        """Why this sweep is too soon after the last failed one, or None when it may go ahead."""
+        retry_at = parse_utc(self._calendar_backoff_record().get("retry_at"))
+        if retry_at is None or self.now >= retry_at:
+            return None
+        failures = int(self._calendar_backoff_record().get("failures") or 0)
+        return (f"the competition calendar could not be read {failures} time(s) in a row, so the "
+                f"next attempt is held until {retry_at.isoformat()}")
+
+    def _note_calendar_sweep_failure(self) -> None:
+        """Lengthen the wait before the next sweep, doubling for each failure in a row.
+
+        Counts a sweep that produced no answer, which is not only a sweep that reached the
+        network and was refused: a chain whose every provider is already in cool-down produced no
+        answer either, and re-asking it every two minutes costs the same readers the same wait for
+        the same nothing.
+        """
+        failures = int(self._calendar_backoff_record().get("failures") or 0) + 1
+        # The exponent is capped before it is used, not after: a long outage must not build a
+        # number whose only purpose is to be thrown away by `min`.
+        wait = min(CALENDAR_HEAD_BACKOFF_BASE_SECONDS * 2 ** min(failures - 1, 16),
+                   CALENDAR_HEAD_BACKOFF_CEILING_SECONDS)
+        record = {"failures": failures,
+                  "wait_seconds": wait,
+                  "retry_at": (self.now + timedelta(seconds=wait)).isoformat()}
+        # Kept one ceiling longer than the wait itself, so the streak survives into the attempt
+        # that follows it and keeps growing; see CALENDAR_HEAD_BACKOFF_CEILING_SECONDS.
+        ttl = wait + CALENDAR_HEAD_BACKOFF_CEILING_SECONDS
+        self.cache.set(CALENDAR_HEAD_BACKOFF_KEY, record, ttl=ttl, stale_ttl=ttl)
+        logger.info("Competition-calendar sweep failed (%d in a row); next attempt in %ds",
+                    failures, wait)
+
+    def _clear_calendar_backoff(self) -> None:
+        """Forget the failure streak. A sweep that answered is the evidence that ends it."""
+        if self._calendar_backoff_record():
+            self.cache.delete(CALENDAR_HEAD_BACKOFF_KEY)
+
+    def _calendar_ceiling_refusal(self, provider: MatchDataProvider) -> Optional[str]:
+        """Why THIS provider may not be swept today, or None when its own share still has room.
+
+        This is where the ceiling binds, and it has to be here rather than only in front of the
+        chain: a ceiling is per provider because a budget is, so "some provider has room" is not
+        a reason to spend the one that has none. `_call_chain` passes every candidate through
+        this and skips the ones it names, which is what routes a sweep past a capped provider to
+        the next in the chain instead of charging the capped one anyway.
+
+        The share is read from the budget's own `calendar` attribution, so the number enforced is
+        the number the provider recorded rather than a second count of our own.
+
+        What that counts is GRANTED requests, and a provider may charge itself more than it was
+        asked for: `livescore_api._get` retries once after a burst 401 and attributes that second
+        outbound request to `retry`, which lands in the day's total but not in this share. So the
+        relationship is a bound and not an equality - this refuses after
+        `CALENDAR_HEAD_DAILY_REQUEST_CEILING` granted calendar requests, and those cost the plan
+        the same number of outbound calls, or at worst twice it when every one meets a burst 401.
+
+        A provider with no budget at all publishes no attribution to read, so nothing here can say
+        it is out. A counter store that cannot be read answers 0, which lets the sweep through,
+        exactly as `RequestBudget.remaining()` does for every other caller; the cheap floor in
+        that state is the backoff, which lives in the match cache rather than the counter store.
+        """
+        budget = getattr(provider, "budget", None)
+        try:
+            limit = int(getattr(budget, "daily_limit", 0) or 0)
+            if budget is None or not limit:
+                return None
+            # Scaled to the plan the same way SYNC_SCHEDULER_BUDGET_RESERVE is, so a small
+            # allowance is never mostly spent on a calendar.
+            ceiling = min(CALENDAR_HEAD_DAILY_REQUEST_CEILING, limit // 10)
+            used = int(budget.by_reason().get(CALENDAR_BUDGET_REASON, 0) or 0)
+        except Exception as exc:  # pragma: no cover - a ceiling is never worth a crash
+            logger.debug("Calendar budget check failed for %s: %s",
+                         getattr(provider, "name", "?"), exc)
+            return None
+        if used + len(self.keys) <= ceiling:
+            return None
+        # Named for the provider rather than for its budget, to read alongside the cool-down skips
+        # `_call_chain` records beside it; the budget belongs to this provider either way.
+        return (f"{getattr(provider, 'name', '?')}: today's share of the request allowance for "
+                f"reading competition calendars is spent ({used}/{ceiling} used)")
+
+    def _calendar_spend_refusal(self) -> Optional[str]:
+        """Why NO provider may be swept today, or None when one of them still has room.
+
+        The per-provider check above is what actually protects each plan. This is the cheap
+        question asked before the lock is claimed: when every provider in the chain would be
+        skipped there is no sweep to serialise, and a reader who takes the lock anyway would hold
+        it against the next reader for nothing.
+
+        It is therefore a summary of the same rule and never a laxer one. If it lets a reader
+        through because one provider has room, that provider is the one the chain will reach,
+        because the chain skips the others by the same test.
+
+        A chain of providers with no budgets at all constrains nothing and refuses nothing.
+        """
+        spent = []
+        for provider in self.providers:
+            refusal = self._calendar_ceiling_refusal(provider)
+            if refusal is None:
+                return None
+            spent.append(refusal)
+        if not spent:
+            return None
+        return "the competition calendar was not read: " + "; ".join(spent)
+
+    def _stale_calendar(self, cache_key: str, meta: SyncMeta) -> Optional[Dict[str, Any]]:
+        """A previously swept answer, when one is held and its provider is still in the chain.
+
+        Serving it costs nothing, so every guard that declines to pay for a sweep offers it first.
+        Switching DATA_PROVIDER must never resurrect an answer from a provider that is no longer
+        configured, which is what the membership test is for.
+        """
+        stale = self.cache.get_stale(cache_key)
+        if stale is None or stale.get("provider") not in {p.name for p in self.providers}:
+            return None
+        meta.source, meta.provider = "stale-cache", stale.get("provider")
+        meta.fetched_at, meta.stale = stale.get("fetched_at"), True
+        return stale["data"]
+
     def next_fixtures(self, per_competition: int = CALENDAR_HEAD_PER_COMPETITION
                       ) -> Tuple[Optional[Dict[str, Any]], SyncMeta]:
         """The next fixtures of the covered competitions, or None when nobody could tell us.
@@ -455,12 +675,17 @@ class MatchDataService:
                                          so what is in `fixtures` speaks only for the rest and may
                                          be missing an earlier kickoff than any of them;
           None                           nobody answered — no provider publishes a calendar, every
-                                         one of them failed, or a sweep is already in flight and
-                                         there is no copy to serve meanwhile.
+                                         one of them failed, a sweep is already in flight, the
+                                         last one failed and the next is not due yet, or every
+                                         provider has spent its own share of the allowance for
+                                         this feature; and in each case there is no copy to serve
+                                         meanwhile.
 
         Collapsing the last onto an empty list would let an outage print "no football is
         scheduled", which is a statement about the world made out of a network error; dropping
         `unanswered` would let a sweep that reached two competitions out of six speak for all six.
+        The three guards below are refusals to spend, so they answer the same way an outage does:
+        we could not find out. None of them may be reported as a calendar that is empty.
 
         Nothing here is written to the database. This reads a calendar to describe it, and a
         fixture eighteen days out is stored by the fixtures task when its day comes round.
@@ -476,20 +701,27 @@ class MatchDataService:
             meta.errors.append("no cache is available to hold a competition calendar, so it was "
                                "not read")
             return None, meta
-        # Only a cold cache can cost anything, so only a cold cache needs the guard. `_call_chain`
-        # re-reads the same key straight after, which also picks up a sweep that finished while
-        # this request was deciding.
-        if self.cache.get(cache_key) is None and not self._claim_calendar_refresh():
-            stale = self.cache.get_stale(cache_key)
-            if stale is not None and stale.get("provider") in {p.name for p in self.providers}:
-                meta.source, meta.provider = "stale-cache", stale.get("provider")
-                meta.fetched_at, meta.stale = stale.get("fetched_at"), True
-                return stale["data"], meta
-            meta.errors.append("a refresh of the competition calendar is already in flight")
-            return None, meta
+        # Only a cold cache can cost anything, so only a cold cache is subject to the guards.
+        # `_call_chain` re-reads the same key straight after, which also picks up a sweep that
+        # finished while this request was deciding.
+        if self.cache.get(cache_key) is None:
+            # Order is cheapest question first, and the lock is claimed last: a reader the backoff
+            # or the ceiling turns away must not take a lock it is never going to use, because
+            # holding it would block the reader who arrives once the wait is over.
+            refusal = (self._calendar_backoff_refusal()
+                       or self._calendar_spend_refusal()
+                       or (None if self._claim_calendar_refresh()
+                           else "a refresh of the competition calendar is already in flight"))
+            if refusal is not None:
+                stale = self._stale_calendar(cache_key, meta)
+                if stale is not None:
+                    return stale, meta
+                meta.errors.append(refusal)
+                return None, meta
         try:
-            return self._call_chain(cache_key, CALENDAR_HEAD_TTL_SECONDS, meta,
-                                    lambda p: self._calendar_head_payload(p, per_competition, meta)), meta
+            answer = self._call_chain(cache_key, CALENDAR_HEAD_TTL_SECONDS, meta,
+                                      lambda p: self._calendar_head_payload(p, per_competition, meta),
+                                      skip=self._calendar_ceiling_refusal)
         except ProviderError as exc:
             # `_call_chain` records every provider it tried in `meta.errors` and then raises the
             # last of those failures, so recording it here as well would show one failure twice
@@ -505,7 +737,31 @@ class MatchDataService:
             message = str(exc)
             if not any(message in recorded for recorded in meta.errors):
                 meta.errors.append(message)
+            # A CEILING IS NOT A FAILURE, and must not be answered with a failure's brake.
+            # `_call_chain` skips a provider whose calendar share is spent by raising a quota
+            # error on its behalf, so declining to spend arrives here wearing the same coat as a
+            # provider that is broken. Escalating the backoff for it would apply a growing wait
+            # for a reason that never happened, and - because the wait is measured in minutes
+            # while the share is measured in UTC days - would carry that wait past the midnight
+            # that refills the allowance.
+            #
+            # Both kinds of quota already have a brake of the right size. Our own ceiling IS the
+            # brake for the share we set ourselves; a provider that says it is out of quota gets a
+            # cool-down that runs to UTC midnight, set where that error is caught above. Neither
+            # needs a third one measured in minutes.
+            if not isinstance(exc, ProviderQuotaError):
+                self._note_calendar_sweep_failure()
             return None, meta
+        # What the backoff reacts to is where the answer came from, because that is what says
+        # whether a sweep happened at all. "provider" is a sweep that answered and ends a streak.
+        # "stale-cache" is a sweep whose every provider failed, answered out of a copy on the way
+        # past - the failure is just as real and just as worth backing off from. "cache" means no
+        # sweep was attempted, so it is evidence of nothing and leaves the streak as it stands.
+        if meta.source == "provider":
+            self._clear_calendar_backoff()
+        elif meta.source == "stale-cache":
+            self._note_calendar_sweep_failure()
+        return answer, meta
 
     def last_forward_fixture_stored_at(self) -> Optional[datetime]:
         """When a match row was most recently written before its own kickoff, or None.

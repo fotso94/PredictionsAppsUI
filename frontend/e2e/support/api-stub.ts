@@ -266,6 +266,81 @@ export function pausedScheduler(): SchedulerPayload {
   return scheduler;
 }
 
+// ------------------------------------------------------------- the captured day, served as today
+/**
+ * THE CAPTURE IS ONE DAY OF FOOTBALL, AND IT IS SERVED AS TODAY'S.
+ *
+ * Every fixture in e2e/fixtures/matches-day.json kicks off on the day it was captured, and served
+ * verbatim that date walks away from the day the suite is run. It is not a cosmetic drift: a
+ * fixture reached through a follow is cut from the dashboard feed by `buildFeed` once its kick-off
+ * is more than FEED_DAYS_BACK behind now (src/services/favourites.service.ts), and with nothing
+ * left to show the feed's panel is replaced by an empty state. A test that walks that feed on a
+ * verbatim capture therefore states something true of the days just after the capture and false
+ * of every day after that, and turns red on the morning the gap crosses the boundary with nothing
+ * changed but the calendar. A suite that expires by the date is not evidence for its own history.
+ *
+ * So the capture is moved onto the current day by a WHOLE NUMBER OF DAYS, the same day
+ * `localDay(0)` hands the specs for their `?date=` parameters. Whole days is what keeps a capture
+ * a capture: every fixture keeps the time of day it really kicked off at, and the order and the
+ * gaps within the day are untouched. Nothing but the kick-offs and the day's own date is
+ * rewritten. The rest of this file already states time this way — ago(), ahead() and isoDay() are
+ * all relative to now — and the captured day was the one payload that was not.
+ *
+ * WHAT IS NOT MOVED, and why. `fetched_at`, the provider status and every timestamp inside a
+ * brief EXCEPT the kick-off are the backend's own statements about when it looked and what it had
+ * measured by then. Those are not properties of the fixture, and a test that needs one of them
+ * recent builds it with ago() rather than asking the capture to pretend it was taken this morning.
+ */
+const CAPTURED_DAY = matchesDay.date;
+
+/**
+ * Whole days from the captured day to today's, in milliseconds.
+ *
+ * Fixed on first use rather than recomputed per call, so that a run which crosses local midnight
+ * serves one self-consistent day throughout instead of moving its fixtures under itself.
+ */
+let capturedDayShift: number | null = null;
+const captureShiftMs = (): number => {
+  if (capturedDayShift === null) {
+    const days = Math.round(
+      (Date.parse(`${localDay(0)}T00:00:00Z`) - Date.parse(`${CAPTURED_DAY}T00:00:00Z`)) / 86_400_000,
+    );
+    capturedDayShift = days * 86_400_000;
+  }
+  return capturedDayShift;
+};
+
+/**
+ * An instant moved by the whole-day shift, in the `...:00Z` spelling the capture writes.
+ *
+ * The captured kick-offs are whole minutes, so dropping the `.000` `toISOString` adds loses
+ * nothing; an unreadable value is handed back untouched rather than turned into a guess.
+ */
+const shifted = (iso: string): string => {
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return iso;
+  return new Date(at + captureShiftMs()).toISOString().replace(/\.000Z$/, 'Z');
+};
+
+/**
+ * One captured fixture with its kick-off on today's date.
+ *
+ * The brief's `known.kickoff_utc` is the same fixture's kick-off stated a second time, so it moves
+ * with it; nothing else in the brief does. Mutates in place, and every caller below hands it a
+ * fresh deep copy of the capture.
+ */
+const onToday = (match: ApiMatch): ApiMatch => {
+  if (captureShiftMs() === 0) return match;
+  match.kickoff_utc = shifted(match.kickoff_utc);
+  const known = (match.brief as { known?: { kickoff_utc?: string | null } } | null | undefined)?.known;
+  if (known && typeof known.kickoff_utc === 'string') known.kickoff_utc = shifted(known.kickoff_utc);
+  return match;
+};
+
+/** The date the captured day is served under: its own, moved onto today's. */
+const capturedDayIso = (): string =>
+  new Date(Date.parse(`${CAPTURED_DAY}T00:00:00Z`) + captureShiftMs()).toISOString().slice(0, 10);
+
 /**
  * The captured fixtures AS A LIST PAYLOAD SERVES THEM — which is to say without the full brief.
  *
@@ -276,12 +351,15 @@ export function pausedScheduler(): SchedulerPayload {
  * forecast, and a brief assembled from the forecast BEFORE that edit would then contradict it —
  * the brief is the backend's finished statement about a payload, not something a test may reshape.
  * A test that wants the detail payload asks for it by name, with matchDetail().
+ *
+ * Kick-offs are on today's date, by the whole-day move CAPTURED_DAY describes.
  */
 export const baseMatches = (): ApiMatch[] => (JSON.parse(JSON.stringify(matchesDay.matches)) as ApiMatch[])
-  .map(match => { delete match.brief; return match; });
+  .map(match => { delete match.brief; return onToday(match); });
 
 export const baseDayPayload = (): DayPayload => {
   const payload = JSON.parse(JSON.stringify(matchesDay)) as DayPayload;
+  payload.date = capturedDayIso();
   payload.matches = baseMatches();
   return payload;
 };
@@ -310,7 +388,7 @@ export const baseDayPayload = (): DayPayload => {
  */
 export const matchDetail = (id: string): ApiMatch | null => {
   const captured = (JSON.parse(JSON.stringify(matchesDay.matches)) as ApiMatch[]).find(m => m.id === id);
-  return captured ?? null;
+  return captured ? onToday(captured) : null;
 };
 
 /**

@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from enum import Enum
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from sqlalchemy import func, or_
@@ -49,15 +50,107 @@ UNSETTLED_GRACE = timedelta(minutes=150)
 #: How many days older than the results lookback one sweep may reopen. A results call costs one
 #: provider request per competition per day, so this cap is the sweep's entire extra cost.
 STALE_SWEEP_MAX_DAYS = 2
-#: How many sweeps one fixture is re-asked about before it is given up on.
+#: How many sweeps one fixture is re-asked about before it is given up on. Only a pass that
+#: actually put the question counts: see `RecoveryOutcome`.
 STALE_SWEEP_MAX_ATTEMPTS = 3
 #: The outer bound on how far back the sweep will look at all, measured from the moment of the
 #: sweep. Without one, a row the provider will never answer about is a cost that never ends; and a
 #: results endpoint is a window on the recent past rather than an archive, so the further back the
-#: question, the less there is to get. `unsettled_before` selects by it and
-#: `record_recovery_attempt` gives up by it, both against the same clock, so a fixture is never
-#: offered and then abandoned as too old in one pass.
+#: question, the less there is to get. `unsettled_before` selects by it and the recording side
+#: gives up by it, both against the same clock, so a fixture is never offered and then abandoned
+#: as too old in one pass.
 STALE_SWEEP_MAX_AGE = timedelta(days=14)
+
+
+class RecoveryOutcome(str, Enum):
+    """
+    What one sweep pass learned about one stranded fixture. Exactly one of these is an attempt.
+
+    "Attempt" is the sweep's word for evidence that the provider has nothing to say, and
+    `STALE_SWEEP_MAX_ATTEMPTS` of them retire a fixture with "no result after N attempts" written
+    on the row. That sentence is only true of a fixture somebody was actually asked about, so the
+    three outcomes where nobody was asked, or the answer was one we already held, are recorded
+    without moving the counter.
+    """
+
+    #: The question was never put: every provider in the chain failed or was cooling down, or no
+    #: results call was made for the day at all. Nothing was learned, so it cannot retire a
+    #: fixture -- three outages in a row would otherwise give up on a fixture nobody asked about.
+    #: It is still counted on the row, because a sweep failing silently for a week is its own
+    #: defect and this is where that becomes visible.
+    PROVIDER_ERROR = "provider_error"
+    #: The day was served out of the cache, fresh or stale. This pass did not put the question,
+    #: and it cannot tell who did: the results cache key is per day and per competition set, and
+    #: `MatchDataService.matches_for_day(day, refresh=True)` shares it, which
+    #: `GET /api/v1/matches?date=...` reaches for any date a reader asks for. So a stored answer
+    #: may be one the sweep has already seen, or a genuinely fresh one a reader's request fetched
+    #: moments ago. An attempt is evidence the provider was asked and had nothing, and evidence
+    #: nobody can date is not evidence, so no attempt is spent. Erring this way costs a fixture
+    #: one more pass in the sweep; erring the other way writes "no result after N attempts" about
+    #: a question this sweep never put.
+    CACHED = "cached"
+    #: A provider was asked during this pass, answered, and the fixture is still unsettled. The
+    #: only outcome that is evidence, and so the only one that counts toward giving up.
+    FRESH_UNANSWERED = "fresh_unanswered"
+    #: The fixture is settled now and was not before the pass. There is nothing left to retry, so
+    #: no attempt is spent; what settled it is written on the row instead.
+    RECOVERED = "recovered"
+
+
+def is_settled(status: MatchStatus) -> bool:
+    """Whether a fixture has an answer. The sweep asks about exactly the statuses this excludes."""
+    return status not in REGRESSIVE_STATUSES
+
+
+def classify_recovery_outcome(meta, *, settled_before: bool, settled_now: bool) -> Tuple[RecoveryOutcome, str]:
+    """
+    Which of the four outcomes one day's results call produced for one stranded fixture.
+
+    `meta` is the `SyncMeta` that `MatchDataService._sync_results` filled for the fixture's own
+    day. It is read by attribute rather than imported, because match_data_service imports this
+    module. Three of its fields carry the answer:
+
+    * `results_polled` is set only once the call chain has returned, so False means the question
+      was never put -- every provider failed or was cooling down, or `_sync_results` returned
+      early because the day held nothing pending. `errors` separates those two in the wording;
+      the decision is the same either way, and it is not to count an attempt.
+    * `source` says where the answer came from. "provider" is the only value meaning somebody was
+      asked during this pass; "cache" and "stale-cache" mean the day came out of the store, which
+      says nothing about when or by whom it was put there (see `RecoveryOutcome.CACHED`). They are
+      reported apart because a stale copy also says the provider is not currently reachable.
+    * `errors` may hold entries on a pass that succeeded anyway: the chain records every provider
+      it gave up on before the one that answered. So a failed pass is `results_polled` being
+      False, never `errors` being non-empty.
+
+    The meta covers the DAY and not the fixture, which leaves one pair it cannot separate: a
+    fresh answer that never mentioned this fixture, and a fresh answer that mentioned it and
+    still calls it unfinished. `fixtures_seen` and `fixtures_stored` count a day's fixtures
+    without naming them. Both land in FRESH_UNANSWERED, which is the right bucket for both: each
+    is the provider, asked now, holding no final result for this fixture, and that is exactly
+    what the attempt counter measures.
+
+    `settled_before` is this fixture's own state, read before the sync ran. A fixture already
+    settled cannot have been recovered by the pass and was never the sweep's to ask about, so
+    offering one is a caller error rather than a recovery to be credited.
+    """
+    if settled_before:
+        raise ValueError("this fixture was already settled before the pass; the sweep asks about "
+                         "unsettled fixtures only, and a status it did not change is not a recovery")
+    asked = bool(getattr(meta, "results_polled", False))
+    source = getattr(meta, "source", None) or "database"
+    provider = getattr(meta, "provider", None) or source
+    if settled_now:
+        if asked and source == "provider":
+            return RecoveryOutcome.RECOVERED, f"a fresh answer from {provider} settled it"
+        if asked:
+            return RecoveryOutcome.RECOVERED, f"the {source} copy of the day settled it"
+        return RecoveryOutcome.RECOVERED, "settled without this sweep's results call"
+    if not asked:
+        errors = getattr(meta, "errors", None) or []
+        return RecoveryOutcome.PROVIDER_ERROR, "; ".join(errors) or "no results call was made for this day"
+    if source in ("cache", "stale-cache"):
+        return RecoveryOutcome.CACHED, f"served from {source}"
+    return RecoveryOutcome.FRESH_UNANSWERED, f"{provider} answered and had no result for it"
 
 
 def _naive_utc(dt: datetime) -> datetime:
@@ -720,11 +813,39 @@ class MatchRegistry:
         """What the sweep has already tried for this fixture, as stored on the row."""
         return dict((match.match_metadata or {}).get("recovery") or {})
 
+    def _store_recovery(self, match: Match, state: Dict[str, object]) -> Dict[str, object]:
+        """Put the sweep's bookkeeping back on the row. JSONB is replaced whole, never mutated."""
+        meta = dict(match.match_metadata or {})
+        meta["recovery"] = state
+        match.match_metadata = meta
+        self.db.flush()
+        return state
+
+    @staticmethod
+    def _past_horizon_reason(match: Match, now: datetime, max_age: timedelta) -> Optional[str]:
+        """Why this fixture is beyond asking about at all, or None while it is still in range."""
+        age = now - _aware_utc(match.match_date)
+        if age > max_age:
+            return f"kickoff is {age.days} days old, past the {max_age.days}-day results horizon"
+        return None
+
+    def _give_up(self, match: Match, state: Dict[str, object], now: datetime, reason: str) -> None:
+        state["gave_up_at"] = now.isoformat()
+        state["gave_up_reason"] = reason
+        logger.warning("Giving up on match %s (%s, still %s): %s. It keeps its stored status; "
+                       "no further provider request will be spent on it.",
+                       match.id, match.match_date, match.status, reason)
+
     def record_recovery_attempt(self, match: Match, now: Optional[datetime] = None,
                                 max_attempts: int = STALE_SWEEP_MAX_ATTEMPTS,
-                                max_age: timedelta = STALE_SWEEP_MAX_AGE) -> Dict[str, object]:
+                                max_age: timedelta = STALE_SWEEP_MAX_AGE,
+                                detail: str = "") -> Dict[str, object]:
         """
         Count one sweep attempt against a fixture, and give up on it when it has had enough.
+
+        An attempt is `RecoveryOutcome.FRESH_UNANSWERED` and nothing else: the provider was asked
+        during the pass, answered, and had no result for this fixture. Passes that learned
+        nothing go to `record_recovery_outcome`, which leaves the count alone.
 
         Giving up is written on the row, under `match_metadata.recovery`: `gave_up_at` and
         `gave_up_reason` beside the attempt count. `unsettled_before` then skips the fixture for
@@ -737,24 +858,68 @@ class MatchRegistry:
         attempts = int(state.get("attempts") or 0) + 1
         state["attempts"] = attempts
         state["last_attempt_at"] = now.isoformat()
-        age = now - _aware_utc(match.match_date)
+        state["last_outcome"] = RecoveryOutcome.FRESH_UNANSWERED.value
+        state["last_outcome_at"] = now.isoformat()
+        if detail:
+            state["last_outcome_detail"] = detail
         if not state.get("gave_up_at"):
-            reason = None
-            if age > max_age:
-                reason = f"kickoff is {age.days} days old, past the {max_age.days}-day results horizon"
-            elif attempts >= max_attempts:
+            reason = self._past_horizon_reason(match, now, max_age)
+            if reason is None and attempts >= max_attempts:
                 reason = f"no result after {attempts} attempts"
             if reason:
-                state["gave_up_at"] = now.isoformat()
-                state["gave_up_reason"] = reason
-                logger.warning("Giving up on match %s (%s, still %s): %s. It keeps its stored status; "
-                               "no further provider request will be spent on it.",
-                               match.id, match.match_date, match.status, reason)
-        meta = dict(match.match_metadata or {})
-        meta["recovery"] = state
-        match.match_metadata = meta
-        self.db.flush()
-        return state
+                self._give_up(match, state, now, reason)
+        return self._store_recovery(match, state)
+
+    def _settled_by(self, match: Match) -> str:
+        """What the row now says the result was, for the recovery note. Read, never invented."""
+        result = self.db.query(MatchResult).filter(MatchResult.match_id == match.id).first()
+        if result is None or result.home_score is None or result.away_score is None:
+            return match.status.value
+        return f"{match.status.value} {result.home_score}-{result.away_score}"
+
+    def record_recovery_outcome(self, match: Match, outcome: RecoveryOutcome, detail: str = "",
+                                now: Optional[datetime] = None,
+                                max_attempts: int = STALE_SWEEP_MAX_ATTEMPTS,
+                                max_age: timedelta = STALE_SWEEP_MAX_AGE) -> Dict[str, object]:
+        """
+        Write down what one sweep pass learned about this fixture, counting it only if it counts.
+
+        `RecoveryOutcome.FRESH_UNANSWERED` is the one outcome that spends an attempt, and it is
+        handed straight to `record_recovery_attempt`. A provider error and a cached day each get
+        their own counter so an unproductive sweep can be seen to be unproductive, and neither
+        moves `attempts`. A recovery is written with what settled it and closes the fixture out:
+        there is nothing left to retry and so nothing to give up on.
+
+        The age bound applies to the other three outcomes all the same. It is a fact about the
+        fixture and the provider's results window rather than about this pass, so a fixture that
+        has drifted past the horizon is given up with that reason even when nobody could be
+        asked; that reason names the age and never claims an answer.
+        """
+        now = now or datetime.now(timezone.utc)
+        if outcome is RecoveryOutcome.FRESH_UNANSWERED:
+            return self.record_recovery_attempt(match, now, max_attempts=max_attempts,
+                                                max_age=max_age, detail=detail)
+        state = self.recovery_state(match)
+        state["last_outcome"] = outcome.value
+        state["last_outcome_at"] = now.isoformat()
+        if detail:
+            state["last_outcome_detail"] = detail
+        if outcome is RecoveryOutcome.RECOVERED:
+            state["recovered_at"] = now.isoformat()
+            state["recovered_as"] = self._settled_by(match)
+            state["recovered_by"] = detail or "settled during the sweep"
+            return self._store_recovery(match, state)
+        if outcome is RecoveryOutcome.PROVIDER_ERROR:
+            state["provider_errors"] = int(state.get("provider_errors") or 0) + 1
+            state["last_provider_error_at"] = now.isoformat()
+        elif outcome is RecoveryOutcome.CACHED:
+            state["cached_passes"] = int(state.get("cached_passes") or 0) + 1
+            state["last_cached_at"] = now.isoformat()
+        if not state.get("gave_up_at"):
+            reason = self._past_horizon_reason(match, now, max_age)
+            if reason:
+                self._give_up(match, state, now, reason)
+        return self._store_recovery(match, state)
 
     def resolve_match_id(self, raw: str) -> Optional[uuid.UUID]:
         """

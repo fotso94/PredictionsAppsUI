@@ -105,7 +105,17 @@ test('the footer copyright year is current, not frozen', async ({ page }) => {
   await page.goto('/');
   await page.waitForLoadState('networkidle');
   const text = await page.locator('body').innerText();
-  expect(text).toContain(`© ${new Date().getFullYear()}`);
+  /*
+   * THE YEAR IS READ IN THE PAGE, not in the test process, and the two are not the same reading.
+   * The footer takes it from `new Date().getFullYear()` in the browser, whose zone
+   * playwright.config.ts pins to America/New_York; the test process runs in whatever zone the
+   * machine happens to be set to. For the hours when those two sit on opposite sides of New Year
+   * they name different years, and a comparison between them is red for something no one can act
+   * on. Like against like leaves exactly the claim this test's name makes — the year is derived
+   * and not hard-coded — which is what a frozen year fails once the year turns.
+   */
+  const year = await page.evaluate(() => new Date().getFullYear());
+  expect(text).toContain(`© ${year}`);
 });
 
 /**

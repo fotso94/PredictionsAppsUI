@@ -309,6 +309,14 @@ async def upcoming_matches(
     are "we do not know", and a caller must say so rather than render the empty list as "no
     football is scheduled".
 
+    "Nobody could tell us" covers a refusal to spend as well as a failure to answer: a sweep that
+    failed recently is held off for a growing interval, and at each provider this feature may
+    spend only a daily share of that provider's request allowance — at most a tenth of it, in
+    granted requests — after which that provider is passed over for the rest of the day and the
+    sweep either moves to one that still has room or reports that nobody could be asked. So the
+    fixtures, live and results tasks that run on the same plans keep the rest of every one of
+    them. `errors` names which of those it was. None of them is a calendar that is empty.
+
     `unanswered` names the covered competitions nobody could be asked about. It is normally empty.
     When it is not, the answer is partial however true `known` is: those competitions may play
     before anything in `fixtures`, so `next_kickoff` is the earliest of what was read and not the
