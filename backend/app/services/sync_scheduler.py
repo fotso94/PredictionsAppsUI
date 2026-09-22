@@ -625,10 +625,17 @@ class SyncScheduler:
             logger.debug("Closing the sync session failed", exc_info=True)
 
     # ------------------------------------------------------------------ dry run
-    def estimate(self, only: Optional[Iterable[str]] = None) -> Dict[str, Any]:
-        """What a pass would do and what it would cost. Makes no provider request."""
+    def estimate(self, only: Optional[Iterable[str]] = None, force: bool = False) -> Dict[str, Any]:
+        """What a pass would do and what it would cost. Makes no provider request.
+
+        `force` means the same thing here as in `run_once`: the interval is ignored, the budget
+        ceiling is not. It has to be passed in for the estimate to describe the pass the caller is
+        actually about to make — an estimate of the unforced pass, printed in answer to a forced
+        one, reports a task as skipped and then prices the work it is about to do anyway.
+        """
         names = self._selected(only)
-        report: Dict[str, Any] = {"estimated_at": self.now.isoformat(), "tasks": {}, "total_requests": 0}
+        report: Dict[str, Any] = {"estimated_at": self.now.isoformat(), "tasks": {},
+                                  "total_requests": 0, "forced": force}
         if not names:
             report["note"] = "no sync task is enabled"
             return report
@@ -636,7 +643,7 @@ class SyncScheduler:
         services = _Services(self, db)
         try:
             for name in names:
-                entry = self._estimate_task(name, services)
+                entry = self._estimate_task(name, services, force=force)
                 report["tasks"][name] = entry
                 if entry.get("would_run"):
                     report["total_requests"] += int(entry.get("estimated_requests") or 0)
@@ -644,19 +651,23 @@ class SyncScheduler:
             self._close_session(db)
         return report
 
-    def _estimate_task(self, name: str, services: _Services) -> Dict[str, Any]:
+    def _estimate_task(self, name: str, services: _Services, force: bool = False) -> Dict[str, Any]:
         is_due, why = self.due(name)
         budget = self._budget_of(services, name)
         entry: Dict[str, Any] = {
             "due_now": is_due,
             "reason_not_due": why,
+            # Whether the interval was overridden, kept beside `due_now` rather than folded into
+            # it: a reader has to be able to see both that the task was not due and that it will
+            # run regardless.
+            "forced": force,
             "interval_seconds": self.interval(name),
             "provider": getattr(budget, "provider", None),
             "budget_remaining": budget.remaining() if budget is not None else None,
         }
         blocked = self._budget_block(services, name)
         entry["blocked"] = blocked
-        entry["would_run"] = bool(is_due and not blocked)
+        entry["would_run"] = bool((is_due or force) and not blocked)
         try:
             requests, basis = self._estimate_cost(name, services)
         except Exception as exc:  # an estimate must never be the thing that breaks

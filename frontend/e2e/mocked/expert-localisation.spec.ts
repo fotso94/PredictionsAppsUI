@@ -1254,7 +1254,13 @@ async function openPicker(
 }
 
 test('the French match picker carries no English the catalogue cannot account for', async ({ page }) => {
-  const today = new Date().toISOString().slice(0, 10);
+  // The day the picker opens on is today in the READER'S chosen zone, the same date
+  // `isoDateInZone` gives the page, so the fixtures are stubbed for that date. Today in UTC is a
+  // different date for the hour before midnight UTC — Douala is UTC+1 — and stubbing that one
+  // would answer the picker's day with an empty list for one hour in every twenty-four.
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: DOUALA, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
   const fixtures = pickerDay(today);
   await openPicker(page, { language: 'fr', zone: DOUALA }, iso => ({
     date: iso,

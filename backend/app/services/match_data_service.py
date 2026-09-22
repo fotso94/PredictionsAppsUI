@@ -31,6 +31,53 @@ COOLDOWN_KEY = "provider:cooldown:{name}"
 AUTH_COOLDOWN_SECONDS = 30 * 60        # rejected credentials: retry every 30 minutes, not on every page load
 UNAVAILABLE_COOLDOWN_SECONDS = 2 * 60  # upstream errors / network problems
 
+# ----------------------------------------------------------------- the calendar head
+# `next_fixtures` below answers "when is the next fixture, and which" for the covered competitions
+# as a whole. It costs ONE provider request per covered competition and nothing else, because
+# `get_calendar_head` is contractually a single request; with the six competitions covered here
+# that is six requests per refresh. The TTL, the per-competition cap and the refresh lock below
+# are what keep that from being six requests per page load; the shape name among them is about
+# reading a stored answer correctly rather than about cost.
+
+#: How long an answer is served before another sweep is paid for.
+#:
+#: A season calendar is not live data. A fixture moves when a broadcaster or a cup draw moves it,
+#: which is days of notice, not minutes, so refreshing four times a day notices a change on the
+#: day it is announced. Four sweeps x six competitions is 24 requests a day against a 1200/day
+#: allowance, and only when every one of those four windows has a reader of an empty day in it.
+#:
+#: That figure is what SUCCESSFUL sweeps cost, and it is not the worst case. Only a success is
+#: written to the cache, so a sweep that fails leaves this TTL nothing to hold and the next
+#: reader starts another one. The floor is then the lock below, 120 seconds, and the cool-down
+#: `_call_chain` sets for an ordinary upstream failure, also 120 seconds: the two expire
+#: together, so a provider that fails on the LAST competition of a sweep spends the whole sweep,
+#: six requests, every two minutes for as long as readers keep arriving. That is of the order of
+#: four thousand requests a day, several times the allowance. Only the far longer cool-downs for
+#: quota and authentication failures (above) bound themselves; an ordinary failure does not.
+CALENDAR_HEAD_TTL_SECONDS = 6 * 3600
+
+#: Fixtures kept per competition. Enough to name a round; deliberately not a calendar page.
+CALENDAR_HEAD_PER_COMPETITION = 5
+
+#: Names the shape of a stored calendar answer inside its cache key: an object holding both the
+#: fixtures that were read and the competitions nobody could be asked about. A copy written under
+#: another shape name is simply not found, so nothing here can unpack a stored answer the wrong
+#: way.
+CALENDAR_HEAD_SHAPE = "fixtures+unanswered"
+
+#: One sweep at a time, process- and worker-wide.
+#:
+#: The TTL above stops a reader who refreshes; it does nothing about readers who arrive together.
+#: Ten of them meeting a cold cache in the same second would each start their own sweep and spend
+#: sixty requests on one answer. Whoever takes this key pays; everyone else is served the stale
+#: copy, or told we do not know yet.
+#:
+#: It is deliberately NOT released when the sweep finishes. After a success the fresh copy makes
+#: it irrelevant, and after a failure holding it is the point: a provider that just failed six
+#: times should not be asked again by the next page load, only after this has expired.
+CALENDAR_HEAD_LOCK_KEY = "matchdata:calendar-head:refreshing"
+CALENDAR_HEAD_LOCK_SECONDS = 120
+
 
 def _seconds_until_utc_midnight(now: datetime) -> int:
     tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -338,6 +385,127 @@ class MatchDataService:
         self._store_fixtures((_fixture_from_dict(d) for d in payload), meta, forward=True)
         self.db.commit()
         return meta
+
+    # ------------------------------------------------------------------ the calendar head
+    def _calendar_head_payload(self, provider: MatchDataProvider, per_competition: int,
+                               meta: SyncMeta) -> Dict[str, Any]:
+        """Every covered competition's next fixtures, from one provider, in kickoff order.
+
+        One `get_calendar_head` per competition, and that method is contractually one request, so
+        this whole sweep costs at most one request per covered competition.
+
+        A provider that publishes no calendar declines every competition without making a request.
+        That is reported as `ProviderNotConfiguredError` so `_call_chain` moves to the next
+        provider in the chain and does NOT put this one in cool-down: lacking an endpoint is not a
+        failure, and a provider that still serves fixtures perfectly well must not be shut out of
+        the fixture path because it cannot answer this question.
+
+        Competitions that declined are carried in the payload itself, under `unanswered`, because
+        the payload is what is cached and served for the next several hours. A caveat recorded
+        only in `meta.errors` belongs to the one request that made the sweep; every reader after
+        it would be handed the shortened fixture list with nothing to say it was shortened.
+        """
+        fixtures: List[ProviderFixture] = []
+        declined: List[str] = []
+        for key in self.keys:
+            head = provider.get_calendar_head(key, limit=per_competition)
+            if head is None:
+                declined.append(key)
+                continue
+            fixtures.extend(head)
+        if len(declined) == len(self.keys):
+            raise ProviderNotConfiguredError(
+                f"{provider.name} publishes no competition calendar, so it cannot say which "
+                f"fixtures come next", provider=provider.name)
+        if declined:
+            # `errors` is this request's diagnostics; `unanswered` below is the part of the same
+            # fact that survives into the cached answer and out to the caller.
+            meta.errors.append(f"{provider.name}: no calendar answer for " + ", ".join(declined))
+        fixtures.sort(key=lambda f: f.kickoff_utc)
+        return {"fixtures": [_fixture_to_dict(f) for f in fixtures], "unanswered": declined}
+
+    def _claim_calendar_refresh(self) -> bool:
+        """True when this caller may pay for a calendar sweep; False when one is already in flight.
+
+        Best effort, like every other Redis-backed guard here: with no Redis there is nothing to
+        coordinate through, and refusing to answer at all would be a worse failure than a
+        duplicated sweep on a single-process install.
+        """
+        client = getattr(self.cache, "_redis", lambda: None)()
+        if client is None:
+            return True
+        try:
+            return bool(client.set(CALENDAR_HEAD_LOCK_KEY, "1", nx=True, ex=CALENDAR_HEAD_LOCK_SECONDS))
+        except Exception as exc:  # pragma: no cover - depends on environment
+            logger.debug("Calendar-head refresh guard unavailable (%s); proceeding without it", exc)
+            return True
+
+    def next_fixtures(self, per_competition: int = CALENDAR_HEAD_PER_COMPETITION
+                      ) -> Tuple[Optional[Dict[str, Any]], SyncMeta]:
+        """The next fixtures of the covered competitions, or None when nobody could tell us.
+
+        The answer is `{"fixtures": [...], "unanswered": [competition keys]}`, and the facts it
+        can carry are four, which the caller must be able to tell apart:
+
+          fixtures, nothing unanswered   every covered competition's calendar was read and these
+                                         come next;
+          no fixtures, nothing unanswered  every calendar was read and none lists a fixture still
+                                         to come;
+          anything with `unanswered`     the competitions named there could not be asked at all,
+                                         so what is in `fixtures` speaks only for the rest and may
+                                         be missing an earlier kickoff than any of them;
+          None                           nobody answered — no provider publishes a calendar, every
+                                         one of them failed, or a sweep is already in flight and
+                                         there is no copy to serve meanwhile.
+
+        Collapsing the last onto an empty list would let an outage print "no football is
+        scheduled", which is a statement about the world made out of a network error; dropping
+        `unanswered` would let a sweep that reached two competitions out of six speak for all six.
+
+        Nothing here is written to the database. This reads a calendar to describe it, and a
+        fixture eighteen days out is stored by the fixtures task when its day comes round.
+        """
+        meta = SyncMeta()
+        cache_key = f"matchdata:calendar-head:{CALENDAR_HEAD_SHAPE}:{','.join(self.keys)}:{per_competition}"
+        if not self.cache.available:
+            # One request per competition is affordable BECAUSE the answer is kept for hours.
+            # With no cache there is nothing to keep it in, and nothing to stop the next page
+            # load repeating the whole sweep, so this declines instead of spending. Every other
+            # read here degrades to calling the provider again; this one must not, because it is
+            # the only one a reader can trigger by doing nothing but reloading an empty day.
+            meta.errors.append("no cache is available to hold a competition calendar, so it was "
+                               "not read")
+            return None, meta
+        # Only a cold cache can cost anything, so only a cold cache needs the guard. `_call_chain`
+        # re-reads the same key straight after, which also picks up a sweep that finished while
+        # this request was deciding.
+        if self.cache.get(cache_key) is None and not self._claim_calendar_refresh():
+            stale = self.cache.get_stale(cache_key)
+            if stale is not None and stale.get("provider") in {p.name for p in self.providers}:
+                meta.source, meta.provider = "stale-cache", stale.get("provider")
+                meta.fetched_at, meta.stale = stale.get("fetched_at"), True
+                return stale["data"], meta
+            meta.errors.append("a refresh of the competition calendar is already in flight")
+            return None, meta
+        try:
+            return self._call_chain(cache_key, CALENDAR_HEAD_TTL_SECONDS, meta,
+                                    lambda p: self._calendar_head_payload(p, per_competition, meta)), meta
+        except ProviderError as exc:
+            # `_call_chain` records every provider it tried in `meta.errors` and then raises the
+            # last of those failures, so recording it here as well would show one failure twice
+            # and make a three-provider chain read as four distinct ones. What is NOT already
+            # there is the case where the chain tried nobody at all - no provider configured -
+            # and that message is the only account of why there is no answer.
+            #
+            # The test is CONTAINMENT, not equality, because the two are not always the same
+            # string: the chain skips a provider that failed recently by recording
+            # "<name>: skipped (recent failure: <why>)" while the error it raises carries only
+            # "<why>". Comparing those for equality lets the skip through twice, which is the
+            # over-count this guard exists to prevent.
+            message = str(exc)
+            if not any(message in recorded for recorded in meta.errors):
+                meta.errors.append(message)
+            return None, meta
 
     def last_forward_fixture_stored_at(self) -> Optional[datetime]:
         """When a match row was most recently written before its own kickoff, or None.

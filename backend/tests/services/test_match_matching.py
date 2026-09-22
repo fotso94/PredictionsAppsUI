@@ -119,6 +119,15 @@ MUST_MATCH = [
     ("Hamburger SV", "Hamburg"),
     ("FC St. Pauli", "St Pauli"),
     ("Stade Brestois 29", "Brest"),
+    # A dropped English club suffix: Live Score API writes the full name, API-Football and
+    # GameForecast the bare town. Both spellings sit on one team row in the live database.
+    ("Ipswich", "Ipswich Town"),
+    ("Ipswich Town FC", "Ipswich"),
+    ("Coventry", "Coventry City"),
+    ("Newcastle", "Newcastle United"),
+    ("Leeds", "Leeds United"),
+    ("Tottenham", "Tottenham Hotspur"),
+    ("Brighton", "Brighton & Hove Albion"),
 ]
 
 # Pairs that MUST NOT be conflated: attaching one club's forecast to another club's match is worse
@@ -131,6 +140,12 @@ MUST_NOT_MATCH = [
     ("Bayer Leverkusen", "Bayern Munich"),
     ("Inter Milan", "AC Milan"),
     ("Sheffield United", "Sheffield Wednesday"),
+    ("Bristol City", "Bristol Rovers"),
+    ("Everton", "Liverpool"),
+    # An English club suffix is an identity, not decoration: these are four clubs, not two, and a
+    # rule that derived "Ipswich" = "Ipswich Town" from the suffix would conflate them.
+    ("Dundee", "Dundee United"),
+    ("Bristol", "Bristol City"),
 ]
 
 
@@ -158,6 +173,64 @@ def test_a_one_token_subset_is_not_enough_on_the_name_alone():
     assert team_names_match("Reims", "Stade de Reims")
 
 
+def test_a_word_before_the_name_decorates_it_and_a_word_after_it_does_not():
+    # "Deportivo" in front is decoration; "United" behind is the thing that tells two clubs apart
+    assert team_names_match("Alaves", "Deportivo Alaves")
+    assert not team_names_match("Dundee", "Dundee United")
+    assert not team_names_match("Bristol", "Bristol City")
+    assert not team_names_match("Hamilton", "Hamilton Academical")
+    # a club-type initialism may follow, because it names no club on its own
+    assert team_names_match("Besiktas", "Besiktas JK")
+    # short forms that really do drop a suffix are listed in the alias table, one club at a time
+    assert team_names_match("Ipswich", "Ipswich Town")
+    assert team_names_match("Leeds", "Leeds United")
+    assert team_names_match("Norwich", "Norwich City")
+
+
+#: Pairs that a shape-based club matcher -- one token set inside the other, or a `SequenceMatcher`
+#: ratio over a threshold -- calls one club, and that are two clubs. Two clubs in one city are the
+#: shape no string metric can tell from a short form: "Paris FC" sits inside "Paris Saint-Germain"
+#: exactly as "Ipswich" sits inside "Ipswich Town", and "Manchester United" / "Manchester City"
+#: score 0.81 against each other, higher than several pairs that ARE one club.
+RATIO_TRAPS = [
+    ("Manchester United", "Manchester City"),
+    ("Real Madrid", "Atletico Madrid"),
+    ("Paris FC", "Paris Saint-Germain"),
+    ("Sheffield United", "Sheffield Wednesday"),
+    ("Bristol City", "Bristol Rovers"),
+    ("Inter Milan", "AC Milan"),
+]
+
+
+def _shape_says_one_club(left: str, right: str, ratio_floor: float = 0.6) -> bool:
+    """Token subset or similarity ratio: what a club matcher built on string shape would answer."""
+    from difflib import SequenceMatcher
+    na, nb = normalize_team_name(left), normalize_team_name(right)
+    ta, tb = set(na.split()), set(nb.split())
+    return ta <= tb or tb <= ta or SequenceMatcher(None, na, nb).ratio() >= ratio_floor
+
+
+@pytest.mark.parametrize("left,right", RATIO_TRAPS)
+def test_the_pairs_a_shape_based_matcher_would_merge_are_two_clubs(left, right):
+    assert _shape_says_one_club(left, right), f"{left!r}/{right!r} no longer trips the shape rule"
+    assert not team_names_match(left, right)
+    assert not team_names_match(right, left)
+
+
+def test_club_identity_has_one_answer_and_no_looser_second_opinion():
+    """
+    `team_names_match` is the whole of this module's answer to "are these one club?".
+
+    A weaker companion is a standing invitation to use it where identity is what is needed, and
+    the callers that would reach for it -- the shared-slot join above all -- write the decision
+    into `provider_entity_refs`, where a wrong answer survives every later sync.
+    """
+    looser = [name for name in dir(match_matching)
+              if name.startswith(("names_are", "plausib")) and name != "names_are"]
+    assert looser == [], f"a second club-identity predicate is back: {looser}"
+    assert not hasattr(match_matching, "PLAUSIBLE_ALIAS_RATIO")
+
+
 def test_umlaut_fold_does_not_corrupt_unrelated_words():
     assert normalize_team_name("Prague") == "prague"
     assert normalize_team_name("Queretaro") == "queretaro"
@@ -167,6 +240,26 @@ def test_umlaut_fold_does_not_corrupt_unrelated_words():
     assert normalize_team_name("Duesseldorf") == "dusseldorf"
     assert normalize_team_name("Nuernberg") == "nurnberg"
     assert normalize_team_name("Goeteborg") == "goteborg"
+
+
+def test_a_dropped_club_suffix_is_one_club_only_because_a_line_says_so(monkeypatch):
+    """
+    Nothing but `_SUFFIX_DROP_ALIASES` makes a bare town name and that name plus a club word one
+    club. With those lines removed, every listed pair gets the same answer the matcher gives for
+    "Dundee" / "Dundee United" and "Cardiff" / "Cardiff City" -- refused. The shapes are
+    identical, so the list is the only thing that can separate one club from two.
+    """
+    listed = dict(match_matching._SUFFIX_DROP_ALIASES)
+    assert listed, "the curated list is empty"
+    for short, full in listed.items():
+        assert team_names_match(short, full), f"{short!r} / {full!r} is listed and must match"
+
+    without = {k: v for k, v in match_matching._ALIASES.items() if k not in listed}
+    monkeypatch.setattr(match_matching, "_ALIASES", without)
+    for short, full in listed.items():
+        assert not team_names_match(short, full), f"{short!r} / {full!r} matches without its line"
+    assert not team_names_match("Cardiff", "Cardiff City")
+    assert not team_names_match("Dundee", "Dundee United")
 
 
 def test_every_alias_value_is_its_own_normalised_form():

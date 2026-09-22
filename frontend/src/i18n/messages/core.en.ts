@@ -136,6 +136,27 @@ const core = {
   'matchday.retry': 'Retry',
   'matchday.emptyTitle': 'No matches stored for this date.',
   'matchday.emptyDescription': 'This installation holds no fixtures for {date}. Fixtures appear here once they have been fetched and stored, so this is what we hold rather than a statement that nothing is being played.',
+  /*
+   * When an empty day can say when football comes back.
+   *
+   * From 2026-09-21 the six covered competitions were in the international break and the first
+   * fixture in any of them was eighteen days away. The day was correctly empty every one of those
+   * days, and "nothing here" was a true sentence that told a reader nothing. These say the rest of
+   * it — and only when a competition calendar has actually been read, which is why the last one
+   * exists: `matchday.upcoming.unknown` is what a day says when nobody could find out, and it must
+   * never be replaced by the reassuring version.
+   *
+   * `resumes` speaks for all six competitions and may be used only when all six were read.
+   * `resumesPartial` is the same news with the claim it can support: some calendars answered,
+   * the others were not reachable, and one of those may hold a fixture before this date.
+   */
+  'matchday.upcoming.resumes': 'These competitions play again on {date}.',
+  'matchday.upcoming.resumesPartial': 'Of the calendars we could read, the next fixtures are on {date}. We could not reach the others.',
+  'matchday.upcoming.heading': 'First fixtures:',
+  'matchday.upcoming.fixture': '{home} v {away} — {competition}, {time}',
+  'matchday.upcoming.none': 'The competition calendars list no fixture still to come.',
+  'matchday.upcoming.unknown': 'We could not find out when these competitions play next.',
+
   'matchday.showTomorrow': 'Show tomorrow\'s matches',
   'matchday.showToday': 'Show today\'s matches',
   'matchday.pickAnotherDate': 'Pick another date',

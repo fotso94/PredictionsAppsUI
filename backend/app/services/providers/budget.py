@@ -25,9 +25,11 @@ Accounting rules (owner requirement):
   `unmetered_today()` and never attributed by reason: an attribution the usage counter never saw
   is a number the day cannot reconcile. `snapshot()` reports those requests as spent and drops
   `enforced` to false, so a degraded day never reads as an untouched allowance.
-- Spending is attributed by `reason` (discovery / fetch / page / retry) in a parallel hash, so a
-  plan that is being eaten by league discovery can be told apart from one eaten by real fetches.
-  Attribution is best effort and never blocks or fails a request.
+- Spending is attributed by `reason` (discovery / fetch / page / retry / calendar) in a parallel
+  hash, so a plan that is being eaten by league discovery can be told apart from one eaten by
+  real fetches. The label is the kind of call, not who made it: nothing here distinguishes a
+  scheduled pass from a reader's page load. Attribution is best effort and never blocks or fails
+  a request.
 - The counter is OUR ceiling, keyed to OUR day. It is not the provider's window, and on
   2026-09-19 the two were shown not to be the same window at all: a clean UTC-day counter had
   five of eight left when the provider refused with "you have exceeded the DAILY quota". So the
@@ -74,7 +76,9 @@ KEY_TTL_SECONDS = 2 * 24 * 3600
 FAIL_OPEN_MIN_DAILY_LIMIT = 100
 
 #: Recognised spending reasons, for attribution only (an unknown one is recorded as "other").
-REASONS = ("discovery", "fetch", "page", "retry")
+#: They name the KIND of call that spent, not the caller: a scheduled pass and a reader's page
+#: load both fetch, and these counters cannot be split between them.
+REASONS = ("discovery", "fetch", "page", "retry", "calendar")
 
 #: "the caller passed nothing", kept apart from a caller that passed None meaning "unknown".
 _UNSET = object()
@@ -505,7 +509,7 @@ class RequestBudget:
         The counter is only advanced when the reservation succeeds, so a refusal never consumes
         allowance that was not actually spent at the provider.
 
-        `reason` ("discovery", "fetch", "page", "retry") attributes the spending; it is recorded
+        `reason` (see REASONS) attributes the spending by kind of call; it is recorded
         best effort and never changes whether the request is allowed. A request granted while the
         counter could not be written is NOT attributed - see `unmetered_today`.
 

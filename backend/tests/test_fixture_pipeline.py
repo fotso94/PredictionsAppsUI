@@ -684,6 +684,61 @@ def test_the_one_shot_script_diagnoses_nothing_on_a_pass_with_no_summary(cache, 
     assert "streak" not in printed and "last fixture seen" not in printed
 
 
+def _not_due_scheduler(cache, clock):
+    """A scheduler whose fixtures task has just run, so it is not due again for an interval."""
+    scheduler = build(cache, clock, StubDataProvider(fixtures=[]))
+    run(scheduler)
+    assert scheduler.due(TASK_FIXTURES)[0] is False, \
+        "a task that has just run is not due again until its interval has elapsed"
+    return scheduler
+
+
+def test_a_dry_run_describes_the_forced_pass_when_it_is_asked_about_one(cache, clock):
+    """`--force --dry-run` estimates the pass `--force` would make, not the one it replaces.
+
+    The task under test has just run, so an ordinary pass skips it and a forced one runs it: the
+    two estimates describe different passes and must price them differently - zero for the pass
+    that would do nothing, the real cost for the pass that would fetch. `due_now` stays false in
+    both, because `--force` overrides the interval rather than making the task due.
+    """
+    scheduler = _not_due_scheduler(cache, clock)
+
+    unforced = scheduler.estimate(only=[TASK_FIXTURES])
+    forced = scheduler.estimate(only=[TASK_FIXTURES], force=True)
+
+    assert unforced["tasks"][TASK_FIXTURES]["would_run"] is False
+    assert unforced["total_requests"] == 0
+    assert forced["tasks"][TASK_FIXTURES]["would_run"] is True
+    assert forced["total_requests"] == forced["tasks"][TASK_FIXTURES]["estimated_requests"] > 0
+    assert forced["tasks"][TASK_FIXTURES]["due_now"] is False, \
+        "--force overrides the interval; it does not make the task due"
+
+
+def test_a_forced_dry_run_prints_the_override_beside_the_interval(cache, clock, capsys):
+    from scripts.sync_once import _print_estimate
+
+    scheduler = _not_due_scheduler(cache, clock)
+
+    _print_estimate(scheduler.estimate(only=[TASK_FIXTURES], force=True))
+    printed = capsys.readouterr().out
+
+    assert "would run" in printed
+    assert "overridden by --force" in printed, \
+        "a cost this same report prices must not be printed under a bare 'not due'"
+
+
+def test_an_unforced_dry_run_says_nothing_about_a_flag_that_was_not_passed(cache, clock, capsys):
+    from scripts.sync_once import _print_estimate
+
+    scheduler = _not_due_scheduler(cache, clock)
+
+    _print_estimate(scheduler.estimate(only=[TASK_FIXTURES]))
+    printed = capsys.readouterr().out
+
+    assert "would be skipped" in printed
+    assert "--force" not in printed
+
+
 def test_the_one_shot_script_reports_a_healthy_pass_plainly(cache, clock):
     from scripts.sync_once import _summarise
 

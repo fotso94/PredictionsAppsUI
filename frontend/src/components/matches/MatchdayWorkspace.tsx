@@ -15,6 +15,7 @@ import { DataSourceMeta, ProviderStatus, STORED_ONLY, localDateString } from '@/
 import type { Match } from '@/types'
 import FixtureList from './FixtureList'
 import MatchFilterControls from './MatchFilterControls'
+import NextFixturesNote from './NextFixturesNote'
 import { competitionOptions, groupByCompetition } from './fixtureGrouping'
 import {
   MARKET_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS, WorkspaceState,
@@ -435,6 +436,12 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
         are indistinguishable from in here. The old title, "No matches on this date.", asserted the
         second. This says the first, and leaves the reader somewhere to go rather than a dead end —
         "Pick another day above" was also wrong on the home panel, which has no date strip above it.
+
+        WHAT `NextFixturesNote` ADDS is the one thing this state cannot work out for itself: when
+        these competitions play next. It asks a different question of a different endpoint — the
+        providers' competition calendars rather than this installation's stored days — and renders
+        nothing at all unless that question came back answered, so the sentence above stands alone
+        whenever it must.
       */
       const jumpTo = date === todayIso ? localDateString(1) : todayIso
       const jumpLabel = t(date === todayIso ? 'matchday.showTomorrow' : 'matchday.showToday')
@@ -442,7 +449,12 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
         <EmptyState
           tone="empty"
           title={t('matchday.emptyTitle')}
-          description={t('matchday.emptyDescription', { date: formatDay(date) })}
+          description={
+            <>
+              <span className="block">{t('matchday.emptyDescription', { date: formatDay(date) })}</span>
+              <NextFixturesNote />
+            </>
+          }
           action={variant === 'page' ? (
             <button
               type="button"

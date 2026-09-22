@@ -185,6 +185,25 @@ const core: Area<'core'> = {
   'matchday.retry': 'Réessayer',
   'matchday.emptyTitle': 'Aucun match enregistré pour cette date.',
   'matchday.emptyDescription': 'Cette installation ne contient aucun match pour le {date}. Les matchs apparaissent ici une fois récupérés et enregistrés\u00a0: c’est donc ce que nous détenons, et non une affirmation qu’il ne se joue rien.',
+  /*
+   * Ce qu’une journée vide peut dire de plus : quand le football reprend.
+   *
+   * « v » n’est pas l’usage français pour opposer deux équipes : on écrit « Arsenal - Leeds ».
+   * Le tiret est donc dans la chaîne, et non dans le composant, parce que c’est une décision de
+   * langue. Et `matchday.upcoming.unknown` reste distinct : une journée dont personne n’a pu lire
+   * le calendrier ne doit jamais afficher la version rassurante.
+   *
+   * `resumes` parle des six compétitions et ne convient que si les six ont été lues.
+   * `resumesPartial` dit la même nouvelle avec la portée qu’elle a vraiment : certains calendriers
+   * ont répondu, les autres non, et l’un d’eux peut annoncer un match avant cette date.
+   */
+  'matchday.upcoming.resumes': 'Ces compétitions rejouent le {date}.',
+  'matchday.upcoming.resumesPartial': 'D’après les calendriers que nous avons pu lire, les prochains matchs ont lieu le {date}. Les autres calendriers sont restés inaccessibles.',
+  'matchday.upcoming.heading': 'Premiers matchs :',
+  'matchday.upcoming.fixture': '{home} - {away} — {competition}, {time}',
+  'matchday.upcoming.none': 'Les calendriers des compétitions n’annoncent plus aucun match.',
+  'matchday.upcoming.unknown': 'Nous n’avons pas pu savoir quand ces compétitions rejouent.',
+
   'matchday.showTomorrow': 'Voir les matchs de demain',
   'matchday.showToday': 'Voir les matchs du jour',
   'matchday.pickAnotherDate': 'Choisir une autre date',

@@ -133,7 +133,13 @@ export interface FavouritesState {
   error: string | null;
   /** True while a reload runs over data we already hold, so the UI can stay on screen. */
   refreshing: boolean;
-  /** Ids with a write in flight, so one pending control does not disable the others. */
+  /**
+   * Ids with a write in flight, so one pending control does not disable the others.
+   *
+   * An id is released by the answer that states the end result for it, which can still leave an
+   * earlier write of the same chain on the wire: the control comes back because the reader's
+   * latest intent has been answered, not because the network has gone quiet.
+   */
   pendingTeamIds: string[];
   pendingLeagueIds: string[];
   pendingMatchIds: string[];

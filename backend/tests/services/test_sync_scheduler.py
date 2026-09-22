@@ -955,7 +955,7 @@ def test_the_one_shot_script_shares_the_scheduler_and_calls_nothing_on_a_dry_run
     calls = {"estimate": 0, "run_once": 0}
 
     class Recording(SyncScheduler):
-        def estimate(self, only=None):
+        def estimate(self, only=None, force=False):
             calls["estimate"] += 1
             return {"tasks": {}, "total_requests": 0, "estimated_at": NOW.isoformat()}
 

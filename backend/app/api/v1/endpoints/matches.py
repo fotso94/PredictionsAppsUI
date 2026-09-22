@@ -28,7 +28,7 @@ from app.services.expert_prediction import ExpertPredictionService
 from app.services.forecast_service import ForecastService
 from app.services.match_brief import build_brief, compact_brief, current_scoring_summary
 from app.services.match_data_service import MatchDataService, SyncMeta
-from app.services.providers.base import ProviderError
+from app.services.providers.base import ProviderError, parse_utc
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -249,6 +249,108 @@ async def live_matches(db: Session = Depends(get_db)):
     forecasts = ForecastService(db)
     matches, meta = service.live_matches()
     return _response(datetime.now(timezone.utc).date(), meta, build_match_payloads(db, matches, service, forecasts))
+
+
+#: Fixtures `/upcoming` will name at once. An empty matchday needs to say when football resumes and
+#: who plays, not to reproduce a round, and the cap is here rather than left to the caller so one
+#: query string cannot turn a small answer into a long one.
+UPCOMING_MAX_FIXTURES = 10
+
+
+def _upcoming_fixture(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """One calendar fixture, reduced to what naming it requires.
+
+    Deliberately not `serialize_match`: that describes a stored match, and these are rows read
+    from a provider's calendar that this installation has not stored and has no id for. Handing
+    back a match-shaped object without an id would invite a caller to link to a page that does
+    not exist.
+    """
+    competition = payload.get("competition") or {}
+    return {
+        "competition": {"key": competition.get("key"), "name": competition.get("name")},
+        "home": (payload.get("home") or {}).get("name"),
+        "away": (payload.get("away") or {}).get("name"),
+        "kickoff_utc": payload.get("kickoff_utc"),
+    }
+
+
+def _kickoff_still_ahead(row: Dict[str, Any], now: datetime) -> bool:
+    """True when this calendar row's kickoff reads as an instant and that instant has not arrived.
+
+    A row whose kickoff cannot be read is not ahead of anything: there is no date to compare, and
+    offering it as a fixture to come would be naming a match we cannot place in time.
+    """
+    kickoff = parse_utc(row.get("kickoff_utc"))
+    return kickoff is not None and kickoff > now
+
+
+@router.get("/upcoming", summary="The next fixtures the provider's calendar lists (covered competitions)")
+async def upcoming_matches(
+    limit: int = Query(5, ge=1, le=UPCOMING_MAX_FIXTURES,
+                       description="How many fixtures to name, earliest first"),
+    db: Session = Depends(get_db),
+):
+    """When the covered competitions play next, for a day that holds no fixture at all.
+
+    Read from the competition calendar, which is one provider request per competition and is
+    cached for hours (see `CALENDAR_HEAD_TTL_SECONDS`); it is not the day-by-day fixtures path and
+    must not be called on a day that has fixtures to show.
+
+    The calendar is filtered against the clock when it is fetched and then served for hours, so
+    the clock is applied again here: a fixture that has kicked off since the sweep is no longer
+    one to come, however fresh the copy holding it.
+
+    Two fields carry the honesty of this answer, and a caller needs both.
+
+    `known` says whether this answer can still speak for the calendar. `true`: `fixtures` is what
+    it listed that is still to be played, and an empty `fixtures` means nothing is listed to come.
+    `false`: either nobody could tell us, or every fixture in the copy we hold has now been
+    played — a calendar that ran out before it expired says nothing about what comes next. Both
+    are "we do not know", and a caller must say so rather than render the empty list as "no
+    football is scheduled".
+
+    `unanswered` names the covered competitions nobody could be asked about. It is normally empty.
+    When it is not, the answer is partial however true `known` is: those competitions may play
+    before anything in `fixtures`, so `next_kickoff` is the earliest of what was read and not the
+    date football resumes, and a caller must not present it as the latter.
+    """
+    service = MatchDataService(db)
+    now = datetime.now(timezone.utc)
+    try:
+        answer, meta = service.next_fixtures()
+    except ProviderError as exc:  # no provider, no cache: still an answer, just not a known one
+        logger.info("Upcoming fixtures could not be read: %s", exc)
+        answer, meta = None, SyncMeta(errors=[str(exc)])
+    rows = list((answer or {}).get("fixtures") or [])
+    # The stored answer was filtered against the clock of the sweep that fetched it, and is then
+    # served fresh for hours and stale for a day. Filtering again against this request's clock is
+    # what stops a reader being told football resumes on a date that has passed.
+    ahead = [row for row in rows if _kickoff_still_ahead(row, now)]
+    # A calendar that listed fixtures and has none left to list has run out; it no longer says
+    # when football resumes, and serving it as an empty list would turn a copy that went out of
+    # date into the claim that nothing is scheduled. A calendar that listed nothing in the first
+    # place is untouched by the clock and stays the known, empty answer it was.
+    known = answer is not None and (bool(ahead) or not rows)
+    return {
+        "known": known,
+        "as_of": now.isoformat().replace("+00:00", "Z"),
+        # The earliest kickoff of the WHOLE answer rather than of the capped list, so the date
+        # does not move when a caller asks for fewer fixtures to be named. What it is the earliest
+        # OF is whatever `unanswered` leaves: the competitions that were actually read.
+        "next_kickoff": (ahead[0].get("kickoff_utc") if ahead else None),
+        "fixtures": [_upcoming_fixture(item) for item in ahead][:limit],
+        # The competitions this answer does not speak for. Kept beside the fixtures rather than
+        # among the diagnostics below, because it changes what the fixtures mean.
+        "unanswered": list((answer or {}).get("unanswered") or []),
+        "provider": meta.provider,
+        # Where the answer was read: the provider, the cache, or a stale copy of it. An answer
+        # nobody could give was read from nowhere, and SyncMeta's default would name "database",
+        # which this path never touches.
+        "source": meta.source if answer is not None else None,
+        "stale": meta.stale,
+        "fetched_at": meta.fetched_at,
+        "errors": meta.errors,
+    }
 
 
 @router.get("/{match_id}", summary="Match detail with expert prediction and provider forecast")

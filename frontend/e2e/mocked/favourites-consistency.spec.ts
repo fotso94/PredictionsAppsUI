@@ -141,15 +141,19 @@ interface SavedRow {
 const FIRST_NOTE = 'Leaving work at five to be home for kick-off.';
 
 /**
- * A note, the edit that replaces it, and the correction that replaces THAT.
+ * A note, the edit that replaces it, the correction that replaces THAT, and one written
+ * somewhere else entirely.
  *
- * Three distinct strings, because the last two sections turn on exactly which of them is on the
- * screen when everything has settled: one where a failed edit must leave no trace, and one where
- * only the later of two edits may stand however their answers arrive.
+ * Four distinct strings, because the last two sections turn on exactly which of them is on the
+ * screen when everything has settled: one where a failed edit must leave no trace, one where
+ * only the later of two edits may stand however their answers arrive, and one where a note that
+ * reached the server from another device survives both. `NOTE_FROM_PHONE` is never typed into
+ * this tab, so finding it on screen can only mean a read brought it in.
  */
 const NOTE_BEFORE = 'Check the late team news before this one.';
 const NOTE_EDITED = 'Watch the left back, booked twice this month.';
 const NOTE_CORRECTED = 'It is the right back to watch, not the left.';
+const NOTE_FROM_PHONE = 'Typed on the train: settle the penalty-taker question.';
 
 /**
  * A fixture behind a follow rather than a save.
@@ -1738,7 +1742,7 @@ test('MOCKED-ONLY: two note edits on one match answered in the reverse order lea
  * A FOLLOW ANSWER CARRIES THE WHOLE FOLLOWED LIST, AND THE FOLLOW WROTE ONE ID OF IT.
  *
  * Same class as section 7, one payload over: the part of a write answer that the write did not
- * author is a snapshot frozen when the server processed it. `writeOwner` and `writesInFlight`
+ * author is a snapshot frozen when the server processed it. `writesOnKey` and `writesInFlight`
  * see local writes only, so a change made somewhere else entirely — the reader's phone — is
  * invisible to both, reaches this tab inside a refresh, and is deleted by an answer built before
  * it existed unless the refresh itself is counted. The older of two honest server views
@@ -1793,4 +1797,446 @@ test('MOCKED-ONLY: an unfollow answer must not delete a follow a refresh brought
   await expect(rowFor(TEAM),
     'while the unfollow this write DID author still stands').toHaveCount(0);
   expect(world.first.teamIds, 'which is exactly what the server holds').toEqual([TEAM_OTHER.id]);
+});
+
+/* ------------- 10. what a rollback puts back when two writes on one row are in flight */
+
+/**
+ * A ROLLBACK RESTORES WHAT THE SERVER CONFIRMED, NOT WHAT THE SCREEN SAID A MOMENT AGO.
+ *
+ * Every write captures the row it is about before applying its optimistic change, and a failure
+ * puts that capture back. The capture is the server's last word only while nothing of the
+ * reader's own is on the wire for that row: with an edit already in flight, what the store holds
+ * IS that edit's optimistic guess, so a second write captures a value the server has never
+ * confirmed and may never confirm.
+ *
+ * That is reachable through the ordinary interface, by the same route as the out-of-order edits
+ * in section 8: the star is inert while a write on its match is running, but the note editor is
+ * React state inside one mounted component, and a reader who leaves the dashboard and comes back
+ * gets a fresh one that knows nothing about the write still going.
+ *
+ * TWO EDITS AND NOTHING ELSE, THREE POSSIBLE ENDINGS, AND THE BASELINE HAS TO GET ALL THREE
+ * RIGHT.
+ *   Both fail, and the server still holds the note the chain started with.
+ *   The first succeeds and is ANSWERED FIRST, so the server holds that edit and the second's
+ *   failure must fall back to it and not to the original. A baseline frozen at the start of the
+ *   chain would get this one wrong in the other direction, which is why the answer to a write
+ *   that may not touch the screen still updates the baseline.
+ *   The first succeeds and is ANSWERED LAST. The server ends in the same place, but the screen
+ *   reaches it the other way round: the failure lands while the success is still on the wire, so
+ *   it rolls back to the note the chain opened with — correctly, that being everything anyone
+ *   has been told so far — and the success that arrives afterwards is then the newest thing the
+ *   server has said about the row, and has to be applied over it.
+ *
+ * SO WHICH ANSWER ARRIVES FIRST IS A SECOND DIMENSION, and two of the tests below turn it.
+ * "Superseded" cannot mean "a newer write existed", because the newest write of a chain can
+ * settle first and leave an older one still running: an answer discarded on the strength of a
+ * write that has already finished is an answer thrown away for nothing, and what is thrown away
+ * is the only word the server has given this tab about that row. It means "a newer write is
+ * still on the wire, or a newer answer has already spoken" — `writesOnKey` and
+ * `writeSuperseded` in src/services/favourites.service.ts.
+ *
+ * AND A REFRESH IS A THIRD DIMENSION, because a read states what the server holds as much as an
+ * answer does. The baseline a chain opens on describes the row as of the moment it opened, a
+ * snapshot applied while the chain is still running describes it later, and a failure arriving
+ * after that snapshot may not put the earlier description back. The last test here is that
+ * ordering, and it needs both of the others: two writes, so the older one's failure is still to
+ * come when the refresh lands, and reversed answers, so nothing newer is outstanding to make it
+ * stand aside.
+ *
+ * WHAT A ROLLBACK STILL MAY NOT TOUCH is the fixture, and the first test keeps that line: the
+ * confirmed note is restored onto whatever the store holds now, so a result that landed while
+ * the edits were on the wire stays exactly where the refresh put it. Section 7 is the same rule
+ * for a single write.
+ *
+ * THERE IS NO FOLLOW EQUIVALENT IN THIS SECTION, and it is not because the store treats a follow
+ * differently: `toggleFollow` captures the state it will revert to in the same way and shares
+ * the same baseline. It is because no screen can put two toggles of one id on the wire at once.
+ * Both controls that issue one — `FollowButton` and the following panel on the dashboard — are
+ * disabled while the shared store's `pendingTeamIds` / `pendingLeagueIds` holds that id, and
+ * unlike the note editor neither keeps a copy of that flag it could get out of step with. A test
+ * here drives the interface a reader has, so there is nothing for it to press twice.
+ */
+
+test('MOCKED-ONLY: two overlapping note edits that BOTH fail leave the note the server still holds, not the first edit', async ({ page }) => {
+  const world = new World();
+  world.first.note = NOTE_BEFORE;
+  // In play when the reader starts typing, so the result that lands mid-flight has somewhere to
+  // arrive from and the rollback has a fixture it must not touch.
+  const inPlay: ApiMatch = { ...FIXTURE_ONE, status: 'live', minute: '63', score: null };
+  world.storeFixture(inPlay);
+  world.first.save(inPlay);
+  await stubWorld(page, world);
+  await startSignedIn(page, world, world.first);
+
+  await page.goto('/dashboard');
+  const row = savedRow(page, FIXTURE_ONE.id);
+  const scoreline = row.locator(`a[href="/match/${FIXTURE_ONE.id}"]`);
+  await expect(row, 'the saved fixture is in play when the reader opens the page')
+    .toHaveAttribute('data-feed-phase', 'live');
+  await expect(row.getByTestId('saved-match-note-text')).toHaveText(NOTE_BEFORE);
+
+  const firstEdit = holdWriteOn(world, FIXTURE_ONE.id);
+  await row.getByTestId('saved-match-note-edit').click();
+  await row.getByTestId('saved-match-note-input').fill(NOTE_EDITED);
+  await row.getByTestId('saved-match-note-save').click();
+  await firstEdit.arrived;
+
+  // A fresh editor over a write that is still running — section 8 explains why the interface
+  // allows it. Nothing is read here, so the note this second editor opens on is the first
+  // edit's optimistic one, which is precisely the value no rollback may restore.
+  await row.locator(`a[href="/match/${FIXTURE_ONE.id}"]`).click();
+  await page.waitForURL(`**/match/${FIXTURE_ONE.id}`);
+  await goToDashboardThroughTheHeader(page);
+  await expect(row.getByTestId('saved-match-note-text'),
+    'the first edit is on screen optimistically, its answer still held').toHaveText(NOTE_EDITED);
+
+  const secondEdit = holdWriteOn(world, FIXTURE_ONE.id);
+  await row.getByTestId('saved-match-note-edit').click();
+  await row.getByTestId('saved-match-note-input').fill(NOTE_CORRECTED);
+  await row.getByTestId('saved-match-note-save').click();
+  await secondEdit.arrived;
+  await expect(starIn(page, FIXTURE_ONE.id), 'two writes on this match are really in flight')
+    .toHaveAttribute('data-pending', 'true');
+
+  // The match ends while both edits are out, and the reader comes back to the tab in that
+  // window. The snapshot carries the result — and the note the server still holds, because it
+  // has committed neither edit.
+  world.schedulerMoves(FIXTURE_ONE.id, { status: 'finished', minute: null, score: { home: 3, away: 1 } });
+  await letTheSnapshotGoStale(page);
+  await refreshThroughTheTab(page);
+  await expect(row, 'the result landed while both edits were still on the wire')
+    .toHaveAttribute('data-feed-phase', 'result');
+
+  // Both fail, in the order they were issued. The first is superseded and states nothing; the
+  // second owns the match and has to say what the row now is.
+  await firstEdit.commit(500);
+  await landedWrite(page, SAVE_PATH, () => firstEdit.deliver());
+  await secondEdit.commit(500);
+  await landedWrite(page, SAVE_PATH, () => secondEdit.deliver());
+
+  expect(world.first.saved.get(FIXTURE_ONE.id)?.note, 'neither edit reached the server')
+    .toBe(NOTE_BEFORE);
+  await expect(row.getByTestId('saved-match-note-text'),
+    'so the only note that may be on screen is the one the server confirmed')
+    .toHaveText(NOTE_BEFORE);
+  const shown = await page.locator('body').innerText();
+  expect(shown, 'the abandoned first edit must not be left standing as though it had been saved')
+    .not.toContain(NOTE_EDITED);
+  expect(shown, 'and neither may the second').not.toContain(NOTE_CORRECTED);
+
+  // The fixture belongs to nobody's rollback: a note that failed to save cannot un-finish a match.
+  await expect(page.getByTestId('feed-group-live')).toHaveCount(0);
+  await expect(scoreline, 'the final score is the freshest thing we hold').toContainText('3');
+  await expect(scoreline).toContainText('1');
+  await expect(row).toContainText('FT');
+  await expect(starIn(page, FIXTURE_ONE.id)).toHaveAttribute('data-pending', 'false');
+});
+
+test('MOCKED-ONLY: when the first of two overlapping note edits SUCCEEDS, the second\'s failure falls back to it and not to the original', async ({ page }) => {
+  const world = new World();
+  world.first.note = NOTE_BEFORE;
+  world.first.save(FIXTURE_ONE);
+  await stubWorld(page, world);
+  await startSignedIn(page, world, world.first);
+
+  await page.goto('/dashboard');
+  const row = savedRow(page, FIXTURE_ONE.id);
+  await expect(row.getByTestId('saved-match-note-text')).toHaveText(NOTE_BEFORE);
+
+  const firstEdit = holdWriteOn(world, FIXTURE_ONE.id);
+  await row.getByTestId('saved-match-note-edit').click();
+  await row.getByTestId('saved-match-note-input').fill(NOTE_EDITED);
+  await row.getByTestId('saved-match-note-save').click();
+  await firstEdit.arrived;
+
+  await row.locator(`a[href="/match/${FIXTURE_ONE.id}"]`).click();
+  await page.waitForURL(`**/match/${FIXTURE_ONE.id}`);
+  await goToDashboardThroughTheHeader(page);
+
+  /*
+   * A REFRESH LANDS WHILE THE FIRST EDIT IS STILL OUT, and it is what makes the two possible end
+   * states tell each other apart. The server has not committed that edit, so the snapshot
+   * carries the note it still holds, and the second edit is therefore issued over a screen
+   * showing the ORIGINAL. Whichever note the reader ends up with, it is not one this second
+   * write could have captured for itself.
+   */
+  await letTheSnapshotGoStale(page);
+  await refreshThroughTheTab(page);
+  await expect(row.getByTestId('saved-match-note-text'),
+    'the read is the server\'s word, and the held edit is not in it').toHaveText(NOTE_BEFORE);
+
+  const secondEdit = holdWriteOn(world, FIXTURE_ONE.id);
+  await row.getByTestId('saved-match-note-edit').click();
+  await row.getByTestId('saved-match-note-input').fill(NOTE_CORRECTED);
+  await row.getByTestId('saved-match-note-save').click();
+  await secondEdit.arrived;
+
+  // The first edit SAVES. Superseded by the second, its answer writes nothing to the screen —
+  // but from here on it is what the server holds, and the second write is the one that will
+  // have to say so.
+  await firstEdit.commit();
+  expect(world.first.saved.get(FIXTURE_ONE.id)?.note, 'the first edit really did save')
+    .toBe(NOTE_EDITED);
+  await landedWrite(page, SAVE_PATH, () => firstEdit.deliver());
+
+  // And the correction fails.
+  await secondEdit.commit(500);
+  await landedWrite(page, SAVE_PATH, () => secondEdit.deliver());
+  expect(world.first.saved.get(FIXTURE_ONE.id)?.note,
+    'the server is left holding the first edit, and that is the fact the screen must match')
+    .toBe(NOTE_EDITED);
+
+  // The editor keeps the text of a failed save rather than throwing the reader's typing away, so
+  // the note itself is read after they give up on the correction and close it.
+  await expect(row.getByRole('alert'), 'the reader is told the correction did not save')
+    .toBeVisible();
+  await row.getByRole('button', { name: /^cancel$/i }).click();
+
+  await expect(row.getByTestId('saved-match-note-text'),
+    'a rollback goes back to the last CONFIRMED note, which is the edit the server accepted')
+    .toHaveText(NOTE_EDITED);
+  expect(await page.locator('body').innerText(),
+    'the correction never reached the server and may not be shown as though it had')
+    .not.toContain(NOTE_CORRECTED);
+  await expect(starIn(page, FIXTURE_ONE.id)).toHaveAttribute('data-pending', 'false');
+});
+
+test('MOCKED-ONLY: the first of two overlapping note edits SUCCEEDS and is answered LAST, and its note is what the reader is left with', async ({ page }) => {
+  const world = new World();
+  world.first.note = NOTE_BEFORE;
+  world.first.save(FIXTURE_ONE);
+  await stubWorld(page, world);
+  await startSignedIn(page, world, world.first);
+
+  await page.goto('/dashboard');
+  const row = savedRow(page, FIXTURE_ONE.id);
+  await expect(row.getByTestId('saved-match-note-text')).toHaveText(NOTE_BEFORE);
+
+  const firstEdit = holdWriteOn(world, FIXTURE_ONE.id);
+  await row.getByTestId('saved-match-note-edit').click();
+  await row.getByTestId('saved-match-note-input').fill(NOTE_EDITED);
+  await row.getByTestId('saved-match-note-save').click();
+  await firstEdit.arrived;
+
+  await row.locator(`a[href="/match/${FIXTURE_ONE.id}"]`).click();
+  await page.waitForURL(`**/match/${FIXTURE_ONE.id}`);
+  await goToDashboardThroughTheHeader(page);
+
+  /*
+   * A REFRESH LANDS WHILE THE FIRST EDIT IS STILL OUT, for the same reason as in the test above:
+   * the second edit is then issued over a screen showing the ORIGINAL note, so the note the
+   * reader ends up with cannot be one this second write captured for itself.
+   */
+  await letTheSnapshotGoStale(page);
+  await refreshThroughTheTab(page);
+  await expect(row.getByTestId('saved-match-note-text'),
+    'the read is the server\'s word, and the held edit is not in it').toHaveText(NOTE_BEFORE);
+
+  const secondEdit = holdWriteOn(world, FIXTURE_ONE.id);
+  await row.getByTestId('saved-match-note-edit').click();
+  await row.getByTestId('saved-match-note-input').fill(NOTE_CORRECTED);
+  await row.getByTestId('saved-match-note-save').click();
+  await secondEdit.arrived;
+
+  // The server sees them in the order it received them: the first edit saves, the correction
+  // fails. That is the same end state as the test above — and the only difference here is the
+  // order the two answers come back in.
+  await firstEdit.commit();
+  await secondEdit.commit(500);
+  expect(world.first.saved.get(FIXTURE_ONE.id)?.note,
+    'the server is left holding the first edit, and that is the fact the screen must match')
+    .toBe(NOTE_EDITED);
+
+  /*
+   * THE CORRECTION'S FAILURE COMES BACK FIRST, while the first edit is still on the wire.
+   *
+   * Nothing has told this tab about the first edit yet, so rolling the row back to the note the
+   * chain opened with is right at this instant. What must not happen is the answer behind it
+   * being discarded on the strength of a write that has already finished: that answer is the
+   * newest thing the server has said about this row, and dropping it leaves the reader looking
+   * at a note the server replaced a round trip ago.
+   */
+  await landedWrite(page, SAVE_PATH, () => secondEdit.deliver());
+  await landedWrite(page, SAVE_PATH, () => firstEdit.deliver());
+
+  await expect(row.getByRole('alert'), 'the reader is told the correction did not save')
+    .toBeVisible();
+  await row.getByRole('button', { name: /^cancel$/i }).click();
+
+  await expect(row.getByTestId('saved-match-note-text'),
+    'the note the server confirmed must be on screen, whichever answer arrived first')
+    .toHaveText(NOTE_EDITED);
+  expect(await page.locator('body').innerText(),
+    'the correction never reached the server and may not be shown as though it had')
+    .not.toContain(NOTE_CORRECTED);
+  await expect(starIn(page, FIXTURE_ONE.id),
+    'and nothing may be left looking as though a write on this match is still running')
+    .toHaveAttribute('data-pending', 'false');
+});
+
+/**
+ * THE SAME ORDERING WHERE THE CHAIN OPENED ON NOTHING AT ALL, so the rollback is a deletion.
+ *
+ * The match is not saved when the reader stars it, which makes the chain's baseline "no save
+ * here" — and a rollback to that removes the bookmark rather than changing a note. Let the later
+ * write's failure land first and discard the star's own success behind it, and a bookmark the
+ * server is holding disappears from the screen with nothing left to bring it back until the next
+ * read.
+ *
+ * THE SECOND WRITE IS A NOTE EDIT RATHER THAN A REMOVAL, and that is the interface's doing, not
+ * a preference: the star is inert while `pendingMatchIds` holds the match, so a reader cannot
+ * press it twice, while the note editor is React state inside one mounted component and a fresh
+ * one knows nothing about the write still running. Whichever of the two the second write is, it
+ * is a write on the same key whose failure rolls back to the same baseline.
+ */
+test('MOCKED-ONLY: a bookmark the server confirmed is not deleted by the failure of the write issued after it', async ({ page }) => {
+  const world = new World();
+  await stubWorld(page, world);
+  await startSignedIn(page, world, world.first);
+
+  /*
+   * Starred from the match page, where the reader is looking at the fixture itself. Nothing of
+   * this match is saved yet, which is the whole point: the chain opens on an absent row.
+   *
+   * THE FIRST READ IS WAITED FOR BEFORE THE STAR IS PRESSED. A save issued over a store that
+   * holds no snapshot yet writes no optimistic row — there is nothing to insert it into — and
+   * the read landing mid-write would then be discarded and reissued, bringing back a snapshot
+   * built before the save reached the server. Neither is the race under test; both are avoided
+   * by starting from a page that has its snapshot.
+   */
+  const firstRead = page.waitForResponse(r => r.url().includes('/api/v1/me/favourites'));
+  await page.goto(`/match/${FIXTURE_ONE.id}`);
+  await firstRead;
+  await page.waitForTimeout(500);
+  const matchPageStar = page.getByTestId('save-match-button').first();
+  await expect(matchPageStar, 'the match is not saved when the reader arrives')
+    .toHaveAttribute('data-saved', 'false');
+
+  const theSave = holdWriteOn(world, FIXTURE_ONE.id);
+  await matchPageStar.click();
+  await theSave.arrived;
+  await expect(matchPageStar, 'the save is really on the wire').toHaveAttribute('data-pending', 'true');
+
+  await goToDashboardThroughTheHeader(page);
+  const row = savedRow(page, FIXTURE_ONE.id);
+  await expect(row, 'the bookmark is on the dashboard optimistically, its answer still held')
+    .toBeVisible();
+
+  // A fresh note editor over the save that is still running — section 8 explains why the
+  // interface allows it. This is the second write on the match.
+  const theNote = holdWriteOn(world, FIXTURE_ONE.id);
+  await row.getByTestId('saved-match-note-edit').click();
+  await row.getByTestId('saved-match-note-input').fill(NOTE_EDITED);
+  await row.getByTestId('saved-match-note-save').click();
+  await theNote.arrived;
+
+  // The server saves the match, then refuses the note. What it holds at the end is a bookmark
+  // with no note on it.
+  await theSave.commit();
+  await theNote.commit(500);
+  expect(world.first.saved.has(FIXTURE_ONE.id), 'the server is holding the bookmark').toBe(true);
+  expect(world.first.saved.get(FIXTURE_ONE.id)?.note, 'and no note, the edit having failed')
+    .toBeNull();
+
+  // The note's failure is answered first, and the star's success second.
+  await landedWrite(page, SAVE_PATH, () => theNote.deliver());
+  await landedWrite(page, SAVE_PATH, () => theSave.deliver());
+
+  await expect(row, 'a bookmark the server holds may not be left off the screen').toBeVisible();
+  await expect(starIn(page, FIXTURE_ONE.id), 'and the star must agree with it')
+    .toHaveAttribute('data-saved', 'true');
+  await expect(page.getByTestId('saved-matches-empty'),
+    'so the dashboard cannot be telling the reader they have saved nothing').toHaveCount(0);
+  expect(await page.locator('body').innerText(),
+    'the note that failed may not be shown as though it had saved').not.toContain(NOTE_EDITED);
+  await expect(starIn(page, FIXTURE_ONE.id)).toHaveAttribute('data-pending', 'false');
+});
+
+/**
+ * A ROW THAT MOVES WHILE BOTH EDITS ARE ON THE WIRE, AND NOT BY EITHER OF THEM.
+ *
+ * A note written on the reader's phone reaches this tab through a read and through nothing else,
+ * and this one lands between the two failures. The older failure is then the last thing to speak
+ * about the row with nothing newer outstanding, so a rollback reasserting the value the chain
+ * opened on would take the phone's note straight back off the screen, with nothing to bring it
+ * back until the next refresh — the reader watching what they had just written disappear on a
+ * tab they were only looking at.
+ *
+ * WHAT IT GOES BACK TO IS THE REFRESH'S ROW INSTEAD: a read states what the server holds as much
+ * as an answer does, and this one is later than anything either edit captured.
+ * `confirmBaselinesFromRead` in src/services/favourites.service.ts.
+ */
+test('MOCKED-ONLY: the older of two failed note edits does not undo a note a refresh brought in from the phone', async ({ page }) => {
+  const world = new World();
+  world.first.note = NOTE_BEFORE;
+  world.first.save(FIXTURE_ONE);
+  await stubWorld(page, world);
+  await startSignedIn(page, world, world.first);
+
+  await page.goto('/dashboard');
+  const row = savedRow(page, FIXTURE_ONE.id);
+  await expect(row.getByTestId('saved-match-note-text')).toHaveText(NOTE_BEFORE);
+
+  const firstEdit = holdWriteOn(world, FIXTURE_ONE.id);
+  await row.getByTestId('saved-match-note-edit').click();
+  await row.getByTestId('saved-match-note-input').fill(NOTE_EDITED);
+  await row.getByTestId('saved-match-note-save').click();
+  await firstEdit.arrived;
+
+  // A fresh editor over a write that is still running — section 8 explains why the interface
+  // allows it, and it is the only way to put two writes on one match on the wire.
+  await row.locator(`a[href="/match/${FIXTURE_ONE.id}"]`).click();
+  await page.waitForURL(`**/match/${FIXTURE_ONE.id}`);
+  await goToDashboardThroughTheHeader(page);
+  await expect(row.getByTestId('saved-match-note-text'),
+    'the first edit is on screen optimistically, its answer still held').toHaveText(NOTE_EDITED);
+
+  const secondEdit = holdWriteOn(world, FIXTURE_ONE.id);
+  await row.getByTestId('saved-match-note-edit').click();
+  await row.getByTestId('saved-match-note-input').fill(NOTE_CORRECTED);
+  await row.getByTestId('saved-match-note-save').click();
+  await secondEdit.arrived;
+  await expect(starIn(page, FIXTURE_ONE.id), 'two writes on this match are really in flight')
+    .toHaveAttribute('data-pending', 'true');
+
+  // Neither edit reaches the server. The correction is refused first, and rolls the row back to
+  // the note the chain opened with — correctly: that is everything anyone has said about it.
+  await firstEdit.commit(500);
+  await secondEdit.commit(500);
+  await landedWrite(page, SAVE_PATH, () => secondEdit.deliver());
+  await expect(row.getByRole('alert'), 'the reader is told the correction did not save')
+    .toBeVisible();
+  await row.getByRole('button', { name: /^cancel$/i }).click();
+  await expect(row.getByTestId('saved-match-note-text'),
+    'and the note the server confirmed is what is left on screen').toHaveText(NOTE_BEFORE);
+
+  /*
+   * THEN THE READER WRITES THE NOTE ON THEIR PHONE and comes back to this tab. The refresh is
+   * the server's own word about this row and a later one than the chain opened with, while the
+   * first edit's failure — still on the wire — carries nothing about it at all.
+   */
+  world.first.save(FIXTURE_ONE, NOTE_FROM_PHONE);
+  await letTheSnapshotGoStale(page);
+  await refreshThroughTheTab(page);
+  await expect(row.getByTestId('saved-match-note-text'),
+    'the refresh brings the phone\'s note into this tab').toHaveText(NOTE_FROM_PHONE);
+
+  await landedWrite(page, SAVE_PATH, () => firstEdit.deliver());
+
+  expect(world.first.saved.get(FIXTURE_ONE.id)?.note,
+    'the server is holding the note from the phone, neither edit having reached it')
+    .toBe(NOTE_FROM_PHONE);
+  await expect(row.getByTestId('saved-match-note-text'),
+    'so a failure older than the refresh may not roll the row back over it')
+    .toHaveText(NOTE_FROM_PHONE);
+  const shown = await page.locator('body').innerText();
+  expect(shown, 'the note the phone replaced may not be put back either')
+    .not.toContain(NOTE_BEFORE);
+  expect(shown, 'and an edit that failed may not be shown as though it had saved')
+    .not.toContain(NOTE_EDITED);
+  expect(shown, 'nor the correction that failed with it').not.toContain(NOTE_CORRECTED);
+  await expect(starIn(page, FIXTURE_ONE.id),
+    'and nothing may be left looking as though a write on this match is still running')
+    .toHaveAttribute('data-pending', 'false');
 });

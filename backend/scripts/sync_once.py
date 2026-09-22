@@ -22,6 +22,9 @@ loop is alive cannot make two passes of the same task overlap.
 
   --force skips only the "is it due yet" check. The daily budget ceiling and the locks still apply:
   there is deliberately no flag that lets this script spend allowance the budget has refused.
+
+  The two combine: `--dry-run --force` describes the pass `--force` would make, not the unforced
+  one. An estimate has one job, which is to be the pass you are about to run.
 """
 
 import argparse
@@ -47,13 +50,18 @@ def _parse_args(argv=None):
 
 
 def _print_estimate(report) -> None:
-    print("dry run - no provider was called")
+    print("dry run - no provider was called"
+          + (" (--force: the interval is ignored)" if report.get("forced") else ""))
     print()
     for name, entry in report.get("tasks", {}).items():
         verb = "would run" if entry.get("would_run") else "would be skipped"
         print(f"  {name:10} {verb}")
         if not entry.get("due_now"):
-            print(f"{'':13}not due: {entry.get('reason_not_due')}")
+            # Under --force the interval is reported and then overridden, in that order. Printing
+            # only "not due" beside a task the same report prices and counts is how a dry run ends
+            # up describing a pass nobody asked for.
+            suffix = ", overridden by --force" if entry.get("forced") else ""
+            print(f"{'':13}not due: {entry.get('reason_not_due')}{suffix}")
         if entry.get("blocked"):
             print(f"{'':13}blocked: {entry['blocked']}")
         cost = entry.get("estimated_requests")
@@ -194,11 +202,33 @@ def _summarise(name, result):
     return lines
 
 
+def _quiet_sql_echo() -> None:
+    """Silence SQLAlchemy's statement log for this process.
+
+    The engine is built with `echo=settings.DEBUG`, which is right for a development server - every
+    statement in the log beside the request that issued it - and wrong for a one-shot report: a
+    fixtures pass emits hundreds of SQL lines, and the twenty they bury are the only reason to run
+    this script. `Engine.echo` is a settable property, so this turns the statement log off here
+    and changes nothing about how the server logs. The level is pinned as well as the flag,
+    because turning the flag off leaves behind the handler and the INFO level that turning it on
+    installed on the engine's own logger.
+
+    Run the backend, or read its log, to see the statements themselves.
+    """
+    import logging
+
+    from app.db.session import engine
+
+    engine.echo = False
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
+
 def main(argv=None) -> int:
     args = _parse_args(argv)
+    _quiet_sql_echo()
     scheduler = SyncScheduler()
     try:
-        report = (scheduler.estimate(only=args.task) if args.dry_run
+        report = (scheduler.estimate(only=args.task, force=args.force) if args.dry_run
                   else scheduler.run_once(only=args.task, force=args.force))
     except ValueError as exc:
         print(str(exc), file=sys.stderr)

@@ -50,8 +50,24 @@ LIVE_STATUS_MAP = {
     "SUSPENDED": STATUS_POSTPONED,
 }
 
+#: Page ceiling for the fixture reads: the default `_paginate` uses, and the bound `get_upcoming`'s
+#: own loop counts against. At 30 rows a page that is at most 5 requests and 150 rows for one call.
+#: It is a ceiling, not a target — every loop below also stops as soon as the answer is complete —
+#: and because the page counter only ever increases towards it, no loop here can run away even if
+#: the provider keeps advertising a next page.
+#:
+#: It is NOT the ceiling on every read: a caller that must have the whole of a longer list passes
+#: its own, and `list_competitions` does (COMPETITION_LIST_MAX_PAGES below). Budget a paginated
+#: read against the ceiling that read actually passes.
 MAX_PAGES = 5
 COMPETITION_STORE_KEY = "provider:livescore:competitions"
+
+#: Page ceiling for the competition list, the one read here that may cost far more than MAX_PAGES:
+#: up to 40 requests and 1,200 rows in a single call. The provider lists every competition it
+#: covers, 30 to a page, and the whole list has to be walked to find the covered ones in it. What
+#: keeps that off the request path is the Redis store (`_load_store`): the resolved ids are kept
+#: fresh for MATCH_CACHE_TTL_COMPETITIONS and stale-kept for 30 days, so this ceiling is paid on a
+#: cold store, not per page load.
 COMPETITION_LIST_MAX_PAGES = 40
 MIN_REQUEST_INTERVAL = 1.0   # seconds between calls (bursts are answered with HTTP 401)
 BURST_RETRY_DELAY = 2.5
@@ -356,6 +372,49 @@ class LiveScoreAPIProvider(MatchDataProvider):
                         key, days_ahead, limit.isoformat(),
                         next_in_calendar.isoformat() if next_in_calendar else "not listed at all")
         return fixtures
+
+    def get_calendar_head(self, key: str, limit: int = 5) -> Optional[List[ProviderFixture]]:
+        """The next fixtures of one competition, from ONE page of the dateless calendar.
+
+        fixtures/list.json with no `date` answers with the competition's remaining calendar in
+        kickoff order, 30 rows to a page. The earliest fixtures are therefore all on page one and
+        no later page can hold an earlier one, so this reads page one and stops. Exactly one
+        request, whatever the answer — which is the contract `MatchDataProvider.get_calendar_head`
+        states and the reason a caller may afford it once per competition. It must not grow a
+        pagination loop: `get_upcoming` is the method for a window that can span several pages.
+
+        (Resolving `key` to a provider competition id is free for the covered competitions: those
+        ids come from the static defaults or from the Redis store, never from the network.)
+
+        A fixture is only offered when its kickoff can actually be read off the payload and is
+        still ahead. A row whose date will not parse is dropped rather than carried: the fixture
+        mapper dates such a row `now`, and a row dated `now` by a parsing failure would be
+        presented to a reader as the very next match.
+        """
+        comps_found = self.list_competitions([key])
+        if not comps_found:
+            # The competition could not be identified, so nothing was asked and nothing is known.
+            # An empty list here would claim the calendar is empty, which is a different fact.
+            return None
+        comp = comps_found[0]
+        # Attributed as "calendar" rather than "fetch": this is the only spending a reader can
+        # start by opening an empty day, and it is worth being able to read off the day's
+        # `by_reason` counters on its own.
+        data = self._get("fixtures/list.json", reason="calendar", competition_id=comp.external_id)
+        items = data.get("fixtures") or []
+        self._check_competition_name(comp, items)
+        now = datetime.now(timezone.utc)
+        fixtures: List[ProviderFixture] = []
+        for item in items:
+            kickoff = parse_utc(f"{item.get('date')} {item.get('time') or '00:00:00'}")
+            if kickoff is None or kickoff <= now:
+                continue
+            fixture = self._fixture_from_scheduled(item, [key])
+            fixture.competition = comp
+            fixtures.append(fixture)
+        fixtures.sort(key=lambda f: f.kickoff_utc)
+        return fixtures[:max(int(limit), 0)]
+
     def get_live(self, keys: Iterable[str]) -> List[ProviderFixture]:
         keys = list(keys)
         wanted = {c.external_id: c for c in self.list_competitions(keys)}

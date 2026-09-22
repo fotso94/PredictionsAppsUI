@@ -29,10 +29,17 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     # CORS
+    # The browser sends an Origin the moment the interface talks to this API cross-origin, and
+    # anything not listed here is refused before the endpoint is reached - which the reader sees
+    # as a sign-in button that does nothing rather than as an error. 3100 is the port the frontend
+    # dev server binds (--port 3100 --strictPort) and the one e2e/live drives, so leaving it out
+    # makes the whole live suite fail on sign-in while every API-level check still passes.
     BACKEND_CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:3000",  # React frontend
-        "http://localhost:5173",  # Vite dev server
+        "http://localhost:3100",  # Vite dev server, the port this project actually uses
+        "http://localhost:5173",  # Vite default, for a dev server started without --port
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3100",
         "http://127.0.0.1:5173",
     ]
 

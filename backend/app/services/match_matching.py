@@ -50,15 +50,52 @@ _UMLAUT_FOLD = re.compile(
 )
 _UMLAUT_TARGET = {"ae": "a", "oe": "o", "ue": "u"}
 
+# ------------------------------------------------------------------ dropped-suffix spellings
+# A bare place name against that same place name plus a common club word is the one shape this
+# module cannot decide. "Cardiff" / "Cardiff City" is one club written two ways. "Dundee" /
+# "Dundee United" is two clubs in one city, and a bare "Bristol" is either Bristol City or
+# Bristol Rovers. Every one of those strings is built the same way, so no ratio, threshold or
+# token rule separates them: the difference is not in the strings. A rule loose enough to join
+# "Cardiff" to "Cardiff City" joins "Manchester United" to "Manchester City" as well.
+#
+# Hence a list, one club per line. The two failures are not symmetrical. A club with no line here
+# is stored twice, which `scripts/repair_duplicate_matches.py` lists and a person folds back into
+# one row. A wrong line re-points the provider's team ref, so every later fixture of that club is
+# filed under the other club, silently and for good. Missing is recoverable; wrong is not.
+#
+# The first block is an observation of this installation's data rather than a recollection:
+# `provider_entity_refs` records the name each provider sent, and for each of those clubs both
+# spellings appear against ONE team row in the competitions synced here. Each of those lines says
+# which provider writes which, so it can be checked against the database by someone who does not
+# follow football. The second block is marked off precisely because that check does not pass for
+# it, and says so on its own terms.
+_SUFFIX_DROP_ALIASES = {
+    "brighton": "brighton hove albion",  # livescore "Brighton & Hove Albion"; api_football, gameforecast "Brighton"
+    "coventry": "coventry city",         # livescore "Coventry City"; api_football, gameforecast "Coventry"
+    "ipswich": "ipswich town",           # livescore "Ipswich Town"; api_football, gameforecast "Ipswich"
+    "leeds": "leeds united",             # livescore "Leeds United"; api_football, gameforecast "Leeds"
+    "newcastle": "newcastle united",     # livescore "Newcastle United"; api_football, gameforecast "Newcastle"
+    "tottenham": "tottenham hotspur",    # livescore "Tottenham Hotspur"; gameforecast "Tottenham"
+
+    # The same shape, with no such observation behind it: no provider here has been seen writing
+    # these short forms. Leicester City, Norwich City and Wolverhampton Wanderers are not in this
+    # database at all, and every provider that names Nottingham Forest names it in full. They are
+    # marked off from the observed lines above and carry the same risk as any line -- each merges
+    # only the two spellings written on it.
+    "leicester": "leicester city",
+    "norwich": "norwich city",
+    "nottingham": "nottingham forest",
+    "wolverhampton": "wolverhampton wanderers",
+}
+
 # Canonical aliases (normalised form -> canonical normalised form)
 _ALIASES = {
+    **_SUFFIX_DROP_ALIASES,
     "man city": "manchester city", "man utd": "manchester united", "man united": "manchester united",
-    "manchester utd": "manchester united", "spurs": "tottenham hotspur", "tottenham": "tottenham hotspur",
-    "wolves": "wolverhampton wanderers", "wolverhampton": "wolverhampton wanderers",
-    "newcastle": "newcastle united", "west ham": "west ham united", "brighton": "brighton hove albion",
+    "manchester utd": "manchester united", "spurs": "tottenham hotspur",
+    "wolves": "wolverhampton wanderers", "west ham": "west ham united",
     "brighton and hove albion": "brighton hove albion", "brighton & hove albion": "brighton hove albion",
-    "nottm forest": "nottingham forest", "nottingham": "nottingham forest", "sheffield utd": "sheffield united",
-    "leeds": "leeds united", "villa": "aston villa", "leicester": "leicester city", "norwich": "norwich city",
+    "nottm forest": "nottingham forest", "sheffield utd": "sheffield united", "villa": "aston villa",
     "internazionale": "inter milan", "inter": "inter milan", "fc internazionale milano": "inter milan",
     "milan": "ac milan", "roma": "roma", "as roma": "roma", "lazio": "lazio", "juve": "juventus",
     "napoli": "napoli", "ssc napoli": "napoli", "hellas": "hellas verona", "verona": "hellas verona",
@@ -88,8 +125,9 @@ _ALIASES = {
     "brugge": "club brugge", "fc copenhagen": "copenhagen", "kobenhavn": "copenhagen", "fc kobenhavn": "copenhagen",
     "red bull salzburg": "salzburg", "fc salzburg": "salzburg", "shakhtar": "shakhtar donetsk",
     "olympiakos": "olympiacos", "olympiacos piraeus": "olympiacos", "olympiakos piraeus": "olympiacos",
-    "brugge kv": "club brugge", "club brugge kv": "club brugge", "stade brestois 29": "brest", "brestois 29": "brest", "slavia praha": "slavia prague",
-    "sparta praha": "sparta prague", "bodo/glimt": "bodo glimt", "fk bodo glimt": "bodo glimt",
+    "brugge kv": "club brugge", "club brugge kv": "club brugge", "stade brestois 29": "brest",
+    "brestois 29": "brest", "slavia praha": "slavia prague", "sparta praha": "sparta prague",
+    "bodo/glimt": "bodo glimt", "fk bodo glimt": "bodo glimt",
     "union st gilloise": "union saint gilloise", "union sg": "union saint gilloise",
     "royale union saint gilloise": "union saint gilloise", "royale union sg": "union saint gilloise",
     "galatasaray sk": "galatasaray", "fenerbahce sk": "fenerbahce", "ajax amsterdam": "ajax", "afc ajax": "ajax",
@@ -123,28 +161,61 @@ def _is_generic_token(token: str) -> bool:
     return token in _SHARED_TOKENS or token in _NOISE_TOKENS or len(token) <= 2
 
 
+def _is_decoration_of(token: str, longer_tokens: List[str]) -> bool:
+    """
+    Is `longer_tokens` the single word `token` with nothing but decoration around it?
+
+    Position decides, because the two sides of a club name do different work. A word BEFORE the
+    name decorates it: "Deportivo Alaves", "Stade de Reims", "CA Osasuna" are all one club under
+    two spellings. A word AFTER it is an English club suffix, and those tell clubs APART -- Dundee
+    and Dundee United are two clubs in one league, as are Bristol City and Bristol Rovers -- so
+    only a club-type initialism may follow ("Besiktas JK"). Short forms that really do drop a
+    suffix are spelt out in `_SUFFIX_DROP_ALIASES` one club at a time instead of being derived here.
+    """
+    if token not in longer_tokens:
+        return False
+    cut = longer_tokens.index(token)
+    return (all(_is_generic_token(t) for t in longer_tokens[:cut])
+            and all(len(t) <= 2 or t in _NOISE_TOKENS for t in longer_tokens[cut + 1:]))
+
+
 def team_names_match(a: Optional[str], b: Optional[str]) -> bool:
+    """
+    Are these two spellings one club?
+
+    The only answer this module gives, and the one every caller that needs club identity asks --
+    including `match_registry`, where the answer is written into `provider_entity_refs` and
+    survives every later sync. A looser companion is deliberately not offered.
+
+    The answer comes from the curated `_ALIASES` table, where each pairing is one reviewable line
+    a person wrote, and from `_is_decoration_of`, where a word in front of a name decorates it and
+    a word behind it tells two clubs apart. A similarity measure cannot do this job at any
+    threshold: "Ipswich" / "Ipswich Town" and "Paris FC" / "Paris Saint-Germain" are the same
+    shape to a string metric, and the first pair is one club while the second is two clubs in one
+    city. The ratio at the foot of this function is the last word on a TYPO, not on identity: at
+    0.9 the two normalised names differ by about a letter.
+    """
     na, nb = normalize_team_name(a), normalize_team_name(b)
     if not na or not nb:
         return False
     if na == nb:
         return True
-    ta, tb = set(na.split()), set(nb.split())
+    la, lb = na.split(), nb.split()
+    ta, tb = set(la), set(lb)
     # One name fully contained in the other (e.g. "alaves" vs "deportivo alaves", "osasuna" vs "ca osasuna").
     # A single shared city/generic token ("madrid", "paris", "united") is never enough on its own:
     # "Real Madrid" must not swallow "Atletico Madrid" and "Paris Saint-Germain" must not swallow "Paris FC".
     if ta and tb and (ta <= tb or tb <= ta):
-        shorter, longer = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
+        shorter, longer_tokens = (ta, lb) if len(ta) <= len(tb) else (tb, la)
         if len(shorter) >= 2:
             return True
         if len(shorter) == 1:
             token = next(iter(shorter))
             # A one-token subset is never accepted on the name alone: the longer name may only add
-            # generic decoration ("Deportivo Alaves", "CA Osasuna", "Besiktas JK"). Anything that adds
-            # a real identifying word is a different club ("Grasshopper Zurich" is not "Zurich",
-            # "Lokomotive Leipzig" is not "Leipzig").
-            if (token not in _SHARED_TOKENS and len(token) >= 4
-                    and all(_is_generic_token(extra) for extra in longer - shorter)):
+            # decoration ("Deportivo Alaves", "CA Osasuna", "Besiktas JK"). Anything that adds a
+            # real identifying word is a different club ("Grasshopper Zurich" is not "Zurich",
+            # "Lokomotive Leipzig" is not "Leipzig", "Dundee United" is not "Dundee").
+            if token not in _SHARED_TOKENS and len(token) >= 4 and _is_decoration_of(token, longer_tokens):
                 return True
     return SequenceMatcher(None, na, nb).ratio() >= 0.9
 
@@ -248,7 +319,9 @@ def find_match(
     if len(within) == 1:
         delta, cand = within[0]
         confidence = "exact" if delta <= EXACT_WINDOW else "high"
-        return MatchDecision(cand.match_id, confidence, f"teams and kickoff match (delta {int(delta.total_seconds() // 60)} min)", [cand.match_id])
+        return MatchDecision(cand.match_id, confidence,
+                             f"teams and kickoff match (delta {int(delta.total_seconds() // 60)} min)",
+                             [cand.match_id])
     if len(within) > 1:
         return MatchDecision(None, "ambiguous", "several candidates within the kickoff window", [c.match_id for _, c in within])
     near = [(d, c) for d, c in name_matches if d is not None and d <= RESCHEDULE_WINDOW]

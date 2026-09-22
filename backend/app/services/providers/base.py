@@ -230,6 +230,27 @@ class MatchDataProvider(ABC):
             fixtures.extend(self.get_fixtures(today + timedelta(days=offset), [key]))
         return fixtures
 
+    def get_calendar_head(self, key: str, limit: int = 5) -> Optional[List[ProviderFixture]]:
+        """The earliest fixtures still to come in one competition's calendar, or None.
+
+        Answers "when does this competition play again, and against whom" for a competition that
+        has nothing inside the few days the fixtures task looks at. The caller asks it once per
+        competition, so the contract is a hard ONE request per call: no pagination, no widening
+        window, no walking forward a day at a time.
+
+        `None` means this provider cannot answer under that contract, and the caller must treat it
+        as "we do not know" rather than as "there is nothing". Returning None is the default
+        precisely because `get_upcoming` above would answer it by asking for `days_ahead + 1`
+        separate days — eighteen days of silence across six competitions is over a hundred
+        requests for a sentence in an empty state, which is not a trade any caller should be able
+        to make by accident. A provider whose API has a dateless calendar endpoint overrides this;
+        one that has only a per-day endpoint leaves it alone.
+
+        An empty LIST is a different answer again: the provider was asked, answered, and listed no
+        fixture to come. That is a real fact about the calendar, and the caller may say so.
+        """
+        return None
+
 
 class ForecastProvider(ABC):
     """Third-party match forecasts."""

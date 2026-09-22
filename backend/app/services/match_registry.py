@@ -39,6 +39,26 @@ STATUS_TO_ENUM = {
 TERMINAL_STATUSES = (MatchStatus.FINISHED, MatchStatus.CANCELLED)
 REGRESSIVE_STATUSES = (MatchStatus.SCHEDULED, MatchStatus.LIVE)
 
+#: How close two kickoffs must be for `_shared_slot_candidates` to call them the same moment.
+#: The tightest window there is; a club that appears twice an hour apart is playing twice.
+SHARED_SLOT_WINDOW = match_matching.EXACT_WINDOW
+
+#: How long after kickoff a fixture is left alone before anything calls it unsettled. The same
+#: grace the results gate applies, so a sweep never asks about a game that is still being played.
+UNSETTLED_GRACE = timedelta(minutes=150)
+#: How many days older than the results lookback one sweep may reopen. A results call costs one
+#: provider request per competition per day, so this cap is the sweep's entire extra cost.
+STALE_SWEEP_MAX_DAYS = 2
+#: How many sweeps one fixture is re-asked about before it is given up on.
+STALE_SWEEP_MAX_ATTEMPTS = 3
+#: The outer bound on how far back the sweep will look at all, measured from the moment of the
+#: sweep. Without one, a row the provider will never answer about is a cost that never ends; and a
+#: results endpoint is a window on the recent past rather than an archive, so the further back the
+#: question, the less there is to get. `unsettled_before` selects by it and
+#: `record_recovery_attempt` gives up by it, both against the same clock, so a fixture is never
+#: offered and then abandoned as too old in one pass.
+STALE_SWEEP_MAX_AGE = timedelta(days=14)
+
 
 def _naive_utc(dt: datetime) -> datetime:
     """Match.match_date is a naive column; store UTC wall time."""
@@ -293,10 +313,10 @@ class MatchRegistry:
         """
         Find a pre-registry match row for this fixture (`external_api_id`, no provider_entity_ref).
 
-        Such a row is invisible to `match_by_ref`, so the next sync used to create a SECOND match row
-        and orphan every expert prediction attached to the first. A row is accepted only when it is
-        provably the same fixture (both team names agree and the kickoff is inside the reschedule
-        window) and only when exactly one row matches.
+        Such a row is invisible to `match_by_ref`, and without this lookup the sync writes a SECOND
+        match row for the fixture and leaves every expert prediction on the first. A row is
+        accepted only when it is provably the same fixture -- both team names agree and the kickoff
+        is inside the reschedule window -- and only when exactly one row matches.
         """
         external_id = str(fixture.external_id or "").strip()
         if not external_id or external_id == "None":
@@ -360,7 +380,7 @@ class MatchRegistry:
                        fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name,
                        reason, candidates)
 
-    def _ref_still_describes(self, match: Match, fixture: ProviderFixture) -> bool:
+    def _ref_still_describes(self, match: Match, fixture: ProviderFixture, home: Team, away: Team) -> bool:
         """Do the teams on the match a provider id points at still match the ones just sent, in order?
 
         A provider id is a claim, not proof. These ids are small integers and get recycled between
@@ -368,8 +388,15 @@ class MatchRegistry:
         id would quietly repurpose an existing match row - taking any expert prediction attached to it
         along to a different game.
 
-        The order has to agree too: in a two-legged tie the reverse fixture is a different match.
+        The resolved club rows settle it whenever they agree, which is what happens once the
+        provider's team ids are linked to the stored clubs; the raw provider names are the fallback
+        for a match row whose clubs this provider has never been linked to. A provider that spells
+        a club differently from the row it is stored under can only be accepted on identity, since
+        its name will never match. The order has to agree either way: in a two-legged tie the
+        reverse fixture is a different match.
         """
+        if match.home_team_id == home.id and match.away_team_id == away.id:
+            return True
         stored_home = self.db.query(Team).filter(Team.id == match.home_team_id).first()
         stored_away = self.db.query(Team).filter(Team.id == match.away_team_id).first()
         if stored_home is None or stored_away is None:
@@ -377,16 +404,78 @@ class MatchRegistry:
         return (match_matching.team_names_match(fixture.home.name, stored_home.name)
                 and match_matching.team_names_match(fixture.away.name, stored_away.name))
 
+    # ------------------------------------------------------- one club, one game at a time
+    def _shared_slot_candidates(self, league: League, home: Team, away: Team,
+                                kickoff_utc: Optional[datetime], provider: str
+                                ) -> List[Tuple[Match, Optional[str]]]:
+        """
+        Stored fixtures that hold one of these clubs in this competition at this kickoff.
+
+        `find_match` has only team names to go on, so two providers that spell one club differently
+        resolve it to two Team rows whose names never meet, and the fixture is stored twice. Club
+        identity does meet, because it is a row id rather than a spelling.
+
+        Each entry is the stored match and the slot whose club rows DISAGREE -- "home", "away", or
+        None when both slots carry the identical club. Only the None entries identify the fixture:
+        no calendar puts one club in two fixtures fifteen minutes apart in one competition, so a
+        stored row with both of these clubs at this moment is this game whatever either provider
+        calls them. An entry naming a slot is the opposite of a decision. It says two records put
+        different clubs in the same place at the same time, which is a contradiction the caller
+        reports rather than resolves.
+
+        A row this provider already links to one of its other fixture ids is left out: one provider
+        never gives one fixture two live ids.
+        """
+        if kickoff_utc is None:
+            return []
+        start, end = _naive_utc(kickoff_utc - SHARED_SLOT_WINDOW), _naive_utc(kickoff_utc + SHARED_SLOT_WINDOW)
+        rows = self.db.query(Match).filter(
+            Match.league_id == league.id,
+            Match.match_date >= start, Match.match_date <= end,
+            or_(Match.home_team_id == home.id, Match.away_team_id == away.id),
+        ).all()
+        claimed = self.claimed_by_provider(provider, [str(m.id) for m in rows])
+        found: List[Tuple[Match, Optional[str]]] = []
+        for m in rows:
+            if str(m.id) in claimed:
+                continue
+            same_home, same_away = m.home_team_id == home.id, m.away_team_id == away.id
+            if same_home and same_away:
+                found.append((m, None))
+            elif same_home:
+                found.append((m, "away"))
+            elif same_away:
+                found.append((m, "home"))
+        return found
+
     def upsert_fixture(self, fixture: ProviderFixture) -> Optional[Match]:
         """
         Persist one provider fixture and return the internal match.
 
-        Returns **None** when the fixture cannot be attributed with certainty -- an ambiguous
-        name/kickoff decision, teams that only match with home and away swapped, several candidates
-        in the window. Nothing is written for a refused fixture and the refusal is appended to
-        `self.refusals` so the caller can count and report it. Creating a row on an ambiguous decision
-        is what split one real fixture over two match rows and orphaned the expert prediction on the
-        first one, so callers MUST handle None instead of dereferencing the result.
+        Returns **None** for four reasons. In every one of them nothing is written, the refusal
+        goes on `self.refusals` and into the log for the caller to count and report, and callers
+        MUST handle None instead of dereferencing the result.
+
+        Three are a stored row that is the only honest home for this fixture and cannot be proven
+        to be that row: an ambiguous name/kickoff decision, teams that match only with home and
+        away swapped, several candidates in the window. Those candidates carry THESE clubs, so a
+        new row would be a second copy of a fixture already stored.
+
+        The fourth reason is the opposite case and is refused for its own reason: the provider's
+        fixture id is already linked to a stored match whose clubs it no longer names. Writing
+        this fixture onto that row would overwrite one fixture with another, and nothing here can
+        tell an id re-pointed at a genuinely new fixture from a link that has gone wrong, so
+        neither the stored row nor a new one is written. The cost is that a provider which reuses
+        a fixture id for a new fixture has it refused on this sync and on every later one, and
+        the fixture stays off the site until a person clears the stale ref -- which is what the
+        repeated refusal in `self.refusals` and the log is there to bring to their attention.
+
+        A fixture no candidate can be is different: it is stored. When a stored row holds one of
+        its clubs at this kickoff beside a different opponent, the two records contradict each
+        other and neither says which is wrong, so the row is written anyway and records the clash
+        under `match_metadata.shared_slot_conflict` for a person to resolve. Declining to merge two
+        clubs is a judgement about identity; declining to store is throwing a real fixture away,
+        and a stored row that vetoes a kickoff vetoes it on every later sync too.
         """
         league = self.upsert_league(fixture.competition)
         home = self.upsert_team(fixture.home, fixture.competition.country)
@@ -394,7 +483,7 @@ class MatchRegistry:
 
         match = self.match_by_ref(fixture.provider, fixture.external_id)
         matched_by, confidence = "provider_id", "exact"
-        if match is not None and not self._ref_still_describes(match, fixture):
+        if match is not None and not self._ref_still_describes(match, fixture, home, away):
             self._record_refusal(
                 fixture, "provider fixture id no longer names the same teams in the same order",
                 [str(match.id)])
@@ -420,6 +509,27 @@ class MatchRegistry:
                     return None
                 logger.info("Fixture %s:%s (%s vs %s): candidates %s are the same provider's other fixtures; new match row",
                             fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name, decision.candidate_ids)
+        clash: List[str] = []
+        if match is None:
+            # Last resort before a new row: the names failed, but club rows are ids, not spellings,
+            # and a club plays one match at a time.
+            shared = self._shared_slot_candidates(league, home, away, fixture.kickoff_utc, fixture.provider)
+            settled = [m for m, slot in shared if slot is None]
+            if len(settled) == 1:
+                match = settled[0]
+                matched_by, confidence = "shared_slot_identity", "high"
+                logger.info("Fixture %s:%s (%s vs %s) is match %s: the identical two clubs in this competition "
+                            "at this kickoff, whatever either provider spells them",
+                            fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name, match.id)
+            # Every stored row left over is a contradiction: two records putting different clubs
+            # in one competition at one moment, or two rows already holding this same pair. None
+            # of them says which record is wrong, so they are recorded for
+            # `scripts/repair_duplicate_matches.py` rather than resolved here -- on the row the
+            # fixture was joined to when there was one, and otherwise on the row written below.
+            # Withholding the fixture instead would make one stored row a permanent veto on every
+            # other fixture at that kickoff: a real game would stay off the site on this sync and
+            # on every later one, because the row that blocks it is still there next time.
+            clash = [str(m.id) for m, _ in shared if match is None or m.id != match.id]
         if match is None:
             # `external_api_id` is unique: when another row already carries this provider id (a legacy
             # row we just refused to recover, for instance) the new row keeps it empty and is
@@ -436,11 +546,39 @@ class MatchRegistry:
             self.db.add(match)
             self.db.flush()
         self._apply_fixture(match, fixture, home, away, league)
+        if clash:
+            self._record_slot_conflict(match, fixture, clash)
         # The ref records how this link was really made: an invented "exact/provider_id" would erase
         # the fact that the match was found by name, by a legacy id, or with a lower confidence.
         self.set_ref("match", match.id, fixture.provider, fixture.external_id, confidence=confidence, matched_by=matched_by,
                      metadata={"home": fixture.home.name, "away": fixture.away.name, "kickoff_utc": fixture.kickoff_utc.isoformat()})
         return match
+
+    def _record_slot_conflict(self, match: Match, fixture: ProviderFixture, candidates: List[str]) -> None:
+        """
+        Mark a stored row as sharing a club and a kickoff with rows it could not be reconciled with.
+
+        This is the handover to a person. One of the rows is a real fixture and the other is either
+        the same fixture under a spelling nobody has listed yet -- fixed by one line in
+        `match_matching._ALIASES` and a run of the repair script -- or a provider record that is
+        simply wrong. Deciding which is not something the sync can do from the data it has, so it
+        writes down what it saw. `scripts/repair_duplicate_matches.py` lists these.
+        """
+        meta = dict(match.match_metadata or {})
+        meta["shared_slot_conflict"] = {
+            "candidates": candidates,
+            "provider": fixture.provider,
+            "external_id": str(fixture.external_id),
+            "home": fixture.home.name,
+            "away": fixture.away.name,
+            "detected_at": datetime.now(timezone.utc).isoformat(),
+        }
+        match.match_metadata = meta
+        self.db.flush()
+        logger.warning("Fixture %s:%s (%s vs %s) shares a club and a kickoff with %s but the other club could not "
+                       "be reconciled; stored as match %s and reported for review.",
+                       fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name,
+                       candidates, match.id)
 
     def _owns_match(self, match: Match, provider: str) -> bool:
         """The provider whose record created this match row owns its kickoff; nobody else moves it."""
@@ -510,6 +648,113 @@ class MatchRegistry:
         if league_ids is not None:
             query = query.filter(Match.league_id.in_(list(league_ids)))
         return query.order_by(Match.match_date.asc()).all()
+
+    # -------------------------------------------------- fixtures the refreshes no longer reach
+    def unsettled_before(self, cutoff: datetime, league_ids: Optional[Iterable[uuid.UUID]] = None,
+                         now: Optional[datetime] = None,
+                         max_age: timedelta = STALE_SWEEP_MAX_AGE,
+                         max_attempts: int = STALE_SWEEP_MAX_ATTEMPTS) -> List[Match]:
+        """
+        Fixtures still SCHEDULED or LIVE long after kickoff that are worth asking about again.
+
+        Neither refresh reaches these. The live poll only looks at today, and the results task only
+        looks back `SYNC_RESULTS_LOOKBACK_DAYS` days, so a fixture whose final score never arrived
+        inside that window is never asked about again and stays on the site reading LIVE for ever.
+
+        `cutoff` is the youngest kickoff worth reopening; `max_age` is measured from `now`, the same
+        clock `record_recovery_attempt` ages a fixture against, so the horizon offers exactly the
+        fixtures it does not immediately give up on. Measuring it from `cutoff` instead would push
+        the floor a further `now - cutoff` into the past, and every fixture in that strip would be
+        offered, cost its provider requests, and be abandoned as too old in the same pass.
+
+        Oldest first, so a sweep that can only afford a few days spends them on the fixtures that
+        have been wrong longest. A fixture the sweep has given up on is not returned again: see
+        `record_recovery_attempt` for what giving up means and when it happens.
+        """
+        floor = _naive_utc((now or datetime.now(timezone.utc)) - max_age)
+        rows = self.db.query(Match).filter(
+            Match.status.in_(REGRESSIVE_STATUSES),
+            Match.match_date <= _naive_utc(cutoff),
+            Match.match_date >= floor,
+        )
+        if league_ids is not None:
+            rows = rows.filter(Match.league_id.in_(list(league_ids)))
+        out = []
+        for m in rows.order_by(Match.match_date.asc()).all():
+            state = self.recovery_state(m)
+            if state.get("gave_up_at") or int(state.get("attempts") or 0) >= max_attempts:
+                continue
+            out.append(m)
+        return out
+
+    def stale_unsettled_days(self, now: datetime, lookback_days: int,
+                             league_ids: Optional[Iterable[uuid.UUID]] = None,
+                             max_days: int = STALE_SWEEP_MAX_DAYS, **limits) -> List[date]:
+        """
+        The days OLDER than the results lookback that still hold a recoverable unsettled fixture.
+
+        Oldest first and capped at `max_days`, because a results call costs one provider request
+        per competition per day: the cap is the entire extra cost of the sweep, and it is what
+        keeps an unanswerable fixture from being re-asked without end.
+
+        A day the results task already covers is never offered here. The task walks back from
+        today through `lookback_days`, so the sweep starts the instant before the earliest of
+        those days: paying twice for one day would be the sweep's whole budget spent on a day
+        that was going to be asked about anyway.
+        """
+        covered_from = now.date() - timedelta(days=max(int(lookback_days), 0))
+        cutoff = min(now - UNSETTLED_GRACE,
+                     datetime.combine(covered_from, datetime.min.time(),
+                                      tzinfo=timezone.utc) - timedelta(microseconds=1))
+        days: List[date] = []
+        for m in self.unsettled_before(cutoff, league_ids, now=now, **limits):
+            day = m.match_date.date()
+            if day not in days:
+                days.append(day)
+            if len(days) >= max_days:
+                break
+        return days
+
+    @staticmethod
+    def recovery_state(match: Match) -> Dict[str, object]:
+        """What the sweep has already tried for this fixture, as stored on the row."""
+        return dict((match.match_metadata or {}).get("recovery") or {})
+
+    def record_recovery_attempt(self, match: Match, now: Optional[datetime] = None,
+                                max_attempts: int = STALE_SWEEP_MAX_ATTEMPTS,
+                                max_age: timedelta = STALE_SWEEP_MAX_AGE) -> Dict[str, object]:
+        """
+        Count one sweep attempt against a fixture, and give up on it when it has had enough.
+
+        Giving up is written on the row, under `match_metadata.recovery`: `gave_up_at` and
+        `gave_up_reason` beside the attempt count. `unsettled_before` then skips the fixture for
+        good, so the sweep stops spending requests on a question the provider is not going to
+        answer. Only the bookkeeping moves: the status, the scores and the result are untouched,
+        because a score nobody reported is not a score.
+        """
+        now = now or datetime.now(timezone.utc)
+        state = self.recovery_state(match)
+        attempts = int(state.get("attempts") or 0) + 1
+        state["attempts"] = attempts
+        state["last_attempt_at"] = now.isoformat()
+        age = now - _aware_utc(match.match_date)
+        if not state.get("gave_up_at"):
+            reason = None
+            if age > max_age:
+                reason = f"kickoff is {age.days} days old, past the {max_age.days}-day results horizon"
+            elif attempts >= max_attempts:
+                reason = f"no result after {attempts} attempts"
+            if reason:
+                state["gave_up_at"] = now.isoformat()
+                state["gave_up_reason"] = reason
+                logger.warning("Giving up on match %s (%s, still %s): %s. It keeps its stored status; "
+                               "no further provider request will be spent on it.",
+                               match.id, match.match_date, match.status, reason)
+        meta = dict(match.match_metadata or {})
+        meta["recovery"] = state
+        match.match_metadata = meta
+        self.db.flush()
+        return state
 
     def resolve_match_id(self, raw: str) -> Optional[uuid.UUID]:
         """

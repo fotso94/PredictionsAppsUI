@@ -16,7 +16,10 @@ __pycache__/
 backend/venv*/
 .venv/
 backend/htmlcov/
+# Coverage artefacts land wherever pytest was invoked from, so both the backend directory and
+# the repository root can hold one.
 backend/.coverage
+.coverage
 backend/.pytest_cache/
 .mypy_cache/
 
