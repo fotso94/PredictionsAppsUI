@@ -54,6 +54,9 @@ export const NAMED_FIXTURES = 3
  */
 let answered: UpcomingAnswer | null = null
 
+/** When `answered` was taken, so an answer that names no kickoff can expire on the clock. */
+let answeredAt = 0
+
 /**
  * The request currently open, shared so that several empty days rendering at once — or a reader
  * moving between days faster than the network answers — cost one request rather than one each.
@@ -93,23 +96,32 @@ async function fetchUpcoming(): Promise<UpcomingAnswer | null> {
  * fixture that has since been played as the next one there is.
  *
  * So the earliest kickoff of the answer is also its expiry: once that moment is behind us the
- * answer has stopped being about the future and the next reader of an empty day asks again. An
- * answer that names no instant cannot be judged this way and is kept, which is safe because an
- * answer with no kickoff makes no claim about when football resumes.
+ * answer has stopped being about the future and the next reader of an empty day asks again.
+ *
+ * AN ANSWER THAT NAMES NO INSTANT STILL MAKES A CLAIM, and it is the strongest one this component
+ * has: `known` with no fixtures renders "the calendars list nothing to come". Keeping that for the
+ * life of the tab because it carries no kickoff to expire against would leave a reader who opened
+ * the page during a break being told there is no football, hours after the calendars filled. So it
+ * expires on the clock instead, on the same six hours the endpoint caches a calendar head for —
+ * long enough that scrolling through empty days costs one request, short enough that a tab left
+ * open learns.
  */
-function stillAhead(answer: UpcomingAnswer, now: number): boolean {
+const NO_KICKOFF_TTL_MS = 6 * 60 * 60 * 1000
+
+function stillAhead(answer: UpcomingAnswer, takenAt: number, now: number): boolean {
   const earliest = answer.next_kickoff ? Date.parse(answer.next_kickoff) : NaN
-  return Number.isNaN(earliest) || earliest > now
+  if (Number.isNaN(earliest)) return now - takenAt < NO_KICKOFF_TTL_MS
+  return earliest > now
 }
 
 /** The shared answer, fetching it if this session has not been given one yet. Never rejects. */
 export function upcomingAnswer(): Promise<UpcomingAnswer | null> {
-  if (answered !== null && !stillAhead(answered, Date.now())) answered = null
+  if (answered !== null && !stillAhead(answered, answeredAt, Date.now())) answered = null
   if (answered !== null) return Promise.resolve(answered)
   if (pending !== null) return pending
   pending = fetchUpcoming().then(result => {
     pending = null
-    if (result !== null && result.known) answered = result
+    if (result !== null && result.known) { answered = result; answeredAt = Date.now() }
     return result
   })
   return pending

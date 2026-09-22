@@ -207,25 +207,85 @@ live window closes depends entirely on the results path that has not yet been se
 anything. Confirming whether `matches/history.json` answers at all for these competitions needs
 provider requests this investigation had already spent.
 
-## A finished match left showing as live
+## A finished match that read as live: repaired, with the identity gap narrowed
 
-Measured 2026-09-21. One row has read `LIVE` since 2026-09-19: Everton v Ipswich, 14:00 UTC, stuck at minute 62. It is a
-duplicate. The same fixture is also stored, correctly `FINISHED`, from Live Score API. On 2026-09-19
-the API-Football fallback reported the game in play; its "Ipswich" did not match the stored "Ipswich
-Town" (Everton matched by name and has one row with two provider refs, Ipswich has two rows), so the
-match could not be identified against the one already held and a second row was created instead.
+Measured 2026-09-22 against the live database and a restore of
+`backups/soccer_predictions-20260921-182357.sql`, the dump taken before the repair.
 
-Two separate things keep it stuck. The identity gap is in team-name matching —
-`backend/app/services/match_matching.py` has no alias joining "Ipswich" to "Ipswich Town" — and
-without it every cross-provider ingest of that fixture makes another orphan. The refresh gap is that
-nothing ever looks at the row again: live polling only considers matches dated today, and the results
-task looks back one day (`SYNC_RESULTS_LOOKBACK_DAYS=1`). A match that falls out of both windows while
-still in a non-terminal state is never revisited by anything.
+Everton v Ipswich, 2026-09-19 14:00 UTC, was stored twice: once correctly `FINISHED` from Live
+Score API, and once `LIVE` at minute 62 from API-Football, whose "Ipswich" did not match the
+stored "Ipswich Town". `scripts/repair_duplicate_matches.py` moved every dependent row onto the
+surviving copy and deleted the emptied one. What that cost, row by row:
 
-It was deliberately left in the database rather than hand-edited. Resolving it honestly means adding
-the team alias so the two rows can be recognised as one fixture, then merging the duplicate and
-letting settlement score the surviving row — a repair that has to preserve the expert predictions
-attached to either copy, which is why it is not a one-line update.
+| Table referencing `matches` | survivor + loser, before | survivor, after |
+| --- | --- | --- |
+| `predictions.predictions` | 0 + 7 | 7 |
+| `predictions.provider_forecast_snapshots` | 3 + 0 | 3 |
+| `predictions.match_results` | 1 + 0 | 1 |
+| `predictions.provider_forecasts` | 1 + 0 | 1 |
+| `predictions.provider_forecast_results` | 1 + 0 | 1 |
+| `ml_models.ml_predictions`, `predictions.match_statistics`, `users.saved_matches` | 0 | 0 |
+
+Thirteen rows before, thirteen after, **the same rows by primary key** and byte-identical in every
+column but `match_id`. Zero orphans across all eight foreign keys. `provider_entity_refs` points at
+matches through a polymorphic pair with no foreign key, so `information_schema` does not list it;
+it was checked separately and its two affected rows moved with the rest. The surviving row was
+never edited — its `to_jsonb` hash is identical before and after — so this was a move, not a merge.
+
+The table went 50 matches to 48: the duplicate and one dependant-free `Home Team (TBD)` placeholder
+were removed and nothing was added. Predictions went 250 to 255, none lost, five added by this
+session's own test runs.
+
+**The identity gap is narrowed, not closed, and deliberately so.** Cross-provider club identity now
+comes from provider references and a curated alias list rather than from name similarity, because
+no rule can separate "Cardiff"/"Cardiff City" (one club) from "Dundee"/"Dundee United" (two): they
+are the same string shape. A club whose spellings are not on that list is therefore stored twice
+again. That is the safe failure — `scripts/repair_duplicate_matches.py` reports duplicates, and a
+person folds them back — whereas a wrong merge re-points the provider's team reference and misfiles
+that club on every later fixture, silently. Four alias entries carry no evidence from this database
+and say so on their own lines.
+
+## A stranded fixture recovers only when somebody runs the script
+
+A fixture left unsettled falls out of every automatic path: the live poll considers only matches
+dated today, and the results task looks back `SYNC_RESULTS_LOOKBACK_DAYS` = 1. `MatchRegistry`'s
+sweep reopens the days behind that lookback, refuses a fixture past a 14-day horizon (exact to the
+microsecond, measured at 13d, 14d−1s, 14d, 14d+1µs and 15d) and records that it gave up.
+
+**Nothing invokes it.** It runs when a person types `scripts/repair_unsettled_matches.py --apply`,
+and is wired into no scheduler task. So "a stranded fixture now recovers" is not true; "a stranded
+fixture can be recovered" is. Wiring it into the scheduler is a small change and a real decision,
+because of the next paragraph.
+
+**Its cost is bounded by the page cap, not by the competition-day count.** One request per
+competition-day is the first page only; `matches/history.json` paginates and `_paginate` follows up
+to `MAX_PAGES`, so a default pass measured 60 requests where the script had printed 12. The script
+now prints both figures. Against a 1200/day Live Score allowance that is affordable; against
+GameForecast's 8 it would not be, which is why the sweep never touches it.
+
+**Recovery itself is unproven end to end.** No sweep has been run against the real provider for a
+fixture three to fourteen days old, so what is verified is that the right day is asked about and
+the cost is accounted for — not that Live Score's archive answers for a fixture that old.
+
+## The empty-break notice can go stale in a tab nobody touches
+
+During the international break an empty matchday names when football resumes. The date is filtered
+against the clock twice: at the endpoint, per request, and in the browser, where a remembered
+answer expires at the kickoff it names or, when it names none, after six hours.
+
+What neither guard covers is a tab that simply sits on one empty day. `NextFixturesNote` fetches
+once and has no timer, so a fixture whose kickoff passes while the reader watches stays on screen —
+measured, the text was unchanged fourteen seconds after the kickoff it named. The window is the
+hours between opening the page and the first kickoff. Closing it means a refresh on an interval or
+on tab focus, and neither exists.
+
+**A failing calendar sweep has no cheap floor.** The six-hour cache is what keeps this feature to
+about 24 requests a day, and a sweep that FAILS writes no cache, so only a 120-second lock and a
+120-second cool-down stand between a stream of readers and a stream of requests. Simulated, that is
+of the order of a thousand requests a day of demand: bounded by the daily allowance rather than by
+the feature, and exhausting it would also stop the ordinary fixtures sync until UTC midnight. The
+provider would have to fail continuously for hours for this to bite, and it has not happened, but
+nothing in the code prevents it.
 
 ## Expert convictions
 
