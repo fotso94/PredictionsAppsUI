@@ -1,0 +1,93 @@
+{
+  "captured_for": "evidence that the archive answers for this date; see docs/known-limitations.md",
+  "endpoint": "matches/history.json",
+  "note": "No credentials appear here: the key and secret are request parameters and are not part of the response.",
+  "query": {
+    "competition_id": "3",
+    "from": "2026-09-16",
+    "to": "2026-09-16"
+  },
+  "rows": [
+    {
+      "away": {
+        "id": 2780,
+        "name": "Racing Santander"
+      },
+      "competition": {
+        "id": 3,
+        "name": "LaLiga Santander"
+      },
+      "date": "2026-09-16",
+      "fixture_id": 1876618,
+      "home": {
+        "id": 21,
+        "name": "Barcelona"
+      },
+      "id": 732895,
+      "round": "6",
+      "scores": {
+        "et_score": "",
+        "ft_score": "7 - 2",
+        "ht_score": "4 - 1",
+        "ps_score": "",
+        "score": "7 - 2"
+      },
+      "status": "FINISHED",
+      "time": "FT"
+    },
+    {
+      "away": {
+        "id": 794,
+        "name": "Osasuna"
+      },
+      "competition": {
+        "id": 3,
+        "name": "LaLiga Santander"
+      },
+      "date": "2026-09-16",
+      "fixture_id": 1876619,
+      "home": {
+        "id": 26,
+        "name": "Atletico Madrid"
+      },
+      "id": 732828,
+      "round": "6",
+      "scores": {
+        "et_score": "",
+        "ft_score": "4 - 0",
+        "ht_score": "1 - 0",
+        "ps_score": "",
+        "score": "4 - 0"
+      },
+      "status": "FINISHED",
+      "time": "FT"
+    },
+    {
+      "away": {
+        "id": 23,
+        "name": "Sevilla"
+      },
+      "competition": {
+        "id": 3,
+        "name": "LaLiga Santander"
+      },
+      "date": "2026-09-16",
+      "fixture_id": 1876624,
+      "home": {
+        "id": 37,
+        "name": "Deportivo La Coruna"
+      },
+      "id": 732826,
+      "round": "6",
+      "scores": {
+        "et_score": "",
+        "ft_score": "0 - 1",
+        "ht_score": "0 - 0",
+        "ps_score": "",
+        "score": "0 - 1"
+      },
+      "status": "FINISHED",
+      "time": "FT"
+    }
+  ]
+}

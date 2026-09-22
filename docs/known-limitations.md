@@ -195,17 +195,75 @@ timestamp and its basis, read by `backend/scripts/sync_once.py` or off the admin
 a person who is looking. An empty week is still a success, because a league between rounds has
 genuinely nothing to give.
 
-## Results are ingested by the live poll, not by the results endpoint
+## The results endpoint answers, but its archive has a hole over 2026-09-18 to -20
 
-On 2026-09-21 the only results cache still inside its 24-hour stale window — 2026-09-19, fetched
-the following evening — holds `data: []`. Final scores have been arriving instead from
-`matches/live.json`, which returns matches already marked `FINISHED` with an `FT` minute; the cached
-live payload from 2026-09-20T21:00Z is full of them. Scores do reach the database, then, but by way
-of a poll that only runs while a live window is open, and `_sync_results` is gated on a day still
-having something unsettled so it rarely calls out at all. A match whose final score lands after its
-live window closes depends entirely on the results path that has not yet been seen to return
-anything. Confirming whether `matches/history.json` answers at all for these competitions needs
-provider requests this investigation had already spent.
+Measured 2026-09-22, ten diagnostic requests. `matches/history.json` works and returns finished
+fixtures with full scores, including for a single-day window — the earlier suspicion that
+`from == to` was an empty range is REFUTED, and so is the earlier conclusion that results only ever
+arrive through the live poll.
+
+What it will not return is the days this installation most wanted:
+
+| Query (La Liga, competition_id 3) | Rows |
+| --- | --- |
+| `from=2026-09-16 to=2026-09-16` | **3**, all `FINISHED` with full-time scores |
+| `from=2026-09-15 to=2026-09-22` | 8, every one dated 09-16 or 09-17 |
+| `from=2026-09-18 to=2026-09-20` | 0 |
+| `from=2026-09-19 to=2026-09-19` | 0 |
+
+Eight rows is below the 30-row page size, so that wide answer is complete: the 18th to the 20th are
+genuinely absent rather than waiting on a later page. The same shape holds for the Premier League,
+and a query with no competition filter at all returns nothing for 2026-09-19 while returning 30 rows
+across many competitions for the wider range — so it is not our competition ids and not our
+parameters.
+
+**THIS GAP IS UNRESOLVED.** The database holds 48 finished fixtures dated 2026-09-18 to -20 whose
+scores arrived through `matches/live.json`, and the archive that ought to carry the same fixtures
+does not. Why those three days are missing is not known, and nothing here should be read as saying
+it has been explained. Until it is, any fixture stranded on those dates cannot be recovered from
+this provider, and a sweep will honestly report `fresh, no result` for it.
+
+The captured archive answer for 2026-09-16 is kept at
+`docs/evidence/livescore-history-2026-09-16-la-liga.json` — the response rows only, since the key
+and secret are request parameters and never appear in a reply.
+
+## A stranded fixture can be recovered, by hand, when the archive holds the day
+
+Measured 2026-09-22 in the isolated `soccer_predictions_qa` database, restored from
+`backups/soccer_predictions-20260921-182357.sql`. Four Live Score requests, no GameForecast, the
+live database untouched throughout.
+
+Barcelona v Racing Santander, 2026-09-16, was ingested through the registry exactly as the
+application would store it, then stranded: status back to `SCHEDULED`, its `match_results` row
+deleted, its recovery bookkeeping cleared and the day's cached answer dropped so the sweep had to
+ask. `scripts/repair_unsettled_matches.py --apply` then selected 2026-09-16, spent exactly one
+request, and reported:
+
+```
+2026-09-16: source=provider polled=True seen=3 stored=3 errors=[]
+recovered 1   came back settled; nothing left to retry
+```
+
+The row came back `FINISHED` **7-2**, result `H`, matching the archive answer captured before the
+test was staged. No attempt was spent, because a recovery is not a failed question.
+
+**That is a recovery, and it is not automatic recovery.** Three things separate them:
+
+- **Nothing invokes the sweep.** It runs when a person types the command and is wired into no
+  scheduler task. A stranded fixture *can* be recovered; it does not recover.
+- **It only works where the archive answers.** The demonstration used 2026-09-16 precisely because
+  the archive holds it. On 2026-09-18 to -20 the same sweep returns nothing, correctly, and that
+  gap is recorded above as unresolved.
+- **One fixture on one day is not a fleet.** The cost is one request per competition-day for the
+  first page, up to five times that if every one paginates to the cap — a default pass measured 60
+  requests where the script had printed 12, which is why it now prints both figures. Affordable
+  against Live Score's 1200 a day; it would not be against GameForecast's 8, which is why the sweep
+  never touches it.
+
+The horizon itself is exact: a fixture is refused past `STALE_SWEEP_MAX_AGE` = 14 days, measured at
+13d, 14d−1s, 14d, 14d+1µs and 15d, and the row records that it was given up on and why. What has
+not been shown is that the provider serves anything like that far back — the one day proven is six
+days old, and the three days after it are the hole above.
 
 ## A finished match that read as live: repaired, with the identity gap narrowed
 
@@ -244,28 +302,6 @@ again. That is the safe failure — `scripts/repair_duplicate_matches.py` report
 person folds them back — whereas a wrong merge re-points the provider's team reference and misfiles
 that club on every later fixture, silently. Four alias entries carry no evidence from this database
 and say so on their own lines.
-
-## A stranded fixture recovers only when somebody runs the script
-
-A fixture left unsettled falls out of every automatic path: the live poll considers only matches
-dated today, and the results task looks back `SYNC_RESULTS_LOOKBACK_DAYS` = 1. `MatchRegistry`'s
-sweep reopens the days behind that lookback, refuses a fixture past a 14-day horizon (exact to the
-microsecond, measured at 13d, 14d−1s, 14d, 14d+1µs and 15d) and records that it gave up.
-
-**Nothing invokes it.** It runs when a person types `scripts/repair_unsettled_matches.py --apply`,
-and is wired into no scheduler task. So "a stranded fixture now recovers" is not true; "a stranded
-fixture can be recovered" is. Wiring it into the scheduler is a small change and a real decision,
-because of the next paragraph.
-
-**Its cost is bounded by the page cap, not by the competition-day count.** One request per
-competition-day is the first page only; `matches/history.json` paginates and `_paginate` follows up
-to `MAX_PAGES`, so a default pass measured 60 requests where the script had printed 12. The script
-now prints both figures. Against a 1200/day Live Score allowance that is affordable; against
-GameForecast's 8 it would not be, which is why the sweep never touches it.
-
-**Recovery itself is unproven end to end.** No sweep has been run against the real provider for a
-fixture three to fourteen days old, so what is verified is that the right day is asked about and
-the cost is accounted for — not that Live Score's archive answers for a fixture that old.
 
 ## The empty-break notice can go stale in a tab nobody touches
 
