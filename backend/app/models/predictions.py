@@ -539,6 +539,18 @@ class MatchResult(Base, UUIDMixin, TimestampMixin):
     home_score_ht = Column(Integer)
     away_score_ht = Column(Integer)
 
+    # Period breakdown, when the provider supplies one. `home_score`/`away_score` above is the
+    # score of the football played (extra time included, a shootout never); `_ft` is the score
+    # after 90 minutes, and the two differ for a knockout tie decided in extra time. Settlement
+    # reads the `_ft` pair, because the published market rules settle on regulation time only.
+    # NULL means the provider said nothing, never 0.
+    home_score_ft = Column(Integer, comment="Score after 90 minutes (regulation time)")
+    away_score_ft = Column(Integer, comment="Score after 90 minutes (regulation time)")
+    home_score_et = Column(Integer, comment="Score at the end of extra time, as reported")
+    away_score_et = Column(Integer, comment="Score at the end of extra time, as reported")
+    home_score_pens = Column(Integer, comment="Penalty shootout score")
+    away_score_pens = Column(Integer, comment="Penalty shootout score")
+
     # Result
     result = Column(String(10), comment="H, D, A")
 

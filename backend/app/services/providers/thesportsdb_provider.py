@@ -7,6 +7,12 @@ results; a Patreon key is required for production use). Endpoints:
 - eventspastleague.php?id=   (last 15 events)
 - lookuptable.php?l=&s=      (league table)
 No live scores in v1 (v2 only). Statuses come from strStatus/strTimestamp.
+
+No period breakdown: v1 supplies a single final score (intHomeScore/intAwayScore) and nothing
+that separates 90 minutes from extra time or a shootout, so `ft_*`/`et_*`/`ps_*` on the fixtures
+built here stay None. That is recorded rather than guessed at: a knockout tie from this provider
+therefore settles on its only stored score, which is wrong for a tie decided in extra time.
+Fixing it needs a v2 payload to read, not a field name invented here.
 """
 
 from __future__ import annotations

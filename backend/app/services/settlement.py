@@ -441,7 +441,7 @@ def void_settlement(markets_published: SourceMarkets, reason: str) -> Settlement
 _EXTRA_TIME_MARKERS = {"aet", "pen", "et", "after extra time", "after_extra_time", "extra_time",
                        "extra time", "penalties", "pens"}
 _EXTRA_TIME_FLAGS = ("after_extra_time", "extra_time", "went_to_extra_time", "penalties",
-                     "penalty_shootout")
+                     "penalty_shootout", "went_beyond_regulation")
 
 VOID_STATUSES = {MatchStatus.POSTPONED: "the fixture was postponed",
                  MatchStatus.CANCELLED: "the fixture was cancelled or abandoned"}
@@ -449,8 +449,25 @@ TERMINAL_STATUSES = (MatchStatus.FINISHED, MatchStatus.POSTPONED, MatchStatus.CA
 
 
 def regulation_score(result: Optional[MatchResult]) -> Tuple[Optional[RegulationScore], Optional[str]]:
-    """The regulation-time score of a finished match, or the reason it cannot be read."""
-    if result is None or result.home_score is None or result.away_score is None:
+    """
+    The regulation-time score of a finished match, or the reason it cannot be read.
+
+    Three cases, in this order. A stored period breakdown answers outright: `home_score_ft` is
+    the score after 90 minutes whatever happened afterwards, so a tie that finished 2-1 in extra
+    time settles on the 1-1 it stood at, and a shootout settles on the goals, never the penalties.
+    Without that breakdown, a result that is *known* to have gone past 90 -- by a provider marker
+    or by the flag the registry writes -- is withheld rather than settled, because the only score
+    stored for it covers more football than these markets pay out on. Everything else is a match
+    that ended at 90 and settles on the score it ended with.
+
+    The middle case withholds on knowledge, not on suspicion: a provider that says nothing about
+    periods produces no marker, so its 90-minute results keep settling normally.
+    """
+    if result is None:
+        return None, "the match is marked finished but no score is stored"
+    if result.home_score_ft is not None and result.away_score_ft is not None:
+        return RegulationScore(int(result.home_score_ft), int(result.away_score_ft)), None
+    if result.home_score is None or result.away_score is None:
         return None, "the match is marked finished but no score is stored"
     meta = result.result_metadata or {}
     for key in ("period", "status", "time_status", "stage"):

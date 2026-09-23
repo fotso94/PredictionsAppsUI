@@ -100,13 +100,38 @@ class ProviderFixture:
     kickoff_utc: datetime
     status: str = STATUS_SCHEDULED
     minute: Optional[str] = None
+    #: The score of the football that was played: extra time included when it was played,
+    #: a penalty shootout never (a shootout decides who goes through, it is not a goal).
     home_score: Optional[int] = None
     away_score: Optional[int] = None
     ht_home_score: Optional[int] = None
     ht_away_score: Optional[int] = None
+    #: The period breakdown, when the provider supplies one. `ft_*` is the score after 90
+    #: minutes -- the only scoreline the published market rules settle on -- and it is NOT the
+    #: same as `home_score`/`away_score` for a tie that went to extra time. `et_*` and `ps_*`
+    #: are stored as the provider reports them. All of these stay None for a provider that
+    #: supplies no breakdown, and a None `ft_*` means "unknown", never "0".
+    ft_home_score: Optional[int] = None
+    ft_away_score: Optional[int] = None
+    et_home_score: Optional[int] = None
+    et_away_score: Optional[int] = None
+    ps_home_score: Optional[int] = None
+    ps_away_score: Optional[int] = None
     venue: Optional[str] = None
     round: Optional[str] = None
     raw: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def went_beyond_regulation(self) -> bool:
+        """
+        True when this fixture is known to have been decided after the 90 minutes.
+
+        Known, not guessed: it is False for a provider that supplies no period breakdown, which
+        is why settlement treats it as evidence that a score is unsafe and never as evidence
+        that one is safe.
+        """
+        return any(v is not None for v in (self.et_home_score, self.et_away_score,
+                                           self.ps_home_score, self.ps_away_score))
 
 
 @dataclass

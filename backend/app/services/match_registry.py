@@ -711,6 +711,8 @@ class MatchRegistry:
             "away_score": fixture.away_score,
             "ht_home_score": fixture.ht_home_score,
             "ht_away_score": fixture.ht_away_score,
+            "ft_home_score": fixture.ft_home_score,
+            "ft_away_score": fixture.ft_away_score,
             "last_synced_at": datetime.now(timezone.utc).isoformat(),
         })
         match.match_metadata = meta
@@ -725,7 +727,26 @@ class MatchRegistry:
             else:
                 result.home_score, result.away_score, result.result = fixture.home_score, fixture.away_score, outcome
                 result.home_score_ht, result.away_score_ht = fixture.ht_home_score, fixture.ht_away_score
+            self._apply_periods(result, fixture)
         self.db.flush()
+
+    def _apply_periods(self, result: MatchResult, fixture: ProviderFixture) -> None:
+        """
+        Store the period breakdown the provider supplied, and flag a tie that went past 90.
+
+        `home_score`/`away_score` on the row is the score of the football played; this is what
+        lets settlement tell that apart from the score after 90 minutes, which is the only one
+        the published market rules settle on. A provider that supplies no breakdown leaves every
+        column None -- the columns are never filled in from the final score, because a guessed
+        regulation score is the bug this exists to stop, written down as data.
+        """
+        result.home_score_ft, result.away_score_ft = fixture.ft_home_score, fixture.ft_away_score
+        result.home_score_et, result.away_score_et = fixture.et_home_score, fixture.et_away_score
+        result.home_score_pens, result.away_score_pens = fixture.ps_home_score, fixture.ps_away_score
+        if fixture.went_beyond_regulation:
+            meta = dict(result.result_metadata or {})
+            meta["went_beyond_regulation"] = True
+            result.result_metadata = meta
 
     # ------------------------------------------------------------------ queries
     def matches_for_day(self, day: date, league_ids: Optional[Iterable[uuid.UUID]] = None) -> List[Match]:

@@ -72,12 +72,31 @@ class _APIFootballBase:
 
 
 def _fixture_from_payload(item: Dict[str, Any], key: Optional[str]) -> ProviderFixture:
+    """
+    One /fixtures row as a ProviderFixture.
+
+    `goals` and `score` are not two spellings of the same thing. `goals` is the running score of
+    the football played -- extra time included once it has been played, a penalty shootout never --
+    while `score` breaks that same match into its periods: `halftime`, `fulltime` (the score after
+    90 minutes), `extratime` and `penalty`. API-Football reports `extratime` cumulatively, so for a
+    tie that was 1-1 at 90 and finished 2-1 in extra time the payload reads
+    `goals 2-1, fulltime 1-1, extratime 2-1`; it is stored here as reported rather than
+    re-derived. `penalty` is the shootout, and a 4-3 shootout leaves `goals` on the 0-0 or 1-1 the
+    players actually scored.
+
+    Reading `goals` as the full-time score is what made that tie settle as a 2-1 home win on
+    markets whose published rule is regulation time only; `ft_*` below is the pair those markets
+    settle on.
+    """
     fx = item.get("fixture") or {}
     league = item.get("league") or {}
     teams = item.get("teams") or {}
     goals = item.get("goals") or {}
     score = item.get("score") or {}
     ht = score.get("halftime") or {}
+    ft = score.get("fulltime") or {}
+    et = score.get("extratime") or {}
+    pens = score.get("penalty") or {}
     status_short = (fx.get("status") or {}).get("short", "NS")
     return ProviderFixture(
         provider=PROVIDER_NAME,
@@ -94,6 +113,9 @@ def _fixture_from_payload(item: Dict[str, Any], key: Optional[str]) -> ProviderF
         minute=str((fx.get("status") or {}).get("elapsed")) if (fx.get("status") or {}).get("elapsed") else None,
         home_score=goals.get("home"), away_score=goals.get("away"),
         ht_home_score=ht.get("home"), ht_away_score=ht.get("away"),
+        ft_home_score=ft.get("home"), ft_away_score=ft.get("away"),
+        et_home_score=et.get("home"), et_away_score=et.get("away"),
+        ps_home_score=pens.get("home"), ps_away_score=pens.get("away"),
         venue=(fx.get("venue") or {}).get("name"),
         round=league.get("round"),
         raw=item,

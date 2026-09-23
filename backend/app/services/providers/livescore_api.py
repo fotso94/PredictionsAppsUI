@@ -8,6 +8,14 @@ Documentation used (verified 2026-09-17):
 - GET /api-client/matches/history.json?from=&to=&competition_id= -> data.match[] (30 per page)
 - GET /api-client/competitions/table.json?competition_id=&include_form=1 -> standings rows
 Authentication: `key` and `secret` query parameters. All dates/times are UTC.
+
+Period breakdown: the payloads recorded from this provider carry `scores.score`, `scores.ht_score`
+and `scores.ft_score`, and none of them is from a tie that went past 90 minutes -- so which of
+`score` and `ft_score` excludes extra time is not something the recorded evidence settles.
+`ft_*`/`et_*`/`ps_*` are therefore left None here rather than mapped from a guess, and a knockout
+tie from this provider settles on its single stored score, as it did before. Mapping them needs
+one real extra-time payload to read. See `_fixture_from_payload` in `api_football_provider.py`
+for the shape this takes once the periods are actually known.
 """
 
 from __future__ import annotations
