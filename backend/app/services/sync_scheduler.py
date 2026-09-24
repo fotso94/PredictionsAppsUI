@@ -46,7 +46,10 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tupl
 from app.core.config import settings
 from app.services.forecast_service import ForecastService
 from app.services.match_cache import MatchCache
-from app.services.match_data_service import MatchDataService, SyncMeta
+from app.services.match_data_service import (
+    COVERAGE_CALENDAR_KEY, MatchDataService, SyncMeta, live_polls_today, note_live_poll,
+)
+from app.services.providers import competitions as comps
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +82,41 @@ BACKOFF_MAX_SECONDS = 6 * 3600
 #: Keep the stored summary small: it is read by the status endpoint on every call.
 MAX_STORED_ERRORS = 10
 MAX_ERROR_CHARS = 300
+
+#: Live polls made so far in one UTC day, so `SYNC_LIVE_MAX_REQUESTS_PER_DAY` can bound them.
+#:
+#: The live poll is the one task whose cost does not grow with the covered set - one
+#: matches/live.json answers for every competition at once - and the one whose cost grows with
+#: covering the world anyway, because a live window is open whenever ANY covered match is inside
+#: it, and national-team fixtures are spread across every time zone there is. At the shipped
+#: 120-second interval an uninterrupted day of open windows is 720 requests, which is most of the
+#: plan spent on the cheapest task. This counts what has actually been spent so the ceiling can be
+#: a fact rather than an assumption about how many hours of football a day holds.
+LIVE_POLL_COUNT_KEY = "sync:live:polls:{day}"
+
+
+def forecast_keys() -> List[str]:
+    """Competitions the forecast task rotates over.
+
+    The club set unchanged, plus any national-team competition carrying a VERIFIED forecast
+    provider id - today UEFA Nations League and CONCACAF Nations League, of the 29 covered.
+
+    A verified id is the admission ticket, rather than coverage by the match provider, because the
+    two providers cover different things and the forecast plan allows 8 requests a day. A
+    competition with no recorded id spends one of those discovering it has none, and 27 of those
+    would spend the whole allowance for days on end without a single forecast being fetched -
+    while the club competitions, which do have ids, never reached the head of the rotation.
+    `ForecastService.sync_order` puts never-synced competitions first, so offering it the unpriced
+    ones is precisely how the priced ones would be starved.
+
+    A national-team competition joins this rotation on the day an id for it is verified in
+    `competitions.py`, with nothing to change here.
+    """
+    club = comps.covered_keys(settings.COVERED_COMPETITIONS, national_setting="")
+    priced = set(comps.keys_with_provider_id("gameforecast_id"))
+    national = [key for key in comps.national_team_keys(
+        settings.COVERED_NATIONAL_TEAM_COMPETITIONS) if key in priced]
+    return club + [key for key in national if key not in club]
 
 
 def _parse(value: Optional[str]) -> Optional[datetime]:
@@ -132,7 +170,8 @@ class _Services:
             factory = self._scheduler._forecast_factory
             self._forecast = (factory(self._db) if factory
                               else ForecastService(self._db, cache=self._scheduler.cache,
-                                                   now=self._scheduler.fixed_now))
+                                                   now=self._scheduler.fixed_now,
+                                                   keys=forecast_keys()))
         return self._forecast
 
 
@@ -341,6 +380,132 @@ class SyncScheduler:
             return None
         return "daily request budget is spent for " + " and ".join(spent)
 
+    # ------------------------------------------------------- what a pass may spend on coverage
+    def _national_block(self, services: _Services) -> Optional[str]:
+        """Why this pass must spend nothing on national-team competitions, or None.
+
+        The club six are what this installation has always served, and this floor is the thing
+        that guarantees them: once the day's remaining allowance has fallen to it, the extra
+        competitions are dropped and the six are refreshed exactly as they were before any of this
+        existed. It is a floor on what is LEFT rather than a share of the plan, because what it
+        protects is the rest of today.
+
+        Scaled down for a small plan the way every other guard here is, so a 10-request allowance
+        is not simply told it can never cover anything. An unmetered provider cannot say the
+        allowance is low, so it does not block.
+        """
+        if not services.match.national_keys:
+            return None
+        floor = max(int(settings.SYNC_NATIONAL_TEAM_BUDGET_FLOOR), 0)
+        if not floor:
+            return None
+        low = []
+        for provider in services.match.providers:
+            budget = getattr(provider, "budget", None)
+            try:
+                limit = int(getattr(budget, "daily_limit", 0) or 0)
+                if budget is None or not limit:
+                    return None
+                scaled = min(floor, limit // 2)
+                remaining = budget.remaining()
+            except Exception as exc:  # pragma: no cover - a floor is never worth a crash
+                logger.debug("National-team coverage floor check failed: %s", exc)
+                return None
+            if remaining >= scaled:
+                return None
+            low.append(f"{budget.provider} ({remaining} left, floor {scaled})")
+        if not low:
+            return None
+        return ("national-team coverage was skipped to keep the day's remaining allowance for the "
+                "club competitions: " + " and ".join(low))
+
+    def _refresh_coverage(self, service: MatchDataService,
+                          blocked: Optional[str]) -> Dict[str, Any]:
+        """Buy calendars for the national-team competitions whose stored one has expired.
+
+        One request each, stalest first, at most `SYNC_COVERAGE_CALENDAR_REFRESH_PER_PASS` of them.
+        This is the step that makes an international break need no settings change: a competition
+        that was dormant when it was last read comes back with fixture days on it, and every
+        selection below starts including it on those days from this same pass onwards.
+
+        `requests` is an upper bound - a calendar still inside its own short cache costs nothing -
+        and the per-provider calendar ceiling in `match_data_service` bounds it besides.
+        """
+        if blocked:
+            return {"refreshed": {}, "requests": 0, "skipped": blocked}
+        limit = max(int(settings.SYNC_COVERAGE_CALENDAR_REFRESH_PER_PASS), 0)
+        due = service.coverage_refresh_due(limit)
+        refreshed: Dict[str, Any] = {}
+        for key in due:
+            record = service.refresh_coverage_calendar(key)
+            refreshed[key] = {"answered": bool(record.get("answered")),
+                              "next_kickoff": record.get("next_kickoff"),
+                              "fixture_days": record.get("fixture_days") or [],
+                              "refresh_after": record.get("refresh_after"),
+                              "error": record.get("error")}
+        return {"refreshed": refreshed, "requests": len(due)}
+
+    @staticmethod
+    def _fixture_plan(service: MatchDataService, today, days: int, national: bool
+                      ) -> Tuple[List[Tuple[Any, List[str]]], int, List[str]]:
+        """(day, competitions) per day in the window, plus what the cap deferred.
+
+        The club competitions go into every day unconditionally. That is a MEMBERSHIP rule and not
+        a priority ordering, so no cap applied afterwards can reach them: the cap counts only the
+        national-team extras, and a pass that defers all of them still asks for the same six
+        competitions on the same three days it asks for today.
+
+        The days are filled in order, so a cap that binds costs the furthest day rather than the
+        nearest - a fixture the day after tomorrow has two more passes to be picked up in, and one
+        today has none.
+        """
+        cap = max(int(settings.SYNC_FIXTURES_MAX_NATIONAL_REQUESTS_PER_PASS), 0)
+        club = list(service.club_keys)
+        club_set = set(club)
+        plan: List[Tuple[Any, List[str]]] = []
+        deferred: List[str] = []
+        spent = 0
+        for offset in range(days):
+            day = today + timedelta(days=offset)
+            extra: List[str] = []
+            if national:
+                for key in service.coverage_keys_for_day(day):
+                    if key in club_set:
+                        continue
+                    if spent < cap:
+                        extra.append(key)
+                        spent += 1
+                    else:
+                        deferred.append(f"{key}@{day.isoformat()}")
+            plan.append((day, club + extra))
+        return plan, spent, deferred
+
+    @staticmethod
+    def _results_order(service: MatchDataService, pending: Sequence[str], turn: int) -> List[str]:
+        """Competitions to poll for results, most protected first.
+
+        Clubs lead, in registry order, so the cap can never take a request from one of them. The
+        national-team competitions behind them are rotated by the pass number, so a cap that binds
+        cuts a different one each pass instead of the same tail every half hour for ever.
+        """
+        club_set = set(service.club_keys)
+        clubs = [key for key in pending if key in club_set]
+        national = [key for key in pending if key not in club_set]
+        if national:
+            offset = int(turn) % len(national)
+            national = national[offset:] + national[:offset]
+        return clubs + national
+
+    # --------------------------------------------------------------- the live task's daily cap
+    # The counter itself belongs to MatchDataService, which is where the requests are made and
+    # which the fixtures task also polls through. Two counters would be two ceilings, and the
+    # lower one would be the only one anybody could see.
+    def _live_polls_today(self) -> int:
+        return live_polls_today(self.cache, self.now)
+
+    def _note_live_poll(self) -> None:
+        note_live_poll(self.cache, self.now)
+
     # ------------------------------------------------------------------ the tasks
     def _run_fixtures(self, services: _Services) -> Tuple[Dict[str, Any], bool, Optional[str]]:
         service = services.match
@@ -357,14 +522,25 @@ class SyncScheduler:
         # last stored summary, not passes since the last fixture.
         previous = self.state(TASK_FIXTURES).get("last_result") or {}
         out: Dict[str, Any] = {"days": {}, "errors": []}
+        # Calendars first, then the selection that reads them, so a break that begins between two
+        # passes is discovered and acted on inside the SAME pass rather than six hours later.
+        national_blocked = self._national_block(services)
+        out["coverage"] = self._refresh_coverage(service, national_blocked)
+        plan, national_requests, deferred = self._fixture_plan(
+            service, today, days, national=national_blocked is None)
+        out["club_competitions"] = len(service.club_keys)
+        out["national_competitions_covered"] = len(service.national_keys)
+        out["national_requests"] = national_requests
+        out["national_deferred"] = deferred[:MAX_STORED_ERRORS]
+        if national_blocked:
+            out["national_skipped"] = national_blocked
         got_data = False
         seen = stored = forward_seen = forward_stored = 0
         answered = from_stale = unanswered = 0
         offered_at: List[datetime] = []
-        for offset in range(days):
-            day = today + timedelta(days=offset)
-            meta = service.sync_day(day)
-            out["days"][day.isoformat()] = meta.to_dict()
+        for day, keys in plan:
+            meta = service.sync_day(day, keys=keys)
+            out["days"][day.isoformat()] = {**meta.to_dict(), "competitions": len(keys)}
             out["errors"].extend(meta.errors)
             seen += meta.fixtures_seen
             stored += meta.fixtures_stored
@@ -477,15 +653,40 @@ class SyncScheduler:
         service = services.match
         lookback = max(int(settings.SYNC_RESULTS_LOOKBACK_DAYS), 0)
         today = service.now.date()
-        out: Dict[str, Any] = {"days": {}, "errors": [], "polled": False}
-        for offset in range(lookback + 1):
-            day = today - timedelta(days=offset)
+        cap = max(int(settings.SYNC_RESULTS_MAX_REQUESTS_PER_PASS), 0)
+        # The pass number the rotation turns on. `runs` counts every pass this task has recorded,
+        # so it advances once per pass whatever happened in it.
+        turn = int(self.state(TASK_RESULTS).get("runs") or 0)
+        out: Dict[str, Any] = {"days": {}, "errors": [], "polled": False,
+                               "requests": 0, "deferred": []}
+        spent = 0
+        # EVERY DAY GETS A SHARE, because a cap spent in day order is a cap that starves the older
+        # days entirely. Walking today first with one running budget means a busy today - and 35
+        # competitions makes today busy - takes the whole cap on every pass, so yesterday's stuck
+        # match is never asked about again by any of the 48 passes in a day, and never settles.
+        # Older days are also the ones that will not fix themselves: today's fixture will be asked
+        # about again in half an hour anyway.
+        days = [today - timedelta(days=offset) for offset in range(lookback + 1)]
+        share = max(cap // len(days), 1) if cap else 0
+        for index, day in enumerate(days):
+            # The last day sweeps up whatever the earlier ones did not want, so an integer division
+            # never quietly leaves part of the allowance unused.
+            allowance = (cap - spent) if index == len(days) - 1 else share
+            # A day costs one request per competition that still holds an unsettled match on it,
+            # and nothing at all for the competitions that do not. That is the difference between
+            # 3,360 requests a day at 35 competitions and the handful a matchday actually needs.
+            wanted = self._results_order(service, service.pending_result_keys(day), turn)
+            take = wanted[:max(allowance, 0)] if cap else []
+            out["deferred"].extend(f"{key}@{day.isoformat()}" for key in wanted[len(take):])
             meta = SyncMeta()
-            # Gated inside `_sync_results`: a day with nothing left to settle costs no request.
-            service._sync_results(day, meta)
-            out["days"][day.isoformat()] = meta.to_dict()
+            if take:
+                service._sync_results(day, meta, keys=take)
+                spent += len(take)
+            out["days"][day.isoformat()] = {**meta.to_dict(), "competitions": len(take)}
             out["errors"].extend(meta.errors)
             out["polled"] = out["polled"] or meta.results_polled
+        out["requests"] = spent
+        out["deferred"] = out["deferred"][:MAX_STORED_ERRORS]
         out["errors"] = _clip(out["errors"])
         ok = not out["errors"]
         return out, ok, "; ".join(out["errors"]) or None
@@ -494,12 +695,27 @@ class SyncScheduler:
         service = services.match
         if not service._live_window_open():
             # The single most expensive mistake available here is polling live scores all night.
-            return ({"live_window_open": False, "live_polled": False,
+            return ({"live_window_open": False, "live_polled": False, "polls_today": self._live_polls_today(),
                      "note": "no covered match is in its live window; no provider request made"},
+                    True, None)
+        # The second expensive mistake is polling all day. One poll answers for every competition
+        # at once, so this bounds HOURS rather than coverage: no competition is served in
+        # preference to another by it, and the day it binds is a day whose live windows have run
+        # for fourteen hours, which no club matchday does.
+        cap = max(int(settings.SYNC_LIVE_MAX_REQUESTS_PER_DAY), 0)
+        polled_today = self._live_polls_today()
+        if cap and polled_today >= cap:
+            return ({"live_window_open": True, "live_polled": False, "polls_today": polled_today,
+                     "note": f"the day's live-poll ceiling is reached ({polled_today}/{cap}); "
+                             f"polling resumes at the UTC reset"},
                     True, None)
         meta = SyncMeta()
         service._sync_live(meta)
-        out = {"live_window_open": True, **meta.to_dict()}
+        # Only a request is counted. A poll served from the 60-second live cache spent nothing, and
+        # charging it to the ceiling would stop the day early over requests that never happened.
+        if meta.source == "provider":
+            self._note_live_poll()
+        out = {"live_window_open": True, **meta.to_dict(), "polls_today": self._live_polls_today()}
         out["errors"] = _clip(out["errors"])
         ok = not out["errors"]
         return out, ok, "; ".join(out["errors"]) or None
@@ -770,23 +986,89 @@ class SyncScheduler:
             # Scoring reads stored results and stored predictions; it contacts nobody.
             return 0, "no provider request: scoring reads only what is already stored"
         service = services.match
-        keys = len(service.keys)
         if name == TASK_FIXTURES:
             days = max(int(settings.SYNC_FIXTURES_DAYS_AHEAD), 1)
-            return keys * days, f"1 request per competition per day: {keys} competition(s) x {days} day(s)"
+            blocked = self._national_block(services)
+            # The estimate prices the plan the pass would actually make, competition by
+            # competition, rather than multiplying the covered set by the window. The two answers
+            # differ by a factor of five once national-team coverage is on, and the estimate is
+            # the number somebody reads before running this against a trial plan.
+            plan, national, _ = self._fixture_plan(service, service.now.date(), days,
+                                                   national=blocked is None)
+            fixtures = sum(len(keys) for _, keys in plan)
+            rotation = len(service.coverage_refresh_due(
+                0 if blocked else max(int(settings.SYNC_COVERAGE_CALENDAR_REFRESH_PER_PASS), 0)))
+            basis = (f"{len(service.club_keys)} club competition(s) x {days} day(s) = "
+                     f"{len(service.club_keys) * days}, plus {national} national-team "
+                     f"competition-day(s) whose calendar says they play, plus {rotation} "
+                     f"calendar refresh(es)")
+            if blocked:
+                basis += f"; national-team coverage is held back ({blocked})"
+            return fixtures + rotation, basis
         if name == TASK_LIVE:
             if not service._live_window_open():
                 return 0, "no covered match is in its live window"
-            return 1, "1 request (matches/live.json covers every competition at once)"
+            cap = max(int(settings.SYNC_LIVE_MAX_REQUESTS_PER_DAY), 0)
+            polled = self._live_polls_today()
+            if cap and polled >= cap:
+                return 0, f"the day's live-poll ceiling is reached ({polled}/{cap})"
+            return 1, ("1 request (matches/live.json covers every competition at once); "
+                       f"{polled} poll(s) made today of at most {cap or 'unbounded'}")
         lookback = max(int(settings.SYNC_RESULTS_LOOKBACK_DAYS), 0)
+        cap = max(int(settings.SYNC_RESULTS_MAX_REQUESTS_PER_PASS), 0)
         today = service.now.date()
-        pending = [today - timedelta(days=offset) for offset in range(lookback + 1)
-                   if service._pending_results_exist(today - timedelta(days=offset))]
-        return (keys * len(pending),
-                f"1 request per competition for each day with an unsettled match: "
-                f"{keys} competition(s) x {len(pending)} day(s)")
+        spent, days_with_work, deferred = 0, 0, 0
+        for offset in range(lookback + 1):
+            pending = service.pending_result_keys(today - timedelta(days=offset))
+            if pending:
+                days_with_work += 1
+            take = min(len(pending), max(cap - spent, 0)) if cap else 0
+            spent += take
+            deferred += len(pending) - take
+        basis = (f"1 request per competition holding an unsettled match: {spent} over "
+                 f"{days_with_work} day(s) with work, capped at {cap} a pass")
+        if deferred:
+            basis += f"; {deferred} deferred to the next pass by that cap"
+        return spent, basis
 
     # ------------------------------------------------------------------ status
+    def coverage_status(self) -> Dict[str, Any]:
+        """What is covered and how much of it has a calendar yet. Reads Redis; no database.
+
+        A national-team competition with no calendar read yet is not being asked about, so the two
+        counts have to be reported apart: "29 covered" alone would claim a coverage the scheduler
+        is not yet providing, and the gap between them is exactly how far through its first
+        rotation this installation is.
+        """
+        club = comps.covered_keys(settings.COVERED_COMPETITIONS, national_setting="")
+        national = comps.national_team_keys(settings.COVERED_NATIONAL_TEAM_COMPETITIONS)
+        now = self.now
+        with_calendar = playing_soon = 0
+        soonest: Optional[str] = None
+        for key in national:
+            record = self.cache.get(COVERAGE_CALENDAR_KEY.format(key=key))
+            if not isinstance(record, dict) or not record.get("answered"):
+                continue
+            with_calendar += 1
+            kickoff = _parse(record.get("next_kickoff"))
+            if kickoff is None:
+                continue
+            if kickoff - now <= timedelta(days=settings.SYNC_FIXTURES_DAYS_AHEAD):
+                playing_soon += 1
+            if soonest is None or record["next_kickoff"] < soonest:
+                soonest = record["next_kickoff"]
+        return {
+            "club_competitions": len(club),
+            "national_team_competitions": len(national),
+            "national_setting": settings.COVERED_NATIONAL_TEAM_COMPETITIONS,
+            "national_with_calendar": with_calendar,
+            "national_playing_inside_the_fixture_window": playing_soon,
+            "next_national_kickoff": soonest,
+            "calendar_refresh_per_pass": int(settings.SYNC_COVERAGE_CALENDAR_REFRESH_PER_PASS),
+            "live_polls_today": self._live_polls_today(),
+            "live_polls_per_day_ceiling": int(settings.SYNC_LIVE_MAX_REQUESTS_PER_DAY),
+        }
+
     def status(self) -> Dict[str, Any]:
         enabled = self.enabled_tasks()
         payload: Dict[str, Any] = {
@@ -796,6 +1078,7 @@ class SyncScheduler:
             "startup_delay_seconds": max(int(settings.SYNC_SCHEDULER_STARTUP_DELAY_SECONDS), 0),
             "budget_reserve": int(settings.SYNC_SCHEDULER_BUDGET_RESERVE),
             "enabled_tasks": enabled,
+            "coverage": self.coverage_status(),
             # Due-times and history live in Redis. Without it the scheduler still runs, but it cannot
             # remember when a task last ran, so freshness here would be a guess. Say so.
             "state_store_available": self.cache.available,

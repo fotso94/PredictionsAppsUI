@@ -1,0 +1,286 @@
+{
+  "endpoint": "competitions/list.json",
+  "note": "national_teams_only == '1'. Credentials are request parameters and are not in any reply.",
+  "total_competitions_seen": 523,
+  "national_team_competitions": [
+    {
+      "id": "246",
+      "name": "AFF Suzuki Cup",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": false,
+      "countries": []
+    },
+    {
+      "id": "228",
+      "name": "Africa Cup of Nations Qualifications",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "227",
+      "name": "African Cup of Nations",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "226",
+      "name": "African Nations Championship",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "403",
+      "name": "African Nations Championship Qualification",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": false,
+      "countries": []
+    },
+    {
+      "id": "452",
+      "name": "Arab Cup",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "412",
+      "name": "Arabian Gulf Cup",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "240",
+      "name": "Asian Cup",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "241",
+      "name": "Asian Cup Qualification",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "391",
+      "name": "CONCACAF Nations League",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "269",
+      "name": "CONCACAF Nations League Qualification",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": false,
+      "countries": []
+    },
+    {
+      "id": "225",
+      "name": "COSAFA Cup",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "362",
+      "name": "FIFA World Cup",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "266",
+      "name": "Gold Cup",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "435",
+      "name": "Gold Cup Qualifiers",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": false,
+      "countries": []
+    },
+    {
+      "id": "385",
+      "name": "Olympic Games Football Tournament",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "247",
+      "name": "SAFF Championship",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "274",
+      "name": "UEFA EURO Qualification",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "350",
+      "name": "UEFA Nations League",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "358",
+      "name": "World Cup AFC Qualifiers",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "359",
+      "name": "World Cup CAF Qualifiers",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "360",
+      "name": "World Cup CONCACAF Qualifiers",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "361",
+      "name": "World Cup CONMEBOL Qualifiers",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "365",
+      "name": "World Cup Inter-Confederation Play-Off",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": false,
+      "countries": []
+    },
+    {
+      "id": "364",
+      "name": "World Cup OFC Qualifiers",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "363",
+      "name": "World Cup UEFA Qualifiers",
+      "active": true,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "270",
+      "name": "FIFA Confederations Cup",
+      "active": false,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": true,
+      "countries": []
+    },
+    {
+      "id": "373",
+      "name": "King's Cup",
+      "active": false,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": false,
+      "countries": []
+    },
+    {
+      "id": "374",
+      "name": "Kirin Cup",
+      "active": false,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": false,
+      "countries": []
+    },
+    {
+      "id": "248",
+      "name": "Southeast Asian Games",
+      "active": false,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": false,
+      "countries": []
+    },
+    {
+      "id": "377",
+      "name": "Toulon",
+      "active": false,
+      "is_cup": true,
+      "tier": "0",
+      "has_groups": false,
+      "countries": []
+    }
+  ]
+}

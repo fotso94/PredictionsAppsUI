@@ -85,6 +85,11 @@ def sample_settings(monkeypatch, redis):
     monkeypatch.setattr(settings, "DATA_PROVIDER_FALLBACKS", "")
     monkeypatch.setattr(settings, "PREDICTION_PROVIDER", "sample")
     monkeypatch.setattr(settings, "COVERED_COMPETITIONS", "premier_league,la_liga")
+    # Coverage is two settings, so pinning one of them pins half the answer. The national-team
+    # setting ships as `active`, which adds 29 competitions to everything `covered_keys` returns;
+    # these tests are about a provider switch over a known two-competition set, so both halves are
+    # named here rather than one being left to the shipped default.
+    monkeypatch.setattr(settings, "COVERED_NATIONAL_TEAM_COMPETITIONS", "")
     # every service gets the same in-memory cache; nothing leaks between tests or into the real Redis
     monkeypatch.setattr("app.services.match_data_service.MatchCache", lambda client=None: MatchCache(client=redis))
     monkeypatch.setattr("app.services.forecast_service.MatchCache", lambda client=None: MatchCache(client=redis))

@@ -7,14 +7,44 @@
  */
 
 import type { Match } from '@/types'
+import { FixtureKind, competitionKind, fixtureKind } from '@/utils/squads'
 
 export interface CompetitionOption {
   id: string
   name: string
   country: string
   logo: string
+  /** Club or national-team football, or `unknown` where the payload does not classify it. */
+  kind: FixtureKind
   /** Fixtures this competition contributes to the day, before any filter is applied. */
   count: number
+}
+
+/**
+ * How much of each kind of football a day holds, counted from the fixtures themselves.
+ *
+ * WHAT IT IS FOR. A control offering "Club" and "National teams" on a day that holds only one of
+ * them can do nothing but empty the list, which is the same reason the competition chip row is
+ * withheld for a day with a single competition. So the workspace asks this first and offers the
+ * choice only where there is one — and the counts, not a boolean, because the answer to "is this
+ * an international break?" is the club count being zero rather than the national count being
+ * positive.
+ *
+ * `unknown` is counted separately and belongs to neither: a fixture whose competition carries no
+ * classification is not evidence of club football and not evidence of national-team football.
+ */
+export interface DayKindCounts {
+  club: number
+  national: number
+  unknown: number
+  /** Both kinds are present, so a choice between them narrows the list rather than emptying it. */
+  both: boolean
+}
+
+export function kindCounts(matches: Match[]): DayKindCounts {
+  const counts = { club: 0, national: 0, unknown: 0 }
+  for (const match of matches) counts[fixtureKind(match)] += 1
+  return { ...counts, both: counts.club > 0 && counts.national > 0 }
 }
 
 export interface CompetitionGroup extends CompetitionOption {
@@ -42,7 +72,7 @@ export function competitionOptions(matches: Match[]): CompetitionOption[] {
     const { id, name, country, logo } = match.league
     const existing = byId.get(id)
     if (existing) existing.count += 1
-    else byId.set(id, { id, name, country, logo, count: 1 })
+    else byId.set(id, { id, name, country, logo, kind: competitionKind(match.league), count: 1 })
   }
   return [...byId.values()].sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name))
 }
@@ -58,7 +88,7 @@ export function groupByCompetition(matches: Match[]): CompetitionGroup[] {
     const { id, name, country, logo } = match.league
     const existing = byId.get(id)
     if (existing) { existing.matches.push(match); existing.count += 1 }
-    else byId.set(id, { id, name, country, logo, count: 1, matches: [match] })
+    else byId.set(id, { id, name, country, logo, kind: competitionKind(match.league), count: 1, matches: [match] })
   }
 
   const groups = [...byId.values()]

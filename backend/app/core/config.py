@@ -163,6 +163,27 @@ class Settings(BaseSettings):
     PREDICTION_PROVIDER: str = "gameforecast"
     # Canonical competition keys covered by the product (see app/services/providers/competitions.py)
     COVERED_COMPETITIONS: str = "premier_league,la_liga,serie_a,bundesliga,ligue_1,champions_league"
+    # National-team competitions, added to the club set above rather than replacing any of it.
+    # Accepts explicit keys ("fifa_world_cup,uefa_nations_league"), `active` (every national-team
+    # competition Live Score still schedules, 29 today), `all` (those plus the five dormant ones), or
+    # nothing.
+    #
+    # `active`, because the scheduler now pays for these by the fixture rather than by the
+    # competition. Asking all 35 covered competitions on every pass is what used to make this
+    # unaffordable - 35 x 3 days x 4 fixture passes = 420/day, and the results task at its
+    # half-hourly interval 35 x 2 x 48 = 3,360/day, some four times the whole 1,200/day Live Score
+    # plan. Three rules replace that, and each is bounded by a setting below:
+    #
+    #   - the results task asks only for the competitions an unsettled match is actually IN
+    #     (`MatchDataService.pending_result_keys`), capped per pass;
+    #   - the fixtures task asks for a national-team competition only on days its coverage calendar
+    #     says it plays, capped per pass; the club six are always asked for, exactly as before;
+    #   - those calendars are bought one request at a time by a rotation that refreshes the stalest
+    #     first and re-reads a dormant competition at most once a fortnight.
+    #
+    # A dormant tournament therefore costs nothing until it schedules something, and an
+    # international break is picked up within a day with nobody touching a setting.
+    COVERED_NATIONAL_TEAM_COMPETITIONS: str = "active"
 
     # Live Score API (https://live-score-api.com) — key + secret from the account profile
     LIVESCORE_API_KEY: Optional[str] = None
@@ -208,17 +229,67 @@ class Settings(BaseSettings):
     # Capped at a tenth of the plan, so it can never freeze out a very small allowance.
     SYNC_SCHEDULER_BUDGET_RESERVE: int = 50
 
-    # Fixture calendar: hours, not minutes. 6 competitions x 3 days = ~18 Live Score requests a pass,
-    # ~72/day at this interval against a 1,200/day budget.
+    # Fixture calendar: hours, not minutes. 6 club competitions x 3 days = 18 Live Score requests a
+    # pass, 72/day at this interval against a 1,200/day budget. The national-team competitions are
+    # asked for on top of that only on the days their coverage calendar says they play, bounded by
+    # SYNC_FIXTURES_MAX_NATIONAL_REQUESTS_PER_PASS below.
     SYNC_FIXTURES_INTERVAL_SECONDS: int = 6 * 3600
     SYNC_FIXTURES_DAYS_AHEAD: int = 3  # today and the next two days
     # Live scores: one request a poll (matches/live.json), and only while a covered match is actually
     # in its live window. Matches the 60 s live cache TTL closely enough not to re-serve the same copy.
     SYNC_LIVE_INTERVAL_SECONDS: int = 120
-    # Results: only days that still have an unsettled match cost anything, so this is cheap on a quiet
-    # day and bounded at 6 competitions x 2 days a pass on a busy one.
+    # Results: only the competitions that still have an unsettled match on a day cost anything, so
+    # this is free on a quiet day and bounded by SYNC_RESULTS_MAX_REQUESTS_PER_PASS on a busy one.
     SYNC_RESULTS_INTERVAL_SECONDS: int = 1800
     SYNC_RESULTS_LOOKBACK_DAYS: int = 1  # today and yesterday
+
+    # ---------------------------------------------- what national-team coverage may cost a pass
+    # Three caps, one per task that can grow with the covered set. Each is a hard per-pass or
+    # per-day bound rather than an average, so the day's worst case can be written down:
+    #
+    #   club fixtures      6 x 3 days x 4 passes                           =  72
+    #   national fixtures  24 a pass x 4 passes                            =  96
+    #   results            8 a pass x 48 passes                            = 384
+    #   live               capped below                                    = 420
+    #   calendars          the existing CALENDAR_HEAD_DAILY_REQUEST_CEILING = 120
+    #                      (the coverage rotation spends out of this same share, not beside it)
+    #                                                                       -----
+    #                                                                       1,092
+    #   + SYNC_SCHEDULER_BUDGET_RESERVE held back for page loads               50
+    #                                                                       =====
+    #                                                                       1,142  of 1,200
+    #
+    # These are SIMULTANEOUS worst cases, which is deliberately pessimistic: the live ceiling is
+    # only reached on a day whose live windows run for fourteen hours, and the results cap is only
+    # reached while sixteen competitions all hold an unsettled match at once, and a day is
+    # unlikely to be both. A pass that does hit a cap defers national-team work to the next one -
+    # half an hour for results, six hours for fixtures - and never defers a club competition.
+    #
+    # `tests/services/test_coverage_budget.py` asserts that sum against the plan, so a cap raised
+    # here without the arithmetic being redone fails a test rather than quietly overrunning.
+
+    # National-team competitions asked about per fixtures pass, across every day in the window.
+    # An international break runs perhaps eight competitions at once - the confederations'
+    # qualifiers, the two Nations Leagues, and National Teams Friendlies, which is one competition
+    # holding the whole world's friendlies - so 24 covers eight of them across the whole 3-day
+    # window with nothing deferred. Club competitions are never counted against this cap and never
+    # deferred by it.
+    SYNC_FIXTURES_MAX_NATIONAL_REQUESTS_PER_PASS: int = 24
+    # Competitions asked for results per pass, over every day in the lookback. Clubs are served
+    # first, then the national set rotated by pass number so none is always the one cut.
+    SYNC_RESULTS_MAX_REQUESTS_PER_PASS: int = 8
+    # Live polls per UTC day. 420 at a 120 s interval is 14 hours of continuously open live
+    # windows, which no club matchday comes near; it binds only on a day when national fixtures
+    # spread live windows across most of the clock. One poll covers every competition at once, so
+    # this cannot starve one competition in favour of another - it bounds hours, not coverage.
+    SYNC_LIVE_MAX_REQUESTS_PER_DAY: int = 420
+    # Coverage calendars refreshed per fixtures pass, stalest first. 8 x 4 passes = 32/day covers
+    # all 29 national-team competitions daily in the worst case where every one is due at once.
+    SYNC_COVERAGE_CALENDAR_REFRESH_PER_PASS: int = 8
+    # Allowance a provider must still have before a pass spends anything on national-team work.
+    # Below it the pass serves the club six and nothing else: coverage degrades to what this
+    # installation has always had rather than the club competitions going unfetched.
+    SYNC_NATIONAL_TEAM_BUDGET_FLOOR: int = 250
     # Forecasts: ForecastService already enforces its own per-competition interval (24 h) and its own
     # daily allowance, so this only controls how often it is offered the chance to rotate.
     #: Scoring reads stored data only, so it costs nothing and can run often. Ten minutes means a

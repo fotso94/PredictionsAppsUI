@@ -1,0 +1,40 @@
+{
+  "correction": "An unfiltered /leagues call returns 20 rows and that is a DEFAULT PAGE, not the catalogue. Concluding from it that GameForecast has no national-team coverage was wrong. A name-targeted query - the path resolve_league() itself uses - returns national-team competitions.",
+  "endpoint": "/leagues",
+  "name_targeted_probe": {
+    "meaning": "GameForecast DOES cover national-team competitions. Coverage must be established per competition by name, not by reading the unfiltered listing.",
+    "query": {
+      "name": "Nations League"
+    },
+    "rows": [
+      {
+        "id": 36,
+        "name": "UEFA Nations League"
+      },
+      {
+        "id": 38,
+        "name": "CONCACAF Nations League"
+      }
+    ]
+  },
+  "national_team_candidates": [
+    {
+      "country": null,
+      "id": 12,
+      "name": "CONMEBOL Libertadores"
+    },
+    {
+      "country": null,
+      "id": 18,
+      "name": "UEFA Europa Conference League"
+    },
+    {
+      "country": null,
+      "id": 19,
+      "name": "UEFA Europa League"
+    }
+  ],
+  "note": "No credential appears in any reply; the key is a request header.",
+  "total": 20,
+  "unknown": "Whether GameForecast covers the other national-team competitions (World Cup and its qualifiers, EURO qualification, AFCON, Copa America, Gold Cup, Asian Cup, friendlies) is NOT established: each needs its own name-targeted request and the daily allowance of 8 was exhausted on 2026-09-23. It resets at UTC midnight."
+}

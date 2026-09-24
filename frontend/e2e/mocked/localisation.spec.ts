@@ -585,6 +585,10 @@ const SAME_IN_BOTH_ON_PURPOSE: Record<string, string> = {
   'measured.sourceKind.expert': 'the same word in French',
   'filters.sources': 'the same word in French',
   'filters.group.source': 'the same word in French',
+  // "Clubs" is the French word too, plural included. The two alternatives beside it are not —
+  // "National teams" is « Sélections » and "All" is « Tous » — so this is the only one of the
+  // three that coincides, which is what makes leaving it alone a translation rather than a gap.
+  'filters.kind.club': 'the same word in French',
 };
 
 /**
@@ -811,6 +815,22 @@ const COUNT_CASES: CountCase[] = [
       '1 match est enregistré pour le 15 juin 2026\u00a0; aucun ne correspond à tous les filtres que vous avez posés.',
       '2 matchs sont enregistrés pour le 15 juin 2026\u00a0; aucun ne correspond à tous les filtres que vous avez posés.',
       '11 matchs sont enregistrés pour le 15 juin 2026\u00a0; aucun ne correspond à tous les filtres que vous avez posés.',
+    ],
+  },
+  {
+    /*
+      The international-break note. Its `=0` branch is written out here and is unreachable on
+      screen — the note renders only where at least one national-team fixture was listed — but a
+      branch nothing renders is exactly the branch a plural rule is got wrong in, and the table
+      is the only place that can see it.
+    */
+    key: 'matchday.nationalTeamDay',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      'Aucun match n’est enregistré à cette date. Aucun match de club n’est enregistré à cette date.',
+      'Le seul match enregistré à cette date est un match de sélections nationales. Aucun match de club n’est enregistré à cette date.',
+      'Les 2 matchs enregistrés à cette date sont tous des matchs de sélections nationales. Aucun match de club n’est enregistré à cette date.',
+      'Les 11 matchs enregistrés à cette date sont tous des matchs de sélections nationales. Aucun match de club n’est enregistré à cette date.',
     ],
   },
   {
@@ -1291,6 +1311,19 @@ const COUNT_CASES: CountCase[] = [
  * table that only checks French would not have noticed either way.
  */
 const ENGLISH_COUNT_CASES: Array<{ key: keyof typeof en; params: (n: number) => Record<string, string | number>; en: [string, string, string, string] }> = [
+  {
+    // The international-break note. Its `=0` branch is unreachable on screen — the note renders
+    // only where at least one national-team fixture was listed — and is written out here because
+    // a branch nothing renders is the branch a plural rule is got wrong in.
+    key: 'matchday.nationalTeamDay',
+    params: (n: number) => ({ count: n }),
+    en: [
+      'No fixture is stored for this date. No club fixture is stored for this date.',
+      'The one fixture stored for this date is a national-team fixture. No club fixture is stored for this date.',
+      'All 2 fixtures stored for this date are national-team fixtures. No club fixture is stored for this date.',
+      'All 11 fixtures stored for this date are national-team fixtures. No club fixture is stored for this date.',
+    ],
+  },
   {
     key: 'auth.validation.tooShortLong',
     params: (n: number) => ({ count: n }),

@@ -10,6 +10,7 @@ import { format } from 'date-fns'
 import { isMatchLive, isMatchFinished, getMatchStatusText, getMatchStatusBadgeClasses } from '@/utils/matchFilters'
 import { predictionSourceLabel, forecastSyncMessage } from '@/utils/predictionLabels'
 import { marketLead, formatPercent, unavailableText } from './probability'
+import { periodLines } from './scoreline'
 import { onTeamLogoError, onLeagueLogoError } from './imageFallback'
 
 interface MatchCardProps {
@@ -157,6 +158,17 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, fo
                   <div className={`text-2xl font-bold ${isMatchLive(match) ? 'text-green-500' : 'text-white'}`}>
                     {match.result.homeScore} - {match.result.awayScore}
                   </div>
+                  {/*
+                    The rest of the tie, beside the score and never folded into it. A shoot-out
+                    is not a scoreline: 0-0 won 4-3 on penalties is the draw every market settles
+                    on and a win to everyone who watched it, and the line above can only say one
+                    of those. Empty for the ordinary match, which is most of them.
+                  */}
+                  {periodLines(match.result).map(line => (
+                    <div key={line} className="mt-1 text-xs text-secondary-300" data-testid="match-score-period">
+                      {line}
+                    </div>
+                  ))}
                   {match.status === 'halftime' && (
                     <div className="text-xs text-secondary-400 mt-1">HT</div>
                   )}

@@ -14,6 +14,7 @@ import DataFreshness from '@/components/ui/DataFreshness'
 import { isPublished } from '@/components/ui/probability'
 import { forecastAvailability } from '@/components/ui/forecastStatus'
 import { onTeamLogoError } from '@/components/ui/imageFallback'
+import { periodLines } from '@/components/ui/scoreline'
 import Disclosure from '@/components/match-detail/Disclosure'
 import EvidenceBrief from '@/components/match-detail/EvidenceBrief'
 import MarketTable from '@/components/match-detail/MarketTable'
@@ -474,9 +475,23 @@ const MatchDetailPage: React.FC = () => {
                   */}
                   <div className="flex-shrink-0 text-center" data-testid="match-scoreline">
                     {showScore && match.result ? (
-                      <div className={`text-2xl font-bold sm:text-3xl ${isMatchLive(match) ? 'text-green-500' : 'text-white'}`}>
-                        {match.result.homeScore} - {match.result.awayScore}
-                      </div>
+                      <>
+                        <div className={`text-2xl font-bold sm:text-3xl ${isMatchLive(match) ? 'text-green-500' : 'text-white'}`}>
+                          {match.result.homeScore} - {match.result.awayScore}
+                        </div>
+                        {/*
+                          The periods of a knockout tie, beside the score and never merged into
+                          it. The line above is the football that was played; a shoot-out is not
+                          a scoreline, and a tie shown only as the 0-0 it was after 90 minutes has
+                          lost the half of the result everyone who watched it remembers. Renders
+                          nothing for the ordinary match, which is most of them.
+                        */}
+                        {periodLines(match.result).map(line => (
+                          <div key={line} className="mt-1 text-xs text-secondary-300" data-testid="match-score-period">
+                            {line}
+                          </div>
+                        ))}
+                      </>
                     ) : (
                       <div className="text-xl font-bold text-secondary-400 sm:text-2xl">VS</div>
                     )}

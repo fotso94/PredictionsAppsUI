@@ -170,7 +170,17 @@ const core = {
   'matchday.moreCompetitionsSr': ' competitions, in the filters',
   'matchday.filterByCompetition': 'Filter by competition',
   'matchday.footnote': 'Every fixture stored for this date. Each probability is shown exactly as the source published it, and a market no source published is marked unavailable rather than shown as zero.',
-  'matchday.documentDescription': 'Fixtures for {date} from the top five European leagues and the Champions League, with the model forecast and any expert prediction published for each match. Every probability names its source; a market no source published is shown as unavailable.',
+  /*
+    A LIST OF COMPETITIONS CAME OUT OF THIS SENTENCE.
+
+    It read "Fixtures for {date} from the top five European leagues and the Champions League" —
+    a claim about which football this page carries, written down as a constant. National-team
+    fixtures are listed here now, so on the days that matter most (an international break, when
+    those are the only fixtures there are) the description named six competitions none of which
+    appears on the page. The rest of the sentence is unchanged: it describes how this page treats
+    a probability, which is a fact about the page and stays true whatever is on it.
+  */
+  'matchday.documentDescription': 'Every fixture stored for {date}, with the model forecast and any expert prediction published for each match. Every probability names its source; a market no source published is shown as unavailable.',
 
   /*
    * The scoring note, measured from the fixtures actually on screen.
@@ -184,6 +194,35 @@ const core = {
   'matchday.scoring.nonePlayed': '{count, plural, one {The fixture listed here has not been played yet} other {None of the # fixtures listed here has been played yet}}, so nothing on this page has been scored against a result and no accuracy is claimed for any of it.',
   'matchday.scoring.allPlayed': '{count, plural, one {The fixture listed here has {verb, select, finished {finished} other {kicked off}}} other {All # fixtures listed here have {verb, select, finished {finished} other {kicked off}}}}. Whether a prediction for one of them has been scored against its result is stated on that match\'s own page; this list claims no accuracy either way.',
   'matchday.scoring.somePlayed': '{started, plural, one {# of the {total} fixtures listed here has} other {# of the {total} fixtures listed here have}} {verb, select, finished {finished} other {kicked off}}. Whether a prediction for one of them has been scored against its result is stated on that match\'s own page; this list claims no accuracy either way.',
+
+  /*
+    THE INTERNATIONAL BREAK, NAMED.
+
+    Shown above the list on a day whose only stored football is national-team football. It states
+    what this installation holds, in the same voice as `matchday.emptyTitle` beside it — NOT that
+    club competitions are in a break, which nobody asked a calendar about and which a day we have
+    simply not fetched club fixtures for would look identical to.
+  */
+  'matchday.nationalTeamDay': '{count, plural, =0 {No fixture is stored for this date} one {The one fixture stored for this date is a national-team fixture} other {All # fixtures stored for this date are national-team fixtures}}. No club fixture is stored for this date.',
+
+  // ─── which squad a team row is ───────────────────────────────────────────────────────────
+  /*
+    A country's squads are separate rows with one name between them, so the name alone cannot say
+    which of them a reader is following or looking at — and a national team has no country to
+    print beside it, because the only country its competitions have is a confederation's
+    territory. These phrases go where a club's country goes.
+
+    ONE WHOLE KEY PER SQUAD, not a stem plus a qualifier: French agrees the article and the
+    adjective with a noun that differs per scope, and none of that survives assembling "women"
+    and "national team" in English word order. There is deliberately no key for a men's senior
+    club, which is nearly every row here: a badge reading "Men's club" on twenty rows would
+    disambiguate none of them.
+  */
+  'squad.nationalSeniorMen': 'National team',
+  'squad.nationalSeniorWomen': 'Women\'s national team',
+  'squad.nationalYouth': 'Youth national team',
+  'squad.clubSeniorWomen': 'Women\'s club',
+  'squad.clubYouth': 'Youth club',
 
   // ─── the date strip ──────────────────────────────────────────────────────────────────────
   'dateStrip.chooseDate': 'Choose a date',
@@ -216,6 +255,15 @@ const core = {
   'filters.group.market': 'Market',
   'filters.group.source': 'Source',
   'filters.group.showing': 'Showing',
+  'filters.group.teams': 'Teams',
+  // Club football or national-team football. The three are alternatives, so "All" is a real
+  // option and the absence of a filter at the same time — never a fourth thing to tick.
+  'filters.kind.title': 'Club or country',
+  'filters.kind.hint': 'National-team fixtures are listed alongside club ones. This keeps only one kind.',
+  'filters.kind.groupLabel': 'Club or national-team fixtures',
+  'filters.kind.all': 'All',
+  'filters.kind.club': 'Clubs',
+  'filters.kind.national': 'National teams',
   'filters.selectedCompetition': 'Selected competition',
   'filters.status.all': 'Everything on this date',
   'filters.status.upcoming': 'Upcoming and in play',
@@ -259,6 +307,15 @@ const core = {
   'fixture.side.draw': 'Draw',
   'fixture.side.away': 'Away',
   'fixture.aDraw': 'a draw',
+  // The periods of a knockout tie, shown BESIDE the score rather than merged into it. A shoot-out
+  // is not a scoreline and a tie shown only as its 90-minute draw has lost the half of the result
+  // everyone who watched it remembers; both readings get their own words here. The short forms are
+  // for the fixture row, where a full sentence would push the club names off a phone.
+  'fixture.score.penalties': '{home}–{away} on penalties',
+  'fixture.score.penaltiesShort': '{home}–{away} pens',
+  'fixture.score.afterExtraTime': 'After extra time',
+  'fixture.score.afterExtraTimeShort': 'a.e.t.',
+  'fixture.score.regulation': '{home}–{away} after 90 minutes',
   // `{percent}` arrives already formatted, sign included: "85%" in English, "85 %" in French.
   'fixture.confidencePublished': '{percent} confidence, published by the {source}',
   'fixture.leadTitle': '{source}: {outcome} at {percent}, as published by the source.',
@@ -577,7 +634,7 @@ const core = {
   'home.coverageCountedFrom': 'Counted from the stored data.',
   'home.coverageCountedFromWhen': 'Counted from the stored data on {when}.',
   'home.stat.competitions': 'Competitions covered',
-  'home.stat.competitionsDetail': 'Top five European leagues and the Champions League',
+  'home.stat.competitionsDetail': 'Club competitions and national-team football worldwide',
   'home.stat.fixtures': 'Upcoming fixtures loaded',
   'home.stat.fixturesDetail': 'Scheduled and in-play matches currently stored',
   'home.stat.forecasts': 'Model forecasts available',

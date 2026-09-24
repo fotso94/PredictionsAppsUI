@@ -58,14 +58,22 @@ export default defineConfig({
        * between the two, and 360 is what a Galaxy S-series, a Pixel "a" in a font-scaled profile
        * and most budget Androids report.
        *
-       * SCOPE. It runs navigation-continuity.spec.ts only, not every mocked spec. Widening the
-       * testMatch to /mocked\/.*\.spec\.ts is a one-line change and is where this should end up —
-       * but the rest of the mocked suite has never been run at 360, so turning it all on in the
-       * same commit would mix "the header is fixed" with an unknown number of unrelated failures
-       * in files owned by other people. Run the mocked suite at 360 first, then widen it.
+       * SCOPE. It runs a named list, not every mocked spec. Widening the testMatch to
+       * /mocked\/.*\.spec\.ts is a one-line change and is where this should end up — but the rest
+       * of the mocked suite has never been run at 360, so turning it all on in the same commit
+       * would mix "the header is fixed" with an unknown number of unrelated failures in files
+       * owned by other people. Run the mocked suite at 360 first, then widen it.
+       *
+       * national-teams.spec.ts joins it because 360 is where its subject matter breaks: a
+       * competition called "World Cup CONCACAF Qualifiers" and a country called "Sao Tome And
+       * Principe" are four and three times the width of "Arsenal", and the club/national control
+       * shares a row with the competition chips. Both of those are new width, on the one strip
+       * that already had to be taught not to overflow. It is added rather than the list being
+       * widened because it is the file this package wrote and can vouch for at this width; the
+       * rest of the suite is still unmeasured here.
        */
       name: 'mocked-mobile-360',
-      testMatch: /mocked\/navigation-continuity\.spec\.ts/,
+      testMatch: /mocked\/(navigation-continuity|national-teams)\.spec\.ts/,
       use: { ...devices['Galaxy S8'] },
     },
     {

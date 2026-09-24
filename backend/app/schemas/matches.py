@@ -12,6 +12,7 @@ from typing import Any, Dict, Iterable, Optional
 
 from app.models.predictions import League, Match, MatchStatus, Prediction, Team
 from app.models.provider_data import ProviderEntityRef, ProviderForecastRecord
+from app.services.providers import competitions as comps
 from app.services.providers.base import ProviderStanding
 
 
@@ -48,10 +49,52 @@ def status_label(match: Match) -> str:
 
 
 def serialize_team(team: Optional[Team]) -> Optional[Dict[str, Any]]:
+    """One team row, carrying the scope that says WHICH squad it is.
+
+    ``country`` cannot answer that, and not because it is absent. ``upsert_team`` refuses to write
+    a competition's confederation territory onto a squad, so a national team's country is the one
+    the PROVIDER spelled for it, or ``"Unknown"`` -- which means Spain's men and Spain's women carry
+    the SAME country, and a Spanish club may carry it too. The field a reader would reach for is
+    precisely the field that cannot separate the three, and a follow list would show the same word
+    twice with nothing to choose between the rows.
+
+    ``team_scope`` is that answer, served as the stored ``TeamScope`` value rather than as a
+    phrase: it is a stable identifier the caller maps to whatever its own reader reads, in whatever
+    language, and the wording never has to agree across two codebases. Rows written before the
+    column existed carry the server default, which is the club scope they were always read as.
+    """
     if team is None:
         return None
     return {"id": str(team.id), "name": team.name, "short_name": team.short_name, "logo": team.logo_url or "/teams/default.svg",
-            "country": team.country}
+            "country": team.country,
+            "team_scope": team.team_scope or comps.DEFAULT_TEAM_SCOPE.value}
+
+
+def _classification(key: Optional[str]) -> Dict[str, Any]:
+    """Club-or-country, confederation and squad category for a canonical competition key.
+
+    These three are written down once per competition in
+    :mod:`app.services.providers.competitions` and cannot be derived from a competition's name
+    without guessing, which is exactly why they are carried here rather than left to the caller:
+    "National Teams Friendlies", "UEFA Nations League" and "Premier League" are three names with
+    no shared shape, and a reader asking to see only national-team football is asking a question
+    only this table can answer.
+
+    A league we hold no canonical key for -- one stored straight from a provider -- is REPORTED AS
+    A CLUB COMPETITION, which is the same reading :meth:`MatchRegistry._scope_for` gives it when it
+    decides which scope to store its teams under. The two must agree: a fixture filed under a club
+    scope and served as national-team football would put a country in the club list and a club in
+    the country list at once. Its confederation and squad category stay null, because those are not
+    known and a default would be an invention rather than a reading.
+    """
+    canonical = comps.COMPETITIONS.get(key or "")
+    if canonical is None:
+        return {"is_national_team": False, "confederation": None, "squad_category": None}
+    return {
+        "is_national_team": canonical.is_national_team,
+        "confederation": canonical.confederation.value if canonical.confederation else None,
+        "squad_category": canonical.squad_category.value,
+    }
 
 
 def serialize_league(league: Optional[League], refs: Optional[Iterable[ProviderEntityRef]] = None) -> Optional[Dict[str, Any]]:
@@ -61,7 +104,8 @@ def serialize_league(league: Optional[League], refs: Optional[Iterable[ProviderE
     providers = {r.provider: r.external_id for r in (refs or []) if r.provider != "canonical"}
     return {"id": str(league.id), "key": meta.get("canonical_key"), "name": league.display_name or league.name,
             "country": league.country, "country_code": league.country_code, "logo": league.logo_url or "/leagues/default.svg",
-            "is_cup": bool(meta.get("is_cup")), "providers": providers}
+            "is_cup": bool(meta.get("is_cup")), "providers": providers,
+            **_classification(meta.get("canonical_key"))}
 
 
 def serialize_expert_prediction(prediction: Optional[Prediction]) -> Optional[Dict[str, Any]]:
@@ -150,16 +194,44 @@ def serialize_forecast(record: Optional[ProviderForecastRecord], freshness: Dict
     }
 
 
+def serialize_score(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Every period of a tie the source supplied, each one kept apart from the others.
+
+    A knockout tie has more than one scoreline and they answer different questions, so all of them
+    travel and none of them is merged into another:
+
+    * ``home``/``away``     the football that was played, extra time included and penalties never.
+    * ``ht_home``/``ht_away``   half time.
+    * ``ft_home``/``ft_away``   REGULATION time, 90 minutes plus stoppage. This is the only period
+      :mod:`app.services.settlement` settles a market on.
+    * ``et_home``/``et_away`` and ``ps_home``/``ps_away``   extra time and the shoot-out. They
+      settle nothing and they are what lets a reader be shown "0-0 (4-3 pens)" instead of a 0-0
+      that loses the half of the result everybody who watched it remembers.
+
+    Every period but ``home``/``away`` is null when the source did not supply it. Null is "not
+    supplied" and is not zero: a caller that cannot tell those apart must render neither.
+
+    Returns None when there is no score at all, which is the state of every fixture that has not
+    been played and of a played one whose result the source never sent.
+    """
+    if meta.get("home_score") is None or meta.get("away_score") is None:
+        return None
+    return {
+        "home": meta.get("home_score"), "away": meta.get("away_score"),
+        "ht_home": meta.get("ht_home_score"), "ht_away": meta.get("ht_away_score"),
+        "ft_home": meta.get("ft_home_score"), "ft_away": meta.get("ft_away_score"),
+        "et_home": meta.get("et_home_score"), "et_away": meta.get("et_away_score"),
+        "ps_home": meta.get("ps_home_score"), "ps_away": meta.get("ps_away_score"),
+    }
+
+
 def serialize_match(match: Match, teams: Dict, leagues: Dict, forecast: Optional[Dict[str, Any]] = None,
                     expert_prediction: Optional[Dict[str, Any]] = None, league_refs: Optional[Dict] = None) -> Dict[str, Any]:
     meta = match.match_metadata or {}
     home = teams.get(match.home_team_id)
     away = teams.get(match.away_team_id)
     league = leagues.get(match.league_id)
-    score = None
-    if meta.get("home_score") is not None and meta.get("away_score") is not None:
-        score = {"home": meta.get("home_score"), "away": meta.get("away_score"),
-                 "ht_home": meta.get("ht_home_score"), "ht_away": meta.get("ht_away_score")}
+    score = serialize_score(meta)
     forecast_state = (forecast or {}).get("state") or "unavailable"
     return {
         "id": str(match.id),

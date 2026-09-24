@@ -140,6 +140,81 @@ CALENDAR_HEAD_DAILY_REQUEST_CEILING = 120
 #: retry is the most `_get` will make.
 CALENDAR_BUDGET_REASON = "calendar"
 
+# --------------------------------------------------- which competitions are worth asking about
+# Coverage is 6 club competitions plus 29 national-team ones, and the two behave nothing alike.
+# The club six play every week, so asking for all six on every pass is right. The 29 do not: AFCON
+# is played in one window, the Gold Cup in another, World Cup qualifiers in international breaks,
+# and outside its window a competition answers every request with an empty list. Asking all 35 on
+# every pass is what makes coverage unaffordable - 35 x 3 days x 4 fixture passes is 420 requests a
+# day before a single result is read, against a 1,200/day plan.
+#
+# So a national-team competition earns its place in a pass from a CALENDAR it has already been
+# given, and the calendar is bought once and read for weeks. `get_calendar_head` is contractually
+# ONE request and answers with the competition's next fixtures in kickoff order, whatever the date;
+# the days in that answer are what say whether this competition plays inside the window a task
+# covers. A competition with none costs nothing at all until its calendar is next refreshed.
+#
+# Refreshing is itself a cost, so it is spread two ways. It is adaptive: the wait before the next
+# refresh is set from the competition's OWN next kickoff, so one that plays next week is re-read in
+# days and one with nothing listed is left for a fortnight. And it ROTATES: a pass refreshes at
+# most `SYNC_COVERAGE_CALENDAR_REFRESH_PER_PASS` of them, stalest first, so the 29 are never all
+# paid for at once and none of them can be passed over twice while another is refreshed twice.
+#
+# It costs nothing to be wrong in the safe direction here: a competition whose calendar we have
+# not read yet simply is not asked for, and it joins the pass on the rotation's next turn. That is
+# what makes an international break work with nobody touching a setting - the break begins,
+# fixtures appear in a competition that was dormant, the rotation reads its calendar within a day,
+# and every task that covers those days starts asking for it.
+
+#: One stored answer per competition: when it was read, which days it plays, when to read it again.
+COVERAGE_CALENDAR_KEY = "matchdata:coverage:calendar:{key}"
+#: The cached provider answer behind that record, so two passes close together cost one request.
+COVERAGE_HEAD_CACHE_KEY = "matchdata:coverage:head:{key}"
+
+#: Fixtures asked for per refresh. More than `CALENDAR_HEAD_PER_COMPETITION` because this answer is
+#: read for its DAYS rather than for display: a matchday with eight fixtures on it would otherwise
+#: fill the whole answer and hide the next matchday behind it. Still one request either way.
+COVERAGE_CALENDAR_HEAD_LIMIT = 20
+
+#: How far ahead a refreshed calendar is believed. Beyond this the answer is not kept, because a
+#: fixture five months out will be re-read many times before its day arrives and storing it only
+#: makes the record bigger.
+COVERAGE_CALENDAR_HORIZON_DAYS = 60
+
+#: The shortest and longest a calendar answer is held before another is paid for, and how far
+#: ahead of a known kickoff the refresh is brought forward.
+#:
+#: The minimum bounds what a competition can cost: 12 hours means at most 2 refreshes a day for
+#: one competition, however often the fixtures task runs. The maximum bounds how long a dormant
+#: competition can stay unnoticed once it schedules something: 14 days, which is shorter than the
+#: gap between international breaks, so a break is never missed by a competition that had nothing
+#: listed when it was last read. The lead is why a competition is re-read BEFORE it plays rather
+#: than on the day: 36 hours covers the fixtures task's 3-day window with a pass to spare.
+COVERAGE_CALENDAR_MIN_SECONDS = 12 * 3600
+COVERAGE_CALENDAR_MAX_SECONDS = 14 * 24 * 3600
+COVERAGE_CALENDAR_LEAD_SECONDS = 36 * 3600
+
+#: Fixtures kept in the record for display. The empty-state calendar reads these for the national
+#: competitions instead of sweeping them, which is what keeps an ordinary page visit costing the
+#: same six requests it costs today whatever the coverage setting says.
+COVERAGE_CALENDAR_FIXTURES_KEPT = CALENDAR_HEAD_PER_COMPETITION
+
+#: Keep a stored record small: it is read once per competition on every pass of several tasks.
+MAX_COVERAGE_ERROR_CHARS = 200
+
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def is_national_team_competition(key: str) -> bool:
+    """Whether `key` is played by national teams. An unknown key is treated as a club competition.
+
+    Unknown is the safe answer here because every rule built on this protects the club set: a key
+    the registry does not carry is asked for on every pass like a club competition rather than
+    being made to wait for a calendar it will never be given.
+    """
+    comp = comps.COMPETITIONS.get(key)
+    return bool(comp is not None and comp.is_national_team)
+
 
 def _seconds_until_utc_midnight(now: datetime) -> int:
     tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -229,6 +304,40 @@ def _fixture_from_dict(d: Dict[str, Any]) -> ProviderFixture:
     )
 
 
+#: One UTC day's live-poll count, and the ceiling over it.
+#:
+#: It lives beside the code that MAKES the requests rather than beside one of the tasks that asks
+#: for them, because TWO tasks poll: the live task on its own interval, and the fixtures task on
+#: its way out of `sync_day`. A ceiling only one of them consults is not a ceiling - an operator
+#: who lowers it would watch the other task sail straight past.
+LIVE_POLL_COUNT_KEY = "matchdata:live-polls:{day}"
+
+
+def live_polls_today(cache, now: datetime) -> int:
+    record = cache.get(LIVE_POLL_COUNT_KEY.format(day=now.strftime("%Y%m%d")))
+    return int(record.get("count") or 0) if isinstance(record, dict) else 0
+
+
+def note_live_poll(cache, now: datetime) -> None:
+    key = LIVE_POLL_COUNT_KEY.format(day=now.strftime("%Y%m%d"))
+    # An hour past midnight: still readable while a pass that began before the reset finishes, and
+    # long gone before the same key comes round again.
+    midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    ttl = int((midnight - now).total_seconds()) + 3600
+    cache.set(key, {"count": live_polls_today(cache, now) + 1}, ttl=ttl, stale_ttl=ttl)
+
+
+def live_poll_within_daily_ceiling(cache, now: datetime) -> bool:
+    """Whether another live poll may be made today.
+
+    Zero means NO CEILING, which is what zero means for every other request cap in this
+    application. A setting left at nothing is not an instruction to stop working, and the one
+    reading that would make it so is the reading an operator never intends.
+    """
+    cap = max(int(settings.SYNC_LIVE_MAX_REQUESTS_PER_DAY), 0)
+    return not cap or live_polls_today(cache, now) < cap
+
+
 class MatchDataService:
     def __init__(self, db: Session, providers: Optional[List[MatchDataProvider]] = None, cache: Optional[MatchCache] = None,
                  now: Optional[datetime] = None, keys: Optional[List[str]] = None):
@@ -238,6 +347,12 @@ class MatchDataService:
         self._providers = providers
         self._now = now
         self.keys = keys or comps.covered_keys(settings.COVERED_COMPETITIONS)
+        #: The covered set split by who plays it. The club competitions are asked for on every
+        #: pass exactly as they always have been; the national-team ones are asked for only when
+        #: something says they play, which is the whole of what makes covering 35 affordable.
+        self.club_keys = [k for k in self.keys if not is_national_team_competition(k)]
+        self.national_keys = [k for k in self.keys if is_national_team_competition(k)]
+        self._league_keys: Optional[Dict[Any, str]] = None
 
     # ------------------------------------------------------------------ helpers
     @property
@@ -393,12 +508,37 @@ class MatchDataService:
                            meta.ambiguous)
         return stored
 
-    def sync_day(self, day: date) -> SyncMeta:
+    def _live_polls_today(self) -> int:
+        return live_polls_today(self.cache, self.now)
+
+    def _note_live_poll(self) -> None:
+        note_live_poll(self.cache, self.now)
+
+    def _live_poll_within_daily_ceiling(self) -> bool:
+        return live_poll_within_daily_ceiling(self.cache, self.now)
+
+    def sync_day(self, day: date, keys: Optional[List[str]] = None) -> SyncMeta:
+        """Ingest one day's fixtures, then its results and live scores.
+
+        `keys` narrows the competitions asked for. It costs one provider request per competition,
+        so a caller that knows which of them can possibly have a fixture on `day` - the scheduler
+        does, from the coverage calendar - passes that subset and pays for nothing else. Omitting
+        it asks for every covered competition, which is what every caller outside the scheduler
+        wants and what this method has always done.
+
+        The subset is part of the cache key, so an answer fetched for three competitions is never
+        served to a caller that asked about thirty.
+        """
         meta = SyncMeta()
-        key = f"matchdata:fixtures:{day.isoformat()}:{','.join(self.keys)}"
+        keys = self.keys if keys is None else [k for k in self.keys if k in set(keys)]
+        if not keys:
+            # Nothing to ask about is a real answer and a free one: no provider request, and a
+            # source of "database" so the caller does not read this as a provider that answered.
+            return meta
+        key = f"matchdata:fixtures:{day.isoformat()}:{','.join(keys)}"
         try:
             payload = self._call_chain(key, settings.MATCH_CACHE_TTL_FIXTURES, meta,
-                                       lambda p: [_fixture_to_dict(f) for f in p.get_fixtures(day, self.keys)])
+                                       lambda p: [_fixture_to_dict(f) for f in p.get_fixtures(day, keys)])
         except ProviderError as exc:
             meta.errors.append(str(exc))
             meta.source = "database"
@@ -414,25 +554,103 @@ class MatchDataService:
         self._store_fixtures(fixtures, meta, forward=True)
         self.db.commit()
         if day <= self.now.date():
-            self._sync_results(day, meta)
+            # The same subset: a caller that paid for three competitions' fixtures must not be
+            # billed for thirty competitions' results on the way out of the method.
+            #
+            # AND THE SAME CAP. `SyncScheduler._run_results` bounds its own pass, but this call is
+            # made from the FIXTURES task and reaches the provider all the same, so a bound that
+            # lives only in the other task is not a bound on the day - a fixtures pass over 35
+            # competitions holding unsettled matches spends 35 results requests that no cap ever
+            # sees. The limit is applied where the requests are made rather than where they were
+            # asked for.
+            cap = max(int(settings.SYNC_RESULTS_MAX_REQUESTS_PER_PASS), 0)
+            self._sync_results(day, meta, keys=keys[:cap] if cap else keys)
         if day == self.now.date():
-            self._sync_live(meta)
+            # Same reasoning, and the live poll has a DAILY ceiling rather than a per-pass one, so
+            # it is asked and recorded through the same counter the live task uses. Without this a
+            # ceiling an operator lowers is simply bypassed by every fixtures pass.
+            if self._live_poll_within_daily_ceiling():
+                self._sync_live(meta)
+                self._note_live_poll()
         return meta
 
-    def _pending_results_exist(self, day: date) -> bool:
-        cutoff = (self.now - timedelta(minutes=150)).replace(tzinfo=None)
-        for m in self.registry.matches_for_day(day, self.league_ids()):
-            if m.status in (MatchStatus.SCHEDULED, MatchStatus.LIVE) and m.match_date <= cutoff:
-                return True
-        return False
+    def _league_key_map(self) -> Dict[Any, str]:
+        """Stored league row id -> canonical competition key, for the covered competitions.
 
-    def _sync_results(self, day: date, meta: SyncMeta) -> None:
-        if not self._pending_results_exist(day):
+        Built from `ensure_canonical_league`, which is the same row every ingest writes against,
+        so a match's `league_id` can be turned back into the key that would be asked for to settle
+        it. `setdefault` keeps the FIRST key that claims an id: nothing should map two keys onto
+        one league row, and if something does, attributing it to the last one read would depend on
+        dictionary order.
+        """
+        if self._league_keys is None:
+            mapping: Dict[Any, str] = {}
+            for key in self.keys:
+                try:
+                    league = self.registry.ensure_canonical_league(key)
+                except Exception:  # pragma: no cover - a missing row must not fail a results pass
+                    logger.debug("Could not resolve the league row for %s", key, exc_info=True)
+                    continue
+                league_id = getattr(league, "id", None)
+                if league_id is not None:
+                    mapping.setdefault(league_id, key)
+            self._league_keys = mapping
+        return self._league_keys
+
+    def pending_result_keys(self, day: date) -> List[str]:
+        """Covered competitions holding a match on `day` that kicked off and is still unsettled.
+
+        This is the whole of what makes the results task affordable at 35 competitions. The task
+        runs every half hour, so asking for every covered competition on every day that holds ANY
+        unsettled match costs 35 x 2 x 48 = 3,360 requests a day against a 1,200/day plan. What a
+        day actually needs is the competitions the unsettled matches are IN, which the stored rows
+        already say, and that costs nothing to work out.
+
+        A match whose league row carries no canonical key cannot name a competition. Those rows
+        predate the canonical registry, and everything that predates it is one of the club six -
+        national-team coverage is newer than the registry by construction - so an unattributable
+        match puts the CLUB set into the day rather than the whole covered set. That keeps such a
+        match settling, exactly as it does today, without letting one unidentifiable row re-expand
+        the pass to all 35.
+
+        The 150-minute cutoff and the two statuses are unchanged: a match is worth asking about
+        once it has had time to finish and is still not recorded as finished.
+        """
+        cutoff = (self.now - timedelta(minutes=150)).replace(tzinfo=None)
+        by_league = self._league_key_map()
+        pending: set = set()
+        unattributed = False
+        for m in self.registry.matches_for_day(day, self.league_ids()):
+            if m.status not in (MatchStatus.SCHEDULED, MatchStatus.LIVE) or m.match_date > cutoff:
+                continue
+            key = by_league.get(getattr(m, "league_id", None))
+            if key is None:
+                unattributed = True
+            else:
+                pending.add(key)
+        if unattributed:
+            pending.update(self.club_keys)
+        return [k for k in self.keys if k in pending]
+
+    def _pending_results_exist(self, day: date) -> bool:
+        return bool(self.pending_result_keys(day))
+
+    def _sync_results(self, day: date, meta: SyncMeta, keys: Optional[List[str]] = None) -> None:
+        """Ingest finished results for `day`, for the competitions that still have one outstanding.
+
+        `keys` narrows that further - the scheduler caps how many competitions one pass may ask
+        about - and defaults to whatever `pending_result_keys` names, so a caller that passes
+        nothing gets the cheapest correct set rather than the whole covered list.
+        """
+        pending = self.pending_result_keys(day)
+        if keys is not None:
+            pending = [k for k in pending if k in set(keys)]
+        if not pending:
             return
-        key = f"matchdata:results:{day.isoformat()}:{','.join(self.keys)}"
+        key = f"matchdata:results:{day.isoformat()}:{','.join(pending)}"
         try:
             payload = self._call_chain(key, settings.MATCH_CACHE_TTL_RESULTS, meta,
-                                       lambda p: [_fixture_to_dict(f) for f in p.get_results(day, day, self.keys)])
+                                       lambda p: [_fixture_to_dict(f) for f in p.get_results(day, day, pending)])
         except ProviderError as exc:
             meta.errors.append(f"results: {exc}")
             return
@@ -463,6 +681,163 @@ class MatchDataService:
         self._store_fixtures((_fixture_from_dict(d) for d in payload), meta)
         self.db.commit()
 
+    # ------------------------------------------------------ the coverage calendar (see the top)
+    def coverage_record(self, key: str) -> Dict[str, Any]:
+        """What is known about when `key` next plays. An empty mapping means nothing is known.
+
+        Reads Redis and nothing else. Never a provider request, so every caller that only wants to
+        decide whether to ask about a competition can consult it freely.
+        """
+        record = self.cache.get(COVERAGE_CALENDAR_KEY.format(key=key))
+        return dict(record) if isinstance(record, dict) else {}
+
+    def _store_coverage_record(self, key: str, record: Dict[str, Any]) -> None:
+        # Kept well past its own refresh time so the rotation can still read WHEN it was last
+        # checked: a record that vanished at its refresh time would make a competition checked a
+        # fortnight ago indistinguishable from one never checked at all, and the rotation orders
+        # by exactly that.
+        ttl = COVERAGE_CALENDAR_MAX_SECONDS * 2
+        self.cache.set(COVERAGE_CALENDAR_KEY.format(key=key), record, ttl=ttl, stale_ttl=ttl)
+
+    def _coverage_head_payload(self, provider: MatchDataProvider, key: str) -> List[Dict[str, Any]]:
+        """One competition's next fixtures from one provider. Contractually one request."""
+        head = provider.get_calendar_head(key, limit=COVERAGE_CALENDAR_HEAD_LIMIT)
+        if head is None:
+            raise ProviderNotConfiguredError(
+                f"{provider.name} publishes no calendar for {key}", provider=provider.name)
+        return [_fixture_to_dict(f) for f in head]
+
+    def _coverage_refresh_wait(self, next_kickoff: Optional[datetime]) -> int:
+        """How long this answer is believed, from the competition's own next kickoff.
+
+        Nothing listed means the competition is dormant and is left for the maximum. A kickoff
+        already inside the lead window means it is about to play, or playing, and is re-read on the
+        minimum. In between, the refresh is brought forward to the lead so the days that matter are
+        known before a task has to cover them.
+        """
+        if next_kickoff is None:
+            return COVERAGE_CALENDAR_MAX_SECONDS
+        ahead = (next_kickoff - self.now).total_seconds() - COVERAGE_CALENDAR_LEAD_SECONDS
+        return int(min(max(ahead, COVERAGE_CALENDAR_MIN_SECONDS), COVERAGE_CALENDAR_MAX_SECONDS))
+
+    def refresh_coverage_calendar(self, key: str) -> Dict[str, Any]:
+        """Read one competition's calendar and record when it next plays. At most one request.
+
+        Goes through `_call_chain`, so the provider cool-downs, the stale copy and the fallback
+        chain apply exactly as they do to every other fetch, and through the SAME per-provider
+        calendar ceiling the empty-state sweep is bounded by - one request's worth of it rather
+        than a whole sweep's. That ceiling is therefore what bounds this rotation as well, and the
+        two share one number instead of each having their own.
+
+        A refresh nobody could answer records the attempt and retries on the minimum wait. Holding
+        a dormant competition's fortnight against an outage would make one bad afternoon look like
+        a competition with nothing scheduled.
+        """
+        meta = SyncMeta()
+        previous = self.coverage_record(key)
+        record: Dict[str, Any] = {"key": key, "checked_at": self.now.isoformat()}
+        try:
+            payload = self._call_chain(
+                COVERAGE_HEAD_CACHE_KEY.format(key=key), COVERAGE_CALENDAR_MIN_SECONDS, meta,
+                lambda p: self._coverage_head_payload(p, key),
+                skip=lambda p: self._calendar_ceiling_refusal(p, requests=1))
+        except ProviderError as exc:
+            # The days already known are CARRIED, not cleared. An afternoon nobody could be asked
+            # about is not evidence that a competition stopped playing, and dropping its fixture
+            # days here would stop the fixtures task asking about a matchday it already knew of -
+            # turning one failed request into half a day of missing fixtures.
+            record.update({
+                "answered": bool(previous.get("answered")),
+                "error": str(exc)[:MAX_COVERAGE_ERROR_CHARS],
+                "fixture_days": list(previous.get("fixture_days") or []),
+                "fixtures": list(previous.get("fixtures") or []),
+                "next_kickoff": previous.get("next_kickoff"),
+                "refresh_after": (self.now + timedelta(
+                    seconds=COVERAGE_CALENDAR_MIN_SECONDS)).isoformat()})
+            self._store_coverage_record(key, record)
+            return record
+        horizon = self.now.date() + timedelta(days=COVERAGE_CALENDAR_HORIZON_DAYS)
+        days: List[str] = []
+        kickoffs: List[datetime] = []
+        for entry in payload:
+            kickoff = parse_utc(entry.get("kickoff_utc"))
+            if kickoff is None or kickoff.date() > horizon:
+                continue
+            kickoffs.append(kickoff)
+            if kickoff.date().isoformat() not in days:
+                days.append(kickoff.date().isoformat())
+        next_kickoff = min(kickoffs) if kickoffs else None
+        record.update({
+            "answered": True,
+            "source": meta.source,
+            "provider": meta.provider,
+            "fixture_days": sorted(days),
+            "fixtures": payload[:COVERAGE_CALENDAR_FIXTURES_KEPT],
+            "next_kickoff": next_kickoff.isoformat() if next_kickoff else None,
+            "refresh_after": (self.now + timedelta(
+                seconds=self._coverage_refresh_wait(next_kickoff))).isoformat(),
+        })
+        self._store_coverage_record(key, record)
+        return record
+
+    def coverage_refresh_due(self, limit: int) -> List[str]:
+        """National-team competitions whose calendar is worth paying for again, stalest first.
+
+        Strictly stalest-first, with the registry order breaking ties, is what makes the rotation
+        fair: a competition passed over this pass has an older `checked_at` than the ones that were
+        not, so it goes ahead of them next pass. No competition can be refreshed twice while
+        another waits, and none can be starved however long the list grows.
+
+        Club competitions are never in this list. They are asked for on every pass regardless, so
+        buying them a calendar would tell us something we are not going to act on, and it would put
+        them in competition with the national set for the same bounded number of turns.
+        """
+        limit = max(int(limit), 0)
+        if not limit:
+            return []
+        now = self.now
+        due: List[Tuple[datetime, int, str]] = []
+        for position, key in enumerate(self.national_keys):
+            record = self.coverage_record(key)
+            refresh_after = parse_utc(record.get("refresh_after"))
+            if refresh_after is not None and now < refresh_after:
+                continue
+            due.append((parse_utc(record.get("checked_at")) or _EPOCH, position, key))
+        due.sort()
+        return [key for _, _, key in due[:limit]]
+
+    def coverage_keys_for_day(self, day: date) -> List[str]:
+        """Covered competitions worth asking about `day`, in registry order.
+
+        Three things put a competition in it, and the first is unconditional:
+
+          - every CLUB competition, always. They play weekly, their pass is what this installation
+            has always paid for, and nothing about national-team coverage may take a request away
+            from them. This is the guarantee, and it is a membership rule rather than a priority
+            ordering, so it cannot be lost to a cap applied further up;
+          - a national-team competition whose coverage calendar lists a fixture that day;
+          - a national-team competition that already has a stored match that day, which is how a
+            fixture keeps being refreshed for kickoff changes and postponements after the calendar
+            that first named it has moved on.
+        """
+        wanted = set(self.club_keys)
+        stamp = day.isoformat()
+        for key in self.national_keys:
+            if stamp in (self.coverage_record(key).get("fixture_days") or []):
+                wanted.add(key)
+        wanted.update(self._stored_match_keys(day))
+        return [k for k in self.keys if k in wanted]
+
+    def _stored_match_keys(self, day: date) -> List[str]:
+        """Covered competitions that already hold a match row on `day`."""
+        by_league = self._league_key_map()
+        found = []
+        for m in self.registry.matches_for_day(day, self.league_ids()):
+            key = by_league.get(getattr(m, "league_id", None))
+            if key is not None and key not in found:
+                found.append(key)
+        return found
+
     def sync_upcoming(self, key: str, days_ahead: int = 14) -> SyncMeta:
         """Fill the calendar of one competition (used by league pages and the expert match picker)."""
         meta = SyncMeta()
@@ -482,6 +857,39 @@ class MatchDataService:
         return meta
 
     # ------------------------------------------------------------------ the calendar head
+    @property
+    def _calendar_sweep_keys(self) -> List[str]:
+        """The competitions an empty-state calendar sweep pays for: the club set, and only it.
+
+        A sweep costs one request per competition in it, so sweeping all 35 would cost 35 a time
+        against a daily share of 120 - three sweeps a day, where six competitions get four, and
+        a feature whose whole point is that a reader refreshing the page cannot spend the day's
+        allowance. The national-team competitions are already being read by the rotation, one at a
+        time and on their own schedule, so their next fixtures are merged in from those records
+        instead of being bought again here. An ordinary page visit therefore costs exactly what it
+        costs today, whatever the coverage setting says.
+        """
+        return self.club_keys
+
+    def _merge_coverage_into_calendar(self, answer: Dict[str, Any]) -> Dict[str, Any]:
+        """Add the national-team competitions to a swept club calendar, free, from their records.
+
+        A competition the rotation has not reached yet, or could not read, is named in
+        `unanswered` rather than left out silently: "we have not been told" and "it has nothing
+        scheduled" are the two facts this answer exists to keep apart, and a competition missing
+        from both lists would read as the second.
+        """
+        fixtures = list(answer.get("fixtures") or [])
+        unanswered = list(answer.get("unanswered") or [])
+        for key in self.national_keys:
+            record = self.coverage_record(key)
+            if not record.get("answered"):
+                unanswered.append(key)
+                continue
+            fixtures.extend(record.get("fixtures") or [])
+        fixtures.sort(key=lambda entry: entry.get("kickoff_utc") or "")
+        return {"fixtures": fixtures, "unanswered": unanswered}
+
     def _calendar_head_payload(self, provider: MatchDataProvider, per_competition: int,
                                meta: SyncMeta) -> Dict[str, Any]:
         """Every covered competition's next fixtures, from one provider, in kickoff order.
@@ -502,13 +910,13 @@ class MatchDataService:
         """
         fixtures: List[ProviderFixture] = []
         declined: List[str] = []
-        for key in self.keys:
+        for key in self._calendar_sweep_keys:
             head = provider.get_calendar_head(key, limit=per_competition)
             if head is None:
                 declined.append(key)
                 continue
             fixtures.extend(head)
-        if len(declined) == len(self.keys):
+        if len(declined) == len(self._calendar_sweep_keys):
             raise ProviderNotConfiguredError(
                 f"{provider.name} publishes no competition calendar, so it cannot say which "
                 f"fixtures come next", provider=provider.name)
@@ -578,8 +986,14 @@ class MatchDataService:
         if self._calendar_backoff_record():
             self.cache.delete(CALENDAR_HEAD_BACKOFF_KEY)
 
-    def _calendar_ceiling_refusal(self, provider: MatchDataProvider) -> Optional[str]:
+    def _calendar_ceiling_refusal(self, provider: MatchDataProvider,
+                                  requests: Optional[int] = None) -> Optional[str]:
         """Why THIS provider may not be swept today, or None when its own share still has room.
+
+        `requests` is how many the caller is about to spend, defaulting to a whole sweep. The
+        rotation that refreshes one competition's coverage calendar passes 1, so it is bounded by
+        this same share rather than by a second ceiling of its own - which is what keeps the two
+        features that read calendars from adding up to more than the number written down here.
 
         This is where the ceiling binds, and it has to be here rather than only in front of the
         chain: a ceiling is per provider because a budget is, so "some provider has room" is not
@@ -615,7 +1029,8 @@ class MatchDataService:
             logger.debug("Calendar budget check failed for %s: %s",
                          getattr(provider, "name", "?"), exc)
             return None
-        if used + len(self.keys) <= ceiling:
+        wanted = len(self._calendar_sweep_keys) if requests is None else max(int(requests), 0)
+        if used + wanted <= ceiling:
             return None
         # Named for the provider rather than for its budget, to read alongside the cool-down skips
         # `_call_chain` records beside it; the budget belongs to this provider either way.
@@ -691,7 +1106,11 @@ class MatchDataService:
         fixture eighteen days out is stored by the fixtures task when its day comes round.
         """
         meta = SyncMeta()
-        cache_key = f"matchdata:calendar-head:{CALENDAR_HEAD_SHAPE}:{','.join(self.keys)}:{per_competition}"
+        # Keyed by the competitions actually SWEPT. The national-team ones are merged in from
+        # their own records afterwards, so an answer cached here speaks only for the club set and
+        # never goes stale because a rotation refreshed something it does not contain.
+        cache_key = (f"matchdata:calendar-head:{CALENDAR_HEAD_SHAPE}:"
+                     f"{','.join(self._calendar_sweep_keys)}:{per_competition}")
         if not self.cache.available:
             # One request per competition is affordable BECAUSE the answer is kept for hours.
             # With no cache there is nothing to keep it in, and nothing to stop the next page
@@ -715,7 +1134,7 @@ class MatchDataService:
             if refusal is not None:
                 stale = self._stale_calendar(cache_key, meta)
                 if stale is not None:
-                    return stale, meta
+                    return self._merge_coverage_into_calendar(stale), meta
                 meta.errors.append(refusal)
                 return None, meta
         try:
@@ -761,7 +1180,7 @@ class MatchDataService:
             self._clear_calendar_backoff()
         elif meta.source == "stale-cache":
             self._note_calendar_sweep_failure()
-        return answer, meta
+        return self._merge_coverage_into_calendar(answer), meta
 
     def last_forward_fixture_stored_at(self) -> Optional[datetime]:
         """When a match row was most recently written before its own kickoff, or None.

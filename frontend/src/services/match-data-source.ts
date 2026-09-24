@@ -7,7 +7,7 @@
  *  - "api-football" -> the legacy browser-side API-Football implementation in football-data.service.ts
  */
 
-import { League, LeagueStanding, Match, Team } from '@/types';
+import { League, LeagueStanding, Match, Team, TeamScope } from '@/types';
 // The reader's chosen time zone decides what "today" is. Imported here rather than reimplemented
 // so the date the page asks the backend for, the date the strip highlights and the date a fixture
 // is filed under are one answer from one place. See src/i18n/zones.ts for the arithmetic.
@@ -83,6 +83,14 @@ export interface SearchTeamResult {
   name: string;
   logo: string;
   country: string;
+  /**
+   * Which squad this row is, when the source said.
+   *
+   * Search is where two identically named rows meet: "Spain" matches a country's senior squad, its
+   * women's squad and any Spanish club at once, and `country` cannot separate them because a
+   * national team has none stored. Undefined for a source that does not publish scopes.
+   */
+  scope?: TeamScope;
   founded?: number;
 }
 

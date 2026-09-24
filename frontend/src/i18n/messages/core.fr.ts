@@ -218,7 +218,8 @@ const core: Area<'core'> = {
   'matchday.moreCompetitionsSr': ' compétitions, dans les filtres',
   'matchday.filterByCompetition': 'Filtrer par compétition',
   'matchday.footnote': 'Tous les matchs enregistrés pour cette date. Chaque probabilité est affichée exactement telle que la source l’a publiée, et un marché qu’aucune source n’a publié est indiqué comme indisponible plutôt qu’affiché à zéro.',
-  'matchday.documentDescription': 'Matchs du {date} dans les cinq grands championnats européens et la Champions League, avec la prévision du modèle et le pronostic d’expert publié pour chaque rencontre. Chaque probabilité indique sa source\u00a0; un marché qu’aucune source n’a publié est affiché comme indisponible.',
+  // La liste de six compétitions est sortie de cette phrase\u00a0: voir la note côté anglais.
+  'matchday.documentDescription': 'Tous les matchs enregistrés pour le {date}, avec la prévision du modèle et le pronostic d’expert publié pour chaque rencontre. Chaque probabilité indique sa source\u00a0; un marché qu’aucune source n’a publié est affiché comme indisponible.',
 
   /*
    * L’accord se fait ici sur un nom qui n’apparaît qu’ensuite — « Aucun des 12 matchs » — et le
@@ -230,6 +231,22 @@ const core: Area<'core'> = {
   'matchday.scoring.somePlayed': '{started, plural, one {# des {total} matchs listés ici {verb, select, finished {est terminé} other {a commencé}}} other {# des {total} matchs listés ici {verb, select, finished {sont terminés} other {ont commencé}}}}. La page de chaque match indique si un pronostic le concernant a été comparé à son résultat\u00a0; cette liste ne revendique aucune exactitude, dans un sens comme dans l’autre.',
 
   // ─── la barre des dates ─────────────────────────────────────────────────────────────────
+  /*
+    La coupure internationale, nommée. Les deux branches disent ce que cette installation détient,
+    et non que les championnats de clubs sont à l’arrêt — personne n’a interrogé de calendrier.
+    « Aucun » est au singulier parce que le français compte zéro comme un singulier.
+  */
+  'matchday.nationalTeamDay': '{count, plural, =0 {Aucun match n’est enregistré à cette date} one {Le seul match enregistré à cette date est un match de sélections nationales} other {Les # matchs enregistrés à cette date sont tous des matchs de sélections nationales}}. Aucun match de club n’est enregistré à cette date.',
+
+  // ─── de quelle sélection il s’agit ───────────────────────────────────────────────────────
+  // Une clé entière par type d’équipe, et non un radical suivi d’un qualificatif : l’article
+  // et l’adjectif s’accordent avec un nom qui change d’une clé à l’autre.
+  'squad.nationalSeniorMen': 'Sélection nationale',
+  'squad.nationalSeniorWomen': 'Sélection nationale féminine',
+  'squad.nationalYouth': 'Sélection nationale de jeunes',
+  'squad.clubSeniorWomen': 'Club féminin',
+  'squad.clubYouth': 'Club de jeunes',
+
   'dateStrip.chooseDate': 'Choisir une date',
   'dateStrip.previousDay': 'Jour précédent',
   'dateStrip.nextDay': 'Jour suivant',
@@ -260,6 +277,13 @@ const core: Area<'core'> = {
   'filters.group.market': 'Marché',
   'filters.group.source': 'Source',
   'filters.group.showing': 'Affichage',
+  'filters.group.teams': 'Équipes',
+  'filters.kind.title': 'Clubs ou sélections',
+  'filters.kind.hint': 'Les matchs de sélections nationales figurent aux côtés des matchs de clubs. Ceci n’en garde qu’un seul type.',
+  'filters.kind.groupLabel': 'Matchs de clubs ou de sélections nationales',
+  'filters.kind.all': 'Tous',
+  'filters.kind.club': 'Clubs',
+  'filters.kind.national': 'Sélections',
   'filters.selectedCompetition': 'Compétition sélectionnée',
   'filters.status.all': 'Tout ce qui est à cette date',
   'filters.status.upcoming': 'À venir et en cours',
@@ -291,6 +315,11 @@ const core: Area<'core'> = {
   'fixture.side.draw': 'Nul',
   'fixture.side.away': 'Ext.',
   'fixture.aDraw': 'un match nul',
+  'fixture.score.penalties': '{home}–{away} aux tirs au but',
+  'fixture.score.penaltiesShort': '{home}–{away} t.a.b.',
+  'fixture.score.afterExtraTime': 'Après prolongation',
+  'fixture.score.afterExtraTimeShort': 'a.p.',
+  'fixture.score.regulation': '{home}–{away} après 90 minutes',
   'fixture.confidencePublished': 'confiance de {percent}, publiée par {source, select, model {le modèle} other {l’expert}}',
   'fixture.leadTitle': '{source}\u00a0: {outcome} à {percent}, tel que publié par la source.',
   'fixture.noMatchResult': 'Cette source n’a rien publié pour le résultat du match.',
@@ -614,7 +643,7 @@ const core: Area<'core'> = {
   'home.coverageCountedFrom': 'Compté à partir des données enregistrées.',
   'home.coverageCountedFromWhen': 'Compté à partir des données enregistrées le {when}.',
   'home.stat.competitions': 'Compétitions couvertes',
-  'home.stat.competitionsDetail': 'Les cinq grands championnats européens et la Champions League',
+  'home.stat.competitionsDetail': 'Compétitions de clubs et football des sélections nationales',
   'home.stat.fixtures': 'Matchs à venir chargés',
   'home.stat.fixturesDetail': 'Matchs programmés et en cours actuellement enregistrés',
   'home.stat.forecasts': 'Prévisions du modèle disponibles',

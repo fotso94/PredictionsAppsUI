@@ -55,6 +55,7 @@ from app.models.provider_data import ProviderForecastResult, ProviderForecastSna
 from app.models.users import User
 from app.services.expert_prediction import REVISION_ACTION
 from app.services.forecast_service import choose_snapshots
+from app.services.providers.base import marks_beyond_regulation
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- the stored ruleset
 #: Bump this when a rule below changes meaning. Every score row carries the version that settled it,
 #: so an old score is always readable against the rule that produced it.
-RULES_VERSION = "soccer-regulation-time-v1"
+RULES_VERSION = "soccer-regulation-time-v2"
 
 MARKET_MATCH_RESULT = "match_result"
 MARKET_BTTS = "both_teams_score"
@@ -81,8 +82,35 @@ WON, LOST, PUSH, VOID, NOT_SCORED = "won", "lost", "push", "void", "not_scored"
 
 SETTLEMENT_BASIS = (
     "Regulation time only: the score after 90 minutes plus stoppage time, as published by the data "
-    "provider that supplied the result. Extra time and penalty shoot-outs settle nothing here. A "
-    "stored result that is flagged as covering extra time is refused rather than scored."
+    "provider that supplied the result. Extra time and penalty shoot-outs settle nothing here, and "
+    "they do not stop a tie being settled either: a knockout tie that finished 0-0 and was won 4-3 "
+    "on penalties is settled as the draw it was after 90 minutes, with the shoot-out recorded "
+    "beside it. Where the 90-minute score itself is not stored and something says the tie went "
+    "past 90 minutes, settlement is withheld with its reason rather than scored against a period "
+    "the rule does not name."
+)
+
+PERIODS_RULE = (
+    "A tie's periods are stored separately and mean different things. The 90-minute score settles "
+    "every market here. The score after extra time and the penalty shoot-out settle nothing, and "
+    "they are published with the match and shown beside its score, because they are the true "
+    "result of the tie: 0-0 won 4-3 on penalties is the draw every market here settles on and a "
+    "win to everyone who watched it, and a reader shown only one of those two has been told half "
+    "of what happened. Neither is ever folded into the score a market settles on, and a period "
+    "the source did not supply is shown as nothing rather than as a zero. Where the source "
+    "supplied no separate 90-minute score and nothing indicates the tie went past 90 minutes - an "
+    "ordinary match - the stored score is the 90-minute score and is used as such."
+)
+
+WITHHELD_RULE = (
+    "Settlement is WITHHELD, never approximated. When the period a rule names is not available - "
+    "a tie known to have gone past 90 minutes whose 90-minute score was not stored - nothing is "
+    "scored for that fixture and the reason is recorded against the match and against every "
+    "prediction and prematch forecast attached to it. A withheld market is not a loss, not a win "
+    "and not a zero: it enters no hit rate, no Brier average, and no sample either is computed "
+    "from. It is not hidden either, and it is never counted as awaiting a result that is already "
+    "in: it is published as a prediction that cannot be scored, with the reason beside it, "
+    "because a reader shown nothing cannot tell a withheld prediction from one never published."
 )
 
 VOID_RULE = (
@@ -196,6 +224,8 @@ def settlement_rules() -> Dict[str, Any]:
     return {
         "version": RULES_VERSION,
         "basis": SETTLEMENT_BASIS,
+        "periods": PERIODS_RULE,
+        "withheld": WITHHELD_RULE,
         "void": VOID_RULE,
         "unsupplied_market": UNSUPPLIED_RULE,
         "prematch_only": (
@@ -438,30 +468,95 @@ def void_settlement(markets_published: SourceMarkets, reason: str) -> Settlement
 
 
 # --------------------------------------------------------------------------- reading the result
-_EXTRA_TIME_MARKERS = {"aet", "pen", "et", "after extra time", "after_extra_time", "extra_time",
-                       "extra time", "penalties", "pens"}
-_EXTRA_TIME_FLAGS = ("after_extra_time", "extra_time", "went_to_extra_time", "penalties",
-                     "penalty_shootout")
+#: Our own flag, written by :meth:`app.services.match_registry.MatchRegistry._apply_periods`. It is
+#: the only one here whose False means anything: we write it False only when a provider that
+#: enumerates periods reported none past 90, so False is a report and None (or absent) is silence.
+_OUR_FLAG = "beyond_regulation"
+#: Flags other shapes of stored metadata may carry. Only their truth is read: a foreign False is
+#: as likely to be an unset default as a report, and a default is not evidence of anything.
+_EXTRA_TIME_FLAGS = (_OUR_FLAG, "after_extra_time", "extra_time", "went_to_extra_time",
+                     "penalties", "penalty_shootout")
+_MARKER_KEYS = ("period", "period_marker", "status", "time_status", "stage")
 
 VOID_STATUSES = {MatchStatus.POSTPONED: "the fixture was postponed",
                  MatchStatus.CANCELLED: "the fixture was cancelled or abandoned"}
 TERMINAL_STATUSES = (MatchStatus.FINISHED, MatchStatus.POSTPONED, MatchStatus.CANCELLED)
 
 
-def regulation_score(result: Optional[MatchResult]) -> Tuple[Optional[RegulationScore], Optional[str]]:
-    """The regulation-time score of a finished match, or the reason it cannot be read."""
-    if result is None or result.home_score is None or result.away_score is None:
-        return None, "the match is marked finished but no score is stored"
+def went_beyond_regulation(result: MatchResult) -> Tuple[Optional[bool], Optional[str]]:
+    """Did this tie carry on past 90 minutes plus stoppage, what says so, and did anyone say?
+
+    Three answers, because the stored rows hold three different situations:
+
+    * ``(True, evidence)`` - it did. Four kinds of evidence, in descending order of how directly
+      they say it: a stored shoot-out score, a stored extra-time score, a flag, and a free-text
+      period marker. Any one is enough.
+    * ``(False, evidence)`` - it did not, on the word of a source that would have said if it had.
+      Only our own ``beyond_regulation`` flag can say this, and ``_apply_periods`` writes it False
+      only for a provider that enumerates a finished match's periods. A foreign flag sitting at
+      False is not read as a report: an unset default looks exactly the same.
+    * ``(None, None)`` - nobody said. This is the ordinary state of every row written before the
+      periods were carried and of every row from a provider that sends no period breakdown. It is
+      NOT a report that the tie ended at 90, and a caller that treats it as one is making an
+      assumption it must own and justify; :func:`regulation_score` is where that is done.
+    """
+    if result.home_score_pens is not None or result.away_score_pens is not None:
+        return True, "the tie was decided on penalties"
+    if result.home_score_et is not None or result.away_score_et is not None:
+        return True, "the tie went to extra time"
     meta = result.result_metadata or {}
-    for key in ("period", "status", "time_status", "stage"):
-        value = meta.get(key)
-        if isinstance(value, str) and value.strip().lower() in _EXTRA_TIME_MARKERS:
-            return None, ("the stored score covers extra time or penalties; these markets settle on "
-                          "regulation time only")
     for key in _EXTRA_TIME_FLAGS:
         if meta.get(key):
-            return None, ("the stored result is flagged as going beyond regulation time; these "
-                          "markets settle on regulation time only")
+            return True, "the stored result is flagged as going beyond regulation time"
+    for key in _MARKER_KEYS:
+        if marks_beyond_regulation(meta.get(key)):
+            value = str(meta.get(key)).strip()
+            return True, f"the stored result is marked {value!r}, which is past regulation time"
+    if meta.get(_OUR_FLAG) is False:
+        return False, "the source that supplied this result reported no play past 90 minutes"
+    return None, None
+
+
+def regulation_score(result: Optional[MatchResult]) -> Tuple[Optional[RegulationScore], Optional[str]]:
+    """The regulation-time score of a finished match, or the reason it cannot be read.
+
+    Exactly one period settles these markets, and this is where it is chosen. The order below is
+    the whole rule:
+
+    1. A stored regulation score (``home_score_ft``/``away_score_ft``) is used, whatever else the
+       tie did afterwards. A shoot-out does not stop a 0-0 after 90 minutes being a 0-0 after 90
+       minutes; it is scored as the draw it was, and the shoot-out settles nothing.
+    2. Something says the tie went past 90 minutes and no regulation score is stored: WITHHELD
+       with the reason. No other period is substituted and nothing is guessed. A market that is
+       not scored is neither a win nor a loss and never enters a hit rate.
+    3. Otherwise the stored score IS the regulation score and is settled as one. That covers two
+       cases and it is worth being plain about which, because only one of them is a report:
+
+       * The source enumerates periods and reported none past 90. For such a match the score of
+         the football played and the score after 90 minutes are the same number by definition,
+         and reading it is not an assumption at all.
+       * NOBODY SAID (``went_beyond_regulation`` returns None) - every result stored before the
+         period columns existed, and every row from a provider that sends no period breakdown.
+         Here the stored score is TAKEN AS the regulation score. That is an assumption, it is
+         stated in the published ruleset (``PERIODS_RULE``) rather than hidden here, and it is
+         safe for one reason: only a knockout tie can go past 90 minutes, a tie that does leaves
+         evidence in the row - an extra-time score, a shoot-out score, an "AET"/"AP" marker -
+         and case 2 catches it. What is left is the ordinary league match, where the two numbers
+         cannot differ. The alternative, withholding every unflagged row, would score nothing at
+         all: it would refuse all 48 results this installation holds, every club fixture behind
+         them and every future API-Football and TheSportsDB row, in the name of a doubt that
+         their own evidence does not support.
+    """
+    if result is None:
+        return None, "the match is marked finished but no score is stored"
+    if result.home_score_ft is not None and result.away_score_ft is not None:
+        return RegulationScore(int(result.home_score_ft), int(result.away_score_ft)), None
+    beyond, evidence = went_beyond_regulation(result)
+    if beyond:
+        return None, (f"{evidence} and no 90-minute score is stored for it; these markets settle "
+                      "on regulation time only, and no other period stands in for it")
+    if result.home_score is None or result.away_score is None:
+        return None, "the match is marked finished but no score is stored"
     return RegulationScore(int(result.home_score), int(result.away_score)), None
 
 
@@ -520,6 +615,42 @@ def eligible_matches(db: Session, start: Optional[datetime] = None,
     if end is not None:
         query = query.filter(Match.match_date < end)
     return query.order_by(Match.match_date.asc()).all()
+
+
+def withheld_matches(db: Session, matches: Sequence[Match]) -> Dict[uuid.UUID, str]:
+    """Which of these matches can never be scored, and the reason each one cannot.
+
+    The same :func:`regulation_score` call :meth:`SettlementService.settle_match` makes, over the
+    same stored rows, so the measured record and the scoring pass cannot land on different answers
+    about whether a match is scorable. The results are read in one query because every finished
+    row in the window is needed and the relationship would otherwise load them one at a time.
+
+    A void fixture is deliberately not here. Postponed and cancelled matches settle to VOID, which
+    is a score row and an answer; withholding is the absence of one.
+
+    Neither is a finished match whose result row has not been written yet. That is the results task
+    not having run, which the next pass fixes; only what the provider will never supply belongs in
+    a figure that tells a reader a prediction can never be scored.
+    """
+    finished = [match for match in matches if match.status == MatchStatus.FINISHED]
+    if not finished:
+        return {}
+    results = {row.match_id: row for row in db.query(MatchResult)
+               .filter(MatchResult.match_id.in_([match.id for match in finished])).all()}
+    refusals: Dict[uuid.UUID, str] = {}
+    for match in finished:
+        stored = results.get(match.id)
+        if stored is None:
+            # A FINISHED match with no result row yet is a PASS THAT HAS NOT RUN, not a match that
+            # can never be scored. The results task writes that row, and until it does, publishing
+            # this as permanently withheld would report a scheduling delay as a verdict - and one
+            # that never clears itself, because the next pass stores the score and the figure has
+            # already been printed. Withholding is for what the provider will never supply.
+            continue
+        score, refusal = regulation_score(stored)
+        if score is None:
+            refusals[match.id] = refusal
+    return refusals
 
 
 def withdrawn_before_kickoff(prediction: Prediction, kickoff: datetime) -> bool:
@@ -844,6 +975,25 @@ class SettlementService:
             if settlement.outcome == PredictionOutcome.VOID:
                 report["provider_forecasts"]["void"] += 1
 
+    def _withhold(self, match: Match, reason: str, report: Dict[str, Any]) -> Dict[str, Any]:
+        """Score nothing for this match, and say for every affected row why.
+
+        A withheld market is not a loss and not a zero. It is also not a silence: the match is
+        listed once with its reason, and so is each prediction and each prematch forecast that
+        would otherwise have been scored, so a person looking at one expert's unscored row finds
+        the reason next to it rather than having to reconstruct it from the match.
+        """
+        report["skipped_matches"].append({"match_id": str(match.id), "reason": reason})
+        for prediction in candidate_predictions(self.db, [match]):
+            report["expert_predictions"]["not_scored"] += 1
+            report["not_scored"].append({"kind": "expert_prediction", "id": str(prediction.id),
+                                         "match_id": str(match.id), "reason": reason})
+        for (_match_id, provider) in sorted(snapshot_providers(self.db, [match.id]), key=lambda key: key[1]):
+            report["provider_forecasts"]["not_scored"] += 1
+            report["not_scored"].append({"kind": "provider_forecast", "id": f"{provider}:{match.id}",
+                                         "match_id": str(match.id), "reason": reason})
+        return report
+
     def settle_match(self, match: Match, report: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Score everything attached to one match. Idempotent: a second call writes nothing."""
         report = report if report is not None else _empty_report()
@@ -856,8 +1006,7 @@ class SettlementService:
                 return report
             score, refusal = regulation_score(match.result)
             if score is None:
-                report["skipped_matches"].append({"match_id": str(match.id), "reason": refusal})
-                return report
+                return self._withhold(match, refusal, report)
         report["matches_settled"] += 1
         self._settle_predictions(match, score, void_reason, report)
         self._settle_forecasts(match, score, void_reason, report)
@@ -961,11 +1110,27 @@ class _SourceAccumulator:
         self.markets: Dict[str, Dict[str, Any]] = {}
 
     def refuse(self, reason: str) -> None:
+        """A candidate that can never be scored, counted once with the reason it cannot be.
+
+        Two things end up here and they are both permanent: evidence that the source published
+        this before kickoff is missing, and a tie whose 90-minute score is missing. Neither is a
+        loss, a win or a zero, and neither enters a market's scored count or its Brier sample -
+        those are built in :meth:`add_result` from stored score rows, which a refused candidate
+        has none of. What it does get is a line of its own in ``not_scored_reasons``, so a reader
+        sees that the prediction exists and why no figure was computed from it.
+        """
         self.eligible += 1
         self.not_scored += 1
         self.not_scored_reasons[reason] = self.not_scored_reasons.get(reason, 0) + 1
 
     def add_pending(self) -> None:
+        """A candidate a later settlement pass will score - and only ever that.
+
+        "Pending" is published to a reader as awaiting settlement, which is a claim about the
+        future: the result is not in yet, or the pass that reads it has not run. A candidate whose
+        match is already settled or already withheld is not waiting for anything and belongs in
+        :meth:`add_result` or :meth:`refuse`.
+        """
         self.eligible += 1
         self.pending += 1
 
@@ -1021,6 +1186,10 @@ class _SourceAccumulator:
         elif self.void and not self.pending and not self.not_scored:
             data["not_measured_reason"] = ("every eligible prediction from this source was voided: "
                                            "those fixtures were never played to a result")
+        elif self.not_scored and not self.pending:
+            # Nothing here is waiting on a later pass, so "yet" would be a promise this cannot keep.
+            data["not_measured_reason"] = ("nothing from this source in this window can be scored; "
+                                           "the reason for each is published beside it")
         else:
             data["not_measured_reason"] = "nothing from this source has been scored in this window yet"
         return data
@@ -1033,6 +1202,7 @@ def measure_sources(db: Session, start: datetime, end: datetime) -> List[Dict[st
         return []
     match_ids = [m.id for m in matches]
     by_id = {m.id: m for m in matches}
+    withheld = withheld_matches(db, matches)
     accumulators: Dict[Tuple[str, str], _SourceAccumulator] = {}
 
     def bucket(source_type: str, source_id: str, label: str) -> _SourceAccumulator:
@@ -1057,14 +1227,22 @@ def measure_sources(db: Session, start: datetime, end: datetime) -> List[Dict[st
             if row is not None:
                 acc.add_result(row.outcome.value if row.outcome else None, row.market_results)
                 continue
-            # Not scored yet. The only reason a candidate can never be scored is that it cannot be
-            # shown to have stood, published, before kickoff; everything else is a pass that has
-            # not run. The same stood_at_kickoff test decided the candidate list, so this read and
-            # the scoring pass cannot land on different answers about the same prediction, and
-            # not_prematch_reason then says which of the ways it failed actually applies here.
+            # Not scored. Exactly two reasons make that permanent, and both are tested here rather
+            # than left to read as a pass that has not run: the prediction cannot be shown to have
+            # stood, published, before kickoff, and the tie has no 90-minute score - the one period
+            # every market settles on - that the provider will ever supply. Anything else IS a pass
+            # that has not run, and only that is counted as pending.
+            #
+            # Both tests are the scoring pass's own - stood_at_kickoff, which also decided the
+            # candidate list, and regulation_score, which settle_match calls on the same row - so
+            # this read and the scoring pass cannot land on different answers about the same
+            # prediction. not_prematch_reason then says which of the ways it failed applies here,
+            # and the withheld reason is the one recorded against the match itself.
             kickoff = by_id[prediction.match_id].match_date
             if not stood_at_kickoff(prediction, kickoff):
                 acc.refuse(not_prematch_reason(prediction, kickoff))
+            elif prediction.match_id in withheld:
+                acc.refuse(withheld[prediction.match_id])
             else:
                 acc.add_pending()
 
@@ -1083,10 +1261,12 @@ def measure_sources(db: Session, start: datetime, end: datetime) -> List[Dict[st
                 acc.refuse("no snapshot of this forecast was captured before kickoff")
                 continue
             row = results.get(snapshot.id)
-            if row is None:
-                acc.add_pending()
-            else:
+            if row is not None:
                 acc.add_result(row.outcome.value if row.outcome else None, row.market_results)
+            elif match_id in withheld:
+                acc.refuse(withheld[match_id])
+            else:
+                acc.add_pending()
 
     return [acc.payload() for acc in
             sorted(accumulators.values(), key=lambda a: (a.source_type, a.label))]

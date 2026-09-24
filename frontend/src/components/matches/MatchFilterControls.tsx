@@ -2,8 +2,8 @@ import React, { useId } from 'react'
 import CompetitionChip from '@/components/ui/CompetitionChip'
 import type { CompetitionOption } from './fixtureGrouping'
 import {
-  MARKET_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS, WorkspaceState, optionDefinition, optionLabel,
-  toggleValue,
+  KIND_OPTIONS, MARKET_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS, WorkspaceState, optionDefinition,
+  optionLabel, toggleValue,
 } from './workspaceState'
 import { marketPeriodNote } from '@/utils/brief'
 import { useT } from '@/i18n/react'
@@ -45,10 +45,43 @@ const Section: React.FC<{ title: string; hint?: string; children: React.ReactNod
 
 const MatchFilterControls: React.FC<MatchFilterControlsProps> = ({ state, onChange, competitions }) => {
   const statusName = useId()
+  const kindName = useId()
   const t = useT()
 
   return (
     <div className="space-y-5" data-testid="match-filter-controls">
+      {/*
+        Club or country, ABOVE the competitions and in the same shape as "Show", because it is the
+        same kind of question: three alternatives, one of which always holds. It is repeated here
+        rather than left to the row above the list for the reason the competitions are — that row
+        scrolls sideways on a phone, and a control that has scrolled out of sight is one the reader
+        cannot reach from there.
+
+        It is always offered here, even on a day of one kind, unlike the row above the list. This
+        sheet is where a reader comes to change what they are looking at, and a control that
+        vanishes on the days it would do the most (an international break, when "Club" is the
+        setting that explains an empty list) is the wrong control to hide.
+      */}
+      <Section title={t('filters.kind.title')} hint={t('filters.kind.hint')}>
+        <div role="radiogroup" aria-label={t('filters.kind.groupLabel')} className="space-y-1">
+          {KIND_OPTIONS.map(option => (
+            <label key={option.value} className="tap-target-row flex cursor-pointer items-center gap-2 rounded-lg px-1">
+              <input
+                type="radio"
+                name={kindName}
+                value={option.value}
+                checked={state.kind === option.value}
+                onChange={() => onChange({ ...state, kind: option.value })}
+                className="focus-ring h-4 w-4 border-dark-600 bg-dark-800 text-primary-600"
+                data-testid="kind-filter-radio"
+                data-kind={option.value}
+              />
+              <span className="text-sm text-secondary-200">{optionLabel(option)}</span>
+            </label>
+          ))}
+        </div>
+      </Section>
+
       <Section title={t('filters.show')} hint={t('filters.showHint')}>
         {/* Radios, not checkboxes: these three are alternatives, and a keyboard user gets the
             arrow-key behaviour a radio group is supposed to have. */}

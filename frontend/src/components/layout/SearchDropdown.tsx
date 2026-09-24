@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import searchService, { SearchResults } from '@/services/search.service';
 import { onTeamLogoError, onLeagueLogoError } from '@/components/ui/imageFallback';
+import { teamSubtitle } from '@/utils/squads';
 import clsx from 'clsx';
 import { useT } from '@/i18n/react';
 
@@ -203,7 +204,10 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({ className }) => {
                         />
                         <div className="flex-1 text-left">
                           <p className="text-sm font-medium text-white">{team.name}</p>
-                          <p className="text-xs text-secondary-400">{team.country}</p>
+                          {/* The squad for a country, the country for a club. A search for "Spain"
+                              matches three rows that a country alone cannot separate, because two
+                              of them have none stored. See src/utils/squads.ts. */}
+                          <p className="text-xs text-secondary-400" data-testid="search-team-subtitle">{teamSubtitle(team)}</p>
                         </div>
                       </button>
                     ))}

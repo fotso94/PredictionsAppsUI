@@ -63,6 +63,31 @@ ALL_STATUSES = (
 
 
 # ---------------------------------------------------------------------------
+# "this did not end at 90 minutes"
+# ---------------------------------------------------------------------------
+
+#: Free-text markers a source may put in a minute/period/status field to say the match carried on
+#: past 90 minutes plus stoppage. "AP" is Live Score API's marker for a tie decided on penalties
+#: and reads on a real row as `time: "AP"`; "AET" is its marker for one decided in extra time.
+#: Defined here, with the DTO that first sees them, and imported by everything downstream that
+#: reads a stored marker, so one spelling is recognised in one place.
+BEYOND_REGULATION_MARKERS = frozenset({
+    "aet", "ap", "pen", "et", "after extra time", "after_extra_time",
+    "extra_time", "extra time", "penalties", "pens", "after penalties",
+})
+
+
+def marks_beyond_regulation(value: Any) -> bool:
+    """Is this free-text value one of the markers meaning the match went past 90 minutes?
+
+    False for anything that is not a recognised marker, including None and "FT". That is not a
+    claim the match ended at 90 - an unrecognised marker says nothing either way - so a caller
+    deciding "did this go beyond regulation" must not read False here as a No.
+    """
+    return isinstance(value, str) and value.strip().lower() in BEYOND_REGULATION_MARKERS
+
+
+# ---------------------------------------------------------------------------
 # DTOs
 # ---------------------------------------------------------------------------
 
@@ -92,6 +117,29 @@ class ProviderTeam:
 
 @dataclass
 class ProviderFixture:
+    """One fixture as a provider describes it.
+
+    The scoreline is carried as separate PERIODS, because a knockout tie has more than one and
+    they mean different things. ``home_score``/``away_score`` are the scoreline on display: the
+    running score while the match is in play, and once it is over the score of the football that
+    was played, extra time included. That is the number a reader wants and the wrong number to
+    settle a market on, so the periods are kept apart rather than collapsed into it:
+
+    * ``ft_*`` is REGULATION time, 90 minutes plus stoppage. Markets settle on this and on
+      nothing else, so a provider must only populate it from a field it actually labels full
+      time - never from a general "score" field, which after extra time is the extra-time score.
+    * ``et_*`` is the score after extra time and ``ps_*`` the penalty shoot-out. Both are the
+      true result of the tie and are carried so a reader can be shown it; neither settles
+      anything.
+
+    ``None`` means "this provider did not supply this period" everywhere here, and a period that
+    was not supplied is never substituted with another one *in storage*: nothing downstream writes
+    an ``et_*`` score into an ``ft_*`` column, or the tie's score into either. Settlement is a
+    separate question with a separate answer - a finished match that nothing says went past 90
+    minutes is settled on its stored score, because for such a match that score IS the regulation
+    score - and :func:`app.services.settlement.regulation_score` states and justifies that rule
+    where it is applied.
+    """
     provider: str
     external_id: str
     competition: ProviderCompetition
@@ -104,9 +152,45 @@ class ProviderFixture:
     away_score: Optional[int] = None
     ht_home_score: Optional[int] = None
     ht_away_score: Optional[int] = None
+    ft_home_score: Optional[int] = None
+    ft_away_score: Optional[int] = None
+    et_home_score: Optional[int] = None
+    et_away_score: Optional[int] = None
+    ps_home_score: Optional[int] = None
+    ps_away_score: Optional[int] = None
     venue: Optional[str] = None
     round: Optional[str] = None
+    #: Does this provider enumerate a finished match's periods, so that a period it left empty was
+    #: NOT PLAYED rather than not reported? Live Score API does: its `scores` object always carries
+    #: `et_score` and `ps_score`, "" when the match ended at 90. Providers that send only the
+    #: periods that happened leave this False, and their silence stays "we were not told".
+    periods_reported: bool = False
     raw: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def went_beyond_regulation(self) -> Optional[bool]:
+        """Did this tie carry on past 90 minutes plus stoppage? True, False, or None for unknown.
+
+        Three answers, because there are three situations and only two of them are knowledge:
+
+        * ``True`` - evidence that it did: a score for extra time or for a shoot-out, or a period
+          marker that says so ("AET", "AP").
+        * ``False`` - evidence that it did NOT: this provider enumerates the periods of a finished
+          match (``periods_reported``), and the beyond-regulation ones came back empty. Only a
+          provider that would have told us is allowed to be read as telling us.
+        * ``None`` - nobody said. A provider that sends only the periods that happened, one that
+          sends no periods at all, and a match still in play all land here. This is NOT False:
+          "the tie did not go past 90" and "we do not know whether it did" are different claims,
+          and only the first of them may ever be stored as a fact about the tie.
+        """
+        if any(v is not None for v in (self.et_home_score, self.et_away_score,
+                                       self.ps_home_score, self.ps_away_score)):
+            return True
+        if marks_beyond_regulation(self.minute):
+            return True
+        if self.periods_reported and self.status == STATUS_FINISHED:
+            return False
+        return None
 
 
 @dataclass

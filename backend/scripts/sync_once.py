@@ -172,6 +172,36 @@ def _fixture_pass_lines(result):
     return lines
 
 
+def _coverage_lines(result):
+    """What the pass decided to cover, and what that cost.
+
+    The club competitions are asked for every pass; the national-team ones are asked for only on
+    the days a calendar says they play. Both halves are printed, because the interesting number is
+    not the total but which of the two it came from - a pass that spent nothing on national-team
+    competitions because none of them plays today is right, and a pass that spent nothing because
+    no calendar has been read yet is not, and only these lines tell them apart.
+    """
+    lines = []
+    coverage = result.get("coverage") or {}
+    covered = result.get("national_competitions_covered")
+    if covered is None:
+        return lines
+    if coverage.get("skipped"):
+        lines.append(f"national-team coverage skipped: {coverage['skipped']}")
+    else:
+        refreshed = coverage.get("refreshed") or {}
+        answered = [k for k, v in refreshed.items() if v.get("answered")]
+        lines.append(f"{len(refreshed)} coverage calendar(s) refreshed this pass "
+                     f"({len(answered)} answered), at most {coverage.get('requests', 0)} request(s)")
+    lines.append(f"{result.get('club_competitions')} club competition(s) asked for every day, "
+                 f"plus {result.get('national_requests', 0)} national-team competition-day(s) "
+                 f"of {covered} covered")
+    if result.get("national_deferred"):
+        lines.append(f"{len(result['national_deferred'])} national-team competition-day(s) "
+                     f"deferred to the next pass by the per-pass cap")
+    return lines
+
+
 def _summarise(name, result):
     """A couple of human lines per task; the full report is available with --json."""
     lines = []
@@ -189,9 +219,20 @@ def _summarise(name, result):
                          f"from={meta.get('forward_source') or 'no answer'}")
             lines.append(line)
     if name == "fixtures":
+        lines.extend(_coverage_lines(result))
         lines.extend(_fixture_pass_lines(result))
-    if name == "live" and not result.get("live_window_open"):
-        lines.append(result.get("note", "no live window open"))
+    if name == "results":
+        line = f"{result.get('requests', 0)} competition-request(s) for days with an unsettled match"
+        if result.get("deferred"):
+            line += f"; {len(result['deferred'])} deferred by the per-pass cap"
+        lines.append(line)
+    if name == "live":
+        if not result.get("live_window_open"):
+            lines.append(result.get("note", "no live window open"))
+        elif not result.get("live_polled"):
+            lines.append(result.get("note", "the live window is open but nothing was polled"))
+        else:
+            lines.append(f"{result.get('polls_today')} live poll(s) made today")
     if name == "forecasts":
         synced = [k for k, v in (result.get("competitions") or {}).items()
                   if not (isinstance(v, dict) and v.get("error"))]

@@ -522,7 +522,27 @@ class Match(Base, UUIDMixin, TimestampMixin):
 
 
 class MatchResult(Base, UUIDMixin, TimestampMixin):
-    """Match results"""
+    """Match results, kept as the separate PERIODS a tie is actually made of.
+
+    A knockout tie has more than one scoreline and they answer different questions. Switzerland
+    0-0 Colombia, 4-3 on penalties, is a draw to every market that settles on regulation time and
+    a Switzerland win to everyone who watched it. Collapsing that into one pair of columns makes
+    one of those two readers wrong, so both are stored:
+
+    * ``home_score``/``away_score`` - the score of the football that was played, extra time
+      included. This is the scoreline on display and the one non-settlement code should read.
+      Penalties are never folded into it.
+    * ``home_score_ft``/``away_score_ft`` - REGULATION time, 90 minutes plus stoppage. This is
+      the only period markets settle on (see :mod:`app.services.settlement`). NULL means the
+      source did not supply it, and no other period is ever substituted for it.
+    * ``home_score_et``/``away_score_et`` and ``home_score_pens``/``away_score_pens`` - extra
+      time and the shoot-out. Stored so the reader sees the true result of the tie; they settle
+      nothing.
+
+    Every period but ``home_score``/``away_score`` is nullable, because "not supplied" is a real
+    and common answer and is not the same as zero. Rows written before the periods were carried
+    have NULL in all of them, which is exactly right: nothing is known about their periods.
+    """
     __tablename__ = "match_results"
     __table_args__ = (
         Index('idx_match_results_match_id', 'match_id'),
@@ -531,13 +551,23 @@ class MatchResult(Base, UUIDMixin, TimestampMixin):
 
     match_id = uuid_fk('predictions.matches.id', nullable=False, unique=True)
 
-    # Score
+    # Score of the football played (extra time included, penalties never)
     home_score = Column(Integer, nullable=False)
     away_score = Column(Integer, nullable=False)
 
     # Half Time
     home_score_ht = Column(Integer)
     away_score_ht = Column(Integer)
+
+    # Regulation time (90' + stoppage) - the only period markets settle on
+    home_score_ft = Column(Integer, comment="Regulation-time score: 90 minutes plus stoppage")
+    away_score_ft = Column(Integer, comment="Regulation-time score: 90 minutes plus stoppage")
+
+    # Beyond regulation: shown to readers, never settled on
+    home_score_et = Column(Integer, comment="Score after extra time")
+    away_score_et = Column(Integer, comment="Score after extra time")
+    home_score_pens = Column(Integer, comment="Penalty shoot-out score")
+    away_score_pens = Column(Integer, comment="Penalty shoot-out score")
 
     # Result
     result = Column(String(10), comment="H, D, A")
@@ -622,6 +652,8 @@ class Team(Base, UUIDMixin, TimestampMixin):
         Index('idx_teams_name', 'name'),
         Index('idx_teams_country', 'country'),
         Index('idx_teams_external_api_id', 'external_api_id'),
+        Index('idx_teams_team_scope', 'team_scope'),
+        Index('uq_teams_identity_key', 'identity_key', unique=True),
         {'schema': 'predictions', 'comment': 'Team reference data'}
     )
 
@@ -630,6 +662,26 @@ class Team(Base, UUIDMixin, TimestampMixin):
     short_name = Column(String(50))
     code = Column(String(10), comment="3-letter team code")
     country = Column(String(100))
+
+    # Identity
+    #
+    # `country` cannot carry identity for a national team: a national-team competition has no
+    # country of its own, so every FIFA competition hands the same stand-in ("World") to every team
+    # in it, and Spain's men's squad, Spain's women's squad and a Spanish club then share one
+    # country bucket while their names differ only by a suffix a club-name matcher discards.
+    # These two columns are what separate them instead.
+    #
+    # team_scope: club-or-country and squad category, the `TeamScope` value of the competition the
+    # row was first seen in. It is a fact about the team, not about one competition, so Spain in the
+    # World Cup and Spain in the Nations League are one row.
+    team_scope = Column(String(32), nullable=False, server_default='club_senior_men',
+                        comment="TeamScope value: club/national and squad category")
+    # identity_key: that scope, a colon, and the normalised name with any '(W)' suffix removed
+    # ("national_senior_women:spain"). UNIQUE, so two squads of one country sharing a row is refused
+    # by the database and not merely avoided by the lookup that runs before it. NULL on rows written
+    # by code that does not know the competition, which are still found by name within their scope.
+    identity_key = Column(String(300),
+                          comment="Scope-prefixed normalised team name; unique across all teams")
 
     # Details
     logo_url = Column(String(500))

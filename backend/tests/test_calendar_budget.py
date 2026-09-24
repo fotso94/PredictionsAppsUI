@@ -54,7 +54,7 @@ from tests.test_upcoming_fixtures import KEYS, NOW, CalendarProvider, _fixture, 
 #: The Live Score trial plan these ceilings were sized against.
 LIVESCORE_DAILY_LIMIT = 1200
 
-#: One sweep costs one request per covered competition. Most tests here run on the two
+#: One sweep costs one request per competition SWEPT. Most tests here run on the two
 #: `tests/test_upcoming_fixtures.py` defines, so the cost is read off that rather than written
 #: down twice.
 SWEEP_COST = len(KEYS)
@@ -66,7 +66,16 @@ SWEEP_COST = len(KEYS)
 #: competitions the backoff alone keeps a day of outage under the ceiling, and a test that names
 #: the ceiling while running at that count is watching the backoff do all the work.
 COVERED_KEYS = comps.covered_keys(settings.COVERED_COMPETITIONS)
-COVERED_SWEEP_COST = len(COVERED_KEYS)
+
+#: What a sweep of that coverage costs, which is NOT one request per covered competition any more.
+#:
+#: Coverage is 35 competitions; a sweep pays for the club six. The national-team competitions get
+#: their calendars from the scheduler's rotation, one competition at a time on its own schedule,
+#: and the empty state reads those records instead of buying the same answer again - so an
+#: ordinary page visit costs what it cost when six competitions were covered, which is the whole
+#: reason the numbers this file asserts still hold at 35.
+COVERED_SWEEP_COST = len([key for key in COVERED_KEYS
+                          if not comps.COMPETITIONS[key].is_national_team])
 
 
 @pytest.fixture

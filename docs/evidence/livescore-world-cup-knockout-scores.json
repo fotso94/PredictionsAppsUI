@@ -1,0 +1,71 @@
+{
+  "endpoint": "matches/history.json",
+  "note": "Score periods as the provider sends them. No credential appears in a reply.",
+  "query": {
+    "competition_id": "362",
+    "from": "2026-06-10",
+    "to": "2026-07-20"
+  },
+  "rows": [
+    {
+      "away": "Colombia",
+      "date": "2026-07-07",
+      "fixture_id": 1853409,
+      "home": "Switzerland",
+      "scores": {
+        "et_score": "0 - 0",
+        "ft_score": "0 - 0",
+        "ht_score": "0 - 0",
+        "ps_score": "4 - 3",
+        "score": "0 - 0"
+      },
+      "status": "FINISHED",
+      "time": "AP"
+    },
+    {
+      "away": "Egypt",
+      "date": "2026-07-03",
+      "fixture_id": 1853401,
+      "home": "Australia",
+      "scores": {
+        "et_score": "1 - 1",
+        "ft_score": "1 - 1",
+        "ht_score": "0 - 1",
+        "ps_score": "2 - 4",
+        "score": "1 - 1"
+      },
+      "status": "FINISHED",
+      "time": "AP"
+    },
+    {
+      "away": "Morocco",
+      "date": "2026-06-30",
+      "fixture_id": 1853388,
+      "home": "Netherlands",
+      "scores": {
+        "et_score": "1 - 1",
+        "ft_score": "1 - 1",
+        "ht_score": "0 - 0",
+        "ps_score": "2 - 3",
+        "score": "1 - 1"
+      },
+      "status": "FINISHED",
+      "time": "AP"
+    },
+    {
+      "away": "Paraguay",
+      "date": "2026-06-29",
+      "fixture_id": 1853387,
+      "home": "Germany",
+      "scores": {
+        "et_score": "1 - 1",
+        "ft_score": "1 - 1",
+        "ht_score": "0 - 1",
+        "ps_score": "3 - 4",
+        "score": "1 - 1"
+      },
+      "status": "FINISHED",
+      "time": "AP"
+    }
+  ]
+}

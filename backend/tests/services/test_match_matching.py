@@ -292,3 +292,54 @@ def test_a_wider_lookup_window_never_turns_into_an_attachment():
 
 def test_lookup_window_is_much_wider_than_the_attach_windows():
     assert match_matching.LOOKUP_WINDOW > match_matching.RESCHEDULE_WINDOW > match_matching.DEFAULT_MAX_DELTA
+
+
+# ------------------------------------------------------------------ the two Irelands
+#
+# Two national teams whose names share their only distinctive word. Live Score writes "N.Ireland"
+# and "Republic of Ireland"; GameForecast writes "Northern Ireland" and "Rep. Of Ireland". Getting
+# this wrong does not produce a visible error - it files one country's forecast onto the other
+# country's fixture and reads as a perfectly ordinary prediction.
+
+IRELAND_SAME_TEAM = [
+    ("Northern Ireland", "N.Ireland"),
+    ("Rep. Of Ireland", "Republic of Ireland"),
+    ("NIR", "N.Ireland"),
+    ("ROI", "Republic of Ireland"),
+    ("Ireland Republic", "Republic of Ireland"),
+]
+
+IRELAND_DIFFERENT_TEAMS = [
+    ("Northern Ireland", "Republic of Ireland"),
+    ("Rep. Of Ireland", "N.Ireland"),
+    ("NIR", "ROI"),
+    ("Northern Ireland", "Rep. Of Ireland"),
+    ("N.Ireland", "Republic of Ireland"),
+    # "Ireland" alone names neither of them, so it must reach neither rather than the nearer one.
+    ("Ireland", "Northern Ireland"),
+    ("Ireland", "Republic of Ireland"),
+]
+
+
+@pytest.mark.parametrize("left,right", IRELAND_SAME_TEAM)
+def test_the_spellings_of_one_ireland_reach_each_other(left, right):
+    assert match_matching.team_names_match(left, right) is True
+    assert match_matching.team_names_match(right, left) is True
+
+
+@pytest.mark.parametrize("left,right", IRELAND_DIFFERENT_TEAMS)
+def test_the_two_irelands_never_reach_each_other(left, right):
+    assert match_matching.team_names_match(left, right) is False
+    assert match_matching.team_names_match(right, left) is False
+
+
+def test_the_shared_word_does_no_work_in_either_direction():
+    """The pairing is by name, so removing the alias table must break the MATCH, not the split.
+
+    If the two were ever told apart by something other than their explicit entries - a length
+    rule, a token count, a similarity threshold - this test would keep passing while the guarantee
+    quietly moved to something that a fifth spelling could defeat.
+    """
+    assert match_matching.normalize_team_name("N.Ireland") == "northern ireland"
+    assert match_matching.normalize_team_name("Rep. Of Ireland") == "republic of ireland"
+    assert match_matching.normalize_team_name("Ireland") == "ireland"

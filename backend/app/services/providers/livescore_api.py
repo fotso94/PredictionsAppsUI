@@ -244,10 +244,33 @@ class LiveScoreAPIProvider(MatchDataProvider):
         )
 
     def _fixture_from_match(self, item: Dict[str, Any], keys: Iterable[str]) -> ProviderFixture:
-        """Live and history payloads share the `match` shape."""
+        """Live and history payloads share the `match` shape.
+
+        `scores` carries the periods separately - `ht_score`, `ft_score`, `et_score`, `ps_score`,
+        each "N - M" or "" - and they are carried separately from here on. `score` is the
+        scoreline the provider is currently showing: the running score while the match is on,
+        and for a tie that went to extra time the score including it. Only `ft_score` is labelled
+        full time by the provider, so only `ft_score` is read as regulation; `score` is kept for
+        display and is never promoted to regulation, because doing so turns a 1-1 draw settled
+        after 90 minutes into a 2-1 win as soon as somebody scores in the 105th.
+
+        The `et_score` and `ps_score` keys are present on every `match` row, carrying "" when
+        those periods were not played - a 2026-09-16 LaLiga result and a 2026-07-07 World Cup
+        shoot-out both came back that way. That is what `periods_reported` records: an empty
+        `et_score` from THIS provider on a finished match means no extra time was played, which
+        is knowledge a provider that simply omits the key does not give us.
+        """
         scores = item.get("scores") or {}
-        home_score, away_score = parse_score(scores.get("score") or scores.get("ft_score"))
+        home_score, away_score = parse_score(scores.get("score"))
         ht_home, ht_away = parse_score(scores.get("ht_score"))
+        ft_home, ft_away = parse_score(scores.get("ft_score"))
+        et_home, et_away = parse_score(scores.get("et_score"))
+        ps_home, ps_away = parse_score(scores.get("ps_score"))
+        if home_score is None:
+            # No running score: the display score is the last period of football that was played,
+            # extra time before full time. Penalties are never folded in - a shoot-out is not a
+            # scoreline, and 0-0 that ends 4-3 on penalties is not a 4-3 match.
+            home_score, away_score = (et_home, et_away) if et_home is not None else (ft_home, ft_away)
         status_text = str(item.get("status") or "").upper()
         status = LIVE_STATUS_MAP.get(status_text, STATUS_UNKNOWN)
         if status == STATUS_UNKNOWN and str(item.get("time") or "").upper() in ("FT", "AET", "AP"):
@@ -266,6 +289,10 @@ class LiveScoreAPIProvider(MatchDataProvider):
             minute=str(item.get("time")) if item.get("time") not in (None, "") else None,
             home_score=home_score, away_score=away_score,
             ht_home_score=ht_home, ht_away_score=ht_away,
+            ft_home_score=ft_home, ft_away_score=ft_away,
+            et_home_score=et_home, et_away_score=et_away,
+            ps_home_score=ps_home, ps_away_score=ps_away,
+            periods_reported="et_score" in scores and "ps_score" in scores,
             venue=item.get("location"),
             round=str(item.get("round")) if item.get("round") not in (None, "") else None,
             raw=item,

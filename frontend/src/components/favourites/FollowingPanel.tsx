@@ -12,6 +12,7 @@ import {
   type FollowedFixture, type FollowedFixturesState,
 } from '@/services/favourites.service'
 import { getErrorMessage } from '@/utils/errors'
+import { teamSubtitle } from '@/utils/squads'
 import FollowButton from './FollowButton'
 
 /**
@@ -270,7 +271,10 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
           </p>
         ) : (
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {teams.map(team => (
+            {teams.map(team => {
+              // The country for a club, the squad for a country — see the note below.
+              const subtitle = teamSubtitle(team)
+              return (
               <li
                 key={team.id}
                 className="flex items-center gap-3 rounded-lg bg-dark-800 px-3 py-2"
@@ -283,7 +287,22 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
                     className="focus-ring block truncate rounded text-sm text-white hover:underline"
                   >
                     {team.name}
-                    {team.country && <span className="ml-2 text-xs text-secondary-400">{team.country}</span>}
+                    {/*
+                      WHICH SQUAD, WHERE THE COUNTRY USED TO BE.
+
+                      A country's senior, women's and under-23 squads are three separate rows with
+                      one name between them, and a national team carries no country at all — the
+                      backend refuses to write a confederation's territory onto a squad — so this
+                      slot was blank on exactly the rows where two entries of this list would
+                      otherwise read "Spain" twice with nothing to tell them apart. `teamSubtitle`
+                      prints the squad for a country and the country for a club, which is what this
+                      line always said for a club and still says.
+                    */}
+                    {subtitle && (
+                      <span className="ml-2 text-xs text-secondary-400" data-testid="followed-team-squad">
+                        {subtitle}
+                      </span>
+                    )}
                   </Link>
                   <FollowFixtureLine
                     kind="team"
@@ -297,7 +316,8 @@ const FollowingPanel: React.FC<FollowingPanelProps> = ({ className }) => {
                 </div>
                 <FollowButton kind="team" id={team.id} name={team.name} variant="icon" size="sm" />
               </li>
-            ))}
+              )
+            })}
             {unresolvedTeams.map(id => (
               <li key={id} className="flex items-center gap-3 rounded-lg border border-dashed border-dark-700 px-3 py-2" data-testid="followed-team-unresolved">
                 <div className="min-w-0 flex-1">

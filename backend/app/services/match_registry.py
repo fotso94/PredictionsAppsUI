@@ -102,6 +102,74 @@ def is_settled(status: MatchStatus) -> bool:
     return status not in REGRESSIVE_STATUSES
 
 
+def scoreline_label(home: Optional[int], away: Optional[int],
+                    pens_home: Optional[int] = None, pens_away: Optional[int] = None) -> Optional[str]:
+    """The scoreline as a reader would say it: "1-1", or "0-0 (4-3 pens)" for a shoot-out.
+
+    The shoot-out is appended, never merged. Switzerland 0-0 Colombia won 4-3 on penalties is not
+    a 4-3 match, and showing only "0-0" is as wrong for the reader as showing "4-3" would be for
+    settlement. Returns None when there is no scoreline to show at all; a shoot-out score without
+    a scoreline to attach it to is dropped rather than shown on its own.
+    """
+    if home is None or away is None:
+        return None
+    if pens_home is None or pens_away is None:
+        return f"{home}-{away}"
+    return f"{home}-{away} ({pens_home}-{pens_away} pens)"
+
+
+def merge_supplied(stored: Dict[str, object], incoming: Dict[str, object]) -> Dict[str, object]:
+    """Write through what this provider supplied; leave alone what it did not.
+
+    A ``None`` in ``incoming`` is the provider saying nothing about that field, which is not the
+    same as saying the field is empty. The key is still created when it is missing, so a reader
+    can tell "asked and unknown" from a key that was never there, but a value already stored is
+    never replaced by a silence. This is what stops a fallback provider with no period breakdown
+    erasing periods a better-informed provider already wrote.
+    """
+    for key, value in incoming.items():
+        if value is None:
+            stored.setdefault(key, None)
+        else:
+            stored[key] = value
+    return stored
+
+
+def _pair(home: Optional[int], away: Optional[int]) -> Optional[Tuple[int, int]]:
+    """One period as the single fact it is: a scoreline, supplied or not.
+
+    Half a scoreline is not a report of a period, so a provider that sends one side and not the
+    other is treated as having sent neither rather than as having scored the other side nil.
+    """
+    if home is None or away is None:
+        return None
+    return home, away
+
+
+def played_outcome(home: int, away: int) -> str:
+    """The H/D/A that ``predictions.match_results.result`` answers, and the only question it answers.
+
+    THE QUESTION: who won the football that was played? It is the outcome of the ``home_score`` /
+    ``away_score`` pair in its own row - extra time included, the shoot-out never - and it is a
+    reader's summary of that pair, nothing more. A row whose score reads 2-1 says "H" here, and a
+    tie that finished 0-0 and was won 4-3 on penalties says "D", because 0-0 is the football that
+    was played and the shoot-out is recorded beside it.
+
+    THE QUESTION IT DOES NOT ANSWER: how a market settles. Markets settle on regulation time,
+    which is a different period and sometimes a different answer - a tie of 1-1 at full time and
+    2-1 after extra time is "H" here and a draw to every market. That answer is
+    :func:`app.services.settlement.regulation_score`, it is computed from ``home_score_ft`` /
+    ``away_score_ft``, and it can refuse to answer at all, which this column cannot: it is
+    NOT NULL-scored and always says something. Nothing in settlement reads this column, and
+    nothing that settles anything ever should.
+    """
+    if home > away:
+        return "H"
+    if away > home:
+        return "A"
+    return "D"
+
+
 def classify_recovery_outcome(meta, *, settled_before: bool, settled_now: bool) -> Tuple[RecoveryOutcome, str]:
     """
     Which of the four outcomes one day's results call produced for one stranded fixture.
@@ -259,24 +327,64 @@ class MatchRegistry:
             self._teams_count = total
         return self._teams_cache
 
-    def find_team_by_name(self, name: str, country: Optional[str] = None) -> Optional[Team]:
+    @staticmethod
+    def team_identity(name: str, scope: comps.TeamScope) -> str:
         """
-        Find a stored team by name, comparing NORMALISED names in Python.
+        The identity string a team row is stored under, for a name and the scope it plays in.
+
+        The "(W)" suffix comes off before the name is normalised, so Spain's women's squad is
+        `national_senior_women:spain` in the Women's World Cup and in a friendly alike -- one squad
+        is one row however many competitions it plays. The scope in front is what keeps it off the
+        men's row and off a Spanish club's row, neither of which a name comparison can do: the
+        club-name matcher reads "Spain (W)" and "Spain" as one team, by design and correctly, because
+        dropping a trailing qualifier is how "Ipswich" reaches "Ipswich Town".
+        """
+        return comps.scoped_identity_key(
+            scope, match_matching.normalize_team_name(comps.strip_womens_suffix(name)))
+
+    def find_team_by_name(self, name: str, country: Optional[str] = None,
+                          scope: comps.TeamScope = comps.DEFAULT_TEAM_SCOPE) -> Optional[Team]:
+        """
+        Find a stored team by name WITHIN one scope, comparing NORMALISED names in Python.
 
         The normalised form is not a substring of the stored raw name -- "Borussia Moenchengladbach"
         does not contain "monchengladbach" and "FC Cologne" does not contain "koln" -- so a normalised
         token must never be used as a SQL LIKE pattern. Doing that made every provider switch insert a
         duplicate Team row for exactly those clubs.
+
+        No comparison here crosses a scope, and none of them could decide one if it tried. A row of a
+        different scope is not a worse match for this name, it is a different entity with the same
+        name, so it is removed from the pool before any name is looked at rather than being ranked
+        below the others.
+
+        `scope` defaults to clubs because that is what an unqualified caller is asking about, and
+        what every row stored before national-team coverage existed is.
         """
-        normalized = match_matching.normalize_team_name(name)
+        normalized = match_matching.normalize_team_name(comps.strip_womens_suffix(name))
         if not normalized:
             return None
+        identity = comps.scoped_identity_key(scope, normalized)
 
         def usable(team: Team) -> bool:
+            if (team.team_scope or comps.DEFAULT_TEAM_SCOPE.value) != scope.value:
+                return False
             return not country or not team.country or team.country in (country, "Unknown")
 
-        pool = [t for t in self._team_pool() if usable(t)]
-        exact = [t for t in pool if match_matching.normalize_team_name(t.name) == normalized]
+        # THE IDENTITY IS LOOKED UP BEFORE THE COUNTRY FILTER, AND ACROSS THE WHOLE SCOPE.
+        # `identity_key` is UNIQUE and already carries the scope, so a row holding this identity IS
+        # this team - there is nothing a country can add to that, and plenty it can take away: the
+        # country we were handed is the one this provider spells, and a row stored from another
+        # provider may spell it differently or not at all. Filtering first would hide the row, the
+        # caller would create a second one carrying the same identity, and the unique index would
+        # abort the write - turning a difference of spelling into a failed sync.
+        in_scope = [t for t in self._team_pool()
+                    if (t.team_scope or comps.DEFAULT_TEAM_SCOPE.value) == scope.value]
+        stored = [t for t in in_scope if t.identity_key == identity]
+        if stored:
+            return stored[0]
+        pool = [t for t in in_scope if usable(t)]
+        exact = [t for t in pool
+                 if match_matching.normalize_team_name(comps.strip_womens_suffix(t.name)) == normalized]
         if exact:
             return sorted(exact, key=lambda t: str(t.id))[0]
         fuzzy = [t for t in pool if match_matching.team_names_match(t.name, name)]
@@ -288,7 +396,23 @@ class MatchRegistry:
                            name, len(fuzzy), [t.name for t in fuzzy])
         return None
 
-    def upsert_team(self, team: ProviderTeam, country: Optional[str] = None) -> Team:
+    def upsert_team(self, team: ProviderTeam, country: Optional[str] = None,
+                    competition_key: Optional[str] = None) -> Team:
+        """
+        Persist one provider team and return the internal row.
+
+        `competition_key` is the canonical competition the fixture belongs to, and it decides the
+        scope: clubs play club competitions and countries play national-team ones, and that is known
+        before a single character of the name is compared. `None` is a competition no canonical key
+        matched, which reads as a club competition.
+
+        A national-team competition's `country` is the confederation's territory -- "World" for every
+        FIFA competition -- so it is not written onto the team. It is the competition's country, not
+        the team's, and storing it would file every country in the world under one of seven values.
+        """
+        scope = self._scope_for(competition_key, team.name)
+        if scope in comps.NATIONAL_SCOPES:
+            country = None
         ref = self.get_ref("team", team.provider, team.external_id)
         if ref:
             existing = self.db.query(Team).filter(Team.id == ref.entity_id).first()
@@ -296,21 +420,61 @@ class MatchRegistry:
                 if team.logo and not existing.logo_url:
                     existing.logo_url = team.logo
                 return existing
-        existing = self.find_team_by_name(team.name, country or team.country)
+        identity = self.team_identity(team.name, scope)
+        existing = self.find_team_by_name(team.name, country or team.country, scope)
+        if existing is None:
+            # `identity_key` is UNIQUE, so creating a row that claims a taken identity does not
+            # produce a duplicate - it aborts the flush and takes the whole sync batch with it. A
+            # row already holding this identity is this team by definition, so it is adopted rather
+            # than competed with. `find_team_by_name` normally returns it; this is the narrow case
+            # where its name and country comparisons could not, and the identity still can.
+            existing = self._team_by_identity(identity)
         matched_by = "name"
         if existing is None:
             existing = Team(id=uuid.uuid4(), name=team.name, short_name=(team.short_name or team.name)[:50],
                             country=country or team.country or "Unknown", logo_url=team.logo,
                             external_api_id=f"{team.provider}:{team.external_id}", external_api_source=team.provider,
-                            is_active=True)
+                            is_active=True, team_scope=scope.value, identity_key=identity)
             self.db.add(existing)
             self.db.flush()
             matched_by = "provider_id"
-        elif team.logo and not existing.logo_url:
-            existing.logo_url = team.logo
+        else:
+            if team.logo and not existing.logo_url:
+                existing.logo_url = team.logo
+            if existing.identity_key is None and not self._identity_is_taken(identity):
+                # A row written before identities were stored, or by a path that never knew the
+                # competition. It is adopted into the scope it was just resolved in, so the next
+                # lookup reaches it by key; the check above is what keeps the adoption from ever
+                # being the write that violates the unique index.
+                existing.identity_key = identity
         self.set_ref("team", existing.id, team.provider, team.external_id, confidence="exact", matched_by=matched_by,
                      metadata={"name": team.name})
         return existing
+
+    def _team_by_identity(self, identity: str) -> Optional[Team]:
+        """The row holding this identity, if any. The column is UNIQUE, so there is at most one."""
+        return next((t for t in self._team_pool() if t.identity_key == identity), None)
+
+    def _identity_is_taken(self, identity: str) -> bool:
+        return self._team_by_identity(identity) is not None
+
+    @staticmethod
+    def _scope_for(competition_key: Optional[str], team_name: str) -> comps.TeamScope:
+        """
+        The scope of a team in a competition a PROVIDER named, which may be a key we do not carry.
+
+        `comps.team_scope` raises on an unknown key, and that is right for our own callers: naming a
+        competition that does not exist is a mistake worth stopping on. Here the key arrives inside a
+        fixture, and one unrecognised key must not take the rest of the batch down with it. The row
+        is stored as a club team -- the same thing an unrecognised competition has always produced --
+        and the key is named in the log.
+        """
+        try:
+            return comps.team_scope(competition_key, team_name)
+        except KeyError:
+            logger.warning("Fixture names competition %r, which is not in the registry; "
+                           "%r is stored as a club team", competition_key, team_name)
+            return comps.team_scope(None, team_name)
 
     # ------------------------------------------------------------------ matches
     def match_by_ref(self, provider: str, external_id: str) -> Optional[Match]:
@@ -571,8 +735,8 @@ class MatchRegistry:
         and a stored row that vetoes a kickoff vetoes it on every later sync too.
         """
         league = self.upsert_league(fixture.competition)
-        home = self.upsert_team(fixture.home, fixture.competition.country)
-        away = self.upsert_team(fixture.away, fixture.competition.country)
+        home = self.upsert_team(fixture.home, fixture.competition.country, fixture.competition.key)
+        away = self.upsert_team(fixture.away, fixture.competition.country, fixture.competition.key)
 
         match = self.match_by_ref(fixture.provider, fixture.external_id)
         matched_by, confidence = "provider_id", "exact"
@@ -703,29 +867,132 @@ class MatchRegistry:
             match.season = fixture.competition.season_name[:20]
         match.status = self._merged_status(match, fixture)
         meta = dict(match.match_metadata or {})
+        # Who spoke last and what they said about the state of play: overwritten every sync,
+        # because that is what these fields are.
         meta.update({
             "provider": fixture.provider,
             "provider_status": fixture.status,
             "minute": fixture.minute,
+            "last_synced_at": datetime.now(timezone.utc).isoformat(),
+        })
+        # The scores are facts about the match, not about this sync, so a provider that sends none
+        # of them leaves the ones already stored standing.
+        merge_supplied(meta, {
             "home_score": fixture.home_score,
             "away_score": fixture.away_score,
             "ht_home_score": fixture.ht_home_score,
             "ht_away_score": fixture.ht_away_score,
-            "last_synced_at": datetime.now(timezone.utc).isoformat(),
+            "ft_home_score": fixture.ft_home_score,
+            "ft_away_score": fixture.ft_away_score,
+            "et_home_score": fixture.et_home_score,
+            "et_away_score": fixture.et_away_score,
+            "ps_home_score": fixture.ps_home_score,
+            "ps_away_score": fixture.ps_away_score,
         })
+        # A MATCH THAT WAS NOT PLAYED HAS NO SCORE, and keeping one is the cost of the merge above.
+        # A fixture abandoned or postponed after kicking off carries whatever it had reached while
+        # it was live, and `merge_supplied` is deliberately unable to un-store a value - so without
+        # this, "postponed" would be published beside a 1-0 that stands for nothing and that no
+        # later sync can take back. A void state is a statement that there is no result, so the
+        # scores go with it; the half-time pair goes too, for the same reason.
+        if match.status in (MatchStatus.POSTPONED, MatchStatus.CANCELLED):
+            for key in ("home_score", "away_score", "ht_home_score", "ht_away_score",
+                        "ft_home_score", "ft_away_score", "et_home_score", "et_away_score",
+                        "ps_home_score", "ps_away_score"):
+                meta.pop(key, None)
+        # Built from the merged values rather than from the fixture, so a refresh that carries no
+        # shoot-out does not shorten "0-0 (4-3 pens)" back to "0-0".
+        meta["scoreline"] = scoreline_label(meta.get("home_score"), meta.get("away_score"),
+                                            meta.get("ps_home_score"), meta.get("ps_away_score"))
         match.match_metadata = meta
         if fixture.status == STATUS_FINISHED and fixture.home_score is not None and fixture.away_score is not None:
             result = self.db.query(MatchResult).filter(MatchResult.match_id == match.id).first()
-            outcome = "H" if fixture.home_score > fixture.away_score else "A" if fixture.away_score > fixture.home_score else "D"
+            outcome = played_outcome(fixture.home_score, fixture.away_score)
             if result is None:
-                result = MatchResult(id=uuid.uuid4(), match_id=match.id, home_score=fixture.home_score, away_score=fixture.away_score,
-                                     home_score_ht=fixture.ht_home_score, away_score_ht=fixture.ht_away_score, result=outcome,
-                                     result_metadata={"provider": fixture.provider})
+                result = MatchResult(id=uuid.uuid4(), match_id=match.id, home_score=fixture.home_score,
+                                     away_score=fixture.away_score, result=outcome)
                 self.db.add(result)
             else:
                 result.home_score, result.away_score, result.result = fixture.home_score, fixture.away_score, outcome
-                result.home_score_ht, result.away_score_ht = fixture.ht_home_score, fixture.ht_away_score
+            self._apply_periods(result, fixture)
         self.db.flush()
+
+    def _apply_periods(self, result: MatchResult, fixture: ProviderFixture) -> None:
+        """Store each period this provider supplied, and leave the rest of the row alone.
+
+        A period is written only when the fixture carries one. A provider that sends no period
+        breakdown - API-Football and TheSportsDB both send none, and both are configured as
+        fallbacks behind Live Score - therefore changes no period column at all, and a tie already
+        ingested with its full time, extra time and shoot-out apart keeps them when a later refresh
+        comes from a source that knows less. The absence of a period is not a report that the
+        period was not played, and a write that treated it as one would silently destroy the only
+        record of a 0-0 that was won 4-3 on penalties.
+
+        Nothing here derives one period from another, and nothing here decides what settles:
+        settlement reads ``home_score_ft`` and states its own rule for a row that has none
+        (:func:`app.services.settlement.regulation_score`).
+        """
+        merged = merge_supplied(
+            {"ht": (result.home_score_ht, result.away_score_ht),
+             "ft": (result.home_score_ft, result.away_score_ft),
+             "et": (result.home_score_et, result.away_score_et),
+             "pens": (result.home_score_pens, result.away_score_pens)},
+            {"ht": _pair(fixture.ht_home_score, fixture.ht_away_score),
+             "ft": _pair(fixture.ft_home_score, fixture.ft_away_score),
+             "et": _pair(fixture.et_home_score, fixture.et_away_score),
+             "pens": _pair(fixture.ps_home_score, fixture.ps_away_score)},
+        )
+        result.home_score_ht, result.away_score_ht = merged["ht"]
+        result.home_score_ft, result.away_score_ft = merged["ft"]
+        result.home_score_et, result.away_score_et = merged["et"]
+        result.home_score_pens, result.away_score_pens = merged["pens"]
+
+        meta = dict(result.result_metadata or {})
+        meta["provider"] = fixture.provider
+        # `beyond_regulation` is the fact settlement needs and the one the pipeline used to throw
+        # away: the provider's "AP"/"AET" marker went into ProviderFixture.minute and no further,
+        # so no stored result had ever carried it. It is recorded here as a fact about the tie and
+        # has three values, because there are three situations: True on evidence it went past 90,
+        # False when a provider that enumerates periods reported none past 90, and None when
+        # nobody said - which is every API-Football row, every TheSportsDB row, and every one of
+        # the 48 results stored before this column existed.
+        self._merge_beyond_regulation(result, meta, fixture)
+        if fixture.minute is not None:
+            meta["period_marker"] = fixture.minute
+        else:
+            meta.setdefault("period_marker", None)
+        # The scoreline a reader remembers, built from the row as it now stands rather than from
+        # this one fixture, so a refresh with no shoot-out in it does not turn "0-0 (4-3 pens)"
+        # back into "0-0". Stored rather than re-derived so that everything showing this tie shows
+        # the same line.
+        meta["scoreline"] = scoreline_label(result.home_score, result.away_score,
+                                            result.home_score_pens, result.away_score_pens)
+        result.result_metadata = meta
+
+    def _merge_beyond_regulation(self, result: MatchResult, meta: Dict[str, object],
+                                 fixture: ProviderFixture) -> None:
+        """Record whether the tie went past 90 minutes, without ever unlearning it.
+
+        A provider that does not know (``None``) leaves the stored answer as it is. A provider
+        that reports no extra time for a tie already recorded as having gone past 90 is
+        contradicting positive evidence - a stored extra-time or shoot-out score, or an earlier
+        report - with the absence of it, so the stronger claim is kept and the disagreement is
+        logged for a person rather than resolved by whoever synced last. The row's own period
+        columns are read for that, not just the flag, so the flag can never end up saying a tie
+        ended at 90 while the columns beside it hold its shoot-out.
+        """
+        incoming = fixture.went_beyond_regulation
+        if incoming is None:
+            meta.setdefault("beyond_regulation", None)
+            return
+        stored_evidence = any(v is not None for v in (result.home_score_et, result.away_score_et,
+                                                      result.home_score_pens, result.away_score_pens))
+        if incoming is False and (stored_evidence or meta.get("beyond_regulation") is True):
+            logger.warning("Provider %s reports no play past 90 minutes for match_result %s, which is "
+                           "stored as going beyond regulation (%s); keeping the stored answer",
+                           fixture.provider, result.id, meta.get("period_marker"))
+            return
+        meta["beyond_regulation"] = incoming
 
     # ------------------------------------------------------------------ queries
     def matches_for_day(self, day: date, league_ids: Optional[Iterable[uuid.UUID]] = None) -> List[Match]:

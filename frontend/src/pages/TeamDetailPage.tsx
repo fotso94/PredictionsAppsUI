@@ -10,6 +10,7 @@ import { footballDataService } from '@/services/football-data.service';
 import { TeamPage } from '@/services/match-data-source';
 import { describeError } from '@/services/backend-match-data.service';
 import { onTeamLogoError } from '@/components/ui/imageFallback'
+import { teamSubtitle } from '@/utils/squads';
 import { formatNumber } from '@/i18n';
 import { useT } from '@/i18n/react';
 
@@ -125,6 +126,8 @@ const TeamDetailPage: React.FC = () => {
   }
 
   const { team, upcoming, recent } = page;
+  // The country for a club, the squad for a country — see the note beside where it is printed.
+  const squadOrCountry = teamSubtitle(team);
 
   return (
     <>
@@ -147,7 +150,14 @@ const TeamDetailPage: React.FC = () => {
               <div className="min-w-0 flex-1">
                 <h1 className="mb-2 text-3xl font-bold text-white">{team.name}</h1>
                 <div className="flex flex-wrap gap-4 text-sm text-secondary-400">
-                  {team.country && <span>{team.country}</span>}
+                  {/*
+                    The country for a club, the squad for a country. A national team has no country
+                    of its own stored — the only country its competitions have is a confederation's
+                    territory — so this line was empty on every national-team page, on the very
+                    pages where a reader needs to know whether they are about to follow Spain's men,
+                    Spain's women or Spain's under-23s. Those are three separate rows.
+                  */}
+                  {squadOrCountry && <span data-testid="team-squad">{squadOrCountry}</span>}
                   {team.shortName && <span>{team.shortName}</span>}
                 </div>
               </div>

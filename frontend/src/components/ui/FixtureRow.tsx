@@ -9,6 +9,7 @@ import { formatTime } from '@/i18n'
 import { useT } from '@/i18n/react'
 import { fixturePreview, SourcePreview } from '@/utils/matchPreview'
 import { onTeamLogoError } from './imageFallback'
+import { periodLines } from './scoreline'
 import SourceMarker from './SourceMarker'
 import SaveMatchButton from './SaveMatchButton'
 import ProvenanceLine from './ProvenanceLine'
@@ -209,6 +210,16 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
   const awayScore = showScore ? match.result?.awayScore : undefined
 
   /**
+   * The rest of a knockout tie, on one short line under the two club names.
+   *
+   * The two numbers above are the football that was played; a shoot-out is not one of them and is
+   * never shown as one. Without this line a tie won 4-3 on penalties reads as the 0-0 it also was,
+   * and the reader is left with half the result. Short forms, because a full sentence here pushes
+   * the club names off a phone; empty for the ordinary match, which is most of them.
+   */
+  const periodNote = showScore ? periodLines(match.result, true).join(' · ') : ''
+
+  /**
    * Compact per-source preview: who said it, and what they make most likely.
    *
    * The side is named "Home"/"Draw"/"Away" rather than by club, because a club name is as long as
@@ -273,6 +284,9 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
         >
           {teamLine(match.homeTeam.name, match.homeTeam.logo, homeScore, showScore && (homeScore ?? 0) > (awayScore ?? 0))}
           {teamLine(match.awayTeam.name, match.awayTeam.logo, awayScore, showScore && (awayScore ?? 0) > (homeScore ?? 0))}
+          {periodNote && (
+            <span className="truncate text-[11px] text-secondary-300" data-testid="fixture-row-periods">{periodNote}</span>
+          )}
           {showCompetition && (
             <span className="truncate text-[11px] text-secondary-400">{match.league.name}</span>
           )}

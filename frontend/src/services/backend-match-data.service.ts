@@ -21,6 +21,9 @@ import {
   localDateString, localDayOffsets, timezoneOffsetMinutes,
 } from './match-data-source';
 import { getErrorMessage, getErrorStatus } from '@/utils/errors';
+// A scope, confederation or squad category this build cannot interpret is dropped rather than
+// carried: see src/utils/squads.ts.
+import { asConfederation, asSquadCategory, asTeamScope } from '@/utils/squads';
 // Kick-off times are mapped in the reader's chosen zone, and the cache is dropped when that zone
 // changes — see `localTime` below and the `onZoneChange` registration at the foot of this file.
 import { formatTime, onZoneChange } from '@/i18n';
@@ -35,6 +38,14 @@ export interface ApiTeam {
   short_name: string | null;
   logo: string;
   country: string | null;
+  /**
+   * Which squad this row is (`national_senior_women`, `club_senior_men`, …).
+   *
+   * Optional because a payload from before the column existed does not carry it. `country` is not
+   * a substitute: it is null for every national team, so without this a country's senior, women's
+   * and under-23 squads are three rows with one name and nothing to tell them apart.
+   */
+  team_scope?: string | null;
 }
 
 export interface ApiLeague {
@@ -46,6 +57,15 @@ export interface ApiLeague {
   logo: string;
   is_cup: boolean;
   providers: Record<string, string>;
+  /**
+   * The competition's classification, written down per competition by the backend.
+   *
+   * All three are optional for the same reason as `team_scope`: an older payload does not carry
+   * them, and a missing `is_national_team` means "not stated", never "a club competition".
+   */
+  is_national_team?: boolean | null;
+  confederation?: string | null;
+  squad_category?: string | null;
 }
 
 export interface ApiExpertPrediction {
@@ -124,7 +144,21 @@ export interface ApiMatch {
   kickoff_utc: string | null;
   status: MatchStatus;
   minute: string | null;
-  score: { home: number; away: number; ht_home: number | null; ht_away: number | null } | null;
+  /**
+   * Every period of the tie the source supplied, each one kept apart from the others.
+   *
+   * `home`/`away` is the football that was played, extra time included and penalties never; `ft`
+   * is the 90-minute score settlement scores every market on; `et` and `ps` settle nothing and are
+   * what lets a tie be shown as it was won. Anything but `home`/`away` is null when the source did
+   * not supply it, and null is "not supplied", never zero.
+   */
+  score: {
+    home: number; away: number;
+    ht_home: number | null; ht_away: number | null;
+    ft_home?: number | null; ft_away?: number | null;
+    et_home?: number | null; et_away?: number | null;
+    ps_home?: number | null; ps_away?: number | null;
+  } | null;
   venue: string | null;
   round: string | null;
   season: string | null;
@@ -180,6 +214,10 @@ export function mapApiTeam(team: ApiTeam | null, fallbackName = 'Unknown'): Team
     shortName: team?.short_name || name.substring(0, 3).toUpperCase(),
     logo: team?.logo || '/teams/default.svg',
     country: team?.country || '',
+    // Left undefined when the payload does not carry one, or carries a value this build cannot
+    // interpret. An uninterpretable scope decides nothing, so pretending to hold it would only
+    // let a caller believe it had been told which squad this is.
+    scope: asTeamScope(team?.team_scope),
     league: '',
     founded: 0,
     venue: '',
@@ -199,6 +237,12 @@ export function mapApiLeague(league: ApiLeague | null): League {
     season: '',
     type: league?.is_cup ? 'cup' : 'domestic',
     tier: 1,
+    // `?? undefined` rather than `?? false`: a payload that does not state the classification has
+    // not said this is club football, and `competitionKind` keeps those two apart so an old
+    // cached response cannot file a country under "Club".
+    isNationalTeam: typeof league?.is_national_team === 'boolean' ? league.is_national_team : undefined,
+    confederation: asConfederation(league?.confederation),
+    squadCategory: asSquadCategory(league?.squad_category),
   };
 }
 
@@ -405,7 +449,21 @@ export function mapApiMatch(match: ApiMatch): Match {
       homeScore: match.score.home,
       awayScore: match.score.away,
       halfTimeScore: { home: match.score.ht_home ?? 0, away: match.score.ht_away ?? 0 },
-      fullTimeScore: { home: match.score.home, away: match.score.away },
+      // `fullTimeScore` is the 90-minute score — the period every market settles on — whenever the
+      // source supplied it apart. Where it did not, the tie's own score stands in, which is the
+      // same reading the backend's settlement rule states for a row that carries no period
+      // breakdown: for an ordinary match the two are the same number.
+      fullTimeScore: {
+        home: match.score.ft_home ?? match.score.home,
+        away: match.score.ft_away ?? match.score.away,
+      },
+      // Spread rather than assigned: a tie that did not go past 90 minutes must carry no
+      // extra-time or shoot-out key at all, so nothing downstream can render an absent period as
+      // a 0-0 neither team played.
+      ...(match.score.et_home != null && match.score.et_away != null
+        ? { extraTimeScore: { home: match.score.et_home, away: match.score.et_away } } : {}),
+      ...(match.score.ps_home != null && match.score.ps_away != null
+        ? { penaltyScore: { home: match.score.ps_home, away: match.score.ps_away } } : {}),
     } : undefined,
     provider: match.provider,
     externalId: match.external_id,
@@ -630,7 +688,9 @@ class BackendMatchDataService implements MatchDataSource {
     if (!query || query.trim().length < 2) return { teams: [], leagues: [] };
     const { data } = await apiClient.get<{ teams: ApiTeam[]; competitions: ApiLeague[] }>(`${API}/teams/search`, { params: { q: query.trim() } });
     return {
-      teams: data.teams.map(t => ({ id: t.id, name: t.name, logo: t.logo, country: t.country || '' })),
+      // The scope travels with the row: a search for "Spain" returns a country's senior squad, its
+      // women's squad and any Spanish club, and `country` is empty on the first two.
+      teams: data.teams.map(t => ({ id: t.id, name: t.name, logo: t.logo, country: t.country || '', scope: asTeamScope(t.team_scope) })),
       leagues: data.competitions.map(l => ({ id: l.id, name: l.name, logo: l.logo, country: l.country || '', type: l.is_cup ? 'Cup' : 'League' })),
     };
   }

@@ -91,6 +91,18 @@ _SUFFIX_DROP_ALIASES = {
 # Canonical aliases (normalised form -> canonical normalised form)
 _ALIASES = {
     **_SUFFIX_DROP_ALIASES,
+    # TWO COUNTRIES, FOUR SPELLINGS, AND THE ONE WORD THEY SHARE IS THE DANGEROUS ONE.
+    # Live Score writes "N.Ireland" and "Republic of Ireland"; GameForecast writes "Northern
+    # Ireland" and "Rep. Of Ireland". Every one of them contains "ireland", so any rule that
+    # reaches for a common substring merges two different national teams and files one country's
+    # forecast onto the other's fixture. These four lines pair the spellings BY NAME and leave the
+    # shared word doing no work at all; `test_the_two_irelands_never_reach_each_other` is the
+    # guard, and "ireland" deliberately has no entry of its own because alone it names neither.
+    "n ireland": "northern ireland",
+    "nir": "northern ireland",
+    "rep of ireland": "republic of ireland",
+    "roi": "republic of ireland",
+    "ireland republic": "republic of ireland",
     "man city": "manchester city", "man utd": "manchester united", "man united": "manchester united",
     "manchester utd": "manchester united", "spurs": "tottenham hotspur",
     "wolves": "wolverhampton wanderers", "west ham": "west ham united",

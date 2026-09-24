@@ -30,6 +30,7 @@ from app.schemas.predictions import (
     ExpertPredictionUpdate,
 )
 from app.services.prediction_cache import PredictionCacheService
+from app.services.providers import competitions as comps
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +133,17 @@ def _changes_summary(old: Dict[str, Any], new: Dict[str, Any]) -> str:
             else:
                 changed.append(f"{name} {old.get(name)} -> {new.get(name)}")
     return "; ".join(changed)
+
+
+def _canonical_metadata(name: Optional[str]) -> Optional[dict]:
+    """``league_metadata`` carrying the canonical key for this competition name, or None.
+
+    None rather than an empty dict: a row with no metadata and a row whose metadata says nothing
+    are the same statement, and the readers of this field already treat a missing key as "not a
+    competition we hold", which is true.
+    """
+    key = comps.match_competition_name(name) if name else None
+    return {"canonical_key": key} if key else None
 
 
 class ExpertPredictionService:
@@ -1209,7 +1221,14 @@ class ExpertPredictionService:
                 logo_url=league_data.get("logo_url"),
                 external_api_id=league_external_id,
                 external_api_source="api-football",
-                is_active=True
+                is_active=True,
+                # WITHOUT THIS THE COMPETITION HAS NO CLASSIFICATION, and a league carrying no
+                # canonical key is read as a club competition by `schemas.matches._classification`
+                # and by `MatchRegistry._scope_for` alike. An expert publishing on a national-team
+                # fixture through this path would file it, and both its teams, under clubs. The
+                # key is resolved from the name the provider sent, and stays absent when nothing
+                # matches - absent is the honest answer, and is what those two already agree on.
+                league_metadata=_canonical_metadata(league_data.get("name")),
             )
             self.db.add(league)
             self.db.flush()

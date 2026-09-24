@@ -13,6 +13,29 @@ export type * from './favourites';
 /** The measured record counted from settled results (src/types/performance.ts). */
 export type * from './performance';
 
+/**
+ * Which squad a team row is: club or country, and senior men, senior women or youth.
+ *
+ * Served verbatim by the backend as `team.team_scope`. It exists because a name alone cannot tell
+ * three of these apart — Spain's men, Spain's women and a Spanish club are three rows with one
+ * word in them — and because `country` cannot stand in for it: a national team's country is not
+ * stored at all, since the only country a national-team competition has is its confederation's
+ * territory, and "World" is not a fact about Spain.
+ */
+export type TeamScope =
+  | 'club_senior_men'
+  | 'club_senior_women'
+  | 'club_youth'
+  | 'national_senior_men'
+  | 'national_senior_women'
+  | 'national_youth';
+
+/** Which squad plays a competition, as the backend's canonical table records it. */
+export type SquadCategory = 'senior_men' | 'senior_women' | 'youth';
+
+/** Football's six continental confederations, plus FIFA for worldwide competitions. */
+export type Confederation = 'FIFA' | 'CAF' | 'UEFA' | 'AFC' | 'CONCACAF' | 'CONMEBOL' | 'OFC';
+
 // Core Entity Types
 export interface Team {
   id: string;
@@ -20,6 +43,12 @@ export interface Team {
   shortName: string;
   logo: string;
   country: string;
+  /**
+   * The squad this row is, when the payload said. Undefined means the payload carries no scope at
+   * all — an older backend — which is not the same as "a club", so a caller that has to choose
+   * must fall back rather than assert. See src/utils/squads.ts.
+   */
+  scope?: TeamScope;
   league: string;
   founded: number;
   venue: string;
@@ -149,6 +178,22 @@ export interface League {
   type: 'domestic' | 'international' | 'cup';
   tier: number;
   standings?: LeagueStanding[];
+  /**
+   * Countries play this competition, rather than clubs.
+   *
+   * Written down per competition by the backend and served as `competition.is_national_team`;
+   * nothing here derives it from a name, because "National Teams Friendlies", "UEFA Nations
+   * League" and "Premier League" share no shape a rule could read.
+   *
+   * Undefined means the payload does not carry the classification at all, which is a different
+   * statement from `false`: see `fixtureKind` in src/utils/squads.ts, which keeps them apart so a
+   * fixture whose kind is unknown is never counted as a club fixture by a filter.
+   */
+  isNationalTeam?: boolean;
+  /** The confederation the competition belongs to. Null when the backend does not recognise it. */
+  confederation?: Confederation | null;
+  /** Which squad plays it. Null when the backend does not recognise the competition. */
+  squadCategory?: SquadCategory | null;
 }
 
 export interface LeagueStanding {

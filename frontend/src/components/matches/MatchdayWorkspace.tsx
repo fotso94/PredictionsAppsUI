@@ -14,11 +14,12 @@ import { describeError } from '@/services/backend-match-data.service'
 import { DataSourceMeta, ProviderStatus, STORED_ONLY, localDateString } from '@/services/match-data-source'
 import type { Match } from '@/types'
 import FixtureList from './FixtureList'
+import KindFilterChips from './KindFilterChips'
 import MatchFilterControls from './MatchFilterControls'
 import NextFixturesNote from './NextFixturesNote'
-import { competitionOptions, groupByCompetition } from './fixtureGrouping'
+import { competitionOptions, groupByCompetition, kindCounts } from './fixtureGrouping'
 import {
-  MARKET_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS, WorkspaceState,
+  KIND_OPTIONS, MARKET_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS, WorkspaceState,
   activeFilterCount, clearedFilters, matchesWorkspaceFilters, optionLabel, readWorkspaceState,
   toggleValue, writeWorkspaceState,
 } from './workspaceState'
@@ -292,6 +293,15 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
     [day.status, day.matches],
   )
   const competitions = useMemo(() => competitionOptions(dayMatches), [dayMatches])
+  /**
+   * How much club and national-team football the day holds, BEFORE any filter.
+   *
+   * Before the filter, because the control has to keep offering the kind that is currently hidden
+   * — a reader who has narrowed to national teams needs "Club" still on screen to get back — and
+   * because the counts beside the chips answer "what else is on today?" rather than "what is on
+   * screen?", which the count above the list already answers.
+   */
+  const kinds = useMemo(() => kindCounts(dayMatches), [dayMatches])
   const visible = useMemo(
     () => dayMatches.filter(match => matchesWorkspaceFilters(match, state)),
     [dayMatches, state],
@@ -334,6 +344,19 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
 
   const activeFilters = useMemo<ActiveFilter[]>(() => {
     const chips: ActiveFilter[] = []
+    if (state.kind !== 'all') {
+      // First in the list because it is the coarsest: a reader looking at an empty day wants to
+      // find the filter that removed the most before the one that removed three fixtures.
+      chips.push({
+        id: `kind:${state.kind}`,
+        group: t('filters.group.teams'),
+        label: (() => {
+          const option = KIND_OPTIONS.find(entry => entry.value === state.kind)
+          return option ? optionLabel(option) : state.kind
+        })(),
+        onRemove: () => apply({ ...state, kind: 'all' }),
+      })
+    }
     for (const id of state.competitions) {
       const known = competitions.find(option => option.id === id)
       chips.push({
@@ -386,6 +409,41 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
   const relative = relativeDay(date, t)
   const chipRow = competitions.slice(0, VISIBLE_CHIPS)
   const hiddenChips = competitions.length - chipRow.length
+  /**
+   * Whether the club/national choice is worth offering above the list.
+   *
+   * IT IS OFFERED WHEN THE DAY HOLDS BOTH KINDS, for the reason the competition chips are withheld
+   * on a day with one competition: a control whose every setting but the current one empties the
+   * list is not a choice, it is a trap. On an international break day there is nothing to choose
+   * between and the row is simply the competitions.
+   *
+   * AND WHENEVER THE FILTER IS ALREADY SET, however the day turned out. A filter the reader cannot
+   * see is a filter they will not think to remove, and this one travels between days in the URL —
+   * so the day it lands on may be the day it hides everything. The chip in the summary bar can
+   * always clear it; this keeps the control that set it on screen beside it.
+   */
+  const showKindFilter = day.status === 'ready' && (kinds.both || state.kind !== 'all')
+  const showCompetitionChips = day.status !== 'loading' && competitions.length > 1
+  /**
+   * The day's only football is national-team football.
+   *
+   * THIS IS THE STATE THE WHOLE FEATURE EXISTS FOR. During an international break every club
+   * competition this installation covers is idle for ten days or more, and the list was correctly
+   * empty on every one of those days — a true sentence that read, to anybody who did not already
+   * know the calendar, as "there is no football". There is: it is on this page now, and the note
+   * says which half of the calendar it is, so a reader does not take a day of Nations League
+   * fixtures for a thin day in the Premier League.
+   *
+   * WHAT IT CLAIMS is exactly what it can see — that nothing else is stored for this date — in the
+   * same voice as the empty state beneath it, which also reports the store rather than football.
+   * It does not say club football is in a break: nobody asked a calendar, and a day nobody has
+   * fetched club fixtures for would look identical from here.
+   *
+   * There is deliberately no mirror of this for a club-only day. That is 350 days a year, the
+   * reader is not surprised by it, and a note on every one of them would be noise on the days it
+   * is not needed to buy clarity on the day it is.
+   */
+  const nationalTeamDay = day.status === 'ready' && kinds.national > 0 && kinds.club === 0 && kinds.unknown === 0
 
   const body = () => {
     if (day.status === 'loading') {
@@ -602,37 +660,59 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
         </div>
       )}
 
-      {day.status !== 'loading' && competitions.length > 1 && (
-        <div
-          role="group"
-          aria-label={t('matchday.filterByCompetition')}
-          className="no-scrollbar mt-3 flex items-center gap-1.5 overflow-x-auto pb-1"
-          data-testid="competition-chip-row"
-        >
-          {chipRow.map(competition => (
-            <CompetitionChip
-              key={competition.id}
-              name={competition.name}
-              logo={competition.logo}
-              count={competition.count}
-              size="sm"
-              className="flex-shrink-0"
-              selected={state.competitions.includes(competition.id)}
-              onToggle={next => apply({
-                ...state,
-                competitions: toggleValue(state.competitions, competition.id, next),
-              })}
+      {/*
+        ONE ROW, TWO LABELLED GROUPS. The kind of football first, then the competitions within it,
+        because that is the order the question is asked in and because the coarse control is the
+        one a reader on a day of unfamiliar competitions can still use. Both scroll sideways
+        together inside this strip; the page itself never scrolls horizontally, at any width.
+      */}
+      {(showKindFilter || showCompetitionChips) && (
+        <div className="no-scrollbar mt-3 flex items-center gap-1.5 overflow-x-auto pb-1">
+          {showKindFilter && (
+            <KindFilterChips
+              value={state.kind}
+              onChange={kind => apply({ ...state, kind })}
+              /* `all` gets no figure: the count above the list already states the day's total, and
+                 a second copy of it on a chip would be the same number twice. */
+              counts={{ club: kinds.club, national: kinds.national }}
             />
-          ))}
-          {hiddenChips > 0 && (
-            <button
-              type="button"
-              onClick={() => setSheetOpen(true)}
-              className="tap-target-row focus-ring flex-shrink-0 rounded-full border border-dark-600 bg-dark-800 px-3 py-1 text-xs text-secondary-200 transition-colors hover:bg-dark-700 hover:text-white"
+          )}
+          {showKindFilter && showCompetitionChips && (
+            <span aria-hidden="true" className="h-4 w-px flex-shrink-0 bg-dark-700" />
+          )}
+          {showCompetitionChips && (
+            <div
+              role="group"
+              aria-label={t('matchday.filterByCompetition')}
+              className="flex items-center gap-1.5"
+              data-testid="competition-chip-row"
             >
-              {t('matchday.moreCompetitions', { count: hiddenChips })}
-              <span className="sr-only">{t('matchday.moreCompetitionsSr')}</span>
-            </button>
+              {chipRow.map(competition => (
+                <CompetitionChip
+                  key={competition.id}
+                  name={competition.name}
+                  logo={competition.logo}
+                  count={competition.count}
+                  size="sm"
+                  className="flex-shrink-0"
+                  selected={state.competitions.includes(competition.id)}
+                  onToggle={next => apply({
+                    ...state,
+                    competitions: toggleValue(state.competitions, competition.id, next),
+                  })}
+                />
+              ))}
+              {hiddenChips > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSheetOpen(true)}
+                  className="tap-target-row focus-ring flex-shrink-0 rounded-full border border-dark-600 bg-dark-800 px-3 py-1 text-xs text-secondary-200 transition-colors hover:bg-dark-700 hover:text-white"
+                >
+                  {t('matchday.moreCompetitions', { count: hiddenChips })}
+                  <span className="sr-only">{t('matchday.moreCompetitionsSr')}</span>
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -663,6 +743,19 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
         resume={forecastAvailability(status)?.resume ?? null}
         className="mt-3"
       />
+
+      {/*
+        The international break, said out loud instead of left to look like an empty site. See
+        `nationalTeamDay` above for what this claims and what it refuses to claim.
+      */}
+      {nationalTeamDay && (
+        <p
+          className="mt-3 rounded-lg border border-dark-700 bg-dark-900/60 px-3 py-2 text-xs text-secondary-300"
+          data-testid="matchday-national-only"
+        >
+          {t('matchday.nationalTeamDay', { count: kinds.national })}
+        </p>
+      )}
 
       <div id={listId} className="mt-3">
         {body()}

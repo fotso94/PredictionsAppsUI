@@ -614,3 +614,80 @@ def test_the_published_rules_travel_with_every_figure(db):
     assert set(rules["markets"]) == {S.MARKET_MATCH_RESULT, S.MARKET_BTTS, S.MARKET_OVER_UNDER_25,
                                      S.MARKET_OVER_UNDER_35, S.MARKET_CORRECT_SCORE}
     assert rules["minimum_sample"] == S.MINIMUM_SCORED_SAMPLE
+
+
+# ----------------------------------------------------------------------------- withheld accounting
+def _withheld_tie(db) -> Match:
+    """A tie decided on penalties whose 90-minute score the source never supplied.
+
+    Nothing can ever settle it: the shoot-out proves it went past 90 minutes, and the period every
+    market here names was not stored and is not coming. It is the second permanent reason a
+    candidate goes unscored, beside a prediction that cannot be shown to have stood before kickoff.
+    """
+    match = _match(db)
+    result = _result(db, match, 0, 0)
+    result.home_score_pens, result.away_score_pens = 4, 3
+    db.flush()
+    db.refresh(match)
+    return match
+
+
+def _window(db) -> Dict[str, Any]:
+    return S.measurement(db, start=(KICKOFF - timedelta(days=1)).date(),
+                         end=(KICKOFF + timedelta(days=1)).date())
+
+
+def _source(db, source_id: str) -> Dict[str, Any]:
+    return next(s for s in _window(db)["sources"] if s["source_id"] == source_id)
+
+
+def test_a_withheld_prediction_is_published_as_unscorable_not_as_awaiting_settlement(db):
+    user = _expert(db)
+    prediction = _prediction(db, _withheld_tie(db), user)
+    settle(db)
+
+    assert db.query(PredictionResult).filter(PredictionResult.prediction_id == prediction.id).count() == 0
+    source = _source(db, str(user.id))
+    # "awaiting settlement" is a claim about the future; this one is not waiting for anything
+    assert source["pending"] == 0
+    assert source["not_scored"] == 1 and source["scored"] == 0
+    assert "regulation time only" in source["not_scored_reasons"][0]["reason"]
+    # no market bucket at all, so no hit rate and no Brier sample can have counted it
+    assert source["markets"] == []
+    assert "can be scored" in source["not_measured_reason"]
+
+
+def test_a_withheld_provider_forecast_is_published_as_unscorable_too(db):
+    match = _withheld_tie(db)
+    _snapshot(db, match, home_win_prob=0.5, draw_prob=0.3, away_win_prob=0.2)
+    settle(db)
+
+    source = next(s for s in _window(db)["sources"] if s["source_type"] == "model_provider")
+    assert source["pending"] == 0
+    assert source["not_scored"] == 1 and source["scored"] == 0
+    assert "no 90-minute score is stored" in source["not_scored_reasons"][0]["reason"]
+
+
+def test_a_candidate_whose_match_settles_is_still_pending_until_the_pass_runs(db):
+    user = _expert(db)
+    _prediction(db, played(db, 2, 0), user)          # deliberately not settled
+
+    source = _source(db, str(user.id))
+    assert source["pending"] == 1 and source["not_scored"] == 0
+    assert source["not_measured_reason"].endswith("yet")
+
+
+def test_a_withheld_prediction_changes_no_published_figure(db):
+    user = _expert(db)
+    _thirty_scored_predictions(db, user, hits=18)
+    before = next(m for m in _source(db, str(user.id))["markets"] if m["market"] == S.MARKET_MATCH_RESULT)
+
+    _prediction(db, _withheld_tie(db), user)
+    settle(db)
+    after = next(m for m in _source(db, str(user.id))["markets"] if m["market"] == S.MARKET_MATCH_RESULT)
+
+    assert before["hit_rate"] == 0.6 and after["hit_rate"] == before["hit_rate"]
+    assert after["hit_rate_sample"] == before["hit_rate_sample"] == 30
+    assert after["brier_score"] == before["brier_score"]
+    assert after["brier_sample"] == before["brier_sample"] == 30
+    assert after["scored"] == before["scored"] == 30
