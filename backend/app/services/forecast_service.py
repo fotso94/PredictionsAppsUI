@@ -607,6 +607,32 @@ class ForecastService:
         else:
             self.cache.delete(pending_key)
 
+    def reattach_pending(self, key: Optional[str] = None) -> Dict[str, Any]:
+        """Re-attach forecasts ALREADY PAID FOR, spending nothing.
+
+        A forecast the provider gave us but whose fixture we could not identify is kept, so that a
+        later change - a team alias, a fixture that has since been stored, a name spelled two ways
+        by two providers - can bind it without asking again. Until now the only way to reach that
+        retry was `sync_competition`, which runs it first and then FETCHES; a caller who wanted the
+        free half had to pay for the other half, and on an allowance of eight requests a day that
+        is the difference between fixing a mis-attachment and not being able to.
+
+        `key` narrows it to one competition; omitted, it covers every competition in the rotation.
+        Nothing here touches the provider - `_retry_pending` reads the stored payloads and the
+        database only - and `test_reattaching_pending_forecasts_spends_nothing` asserts the request
+        counter is unmoved rather than trusting this sentence.
+        """
+        keys = [key] if key else list(self.keys)
+        report: Dict[str, Any] = {"competitions": {}, "attached": 0, "still_pending": 0}
+        for competition in keys:
+            counts = self._retry_pending(competition)
+            if not counts:
+                continue
+            report["competitions"][competition] = counts
+            report["attached"] += counts.get("attached", 0)
+            report["still_pending"] += counts.get("pending", 0) - counts.get("attached", 0)
+        return report
+
     def _retry_pending(self, key: str) -> Optional[Dict[str, int]]:
         """Attach previously unmatched forecasts to fixtures that exist now. No provider request is made."""
         pending = self.cache.get(self._pending_key(key)) or []

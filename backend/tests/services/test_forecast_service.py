@@ -780,3 +780,54 @@ def test_replay_a_window_carried_over_from_yesterday_stops_the_pass_before_any_r
     assert provider.budget.used_today() == 0, "not one request against a window known to be shut"
     assert report["competitions"] == {}
     assert "remaining daily allowance (0" in report["error"]
+
+
+# ------------------------------------------------ re-attaching what was already paid for
+#
+# A forecast the provider gave us but whose fixture we could not identify is kept, so a later
+# change - a team alias, a fixture stored since, one country spelled two ways by two providers -
+# can bind it. Reaching that retry used to mean calling `sync_competition`, which runs it first and
+# then FETCHES, so the free half cost a request. On an allowance of eight a day that is the
+# difference between being able to fix a mis-attachment and not.
+
+def _pending_forecast(event="e-pending", home="Rep. Of Ireland", away="Kosovo"):
+    return _forecast(external_event_id=event, home_name=home, away_name=away,
+                     kickoff_utc=NOW + timedelta(days=1),
+                     home_prob=0.30, draw_prob=0.32, away_prob=0.38)
+
+
+def test_reattaching_pending_forecasts_spends_nothing(cache):
+    """The guarantee this method exists for, asserted against the provider's own call log."""
+    provider = StubForecastProvider(per_key={"uefa_nations_league": [_pending_forecast()]})
+    service = build(cache, provider=provider, keys=["uefa_nations_league"])
+
+    # One paid turn that cannot identify the fixture, so the forecast is kept as pending.
+    service.registry.find_match.return_value = None
+    service.registry.match_by_ref.return_value = None
+    first = service.sync_competition("uefa_nations_league", NOW.date(), NOW.date() + timedelta(days=2))
+    assert first["unmatched"] == 1, first
+    paid = len(provider.calls)
+    assert paid == 1
+
+    # Re-attaching reads the kept payload and the database, and must not ask the provider again.
+    report = service.reattach_pending("uefa_nations_league")
+
+    assert len(provider.calls) == paid, (
+        f"re-attaching cost {len(provider.calls) - paid} provider request(s); it must cost none")
+    # It really did consult the kept forecast rather than finding nothing to do, which is the only
+    # way "it spent nothing" could be true for an uninteresting reason.
+    assert report["competitions"]["uefa_nations_league"]["pending"] == 1, report
+
+    # WHAT THIS TEST DOES NOT COVER, on purpose. Whether the retry BINDS is a question about the
+    # registry's match identification, and this module's harness mocks the registry - a green
+    # attach here would be the mock agreeing with itself. Binding is covered where the registry is
+    # real, in tests/services/test_national_team_identity_db.py, and was observed on the live stack
+    # when a team alias turned 24 of 26 attachments into 26 of 26 with no further request.
+
+
+def test_reattaching_with_no_pending_forecasts_is_a_no_op(cache):
+    provider = StubForecastProvider()
+    service = build(cache, provider=provider, keys=["uefa_nations_league"])
+    report = service.reattach_pending()
+    assert provider.calls == []
+    assert report == {"competitions": {}, "attached": 0, "still_pending": 0}
