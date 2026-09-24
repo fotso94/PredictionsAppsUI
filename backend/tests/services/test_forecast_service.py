@@ -820,9 +820,14 @@ def test_reattaching_pending_forecasts_spends_nothing(cache):
 
     # WHAT THIS TEST DOES NOT COVER, on purpose. Whether the retry BINDS is a question about the
     # registry's match identification, and this module's harness mocks the registry - a green
-    # attach here would be the mock agreeing with itself. Binding is covered where the registry is
-    # real, in tests/services/test_national_team_identity_db.py, and was observed on the live stack
-    # when a team alias turned 24 of 26 attachments into 26 of 26 with no further request.
+    # attach here would be the mock agreeing with itself. Binding against a real registry is
+    # covered by test_a_kept_forecast_binds_to_its_fixture_for_free in
+    # tests/services/test_forecast_reattach_db.py.
+    #
+    # And the live repair that prompted this method is NOT evidence of the free path: adding a
+    # team alias turned 24 of 26 attachments into 26 of 26, but it was driven through
+    # `sync_competition`, which re-fetched and SPENT A REQUEST for events already paid for. That
+    # is the cost this method exists to remove, not an observation of it being removed.
 
 
 def test_reattaching_with_no_pending_forecasts_is_a_no_op(cache):
