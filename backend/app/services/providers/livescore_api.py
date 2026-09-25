@@ -277,6 +277,9 @@ class LiveScoreAPIProvider(MatchDataProvider):
             status = STATUS_FINISHED
         day = item.get("date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
         kickoff = parse_utc(f"{day} {item.get('scheduled') or '00:00'}") or datetime.now(timezone.utc)
+        # A row without its own date or its own kickoff time gets a placeholder above - today, or
+        # midnight - and says so, so that the placeholder is never written over a stored kickoff.
+        kickoff_supplied = bool(item.get("date")) and bool(item.get("scheduled"))
         fixture_id = item.get("fixture_id") or item.get("id")
         return ProviderFixture(
             provider=PROVIDER_NAME,
@@ -296,6 +299,7 @@ class LiveScoreAPIProvider(MatchDataProvider):
             venue=item.get("location"),
             round=str(item.get("round")) if item.get("round") not in (None, "") else None,
             raw=item,
+            kickoff_supplied=kickoff_supplied,
         )
 
     # ------------------------------------------------------------------ interface

@@ -26,6 +26,8 @@ import { describeError } from '@/services/backend-match-data.service'
 import { ProviderStatus } from '@/services/match-data-source'
 import { providerLabel, betLabels } from '@/utils/predictionLabels'
 import { isMatchLive, isMatchFinished, getMatchStatusText, getMatchStatusBadgeClasses } from '@/utils/matchFilters'
+import { resultDelay } from '@/utils/resultDelay'
+import { ResultDelayLabel, ResultDelayNotice } from '@/components/ui/ResultDelayNotice'
 
 const DAY_LABEL = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 
@@ -406,7 +408,15 @@ const MatchDetailPage: React.FC = () => {
   const brief = match.brief ?? null
   const revisions = match.expertPredictionRevisions ?? []
   const forecastState = forecast?.state || 'unavailable'
-  const showScore = (isMatchLive(match) || isMatchFinished(match)) && match.result
+  /*
+   * Whether the stored status can still speak for this match. Past the backend's own deadline for
+   * a result it cannot: `isMatchLive` stays true on a fixture until its final score arrives, and
+   * this page would keep a green scoreline under a pulsing LIVE badge hours after
+   * full time. The delay withholds both and states what is actually known instead.
+   */
+  const delay = resultDelay(match)
+  const live = isMatchLive(match) && !delay
+  const showScore = (live || isMatchFinished(match)) && match.result
   const forecastAvail = forecastAvailability(providerStatus)
 
   /**
@@ -476,7 +486,7 @@ const MatchDetailPage: React.FC = () => {
                   <div className="flex-shrink-0 text-center" data-testid="match-scoreline">
                     {showScore && match.result ? (
                       <>
-                        <div className={`text-2xl font-bold sm:text-3xl ${isMatchLive(match) ? 'text-green-500' : 'text-white'}`}>
+                        <div className={`text-2xl font-bold sm:text-3xl ${live ? 'text-green-500' : 'text-white'}`}>
                           {match.result.homeScore} - {match.result.awayScore}
                         </div>
                         {/*
@@ -492,12 +502,23 @@ const MatchDetailPage: React.FC = () => {
                           </div>
                         ))}
                       </>
+                    ) : delay ? (
+                      /*
+                        "VS" belongs to a fixture still to come, and this one's kickoff has been
+                        and gone. A rule where the score would be, and hidden from a screen reader:
+                        the label below it is the statement, and a spoken "em dash" is not.
+                      */
+                      <p aria-hidden="true" className="text-sm font-semibold text-secondary-300 sm:text-base">&mdash;</p>
                     ) : (
                       <div className="text-xl font-bold text-secondary-400 sm:text-2xl">VS</div>
                     )}
-                    <span className={`${getMatchStatusBadgeClasses(match)} mt-1 inline-block sm:mt-2`}>
-                      {getMatchStatusText(match)}{isMatchLive(match) && match.minute ? ` ${match.minute}'` : ''}
-                    </span>
+                    {delay ? (
+                      <ResultDelayLabel delay={delay} className="mt-1 inline-block sm:mt-2" />
+                    ) : (
+                      <span className={`${getMatchStatusBadgeClasses(match)} mt-1 inline-block sm:mt-2`}>
+                        {getMatchStatusText(match)}{live && match.minute ? ` ${match.minute}'` : ''}
+                      </span>
+                    )}
                   </div>
                   <div className="flex-1 text-center">
                     <img src={match.awayTeam.logo} alt="" aria-hidden="true"
@@ -517,6 +538,14 @@ const MatchDetailPage: React.FC = () => {
               </div>
             </Card.Body>
           </Card>
+
+          {/*
+            The whole statement, immediately under the fixture it is about and above every other
+            block on this page. A reader who stops after the header has still been told that the
+            match is not in play and that no score is being claimed — which is the one thing that
+            changes how everything below should be read.
+          */}
+          {delay && <ResultDelayNotice delay={delay} className="mb-4 sm:mb-6" />}
 
           {/*
             How current the page is, directly under the scoreline — the place the question is

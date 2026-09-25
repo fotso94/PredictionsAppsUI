@@ -3,34 +3,52 @@
 Re-ask the provider about fixtures that no refresh reaches any more, within a hard budget.
 
 WHY THIS EXISTS
-    A fixture whose final score never arrived falls out of every refresh. The live poll only
-    considers matches dated today; the results task only looks back SYNC_RESULTS_LOOKBACK_DAYS
-    days. A row left unfinished older than that is never asked about again, so it sits on the site
+    A fixture whose final score never arrived falls out of every refresh. The live poll considers
+    a match for 150 minutes after kickoff; the results task only looks back
+    SYNC_RESULTS_LOOKBACK_DAYS days. A row left unfinished older than that is never asked about again, so it sits on the site
     reading LIVE for ever -- which is what Everton v Ipswich did for two days at minute 62. That is
     a defect in its own right, independent of the duplicate row that caused it.
 
 WHAT IT DOES
-    `MatchRegistry.stale_unsettled_days` picks the days behind the lookback that still hold a
-    recoverable fixture, oldest first and capped, and each one is then put through the ordinary
-    results path -- the same `MatchDataService._sync_results` the scheduler calls, so every
-    provider request is counted and attributed like any other.
+    Exactly what the scheduler's `recover` task does, through the same
+    `MatchDataService.recover_stranded`: stops recorded by a rule this installation no longer
+    applies are undone, given-up fixtures a later results call has shown the archive to have moved
+    past are reopened, one `matches/live.json` poll is made if anything is due, and the due
+    competition-days behind the results lookback are asked about through the ordinary results path.
+    Every provider request is counted and attributed like any other, answered or not.
+
+    WHEN A FIXTURE IS ASKED ABOUT is the one retry schedule every caller shares
+    (`RETRY_SCHEDULE` in app/services/match_registry.py): every pass for six hours after kickoff,
+    then ever more rarely, up to 14 days. It is a budget policy. Nothing is assumed about a
+    competition from its type: the archive has answered for national-team competitions, and has
+    also gone days returning nothing recent for club and national ones alike
+    (docs/evidence/livescore-archive-observations.json).
+
+    NOBODY NEEDS TO RUN THIS. `SYNC_SCHEDULER_TASKS` includes `recover` and it sweeps every half
+    hour on its own. This remains for a sweep somebody wants to watch happen, or to run against a
+    restored copy of the database, and it is the same code either way.
 
 HOW IT STOPS
-    It never polls for ever. A fixture still unsettled after `STALE_SWEEP_MAX_ATTEMPTS` attempts,
-    or older than `STALE_SWEEP_MAX_AGE`, is given up on: `match_metadata.recovery` records
-    `gave_up_at` and `gave_up_reason`, and the sweep never selects it again. Giving up changes
-    nothing about the match itself. A score nobody reported is not a score, so the row keeps the
-    status it has and says, on the row, why nobody is asking any more.
+    A fixture is given up on only straight after an ask the provider ANSWERED, when the schedule's
+    next ask would fall past 14 days from kickoff. `match_metadata.recovery` then records
+    `gave_up_at`, `stopped_by = "retry_budget"` and a reason saying how many times it was asked and
+    when last. That is a decision to stop spending, not a finding that no result exists. Nothing
+    asks about a stopped fixture on its own account afterwards: it is reopened only if a results
+    request made later for another unsettled fixture in the same competition returns results dated
+    on or after its date. Giving up changes nothing about the match itself; the row keeps its
+    status, because a score nobody reported is not a score.
+
+    A stop that carries no `stopped_by` was made by a rule since removed (the three-attempts rule,
+    and the six-hour stop for national-team fixtures). The pass undoes it rather than attributing
+    it to the retry budget, and the fixture goes back on the schedule.
 
 WHAT COUNTS AS AN ATTEMPT
-    Only a pass where the provider was asked, answered, and had no result for the fixture -- that
-    alone is evidence there is nothing to get, and "no result after N attempts" is a sentence
-    about evidence. A pass whose providers all failed, and a pass served out of the cache, are
-    recorded and reported but spend no attempt: neither put the question. See
-    `RecoveryOutcome` in app/services/match_registry.py for the four outcomes and
-    `classify_recovery_outcome` for how a day's `SyncMeta` decides between them. The per-pass
-    report below breaks the fixtures down by outcome, so a provider that is down reads
-    differently from a provider that has nothing to say.
+    Only an ask the provider answered without a result for the fixture. A request that went out
+    and was not answered (provider error), a cached day, a due ask for which no request was made
+    (deferred: an allowance refused it, or the provider was cooling down) and a fixture nothing was
+    due for (not asked) are reported apart and spend no attempt: see
+    `RecoveryOutcome` in app/services/match_registry.py. What the archive returned per competition
+    and date is recorded too, as answered, empty, or unknown when never asked.
 
 USAGE
     ./venv/bin/python scripts/repair_unsettled_matches.py                    # report, no requests
@@ -44,8 +62,8 @@ import argparse
 import os
 import re
 import sys
-from datetime import date, datetime, timedelta
-from typing import Dict, List, Tuple
+from datetime import date, datetime
+from typing import Dict, List
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -54,21 +72,22 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
 from app.models.predictions import Match  # noqa: E402
-from app.services.match_data_service import MatchDataService, SyncMeta  # noqa: E402
+from app.services.match_data_service import MatchDataService  # noqa: E402
 from app.services.match_registry import (  # noqa: E402
-    STALE_SWEEP_MAX_DAYS, MatchRegistry, RecoveryOutcome, classify_recovery_outcome, is_settled,
+    STALE_SWEEP_MAX_DAYS, MatchRegistry, RecoveryOutcome, next_ask_after,
 )
 from app.services.providers.livescore_api import MAX_PAGES  # noqa: E402
 
-#: How each outcome reads in the per-pass report, and what the reader is to make of it. The two
-#: that spend nothing say so in as many words: a reader who cannot tell a dead provider from a
-#: silent one reads "no result after 3 attempts" as a fact about the fixture when it may be a
-#: fact about the outage, and the whole worth of the counter is that the two are different.
+#: How each outcome reads in the per-pass report, and what the reader is to make of it. Only one
+#: of them spends anything, and each of the others says so, because "the provider had nothing" and
+#: "nobody reached the provider" are different facts and only the first is evidence.
 OUTCOME_REPORT = {
     RecoveryOutcome.RECOVERED: ("recovered", "came back settled; nothing left to retry"),
-    RecoveryOutcome.FRESH_UNANSWERED: ("fresh, no result", "the provider was asked and had none: ATTEMPT SPENT"),
+    RecoveryOutcome.FRESH_UNANSWERED: ("fresh, no result", "the provider answered without a result for it: ATTEMPT SPENT"),
     RecoveryOutcome.CACHED: ("cached", "the day came from the store; this pass never asked, no attempt"),
-    RecoveryOutcome.PROVIDER_ERROR: ("provider error", "the question was never put; no attempt"),
+    RecoveryOutcome.PROVIDER_ERROR: ("provider error", "a request went out and nobody answered; no attempt"),
+    RecoveryOutcome.DEFERRED: ("deferred", "due, but no request was made (allowance spent, or provider cooling down); still due, no attempt"),
+    RecoveryOutcome.NOT_ASKED: ("not asked", "nothing was due for it this pass; no attempt"),
 }
 
 
@@ -87,107 +106,98 @@ def budget_now(provider: str) -> str:
         return f"unavailable ({exc})"
 
 
-def describe(match, registry: MatchRegistry) -> str:
-    """One stranded fixture, with every counter that bears on whether it is given up on."""
+def describe(match, registry: MatchRegistry, now: datetime) -> str:
+    """One stranded fixture, with every counter that bears on when it is next asked about."""
     state = registry.recovery_state(match)
     counts = [f"attempts={state.get('attempts', 0)}"]
-    for key, label in (("provider_errors", "errors"), ("cached_passes", "cached")):
+    for key, label in (("provider_errors", "errors"), ("cached_passes", "cached"),
+                       ("deferrals", "deferred")):
         if state.get(key):
             counts.append(f"{label}={state[key]}")
     parts = [f"    {match.id}  {match.match_date}  {match.status.value:<10}", " ".join(counts)]
     if state.get("last_outcome"):
         detail = state.get("last_outcome_detail")
         parts.append(f"{state['last_outcome']}" + (f" ({detail})" if detail else ""))
-    if state.get("gave_up_at"):
-        parts.append(f"GAVE UP: {state['gave_up_reason']}")
+    if state.get("gave_up_at") and not state.get("stopped_by"):
+        parts.append("STOPPED BY A REMOVED RULE (no stopped_by recorded): the pass undoes this stop "
+                     "and puts the fixture back on the retry schedule")
+    elif state.get("gave_up_at"):
+        parts.append(f"STOPPED ASKING ({state['stopped_by']}): {state.get('gave_up_reason')}")
+    else:
+        upcoming = next_ask_after(match, now)
+        parts.append("due now" if upcoming is None or upcoming <= now
+                     else f"next ask after {upcoming.isoformat()}")
     return "  ".join(parts)
 
 
-def _evidence_rank(meta: SyncMeta) -> int:
-    """How much a day's results call can tell us about a fixture, most first.
-
-    Only the ordering matters, and it is the same ordering `classify_recovery_outcome` reads the
-    meta by: a provider asked and answered during this pass is evidence, a stored answer is not
-    new, and a call that never reached anybody is not evidence at all.
-    """
-    if meta.source == "provider":
-        return 2
-    if meta.source in ("cache", "stale-cache"):
-        return 1
-    return 0
-
-
 def sweep(service: MatchDataService, days: List[date], stranded: List[Match],
-          now: datetime) -> Dict[RecoveryOutcome, List[Tuple[Match, str]]]:
+          now: datetime) -> Dict[str, object]:
+    """One pass, through the same `MatchDataService.recover_stranded` the scheduler runs.
+
+    The selection is passed in rather than made again, so what is swept is exactly what the plan
+    above printed and priced. Everything else -- which endpoints are asked, how a day's answer is
+    turned into one outcome per fixture, and what is written on the row -- belongs to
+    the service, because a sweep somebody watches and a sweep nobody watches must not be two
+    different sweeps.
     """
-    Reopen each day, then record for each stranded fixture what that day's answer actually was.
-
-    The outcome is decided per DAY by the `SyncMeta` `_sync_results` fills, and per FIXTURE by
-    whether that fixture is settled now and was not before. Both halves are needed: the meta
-    alone cannot say which fixture moved, and the status alone cannot say whether anyone asked --
-    a fixture already FINISHED before the pass is not something this sweep recovered.
-
-    The day each fixture is looked up under is read BEFORE any sync runs, because the sync can
-    change it: `_sync_results` stores the provider's answer through `MatchRegistry._apply_fixture`,
-    which moves the stored kickoff to the provider's. A fixture the provider rescheduled across a
-    UTC midnight would otherwise be looked up under a day this pass never reopened, take no
-    outcome at all, and be reported as untouched -- and when that same answer also settled it,
-    the thrown-away outcome is a recovery.
-
-    Each day gets its own `SyncMeta` and only `_sync_results` writes to it, so `source` here
-    belongs to the results call and to nothing else. Inside `sync_day` the live and forward calls
-    share one meta and overwrite each other's `source`, which is why this does not use it.
-    """
-    registry = service.registry
-    settled_before = {m.id: is_settled(m.status) for m in stranded}
-    swept_under = {m.id: m.match_date.date() for m in stranded}
-
-    metas: Dict[date, SyncMeta] = {}
-    for day in days:
-        meta = metas[day] = SyncMeta()
-        service._sync_results(day, meta)
-        print(f"  {day}: source={meta.source} polled={meta.results_polled} "
-              f"seen={meta.fixtures_seen} stored={meta.fixtures_stored} errors={meta.errors}")
-
-    by_outcome: Dict[RecoveryOutcome, List[Tuple[Match, str]]] = {o: [] for o in RecoveryOutcome}
-    for match in stranded:
-        service.db.refresh(match)
-        # TWO DAYS CAN HOLD THIS FIXTURE'S ANSWER, because a results call may MOVE it: the
-        # provider's kickoff wins, and `_apply_fixture` will re-date a fixture within its
-        # reschedule window. So a fixture swept under Monday can be sitting on Tuesday by the time
-        # we look, and Tuesday's answer is the one that spoke about it. Reading only the day it
-        # started on would file a fresh answer that moved it under whatever Monday happened to be
-        # - a cache hit, or an outage - and spend no attempt on evidence we actually have.
-        #
-        # Both days are consulted and the strongest evidence wins, because the outcomes are
-        # ordered by how much they tell us: a fresh answer beats a cached one, and a cached one
-        # beats a provider that never spoke.
-        candidates = [metas[d] for d in {swept_under[match.id], match.match_date.date()} if d in metas]
-        if not candidates:  # this pass reopened no day this fixture has sat on
-            continue
-        meta = max(candidates, key=_evidence_rank)
-        outcome, detail = classify_recovery_outcome(
-            meta, settled_before=settled_before[match.id], settled_now=is_settled(match.status))
-        registry.record_recovery_outcome(match, outcome, detail, now)
-        by_outcome[outcome].append((match, detail))
-    service.db.commit()
-    return by_outcome
+    report = service.recover_stranded(days=days, stranded=stranded)
+    for day, entry in report["days"].items():
+        print(f"  {day}: source={entry['source']} polled={entry['results_polled']} "
+              f"seen={entry['fixtures_seen']} stored={entry['fixtures_stored']} errors={entry['errors']}")
+    live = report.get("live") or {}
+    print(f"  live: source={live.get('source')} polled={live.get('live_polled')} "
+          f"seen={live.get('fixtures_seen')} stored={live.get('fixtures_stored')} "
+          f"errors={live.get('errors')}")
+    return report
 
 
-def report_outcomes(by_outcome: Dict[RecoveryOutcome, List[Tuple[Match, str]]], registry: MatchRegistry) -> None:
-    """The pass in four numbers, then the fixtures behind each, so the numbers can be checked."""
+def report_outcomes(report: Dict[str, object]) -> None:
+    """The pass in six numbers, then the fixtures behind each, so the numbers can be checked."""
+    counts = report["outcomes"]
+    fixtures = report["fixtures"]
     print("\noutcomes this pass:")
     for outcome in RecoveryOutcome:
         label, meaning = OUTCOME_REPORT[outcome]
-        print(f"  {label:<16} {len(by_outcome[outcome]):>3}   {meaning}")
+        print(f"  {label:<16} {counts[outcome.value]:>3}   {meaning}")
 
     for outcome in RecoveryOutcome:
-        rows = by_outcome[outcome]
+        rows = [f for f in fixtures if f["outcome"] == outcome.value]
         if not rows:
             continue
         print(f"\n{OUTCOME_REPORT[outcome][0]}:")
-        for match, _ in rows:
-            print(describe(match, registry))
+        for row in rows:
+            line = [f"    {row['match_id']}  {row['match_date']}  {row['status']:<10}",
+                    f"attempts={row['attempts']}"]
+            if row["provider_errors"]:
+                line.append(f"errors={row['provider_errors']}")
+            if row["cached_passes"]:
+                line.append(f"cached={row['cached_passes']}")
+            line.append(f"{row['outcome']} ({row['detail']})" if row["detail"] else row["outcome"])
+            if row["overdue"]:
+                line.append(f"OVERDUE {row['minutes_since_kickoff']}m since kickoff")
+            if row["unresolved"]:
+                line.append(f"STOPPED ASKING: {row['reason']}")
+            print("  ".join(line))
+
+    if report.get("archive"):
+        print("\nwhat the archive returned this pass (competition@date):")
+        for where, seen in sorted(report["archive"].items()):
+            print(f"  {where:<40} {seen['state']:<9} rows={seen['rows']}  asked {seen['asked_at']}")
+    if report.get("stops_undone"):
+        print(f"\nstops made by a removed rule, undone and back on the retry schedule: "
+              f"{', '.join(report['stops_undone'])}")
+    if report.get("reopened"):
+        print(f"\nreopened because a later results call returned results dated on or after their "
+              f"date: {', '.join(report['reopened'])}")
+    print(f"\nrequests this pass: {report['results_requests']} results + "
+          f"{report['live_requests']} live")
+    if report.get("live_note"):
+        print(f"live poll: {report['live_note']}")
+    if report["deferred"]:
+        print(f"deferred by the pass's allowance: {', '.join(report['deferred'])}")
+    if report.get("failed_calls"):
+        print(f"REQUESTS NOBODY ANSWERED (an outage, not an empty archive): "
+              f"{'; '.join(report['failed_calls'])}")
 
 
 def main() -> int:
@@ -210,6 +220,8 @@ def main() -> int:
     print(f"now:       {now.isoformat()}")
     print(f"lookback:  {settings.SYNC_RESULTS_LOOKBACK_DAYS} day(s); the sweep reopens what is behind it")
     print(f"mode:      {'APPLY - provider requests will be made' if args.apply else 'report only, no request'}")
+    print("note:      the scheduler's `recover` task does this unattended every "
+          f"{settings.SYNC_RECOVERY_INTERVAL_SECONDS}s; this is the same pass, run by hand")
     # Resolving the covered competitions can CREATE a canonical league row for a key this database
     # does not hold yet (MatchDataService.league_ids -> competitions -> ensure_canonical_league),
     # and it does so before the report/apply branch below. "No provider request" is therefore not
@@ -219,36 +231,42 @@ def main() -> int:
     print("           no other write happens without --apply")
     print(f"budget {provider} before: {budget_now(provider)}\n")
 
-    league_ids = service.league_ids()
-    days = registry.stale_unsettled_days(now, settings.SYNC_RESULTS_LOOKBACK_DAYS,
-                                         league_ids=league_ids, max_days=args.max_days)
-    if not days:
-        print("no stranded fixture behind the lookback; nothing to sweep")
+    plan = service.recovery_plan(max_days=args.max_days)
+    stranded, days = plan["stranded"], plan["days"]
+    if not stranded:
+        print("no stranded fixture; nothing to sweep")
         print(f"budget {provider} after:  {budget_now(provider)}")
         return 0
 
-    cutoff = now - timedelta(days=max(int(settings.SYNC_RESULTS_LOOKBACK_DAYS), 0))
-    stranded = [m for m in registry.unsettled_before(cutoff, league_ids, now=now) if m.match_date.date() in days]
+    print(f"stranded: {len(stranded)}, due an ask now under the retry schedule: {len(plan['due'])}")
+    if plan.get("superseded"):
+        print(f"stops made by a removed rule, to undo: {[str(m.id) for m in plan['superseded']]}")
+    if plan["reopenable"]:
+        print(f"to reopen (a later results call returned results dated on or after their date): "
+              f"{[str(m.id) for m in plan['reopenable']]}")
     print(f"days to reopen: {[d.isoformat() for d in days]}")
     # One request per competition-day is the FIRST page only. matches/history.json paginates, and
     # `_paginate` will follow up to MAX_PAGES while the provider keeps advertising another one, so
     # the honest ceiling is that figure times MAX_PAGES. Printing the first-page number alone
     # understates a real sweep by up to five times, and a cost estimate that reads low is worse
     # than none at all: it is the number someone budgets against.
-    first_pages = len(service.keys) * len(days)
-    print(f"estimated cost: {len(service.keys)} competition(s) x {len(days)} day(s) "
-          f"= {first_pages} request(s) for the first page of each, "
-          f"up to {first_pages * MAX_PAGES} if every one paginates to the {MAX_PAGES}-page cap")
+    first_pages = plan["results_requests"]
+    print(f"estimated cost: {first_pages} results request(s) for the first page of each "
+          f"competition-day, up to {first_pages * MAX_PAGES} if every one paginates to the "
+          f"{MAX_PAGES}-page cap, plus {plan['live_requests']} live poll")
+    print(f"               bounded by SYNC_RECOVERY_MAX_REQUESTS_PER_PASS="
+          f"{settings.SYNC_RECOVERY_MAX_REQUESTS_PER_PASS} and by what is left of "
+          f"SYNC_RECOVERY_MAX_REQUESTS_PER_DAY={settings.SYNC_RECOVERY_MAX_REQUESTS_PER_DAY}")
     print("stranded fixtures:")
     for match in stranded:
-        print(describe(match, registry))
+        print(describe(match, registry, now))
 
     if not args.apply:
         print("\nreport only; no provider request was made. Re-run with --apply to sweep.")
         return 0
 
     print()
-    report_outcomes(sweep(service, days, stranded, now), registry)
+    report_outcomes(sweep(service, days, stranded, now))
 
     print(f"\nbudget {provider} after:  {budget_now(provider)}")
     return 0

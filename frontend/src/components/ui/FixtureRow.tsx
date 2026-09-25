@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { ChevronDownIcon } from '@heroicons/react/24/outline'
 import { BriefSourceKey, Match } from '@/types'
 import { isMatchFinished, isMatchLive } from '@/utils/matchFilters'
+import { resultDelay } from '@/utils/resultDelay'
 import { marketLabel, missingReasonLabel, percentDisplay } from '@/utils/brief'
 import { formatTime } from '@/i18n'
 import { useT } from '@/i18n/react'
@@ -11,6 +12,7 @@ import { fixturePreview, SourcePreview } from '@/utils/matchPreview'
 import { onTeamLogoError } from './imageFallback'
 import { periodLines } from './scoreline'
 import SourceMarker from './SourceMarker'
+import { ResultDelayLabel, ResultDelayLine } from './ResultDelayNotice'
 import SaveMatchButton from './SaveMatchButton'
 import ProvenanceLine from './ProvenanceLine'
 
@@ -21,7 +23,9 @@ import ProvenanceLine from './ProvenanceLine'
  * badge per market and an unavailable-odds line; twenty of them is a scroll, not a scan. This row
  * keeps only what a reader needs to decide whether to look closer — when it kicks off, who is
  * playing, what the sources make most likely, and whether it is saved — and moves everything else
- * behind one expand control. MatchCard stays exactly as it is: other pages still use it.
+ * behind one expand control. MatchCard is the tall form and is still maintained beside this one,
+ * so the two must agree about a fixture: both read `resultDelay` and neither shows a running
+ * minute the other withholds.
  *
  * WHAT IS NOT SHOWN, AND WHY
  *  - No confidence badge derived from how strong a probability looks. A band worked out from the
@@ -148,7 +152,16 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
   const detailId = useId()
 
   const preview = fixturePreview(match)
-  const live = isMatchLive(match)
+  /*
+   * A stored status is only worth rendering while it can still be current. Past the backend's own
+   * deadline for a result, `live` here would be a green LIVE and a minute over a match that ended
+   * hours ago — so the delay is read FIRST and everything the status would have produced is
+   * withheld: the running label, the minute, and the two scores beside the club names. A partial
+   * score that arrived before the feed went quiet is not the result of the match, and leaving it
+   * on the row is exactly the claim this row must stop making.
+   */
+  const delay = resultDelay(match)
+  const live = isMatchLive(match) && !delay
   const finished = isMatchFinished(match)
   const showScore = (live || finished) && Boolean(match.result)
   const fixtureLabel = t('fixture.versus', { home: match.homeTeam.name, away: match.awayTeam.name })
@@ -163,8 +176,13 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
    * The kickoff column. Live shows the word LIVE and the minute; a played match shows FT; anything
    * else shows the local kickoff time. Postponed and cancelled keep their own word rather than a
    * time that is no longer going to happen.
+   *
+   * A fixture whose result is overdue or has been given up on gets that word instead of any of
+   * them — including instead of its kickoff time, which is what a stuck SCHEDULED row would
+   * otherwise show twelve hours after the match was due to start.
    */
   const statusColumn = () => {
+    if (delay) return <ResultDelayLabel delay={delay} withTitle={fixtureLabel} />
     if (live) {
       return (
         <>
@@ -199,7 +217,10 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
       <img src={logo} alt="" aria-hidden="true" className="h-4 w-4 flex-shrink-0 object-contain" onError={onTeamLogoError} />
       <span className={clsx('truncate text-sm', winner ? 'font-semibold text-white' : 'text-secondary-100')}>{name}</span>
       {typeof score === 'number' && (
-        <span className={clsx('num ml-auto flex-shrink-0 text-sm font-semibold', winner ? 'text-white' : 'text-secondary-200')}>
+        <span
+          data-testid="fixture-row-score"
+          className={clsx('num ml-auto flex-shrink-0 text-sm font-semibold', winner ? 'text-white' : 'text-secondary-200')}
+        >
           {score}
         </span>
       )}
@@ -287,6 +308,9 @@ const FixtureRow: React.FC<FixtureRowProps> = ({
           {periodNote && (
             <span className="truncate text-[11px] text-secondary-300" data-testid="fixture-row-periods">{periodNote}</span>
           )}
+          {/* Under the two club names whose scores have just been withheld, so the gap where the
+              numbers were is explained on the line directly beneath it. */}
+          {delay && <ResultDelayLine delay={delay} />}
           {showCompetition && (
             <span className="truncate text-[11px] text-secondary-400">{match.league.name}</span>
           )}

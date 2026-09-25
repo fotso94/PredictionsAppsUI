@@ -12,6 +12,7 @@ import {
   type FollowedFixture, type FollowedFixturesState,
 } from '@/services/favourites.service'
 import { getErrorMessage } from '@/utils/errors'
+import { isPlayableNow, resultDelay } from '@/utils/resultDelay'
 import { teamSubtitle } from '@/utils/squads'
 import FollowButton from './FollowButton'
 
@@ -51,7 +52,14 @@ const kickoffDate = (match: Match): Date | null => {
 }
 
 const isPlayed = (match: Match) => match.status === 'finished'
-const isInPlay = (match: Match) => match.status === 'live' || match.status === 'halftime'
+/*
+ * The stored status alone is not enough to say this, and saying it wrongly is the loudest lie on
+ * the page: "In play now" is present tense about a match that may have ended hours ago, on a row
+ * a reader follows precisely because they care about it. `isPlayableNow` withholds the claim once
+ * the result is past its deadline; the fixture then falls through to the next line below, which
+ * describes it without asserting anything about right now.
+ */
+const isInPlay = (match: Match) => isPlayableNow(match)
 
 /** The fixtures in the shared store that this particular follow brought in. */
 function fixturesFor(fixtures: FollowedFixture[], kind: 'team' | 'league', id: string): Match[] {
@@ -130,7 +138,13 @@ const FollowFixtureLine: React.FC<{
     )
   }
 
-  const next = mine.filter(match => !isPlayed(match)).sort(byKickoff)[0]
+  /*
+   * A fixture past its deadline for a result is not NEXT. Its kickoff has been and gone, and
+   * before it was excluded here it sorted to the front of this list and was announced as the
+   * team's next match under a date in the past — a second way of saying the same untrue thing the
+   * "In play now" line above had just been stopped from saying.
+   */
+  const next = mine.filter(match => !isPlayed(match) && !resultDelay(match)).sort(byKickoff)[0]
   if (next) {
     const at = kickoffDate(next)
     return (
@@ -149,6 +163,22 @@ const FollowFixtureLine: React.FC<{
       <p className="truncate text-[11px] text-secondary-400" data-testid="follow-fixture-line">
         Last played {at ? FIXTURE_DAY.format(at) : last.date}
         {score ? `, ${score}` : ''}{' — '}{opponentOf(last)}
+      </p>
+    )
+  }
+
+  /*
+   * Said only once there is nothing else to say. A stuck fixture is real and belongs on the page,
+   * but it can stay stuck for a fortnight, and letting it hold this line would hide a team's
+   * actual upcoming fixtures behind it for that long. The feed's own "Awaiting a result" group
+   * carries it either way; this line exists so the follow does not fall through to a flat "no
+   * fixture stored", which would be the one reading that is false.
+   */
+  const stuck = mine.filter(match => resultDelay(match)).sort(byKickoff).reverse()[0]
+  if (stuck) {
+    return (
+      <p className="truncate text-[11px] text-warning-200" data-testid="follow-fixture-line">
+        Awaiting a result, {opponentOf(stuck)}
       </p>
     )
   }

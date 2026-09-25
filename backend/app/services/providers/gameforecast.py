@@ -284,13 +284,16 @@ class GameForecastProvider(ForecastProvider):
         self.api_key = api_key if api_key is not None else settings.GAMEFORECAST_API_KEY
         self.api_host = api_host or settings.GAMEFORECAST_API_HOST
         headers = {"X-RapidAPI-Key": self.api_key or "", "X-RapidAPI-Host": self.api_host}
-        self.client = ProviderHttpClient(PROVIDER_NAME, base_url or settings.GAMEFORECAST_API_BASE_URL,
-                                         headers=headers, transport=transport)
         self.budget = budget or RequestBudget(PROVIDER_NAME, settings.GAMEFORECAST_DAILY_REQUEST_BUDGET)
         # The provider's own accounting goes into the same store, and on the same clock, as the
         # counter that has to obey it. Two stores would let our counter and the provider's window
         # be read from different places - and disagreeing about which is authoritative is the
-        # defect this closes, not one to reproduce internally.
+        # defect this closes, not one to reproduce internally. The clock is the budget's: a reading
+        # is stamped with the instant the budget's day is keyed to, so "does the provider's window
+        # end at our midnight" compares two times taken from one clock.
+        self.client = ProviderHttpClient(PROVIDER_NAME, base_url or settings.GAMEFORECAST_API_BASE_URL,
+                                         headers=headers, transport=transport,
+                                         now=lambda: self.budget.now)
         self.client.rate_limit_sink = self.budget.rate_limit.record
         self._overrides = league_overrides if league_overrides is not None \
             else comps.parse_id_overrides(settings.GAMEFORECAST_LEAGUE_IDS)

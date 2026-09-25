@@ -96,6 +96,7 @@ import type {
   SavedMatchCounts, SavedMatchesSnapshot, SaveMatchResult, UnsaveMatchResult,
 } from '@/types';
 import { getErrorMessage } from '@/utils/errors';
+import { isPlayableNow, resultDelay } from '@/utils/resultDelay';
 
 const API = '/api/v1/me';
 
@@ -2168,7 +2169,7 @@ export const FEED_DAYS_AHEAD = 7;
 export const FEED_DAYS_BACK = 3;
 
 /** How many fixtures reached only through a follow each group of the feed will show. */
-export const FEED_FOLLOWED_CAP: Record<FeedPhase, number> = { live: 20, result: 8, upcoming: 12 };
+export const FEED_FOLLOWED_CAP: Record<FeedPhase, number> = { live: 20, unresolved: 8, result: 8, upcoming: 12 };
 
 /** Requests in flight at once while fanning out over the follows. Polite, not fast. */
 const FEED_CONCURRENCY = 4;
@@ -2397,9 +2398,11 @@ class FollowedFixturesStore {
    * something is already live. `syncKickoffWatch` below is the half that closes that.
    */
   private syncLivePoll(): void {
-    const inPlay = this.state.fixtures.some(entry => (
-      entry.match.status === 'live' || entry.match.status === 'halftime'
-    ));
+    // `isPlayableNow` and not the stored status: a fixture whose result has not arrived keeps
+    // `live` until one does, and polling it every LIVE_REFRESH_MS spends a request, again and
+    // again, on a row whose minute stopped moving hours ago. A result that arrives later is picked
+    // up by the next ordinary load of the feed.
+    const inPlay = this.state.fixtures.some(entry => isPlayableNow(entry.match));
     const shouldPoll = inPlay && this.mayPoll();
     if (shouldPoll && !this.livePoll) {
       this.livePoll = setInterval(() => {
@@ -2670,7 +2673,16 @@ class FollowedFixturesStore {
 export const followedFixturesStore = new FollowedFixturesStore();
 
 // ------------------------------------------------------------------------------- the feed
-export type FeedPhase = 'live' | 'result' | 'upcoming';
+/**
+ * The four questions a returning reader has, in the order they ask them.
+ *
+ * `unresolved` is the one that is not about football. It holds a fixture whose result passed its
+ * deadline and never came: the row still says LIVE or SCHEDULED because that is the last thing a
+ * provider said, and putting it under "In play now" would make this page assert, in a heading, a
+ * match that finished hours ago. It is not a result either — nobody reported one — so it cannot
+ * go under Results, and it certainly is not coming up. It needed a group of its own.
+ */
+export type FeedPhase = 'live' | 'unresolved' | 'result' | 'upcoming';
 
 export interface FeedEntry {
   matchId: string;
@@ -2692,8 +2704,17 @@ export interface FeedGroup {
   hidden: number;
 }
 
-/** Same rule as `bucketOf`, named for the feed: anything neither in play nor played is still ahead. */
-function phaseOf(match: Match): FeedPhase {
+/**
+ * Same rule as `bucketOf`, named for the feed: anything neither in play nor played is still ahead
+ * — except that a status past the backend's deadline for a result is no longer evidence of
+ * anything, and is sorted by that fact instead.
+ *
+ * The delay is read before the status precisely because the status is what went wrong: `live` and
+ * `scheduled` both survive a result that never arrives, and both then read as confident claims
+ * about a match in progress. See src/utils/resultDelay.ts.
+ */
+function phaseOf(match: Match, now: number = Date.now()): FeedPhase {
+  if (resultDelay(match, now)) return 'unresolved';
   if (match.status === 'live' || match.status === 'halftime') return 'live';
   if (match.status === 'finished') return 'result';
   return 'upcoming';
@@ -2750,7 +2771,7 @@ export function buildFeed(
       match,
       saved,
       reasons: [...reasons],
-      phase: phaseOf(match),
+      phase: phaseOf(match, now),
       kickoffMs: kickoffMsOf(match),
     });
   };
@@ -2774,11 +2795,13 @@ export function buildFeed(
 
   const order: Record<FeedPhase, (a: FeedEntry, b: FeedEntry) => number> = {
     live: (a, b) => byTime(a, b, 1),
+    // Most recently due first: the longest-stuck fixture is the least likely to move now.
+    unresolved: (a, b) => byTime(a, b, -1),
     result: (a, b) => byTime(a, b, -1),
     upcoming: (a, b) => byTime(a, b, 1),
   };
 
-  return (['live', 'result', 'upcoming'] as const).map(phase => {
+  return (['live', 'unresolved', 'result', 'upcoming'] as const).map(phase => {
     const all = Array.from(entries.values()).filter(entry => entry.phase === phase).sort(order[phase]);
     let room = FEED_FOLLOWED_CAP[phase];
     let hidden = 0;

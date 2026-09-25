@@ -195,33 +195,35 @@ timestamp and its basis, read by `backend/scripts/sync_once.py` or off the admin
 a person who is looking. An empty week is still a success, because a league between rounds has
 genuinely nothing to give.
 
-## The results endpoint answers, but its archive has a hole over 2026-09-18 to -20
+## The archive holds nothing dated 2026-09-18 or later — cause unknown
 
-Measured 2026-09-22, ten diagnostic requests. `matches/history.json` works and returns finished
-fixtures with full scores, including for a single-day window — the earlier suspicion that
-`from == to` was an empty range is REFUTED, and so is the earlier conclusion that results only ever
-arrive through the live poll.
+Measured on 2026-09-22 and again on 2026-09-25. Every observation, dated, is in
+`docs/evidence/livescore-archive-observations.json`.
 
-What it will not return is the days this installation most wanted:
+**The archive works, for club and national-team competitions alike.** `matches/history.json`
+returned finished fixtures with full scores for La Liga on 2026-09-16 and -17, and for past
+national-team tournaments: the FIFA World Cup (June–July 2026, 30 rows), the Africa Cup of Nations
+(January–February 2026, 16), Copa America (2024, 30) and the Women's World Cup (2023, 30). A
+single-day query works, so it is not the `from == to` shape, and it is not our competition ids.
 
-| Query (La Liga, competition_id 3) | Rows |
-| --- | --- |
-| `from=2026-09-16 to=2026-09-16` | **3**, all `FINISHED` with full-time scores |
-| `from=2026-09-15 to=2026-09-22` | 8, every one dated 09-16 or 09-17 |
-| `from=2026-09-18 to=2026-09-20` | 0 |
-| `from=2026-09-19 to=2026-09-19` | 0 |
+**What it has never returned is anything dated 2026-09-18 or later, for any competition:**
 
-Eight rows is below the 30-row page size, so that wide answer is complete: the 18th to the 20th are
-genuinely absent rather than waiting on a later page. The same shape holds for the Premier League,
-and a query with no competition filter at all returns nothing for 2026-09-19 while returning 30 rows
-across many competitions for the wider range — so it is not our competition ids and not our
-parameters.
+| Asked on | Query | Rows |
+| --- | --- | --- |
+| 2026-09-22 | La Liga, 09-15 to 09-22 | 8 — all dated 09-16 or 09-17 |
+| 2026-09-22 | La Liga, 09-18 to 09-20 | 0 |
+| 2026-09-22 | no competition filter, 09-19 | 0 |
+| 2026-09-25 | La Liga, 09-16 to 09-24 | 5 — all dated 09-16 or 09-17 |
+| 2026-09-25 | UEFA Nations League, AFCON Qualifications, National Teams Friendlies, Arabian Gulf Cup — each 09-24 | 0 each |
 
-**THIS GAP IS UNRESOLVED.** The database holds 48 finished fixtures dated 2026-09-18 to -20 whose
-scores arrived through `matches/live.json`, and the archive that ought to carry the same fixtures
-does not. Why those three days are missing is not known, and nothing here should be read as saying
-it has been explained. Until it is, any fixture stranded on those dates cannot be recovered from
-this provider, and a sweep will honestly report `fresh, no result` for it.
+Both La Liga answers are below the page size, so they are complete.
+
+**What is known and what is not.** The boundary sat between 09-17 and 09-18 on the 22nd and in
+exactly the same place on the 25th, so a lag of about five days is REFUTED. A longer lag, a
+restriction on our trial and an upstream stall are all still open. **THIS IS UNRESOLVED**, and the
+question is with provider support in `docs/support/livescore-api-questions.md`. Until it is
+answered, a fixture dated in that range has not been recoverable from the archive *so far* — which
+is a statement about what we have been told, not about what will ever exist.
 
 The captured archive answer for 2026-09-16 is kept at
 `docs/evidence/livescore-history-2026-09-16-la-liga.json` — the response rows only, since the key
@@ -249,21 +251,74 @@ test was staged. No attempt was spent, because a recovery is not a failed questi
 
 **That is a recovery, and it is not automatic recovery.** Three things separate them:
 
-- **Nothing invokes the sweep.** It runs when a person types the command and is wired into no
-  scheduler task. A stranded fixture *can* be recovered; it does not recover.
+- **Nothing invoked the sweep when this was measured.** It ran only when a person typed the
+  command. That is now closed: `SYNC_SCHEDULER_TASKS` includes `recover`, which runs the same
+  `recover_stranded` every half hour, before `settle` in the same pass. The script remains for a
+  sweep somebody wants to watch, or one run against a restored copy.
 - **It only works where the archive answers.** The demonstration used 2026-09-16 precisely because
-  the archive holds it. On 2026-09-18 to -20 the same sweep returns nothing, correctly, and that
-  gap is recorded above as unresolved.
+  the archive holds it. For anything dated 2026-09-18 or later the same sweep has so far received
+  empty answers, for club and national-team competitions alike — the unresolved boundary recorded
+  above. That is a question about dates, not about which kind of competition a fixture belongs to:
+  the archive has answered for past World Cup, AFCON, Copa America and Women's World Cup matches.
 - **One fixture on one day is not a fleet.** The cost is one request per competition-day for the
   first page, up to five times that if every one paginates to the cap — a default pass measured 60
   requests where the script had printed 12, which is why it now prints both figures. Affordable
   against Live Score's 1200 a day; it would not be against GameForecast's 8, which is why the sweep
   never touches it.
 
-The horizon itself is exact: a fixture is refused past `STALE_SWEEP_MAX_AGE` = 14 days, measured at
-13d, 14d−1s, 14d, 14d+1µs and 15d, and the row records that it was given up on and why. What has
-not been shown is that the provider serves anything like that far back — the one day proven is six
-days old, and the three days after it are the hole above.
+**When the application stops asking, and what that means.** Every competition, club or national,
+follows one retry schedule: every pass until six hours after kickoff, then progressively less often
+— every two hours to a day, every six hours to three days, twelve hours to a week, daily to fourteen
+days. Against an archive that stays empty one fixture costs about 39 requests over the fortnight
+instead of 672 at a flat half-hourly cadence. Fourteen days is where the application stops, and that
+is **a limit on what we are willing to spend, not evidence that no result exists**; the reason
+written on the fixture says so. A network failure is recorded as a failure and never counts towards
+it — only a question the provider actually answered does. What has not been shown is that the
+provider serves anything as far back as fourteen days for recent matches; the archive boundary above
+is exactly that question.
+
+**What a reader is told about the last check.** The API (`recovery.last_outcome`) and the page keep
+four things apart. *The provider answered without a result for this match* (`fresh_unanswered`) is
+the only one counted as an attempt, and says what that answer held at that moment. *A request went
+out and got no usable answer* (`provider_error`) is an outage, ours or the provider's, and says
+nothing about the result. *No request was sent* (`deferred`) is worded by the cause the backend
+records in `last_deferred_because`: our own request allowance, the provider's own reported limit, or
+a pause after an earlier request failed — and only the first is described as our limit. *Our stored
+copy was read instead of asking* (`cached`) claims no call. A stop the retry budget made
+(`stopped_by: retry_budget`) is described as our allowance; a stop left by a rule since removed is
+not attributed to it, and the recovery pass undoes it.
+
+## When a result is missed while the match is being played
+
+A result goes missing when the provider cannot be reached while a match is live — our connection
+dropped, or theirs did. There are two places it can come back from afterwards, and what we know
+about each is less than it first appeared.
+
+**The live feed, `matches/live.json`.** It lists matches in play and ones that have recently
+finished. On the evening of 2026-09-24 a poll at 21:06 UTC carried seven UEFA Nations League
+fixtures that had kicked off at 18:45–18:49 and did not carry Andorra v Malta, which had kicked off
+at 16:01. That is one observation of what the feed held at one moment. **It is not a retention
+rule.** The provider's documentation says finished matches stay in the feed after full time, with
+durations we could not reconcile, and how long they stay is one of the questions put to support.
+The 150-minute window this application polls within is our own setting, not the provider's.
+
+**The archive, `matches/history.json`.** It answers for club and national-team competitions alike,
+and has answered for nothing dated 2026-09-18 or later — see the section above.
+
+So what we can say about a missed result depends on its date, not on whether it is a club or a
+national team:
+
+| Missed result | Recovered so far? | What we know |
+| --- | --- | --- |
+| Still in the live feed when the next poll runs | **Yes**, observed | the ordinary live task collects it |
+| Dated on a day the archive holds | **Yes**, observed by hand for 2026-09-16 | the results task can collect it |
+| Dated 2026-09-18 or later | **Not yet** | the archive has returned no rows for these days so far; why, and whether it will, is unknown |
+
+**Nothing here says a result cannot exist.** The application keeps asking under a retry *budget*,
+and stopping is a decision about what we are willing to spend, not a finding about the provider. A
+reader of such a fixture is told what happened — no result has arrived, and when we last asked — and
+never shown a score nobody reported. As of 2026-09-25 eight national-team fixtures from 2026-09-24
+are in this state, including UEFA Nations League, Andorra v Malta.
 
 ## A finished match that read as live: repaired, with the identity gap narrowed
 

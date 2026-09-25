@@ -65,6 +65,17 @@ export interface ApiMatch extends Json {
   forecast: ApiForecast | null;
   forecast_state?: string;
   /**
+   * The backend's own deadline for a result: the kickoff plus `UNSETTLED_GRACE`.
+   *
+   * Optional because the captured payloads predate it, which is deliberate rather than tolerated —
+   * a fixture with no deadline is one the application makes no overdue claim about at all, so
+   * every existing test keeps measuring what it always measured. e2e/mocked/overdue-results.spec.ts
+   * sets it when that is what it is testing.
+   */
+  result_expected_by?: string | null;
+  /** The stale sweep's record: what has been tried, and whether the backend has stopped asking. */
+  recovery?: Json | null;
+  /**
    * The full evidence brief, which only `GET /matches/{id}` carries (see matchDetail()). Typed as
    * plain Json here because the tests never build one: it is captured, and the shape it has to
    * keep is the backend's, in src/types/brief.ts.

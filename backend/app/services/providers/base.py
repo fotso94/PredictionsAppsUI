@@ -40,6 +40,27 @@ class ProviderQuotaError(ProviderError):
     """The provider (or our own daily budget) refused the request because of quota limits."""
 
 
+class ProviderRequestNotSent(ProviderQuotaError):
+    """An allowance refused a request BEFORE it left: nothing was sent, so nothing was unreachable.
+
+    Raised by `RequestBudget.consume` when our own daily ceiling is spent, when the provider's own
+    reported window says it is spent, or when there is no counter store to meter against and the
+    budget fails closed; and by `MatchDataService._call_chain` when a caller's `skip` declines a
+    provider. It is a `ProviderQuotaError`, so everything that already treats a quota refusal as
+    one keeps doing so. What it adds is the one fact a quota error cannot carry: no request was
+    made, which is the difference between "the allowance was spent" and "the provider did not
+    answer", and the recovery bookkeeping records those two as different outcomes.
+
+    `refused_by` says whose limit it was: "ours" (a ceiling this installation configured, or its
+    refusal to spend unmetered) or "provider" (the provider's own reported window).
+    """
+
+    def __init__(self, message: str, provider: str = "", status_code: Optional[int] = None,
+                 refused_by: str = "ours"):
+        super().__init__(message, provider=provider, status_code=status_code)
+        self.refused_by = refused_by
+
+
 class ProviderUnavailableError(ProviderError):
     """Network failure, 5xx or malformed payload."""
 
@@ -166,6 +187,14 @@ class ProviderFixture:
     #: periods that happened leave this False, and their silence stays "we were not told".
     periods_reported: bool = False
     raw: Dict[str, Any] = field(default_factory=dict)
+    #: Did the provider STATE this kickoff, date and time, or did the mapping have to fill part of
+    #: it in? The captured `matches/history.json` reply in
+    #: docs/evidence/livescore-history-2026-09-16-la-liga.json carries a `date` and no `scheduled`
+    #: time, and `matches/live.json` rows have been observed with `date` null; the mapping still
+    #: needs a datetime, so it uses midnight or today, and that value is a placeholder rather than
+    #: a report. A fixture carrying
+    #: one may still be matched and stored, but it never moves a kickoff a stored row already holds.
+    kickoff_supplied: bool = True
 
     @property
     def went_beyond_regulation(self) -> Optional[bool]:

@@ -12,6 +12,7 @@ from typing import Any, Dict, Iterable, Optional
 
 from app.models.predictions import League, Match, MatchStatus, Prediction, Team
 from app.models.provider_data import ProviderEntityRef, ProviderForecastRecord
+from app.services.match_registry import UNSETTLED_GRACE
 from app.services.providers import competitions as comps
 from app.services.providers.base import ProviderStanding
 
@@ -225,6 +226,119 @@ def serialize_score(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
+def _stored_iso(value: Any) -> Optional[str]:
+    """A timestamp that was written into ``match_metadata`` as text, re-emitted with a Z.
+
+    These are not datetimes by the time they reach here: ``match_metadata`` is JSONB and holds
+    whatever string the writer produced, which is ``datetime.isoformat()`` with an offset when it
+    held an aware datetime and without one when it did not. A string carrying no offset is read by
+    the browser as LOCAL time, which moves the moment by the reader's own offset -- the same trap
+    :func:`iso_utc` exists for, reached through a value that arrives already formatted.
+
+    A string this cannot parse is passed through untouched rather than dropped. An unreadable
+    timestamp is still evidence of what happened, and there is nothing to put in its place that
+    would not be invented.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return iso_utc(datetime.fromisoformat(value.strip().replace("Z", "+00:00")))
+    except ValueError:
+        return value
+
+
+def serialize_recovery(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """What has been established about a result that did not arrive, or None when nothing has.
+
+    The recovery sweep writes its bookkeeping to ``match_metadata.recovery``
+    (:meth:`MatchRegistry.record_recovery_outcome`). A reader is served the parts that say what
+    HAPPENED, so that three different situations can never be shown as one:
+
+    * STILL BEING ASKED ABOUT. ``gave_up_at`` is null; ``next_ask_after`` says when the retry
+      schedule next allows an ask.
+    * THE PROVIDER ANSWERED WITH NOTHING. ``last_outcome`` is ``fresh_unanswered``; ``attempts``
+      counts those answers and ``archive`` says what the archive returned for this competition and
+      date when last asked (``answered`` with a row count, or ``empty``).
+    * A REQUEST WENT OUT AND NOBODY ANSWERED IT. ``last_outcome`` is ``provider_error``;
+      ``provider_errors`` counts those calls, and none of them is an attempt.
+    * NOTHING WAS ASKED. ``last_outcome`` is ``deferred``: the ask was due and no request was
+      made, because an allowance refused it before it left or the provider was cooling down after
+      a failure elsewhere. ``deferrals`` counts those, and ``last_deferred_because`` says which:
+      ``our_allowance`` is a limit of ours, ``provider_allowance`` the provider's own reported
+      window, ``cooling_down`` a pause after a failed request. It is not an outage and not an
+      answer, and only ``our_allowance`` may be worded as our own limit.
+
+    ``gave_up_at`` / ``gave_up_reason`` / ``stopped_by`` record that the sweep STOPPED ASKING, at a
+    moment. ``stopped_by`` is the policy the row itself records as having made the stop -
+    ``retry_budget`` for every stop the current retry schedule makes - and null when it records
+    none. A null there is a stop from a rule this installation has since removed, and the recovery
+    pass undoes such a stop rather than letting it stand; it is never attributed to a policy that
+    did not make it. A stop is a statement about what we chose to spend, never that no result
+    exists. ``reopened_at`` appears if a results call made later for another match in the same
+    competition returned results dated on or after this one, and the sweep asked again.
+
+    ``gave_up_reason`` is the sweep's own sentence, not a provider's: it carries no vendor name, no
+    HTTP status and no link, and it travels verbatim. It is English; the structured fields beside
+    it carry the same facts for a reader that renders its own words.
+    """
+    state = (meta or {}).get("recovery")
+    if not isinstance(state, dict) or not state:
+        return None
+
+    def count(field: str) -> Optional[int]:
+        value = state.get(field)
+        return int(value) if isinstance(value, (int, float)) else None
+
+    archive = state.get("archive") if isinstance(state.get("archive"), dict) else None
+    return {
+        "attempts": count("attempts"),
+        "last_attempt_at": _stored_iso(state.get("last_attempt_at")),
+        "gave_up_at": _stored_iso(state.get("gave_up_at")),
+        "gave_up_reason": state.get("gave_up_reason") or None,
+        "stopped_by": (state.get("stopped_by") or None) if state.get("gave_up_at") else None,
+        "last_outcome": state.get("last_outcome") or None,
+        "last_outcome_at": _stored_iso(state.get("last_outcome_at")),
+        "provider_errors": count("provider_errors") or 0,
+        "last_provider_error_at": _stored_iso(state.get("last_provider_error_at")),
+        "deferrals": count("deferrals") or 0,
+        # Why the last deferred ask was not sent: any of "our_allowance", "provider_allowance",
+        # "cooling_down", "not_configured". Only the first is a limit of ours.
+        "last_deferred_because": (list(state.get("last_deferred_because"))
+                                  if isinstance(state.get("last_deferred_because"), list) else None),
+        "next_ask_after": None if state.get("gave_up_at") else _stored_iso(state.get("next_ask_after")),
+        "reopened_at": _stored_iso(state.get("reopened_at")),
+        "archive": None if archive is None else {
+            "state": archive.get("state"),
+            "rows": archive.get("rows") if isinstance(archive.get("rows"), int) else None,
+            "asked_at": _stored_iso(archive.get("asked_at")),
+        },
+    }
+
+
+def result_expected_by(match: Match) -> Optional[datetime]:
+    """The instant by which this fixture should have had a result, or None with no kickoff.
+
+    ``UNSETTLED_GRACE`` is the backend's own answer to "how long after kickoff is a fixture left
+    alone before anything calls it unsettled". It is the grace the results gate applies, so past it
+    a result is something this installation is already looking for.
+
+    IT IS NOT A FINAL WHISTLE, and nothing downstream may read it as one. It is built for a
+    90-minute match, and a knockout tie level at 90 plays another half hour and may then take
+    penalties -- so a row past this instant is a row whose result is LATE, which is a different
+    statement from "this match is over". Whether the football is still being played is a question
+    the row's own minute answers and this deadline cannot; see resultDelay() in
+    frontend/src/utils/resultDelay.ts, which asks the second question only after this one has
+    passed.
+
+    It is served because THE READER CANNOT DERIVE IT. A browser has the kickoff and the status and
+    nothing else; the grace is a constant of this installation's polling, and a front end that
+    picked its own number would be guessing at when our own machinery gave up watching. One
+    constant, read here, keeps the sentence on the page and the behaviour of the scheduler
+    describing the same moment.
+    """
+    return match.match_date + UNSETTLED_GRACE if match.match_date else None
+
+
 def serialize_match(match: Match, teams: Dict, leagues: Dict, forecast: Optional[Dict[str, Any]] = None,
                     expert_prediction: Optional[Dict[str, Any]] = None, league_refs: Optional[Dict] = None) -> Dict[str, Any]:
     meta = match.match_metadata or {}
@@ -240,6 +354,16 @@ def serialize_match(match: Match, teams: Dict, leagues: Dict, forecast: Optional
         "competition": serialize_league(league, (league_refs or {}).get(match.league_id)),
         "home": serialize_team(home), "away": serialize_team(away),
         "kickoff_utc": _iso(match.match_date), "status": status_label(match), "minute": meta.get("minute"),
+        # `status` and `minute` are the LAST THING WE WERE TOLD, not a reading of the clock. A
+        # fixture nobody ever sent a result for keeps them for ever, so "live, HT" can outlive the
+        # match by hours and a kickoff time can sit under a status of "scheduled" long after it
+        # passed. These two are what a reader is given to tell that case apart:
+        # `result_expected_by` is the moment a result became late -- late, and not necessarily
+        # over, because a tie can still be in extra time past it -- and `recovery` is the row's own
+        # record of what was asked, what came back, and whether we have stopped asking. Neither is
+        # a result and neither implies one.
+        "result_expected_by": _iso(result_expected_by(match)),
+        "recovery": serialize_recovery(meta),
         "score": score, "venue": match.venue, "round": match.round, "season": match.season,
         "expert_prediction": expert_prediction, "forecast": forecast, "forecast_state": forecast_state,
         "last_synced_at": meta.get("last_synced_at"),

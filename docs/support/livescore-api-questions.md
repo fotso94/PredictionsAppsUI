@@ -48,42 +48,81 @@ everyone.
 
 ---
 
-## 2. `matches/history.json` returns nothing for 2026-09-18 to 2026-09-20
+## 2. The history archive holds nothing dated 2026-09-18 or later — is that expected?
 
-This is the one we would most like explained.
+This is the one we would most like explained, and we have been careful not to assume the answer.
 
-**Working, same endpoint, same competition, same parameter shape:**
+**The archive clearly works, for club and national-team competitions alike.** These all returned
+finished fixtures with full scores:
 
-| Query | Result |
+| Query | Rows |
 | --- | --- |
-| `matches/history.json?competition_id=3&from=2026-09-16&to=2026-09-16` | **3 rows**, all `FINISHED` with full-time scores |
-| `matches/history.json?competition_id=3&from=2026-09-15&to=2026-09-22` | **8 rows**, every one dated 09-16 or 09-17 |
+| `matches/history.json?competition_id=3&from=2026-09-16&to=2026-09-16` (La Liga) | 3 |
+| `matches/history.json?competition_id=362&from=2026-06-10&to=2026-07-20` (FIFA World Cup) | 30 |
+| `matches/history.json?competition_id=227&from=2026-01-01&to=2026-02-15` (Africa Cup of Nations) | 16 |
+| `matches/history.json?competition_id=271&from=2024-06-15&to=2024-07-20` (Copa America) | 30 |
+| `matches/history.json?competition_id=490&from=2023-07-15&to=2023-08-25` (Women's World Cup) | 30 |
 
-Eight rows is below the 30-row page size, so that second answer is complete — there is no later page
-holding the missing days.
+**But nothing dated 2026-09-18 or later has ever come back, for any competition.** Asked on two
+different days, several days apart:
 
-**Returning nothing:**
+| Asked on | Query | Rows |
+| --- | --- | --- |
+| 2026-09-22 | `competition_id=3&from=2026-09-15&to=2026-09-22` (La Liga) | 8 — every one dated 09-16 or 09-17 |
+| 2026-09-22 | `competition_id=3&from=2026-09-18&to=2026-09-20` | 0 |
+| 2026-09-22 | `from=2026-09-19&to=2026-09-19` (no competition filter) | 0 |
+| 2026-09-25 | `competition_id=3&from=2026-09-16&to=2026-09-24` (La Liga) | 5 — every one dated 09-16 or 09-17 |
+| 2026-09-25 | `competition_id=350&from=2026-09-24&to=2026-09-24` (UEFA Nations League) | 0 |
+| 2026-09-25 | `competition_id=228&from=2026-09-24&to=2026-09-24` (AFCON Qualifications) | 0 |
+| 2026-09-25 | `competition_id=371&from=2026-09-24&to=2026-09-24` (National Teams Friendlies) | 0 |
+| 2026-09-25 | `competition_id=412&from=2026-09-24&to=2026-09-24` (Arabian Gulf Cup) | 0 |
 
-| Query | Result |
-| --- | --- |
-| `matches/history.json?competition_id=3&from=2026-09-19&to=2026-09-19` | 0 rows |
-| `matches/history.json?competition_id=3&from=2026-09-18&to=2026-09-20` | 0 rows |
-| `matches/history.json?competition_id=2&from=2026-09-19&to=2026-09-19` | 0 rows |
-| `matches/history.json?from=2026-09-19&to=2026-09-19` (no competition filter) | 0 rows |
-| `matches/history.json?from=2026-09-15&to=2026-09-22` (no competition filter) | 30 rows, across many competitions |
+Both La Liga answers are below the 30-row page size, so they are complete: the later days are
+absent, not on a later page. A single-day query works (09-16 answers), so it is not the `from == to`
+shape. It is not our competition ids, and it is not a club/national difference.
 
-So it is not the competition id, not the date format, and not a `from == to` range — a single-day
-query works for 2026-09-16.
+**What we have ruled out, and what we have not.** We wondered whether the archive simply lags by a
+few days. The boundary sat between 09-17 and 09-18 when we asked on the 22nd, and it sat in exactly
+the same place when we asked on the 25th — so it is not a lag of about five days. We have not ruled
+out a longer lag, a restriction on our trial, or something upstream.
 
-**Why it matters to us:** our own database holds 48 finished fixtures dated 2026-09-18 to 2026-09-20
-in these same competitions, with scores that reached us through `matches/live.json` at the time. The
-archive that ought to carry the same fixtures does not return them. That leaves us unable to recover
-a result for any fixture that was missed while it was live on those dates.
+**Why it matters to us.** Our database holds finished fixtures from those dates whose scores reached
+us through `matches/live.json` while they were being played. When a fixture is missed while live —
+because our own connection dropped, say — the archive is the only way we know to recover it
+afterwards. Several are waiting on it now, including UEFA Nations League, Andorra v Malta on
+2026-09-24.
 
-**The question:** is there a known gap in the history archive over 2026-09-18 to 2026-09-20, or is
-there something about how we are querying it that we have not spotted? We are not asking for a
-backfill — we would mainly like to know whether to expect this to recur, because our recovery path
-depends on that endpoint.
+**Questions:**
+
+1. Is there a known gap in the history archive from 2026-09-18 onward, or a delay before recent
+   matches appear in it? If there is a delay, roughly how long?
+2. Does our trial plan limit how recent the history data can be?
+3. Is there anything about how we are querying `matches/history.json` that we have not spotted?
+
+We are not asking for a backfill; we would mainly like to know what to expect, so we retry sensibly
+rather than either giving up too early or asking every half hour for data that will not come.
+
+---
+
+## 3. How long does a finished match stay in `matches/live.json`?
+
+Your documentation says finished matches remain in the live feed for a while after full time, but
+we found the durations described in different places hard to reconcile, and we would rather ask
+than guess.
+
+What we observed on one evening, 2026-09-24:
+
+- A poll at **21:06 UTC** carried seven UEFA Nations League fixtures that had kicked off at
+  18:45–18:49, all shown as finished. It did not carry Andorra v Malta, which had kicked off at
+  16:01.
+- A poll at **23:08 UTC** returned three matches in total: two finished, one in play at minute 79.
+
+Two observations on one evening tell us what the feed held at those moments, not your retention
+rule, so we have not built anything on them.
+
+**Question:** how long after full time does a finished match remain in `matches/live.json`, and does
+it differ by competition? Knowing this would tell us how long a missed match stays recoverable from
+the live feed before we have to rely on the archive.
 
 ---
 

@@ -47,7 +47,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
 
-from app.services.providers.base import ProviderQuotaError
+from app.services.providers.base import ProviderQuotaError, ProviderRequestNotSent
 
 logger = logging.getLogger(__name__)
 
@@ -349,6 +349,12 @@ class RequestBudget:
         #: The provider's own accounting, read from the same store and the same clock. Our
         #: ceiling and the provider's window are two independent constraints and both are checked.
         self.rate_limit = ProviderRateLimit(provider, client=self._client, now=self._now)
+        #: Requests THIS OBJECT has let out since it was built, metered or not. In process and
+        #: never reset: a caller reads it before and after a call and charges the difference, which
+        #: is how a request that went out and then failed is still counted as spent. The shared
+        #: day counter cannot answer that question, because every other worker spends out of it
+        #: at the same time.
+        self.granted = 0
         if self._client is None and not self.fail_open:
             logger.warning("Request budget store unavailable for %s (%d/day): outbound requests will be "
                            "refused rather than spent unmetered", self.provider, self.daily_limit)
@@ -504,10 +510,12 @@ class RequestBudget:
         return self.used_today() + amount <= self.daily_limit
 
     def consume(self, amount: int = 1, reason: str = "fetch") -> None:
-        """Reserve `amount` outbound requests; raise ProviderQuotaError when the budget is spent.
+        """Reserve `amount` outbound requests; raise ProviderRequestNotSent when the budget is spent.
 
         The counter is only advanced when the reservation succeeds, so a refusal never consumes
-        allowance that was not actually spent at the provider.
+        allowance that was not actually spent at the provider. Every refusal raised here is a
+        `ProviderRequestNotSent` - a `ProviderQuotaError` that also says nothing left - and every
+        grant advances `granted`, whether or not the request it lets out is then answered.
 
         `reason` (see REASONS) attributes the spending by kind of call; it is recorded
         best effort and never changes whether the request is allowed. A request granted while the
@@ -525,17 +533,19 @@ class RequestBudget:
             # the usage counter must not move; the refusal is counted where every other refusal
             # is counted, so a day that never reached the network is still legible.
             self._note_refused(amount)
-            raise ProviderQuotaError(provider_refusal, provider=self.provider)
+            raise ProviderRequestNotSent(provider_refusal, provider=self.provider,
+                                         refused_by="provider")
         if self._client is None:
             if self.fail_open:
                 self._note_unmetered(amount)
+                self.granted += int(amount)
                 return
-            raise ProviderQuotaError("budget store unavailable; refusing outbound request",
-                                     provider=self.provider)
+            raise ProviderRequestNotSent("budget store unavailable; refusing outbound request",
+                                         provider=self.provider)
         key = self._usage_key()
         used, allowed, metered = self._reserve(key, amount)
         if not allowed:
-            raise ProviderQuotaError(
+            raise ProviderRequestNotSent(
                 f"Daily request budget for {self.provider} exhausted "
                 f"({used}/{self.daily_limit} used); refused by the daily ceiling we configured, "
                 f"not by the provider",
@@ -547,7 +557,9 @@ class RequestBudget:
             # show spending on a day the counter reads as untouched. Record it as unmetered
             # instead, which is what `snapshot()` reports and what drops `enforced` to false.
             self._note_unmetered(amount)
+            self.granted += int(amount)
             return
+        self.granted += int(amount)
         self._record_reason(reason, amount)
 
     def _note_refused(self, amount: int) -> None:
@@ -608,8 +620,8 @@ class RequestBudget:
         such so it is never attributed and never reported as an untouched allowance.
         """
         if not self.fail_open:
-            raise ProviderQuotaError("budget store unavailable; refusing outbound request",
-                                     provider=self.provider) from exc
+            raise ProviderRequestNotSent("budget store unavailable; refusing outbound request",
+                                         provider=self.provider) from exc
         return 0, True
 
     def _reserve(self, key: str, amount: int):

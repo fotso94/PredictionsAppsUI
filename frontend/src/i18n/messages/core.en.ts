@@ -323,6 +323,98 @@ const core = {
   'fixture.alsoPublished': '{source, select, model {Model} other {Expert}} also published',
   'fixture.groupCount': ' {count, plural, one {match} other {matches}}',
 
+  // ─── a result that did not arrive ────────────────────────────────────────────────────────
+  //
+  // `status` and `minute` are the last thing a provider said, and a fixture whose final score
+  // has not come keeps them until one does — so "LIVE, HT" can outlive the match by hours and a kickoff time
+  // sits under "scheduled" long after it passed. These words are what a fixture says instead,
+  // once the backend's own deadline for a result has gone by (src/utils/resultDelay.ts).
+  //
+  // Two states, never one. OVERDUE is a reading of the clock, with no stop recorded. UNRESOLVED
+  // is something that happened: the backend's recovery sweep came to the end of its retry
+  // schedule — a limit on what we spend — and stopped asking. That is a fact about our asking,
+  // not about the football or about what the provider holds, so no sentence here says a result is
+  // unavailable or does not exist, and one sentence says the opposite outright. A result that
+  // arrives by any other route settles the fixture, and neither state applies to it any more.
+  // Neither state is a result, so neither sentence names a score, and both say so out loud: a
+  // reader who sees no number where a number belongs deserves to be told that the number is
+  // absent rather than zero.
+  //
+  // Inside OVERDUE the last check can have gone four ways, and three of them learned nothing. Two
+  // of those three are OPPOSITE kinds of fact and must never share words: a call that went out
+  // and failed (`provider_error`), and a call WE did not make because our own request budget was
+  // spent (`deferred`). The second is nobody's failure, so its sentences say "held back" and "our
+  // own request allowance" — the words the freshness block already uses for the same limit
+  // (`freshness.reason.budget`) — and never "could not", "failed", "error" or "reach".
+  'fixture.result.overdue': 'Result overdue',
+  'fixture.result.givenUp': 'Unresolved',
+  //
+  // `{due}` and `{when}` arrive as finished phrases from relativeTime ("3 hours ago"), so each
+  // language keeps its own word order instead of having an English frame translated around it.
+  // `{due}` measures WHEN THE RESULT FELL DUE, which is the kickoff plus the backend's grace and
+  // is hours later than the kickoff: a fixture that started six hours ago was due three and a half
+  // hours ago, and only one of those numbers belongs in a sentence about a result being late.
+  // These sentences name the event their number measures.
+  //
+  // The short forms are for the fixture row, where the full sentence takes four lines at 360px and
+  // pushes the club names out of sight. They drop the "no score is claimed" half, which the row
+  // demonstrates rather than states: there is no scoreline on it to misread.
+  'fixture.result.overdueShort': 'A result was due {due}; none has reached us.',
+  // The row's form when our most recent check reached no provider. It replaces the sentence above
+  // rather than joining it, because at 360px the row has room for one, and this one says both
+  // that the result is late and why nothing new is known.
+  'fixture.result.unreachableShort': 'A result was due {due}; our last check could not reach the provider.',
+  // The row's forms when our most recent check was never sent (`last_outcome: deferred`). No
+  // request went out, so nothing was unreachable and nothing failed. The backend says why in
+  // `last_deferred_because`, and each form names only the cause it was given: our own allowance,
+  // the provider's own reported limit, a pause after an EARLIER failure, or - for anything else,
+  // such as a provider not set up here - just that the check was not sent. Only the first may be
+  // worded as a limit of ours.
+  'fixture.result.heldBackShort': 'A result was due {due}; our last check was held back by our own request allowance.',
+  'fixture.result.heldBackProviderShort': 'A result was due {due}; our last check was not sent, because the provider had reported its request limit reached.',
+  'fixture.result.heldBackCoolingShort': 'A result was due {due}; our last check was postponed after an earlier attempt failed.',
+  'fixture.result.heldBackOtherShort': 'A result was due {due}; our last check was not sent to the provider.',
+  'fixture.result.givenUpShort': 'No result arrived; we stopped asking {when}.',
+  'fixture.result.overdueDetail': 'A result was due {due} and none has reached us. This match is not being shown as in play, and no score is claimed for it.',
+  'fixture.result.givenUpDetail': 'No result ever reached us, and we stopped asking {when}. No score is claimed for this match.',
+  // The other side of "we stopped asking", said only where the row's own record shows the backend
+  // is still asking (a recovery record and no give-up — resultDelay's `stillAsking`). A fixture
+  // put back under the retry schedule after being stopped reads this, and not "Unresolved".
+  'fixture.result.stillAsking': 'We are still asking for this result.',
+  // `recovery.attempts` counts passes in which the provider ANSWERED and the answer carried no
+  // final result for this fixture. That is all it counts, so that is all this says: what came
+  // back, and never what the provider holds.
+  // What the most recent pass found, from the backend's `last_outcome`. Kept apart because they
+  // are different facts: a check that reached nobody learned nothing about the result, a check the
+  // provider answered learned that the answer did not carry one — at that moment — a check we held
+  // back asked nobody because of a limit of ours, and a check that read our own stored copy asked
+  // nobody because the copy was there. The stored copy held no result for this match (one that did
+  // would have settled it), but when it was taken is not recorded, so the sentence does not date it.
+  'fixture.result.lastCheckUnreachable': 'Our last check, {when}, could not reach the provider.',
+  'fixture.result.lastCheckEmpty': 'The provider last answered {when}, without a result for this match.',
+  'fixture.result.lastCheckHeldBack': 'Our last check, {when}, was held back to stay within our own request allowance, so the provider was not asked.',
+  'fixture.result.lastCheckHeldBackProvider': 'Our last check, {when}, was not sent: the provider had reported that its request limit for us was reached.',
+  'fixture.result.lastCheckHeldBackCooling': 'Our last check, {when}, was not sent: we were pausing after an earlier request to the provider failed.',
+  'fixture.result.lastCheckHeldBackOther': 'Our last check, {when}, was not sent to the provider.',
+  'fixture.result.lastCheckStoredCopy': 'Our last check, {when}, read results we had already stored rather than asking the provider; they held no result for this match.',
+  'fixture.result.attempts': '{count, plural, one {The provider answered once without a result for this match.} other {The provider answered # times without a result for this match.}}',
+  // Why we stopped, in our own reviewed words and in the reader's language. The backend's
+  // `gave_up_reason` is not shown to readers: it is English prose written for whoever runs the
+  // sweep, and nothing reviews what it says about the provider. This one is shown only where the
+  // row says `stopped_by: retry_budget` — a limit on the requests we spend on one match. It names
+  // no number: the horizon is a constant of the backend, not something this catalogue may restate.
+  'fixture.result.givenUpPolicy': 'We stop asking once a match has had all the checks our own request allowance gives it. That limit is ours; it does not mean no result exists.',
+  // Any other stop: one with no `stopped_by`, left by a rule the backend no longer applies (it
+  // undoes such stops on its next recovery pass). It is not attributed to the allowance above,
+  // because the allowance did not make it.
+  'fixture.result.givenUpOtherPolicy': 'This stop was made by our own asking rules, not by the provider; it does not mean no result exists.',
+  // The hover and screen-reader text for the short word in a fixture row's status column, where
+  // neither the fixture nor the deadline fits. `{due}` is the exact instant, not a rounded phrase:
+  // it is what a reader checks the claim against, and the rounded form is already on the line
+  // below. It is the deadline for both states — a fixture given up on was due at the same moment
+  // as one still being waited for — and when it was given up on is the sentence in the notice.
+  'fixture.result.title': '{fixture}: {state}. A result was due {due}.',
+
   // ─── who said it ─────────────────────────────────────────────────────────────────────────
   'source.model': 'Model',
   'source.expert': 'Expert',
@@ -432,6 +524,10 @@ const core = {
   'sync.task.fixtures': 'Fixtures and kick-off times',
   'sync.task.live': 'Live scores',
   'sync.task.results': 'Final results',
+  // The scheduler's `recover` task: it asks again about fixtures whose result is past due. Named
+  // with the same word the fixture itself uses ("Result overdue"), so a failure on this line and
+  // the notice on the match page are recognisably about the same thing.
+  'sync.task.recover': 'Overdue results',
   'sync.task.forecasts': 'Model forecasts',
 
   'freshness.stored': 'Stored data',

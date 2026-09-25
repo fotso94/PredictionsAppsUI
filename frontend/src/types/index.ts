@@ -116,6 +116,17 @@ export interface Match {
   minute?: string | null;
   lastSyncedAt?: string | null;
   /**
+   * The instant by which a result should have reached us — the backend's own kickoff-plus-grace,
+   * served as `result_expected_by`.
+   *
+   * Undefined means the payload does not carry it, which is NOT "no result is expected": a
+   * browser cannot work this out, because the grace is a constant of the backend's polling and
+   * not of the calendar. See src/utils/resultDelay.ts, which claims nothing without it.
+   */
+  resultExpectedBy?: string | null;
+  /** What the backend's recovery sweep established about a result that never arrived. */
+  recovery?: MatchRecovery | null;
+  /**
    * The compact evidence brief carried on every fixture in a list payload.
    *
    * Undefined means the payload predates the brief (or came from the legacy API-Football source),
@@ -131,6 +142,45 @@ export interface Match {
    * means "this payload does not carry the history".
    */
   expertPredictionRevisions?: ExpertPredictionRevision[];
+}
+
+/**
+ * The row's own record of a result being chased and, eventually, no longer asked for.
+ *
+ * Served as `recovery` by `serialize_match`, and null until the stale sweep has touched the
+ * fixture at all. `gaveUpAt` set is the one fact a reader cannot derive from the clock: it is the
+ * difference between "this is late and still being asked for" and "this is late and we have
+ * stopped asking". It says nothing about whether a result exists.
+ *
+ * The payload's `gave_up_reason` is deliberately not carried into this model: it is English prose
+ * written for whoever operates the sweep, and nothing a reader sees is built from it (see
+ * ResultDelayNotice).
+ */
+export interface MatchRecovery {
+  /** Passes in which the provider answered without a final result for this fixture. */
+  attempts: number | null;
+  lastAttemptAt: string | null;
+  /** When the backend stopped asking. Null while it is still asking. */
+  gaveUpAt: string | null;
+  /**
+   * The policy the row records as having made that stop: `retry_budget`, the only one the backend
+   * still applies. Null for a stop from a rule since removed, which the backend undoes on its next
+   * recovery pass - so the page must not describe it as the retry budget's. Undefined from a
+   * backend that predates the field.
+   */
+  stoppedBy?: string | null;
+  /**
+   * What the sweep's most recent pass learned, as the backend names it: `provider_error`,
+   * `fresh_unanswered`, `deferred`, `cached` or `recovered` (`RecoveryOutcome` in
+   * src/utils/resultDelay.ts, which says what each one is put into words as). Kept as the
+   * backend's string so a value this build does not know is carried rather than coerced, and given
+   * no sentence. Null when the payload does not say.
+   */
+  lastOutcome?: string | null;
+  /** When that pass happened. */
+  lastOutcomeAt?: string | null;
+  /** For a deferred check, why it never left - see `deferralCauseOf` in src/utils/resultDelay.ts. */
+  lastDeferredBecause?: string[] | null;
 }
 
 /** Availability of a provider forecast; anything but "available" must be shown as such. */

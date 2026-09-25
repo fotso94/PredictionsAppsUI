@@ -38,6 +38,7 @@ import pytest
 from app.core.config import settings
 from app.models.predictions import MatchStatus
 from app.services.match_cache import MatchCache
+from app.services.match_registry import RETRY_HORIZON, UNSETTLED_GRACE, retry_due, retry_gap
 from app.services.match_data_service import (
     CALENDAR_HEAD_DAILY_REQUEST_CEILING, CALENDAR_HEAD_TTL_SECONDS,
     COVERAGE_CALENDAR_MAX_SECONDS, COVERAGE_CALENDAR_MIN_SECONDS,
@@ -227,8 +228,9 @@ def test_the_capped_day_fits_inside_the_plan():
 
     Each term is a HARD bound and not an average: the fixtures task cannot ask for more than the
     club set plus its cap, the results task cannot exceed its cap, the live task cannot exceed its
-    daily ceiling, and both calendar readers - the empty-state sweep and the coverage rotation -
-    spend out of one existing per-provider share rather than two.
+    daily ceiling, the repair task cannot exceed its own daily ceiling, and both calendar readers
+    - the empty-state sweep and the coverage rotation - spend out of one existing per-provider
+    share rather than two.
 
     This is the test that fails when a cap is raised without the arithmetic being redone.
     """
@@ -239,15 +241,65 @@ def test_the_capped_day_fits_inside_the_plan():
     national_fixtures = settings.SYNC_FIXTURES_MAX_NATIONAL_REQUESTS_PER_PASS * fixture_passes
     results = settings.SYNC_RESULTS_MAX_REQUESTS_PER_PASS * results_passes
     live = settings.SYNC_LIVE_MAX_REQUESTS_PER_DAY
+    # The repair task's results requests are bounded per DAY rather than per pass, because how
+    # many stranded days exist depends on how long an outage lasted and not on any interval.
+    # Its live poll is deliberately absent from this sum: it is charged to `live` above.
+    recovery = settings.SYNC_RECOVERY_MAX_REQUESTS_PER_DAY
     calendars = CALENDAR_HEAD_DAILY_REQUEST_CEILING
     reserve = min(settings.SYNC_SCHEDULER_BUDGET_RESERVE, LIVESCORE_DAILY_LIMIT // 10)
-    worst_case = club_fixtures + national_fixtures + results + live + calendars
+    worst_case = club_fixtures + national_fixtures + results + live + recovery + calendars
 
     assert club_fixtures == 72, "the club six must still cost exactly what they always have"
     assert worst_case + reserve <= LIVESCORE_DAILY_LIMIT, (
         f"the worst case is {worst_case} plus {reserve} held back for page loads, against a "
         f"{LIVESCORE_DAILY_LIMIT}/day plan: fixtures {club_fixtures}+{national_fixtures}, "
-        f"results {results}, live {live}, calendars {calendars}")
+        f"results {results}, live {live}, recovery {recovery}, calendars {calendars}")
+
+
+def _asks_over_the_retry_schedule(first_pass_after_kickoff: timedelta) -> List[timedelta]:
+    """Every age at which one unsettled competition-day is asked about, against an archive that
+    answers empty for ever, at a 30-minute pass cadence. Uses the shipped `retry_due` and the
+    shipped stopping rule, on a stand-in row carrying only what they read."""
+    kickoff = datetime(2026, 9, 24, 16, 1, tzinfo=timezone.utc)
+    row = SimpleNamespace(match_date=kickoff.replace(tzinfo=None), match_metadata={})
+    asks: List[timedelta] = []
+    now = kickoff + first_pass_after_kickoff
+    while True:
+        if retry_due(row, now):
+            asks.append(now - kickoff)
+            row.match_metadata = {"recovery": {"last_attempt_at": now.isoformat()}}
+            age = now - kickoff
+            if age + retry_gap(age) > RETRY_HORIZON:
+                return asks
+        now += timedelta(seconds=settings.SYNC_RECOVERY_INTERVAL_SECONDS)
+
+
+def test_the_retry_schedule_fits_the_recovery_allowance_it_is_charged_to():
+    """
+    The retry schedule is a budget policy, so its cost is asserted where the budget is.
+
+    One competition-day whose result never arrives costs 39 requests over the fortnight the
+    schedule runs, 16 of them in its first day - against 672 for the same fortnight at a flat
+    half-hourly cadence. Once its day is behind the one-day results lookback it costs at most 4 a
+    day, so `SYNC_RECOVERY_MAX_REQUESTS_PER_DAY` covers ten such competition-days at once before
+    any has to wait. These are the figures config.py and `RETRY_SCHEDULE` quote.
+    """
+    asks = _asks_over_the_retry_schedule(UNSETTLED_GRACE + timedelta(minutes=1))
+    per_day: Dict[int, int] = {}
+    for age in asks:
+        per_day[age.days] = per_day.get(age.days, 0) + 1
+
+    assert len(asks) == 39
+    assert per_day[0] == 16
+    assert asks[-1] <= RETRY_HORIZON, "the last ask falls inside the horizon"
+    flat = int(RETRY_HORIZON / timedelta(seconds=settings.SYNC_RECOVERY_INTERVAL_SECONDS))
+    assert flat == 672
+    # Behind the lookback means at least a day old; from there no day costs more than 4.
+    behind = max(n for day, n in per_day.items() if day >= 1)
+    assert behind == 4
+    assert settings.SYNC_RECOVERY_MAX_REQUESTS_PER_DAY // behind >= 10
+    assert per_day == {0: 16, 1: 4, 2: 4, 3: 2, 4: 2, 5: 2, 6: 2,
+                       7: 1, 8: 1, 9: 1, 10: 1, 11: 1, 12: 1, 13: 1}
 
 
 def test_the_coverage_rotation_fits_inside_the_calendar_share_it_shares():

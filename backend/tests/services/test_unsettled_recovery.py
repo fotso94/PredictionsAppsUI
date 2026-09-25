@@ -1,26 +1,27 @@
 """
-What the stranded-fixture sweep is entitled to conclude from one pass, and what it is not.
+What the stranded-fixture sweep is entitled to conclude from one call, and what it is not.
 
-`match_metadata.recovery` ends up saying "no result after 3 attempts" about a fixture, and that
-sentence is a claim about EVIDENCE: somebody asked the provider, three times, and the provider had
-nothing. So a pass only counts when the question was actually put and actually answered. Three
-passes through an outage, or three served out of the cache, are three passes in which nobody
-learned anything about the fixture, and retiring it on those would put a false sentence on the row.
+`match_metadata.recovery` can end up saying "we asked N times ... and stopped", and that sentence
+is a claim about EVIDENCE: somebody asked the provider N times and it answered each time with no
+result. So an ask only counts when the question was actually put and actually answered. Passes
+through an outage, passes served out of the cache and passes that asked nothing are recorded apart
+and can never retire a fixture.
 
-Four outcomes per fixture per pass, and only one of them is evidence:
+Six outcomes per fixture per pass, and only one of them is evidence:
 
-* PROVIDER_ERROR   -- the chain failed or every provider was cooling down; the question was never
-                      put. Counted on the row (a sweep failing silently for a week is its own
-                      defect) but it may not retire anything.
-* CACHED           -- the day came out of the cache, fresh or stale. This pass did not ask, and
-                      the store does not say who filled it (readers share the key), so nothing
-                      here can be dated to a question the sweep put: no attempt is owed.
+* PROVIDER_ERROR   -- a request went out and no provider answered it. Counted on the row, never
+                      an attempt, never a reason to stop.
+* CACHED           -- the day came out of the cache; this pass did not ask. No attempt.
 * FRESH_UNANSWERED -- asked, answered, still no result. THE attempt.
-* RECOVERED        -- settled during the pass. Nothing left to retry; recorded with what settled
-                      it, and never retired.
+* RECOVERED        -- settled during the pass, recorded with what settled it.
+* DEFERRED         -- due, and no request was made: an allowance refused it before it left, or the
+                      provider was cooling down after a failure. No attempt; still due; not an
+                      outage, because nothing was unreachable.
+* NOT_ASKED        -- nothing was due for it. Nothing is written.
 
-The last file pins the boundary both ways: `STALE_SWEEP_MAX_ATTEMPTS` reached by fresh answers
-retires, and the same number of passes reached through a mixture including errors does not.
+When the sweep STOPS is the retry schedule's decision (`RETRY_SCHEDULE`), a budget policy: only
+straight after an answered ask, and only when the next ask would fall past the horizon. The last
+files pin that both ways, and that an outage past the horizon still retires nothing.
 
 Requires PostgreSQL (same pattern as tests/services/test_duplicate_fixtures.py). Set
 TEST_DATABASE_URL; skipped when unreachable.
@@ -46,8 +47,8 @@ from app.db.base import Base
 from app.models.predictions import Match, MatchStatus, Team
 from app.services.match_data_service import MatchDataService, SyncMeta
 from app.services.match_registry import (
-    STALE_SWEEP_MAX_AGE, STALE_SWEEP_MAX_ATTEMPTS, MatchRegistry, RecoveryOutcome,
-    classify_recovery_outcome, is_settled,
+    RETRY_HORIZON, MatchRegistry, RecoveryOutcome, classify_recovery_outcome, is_settled,
+    retry_due,
 )
 from app.services.providers.base import (
     STATUS_FINISHED, STATUS_LIVE, MatchDataProvider, ProviderCompetition, ProviderFixture,
@@ -110,7 +111,7 @@ def sweep_script():
 
 
 # ----------------------------------------------------------------------------- helpers
-def stranded(db, registry, *, days_ago: int = STRANDED_DAYS_AGO,
+def stranded(db, registry, *, days_ago: float = STRANDED_DAYS_AGO,
              status: MatchStatus = MatchStatus.LIVE) -> Match:
     """A fixture stuck past the lookback: kicked off, never settled, no refresh reaches it."""
     league = registry.ensure_canonical_league(KEY)
@@ -130,9 +131,17 @@ def stranded(db, registry, *, days_ago: int = STRANDED_DAYS_AGO,
 
 
 def error_meta(*errors: str) -> SyncMeta:
-    """What `_sync_results` leaves behind when the whole chain failed: it never set results_polled."""
-    return SyncMeta(source="database", results_polled=False,
+    """What `_sync_results` leaves behind when a request went out and nobody answered it: the
+    chain never set results_polled, and it recorded that a request had left."""
+    return SyncMeta(source="database", results_polled=False, request_failed=True,
                     errors=list(errors) or ["results: livescore unreachable"])
+
+
+def not_sent_meta(*errors: str) -> SyncMeta:
+    """What `_call_chain` leaves behind when no request left at all: every provider was cooling
+    down, or an allowance refused the request first. Errors, and `request_failed` still False."""
+    return SyncMeta(source="database", results_polled=False, request_failed=False,
+                    errors=list(errors))
 
 
 def silent_day_meta() -> SyncMeta:
@@ -181,37 +190,65 @@ def test_a_pass_where_every_provider_failed_costs_no_attempt(db, registry):
     assert "503" in state["last_outcome_detail"]
 
 
-def test_a_day_whose_providers_were_all_cooling_down_costs_no_attempt(db, registry):
-    """`_call_chain` skips a cooling provider and records it as an error; nobody was asked."""
+def test_a_day_whose_providers_were_all_cooling_down_is_deferred_not_an_outage(db, registry):
+    """`_call_chain` passed over a cooling provider without sending anything. Nobody was asked, so
+    nobody was unreachable either: the ask is DEFERRED, and a reader is never told the provider
+    could not be reached on the strength of a request that never left."""
     stuck = stranded(db, registry)
 
-    one_pass(registry, stuck, error_meta("livescore: skipped (recent failure: quota spent)"))
+    outcome = one_pass(registry, stuck,
+                       not_sent_meta("livescore: skipped (recent failure: upstream error (HTTP 503))"))
 
-    assert registry.recovery_state(stuck).get("attempts", 0) == 0
+    state = registry.recovery_state(stuck)
+    assert outcome is RecoveryOutcome.DEFERRED
+    assert state.get("attempts", 0) == 0 and not state.get("provider_errors")
+    assert state["deferrals"] == 1 and state["last_outcome"] == "deferred"
+    assert "no request was made" in state["last_outcome_detail"]
+    assert retry_due(stuck, NOW), "nothing was asked, so it stays due"
 
 
-def test_a_day_nobody_was_asked_about_at_all_costs_no_attempt(db, registry):
-    """No error either: `_sync_results` can return before it calls anything. Still no evidence."""
+def test_a_call_our_own_daily_ceiling_refused_is_deferred_not_an_outage(db, registry):
+    """Our own ceiling refused the request before it left. That is a budget decision: DEFERRED,
+    with the refusal's own words on the row, and never PROVIDER_ERROR."""
+    stuck = stranded(db, registry)
+    refusal = ("Daily request budget for livescore exhausted (1200/1200 used); refused by the daily "
+               "ceiling we configured, not by the provider")
+
+    outcome = one_pass(registry, stuck, not_sent_meta(refusal))
+
+    state = registry.recovery_state(stuck)
+    assert outcome is RecoveryOutcome.DEFERRED
+    assert not state.get("provider_errors") and state.get("attempts", 0) == 0
+    assert "refused by the daily ceiling we configured" in state["last_outcome_detail"]
+
+
+def test_a_day_nobody_was_asked_about_at_all_is_not_an_outage_and_writes_nothing(db, registry):
+    """No error either: no call was made at all. That is neither evidence nor a network failure.
+
+    Filing it as a provider error would make a pass that simply had nothing due read like an
+    outage, which is the confusion between "we did not ask" and "we could not reach anyone" that
+    the outcomes exist to prevent.
+    """
     stuck = stranded(db, registry)
 
     outcome = one_pass(registry, stuck, silent_day_meta())
 
-    assert outcome is RecoveryOutcome.PROVIDER_ERROR
-    assert registry.recovery_state(stuck).get("attempts", 0) == 0
-    assert "no results call was made" in registry.recovery_state(stuck)["last_outcome_detail"]
+    assert outcome is RecoveryOutcome.NOT_ASKED
+    assert registry.recovery_state(stuck) == {}, "nothing happened to the fixture, so nothing is written"
 
 
-def test_an_outage_lasting_longer_than_the_attempt_limit_retires_nobody(db, registry):
-    """A week of failures leaves the fixture exactly where it was: still asked about, still ours."""
+def test_an_outage_of_any_length_retires_nobody(db, registry):
+    """Many failed calls leave the fixture exactly where it was: still due, still ours."""
     stuck = stranded(db, registry)
 
-    for _ in range(STALE_SWEEP_MAX_ATTEMPTS + 2):
+    for _ in range(12):
         one_pass(registry, stuck, error_meta())
 
     state = registry.recovery_state(stuck)
     assert state.get("attempts", 0) == 0
     assert not state.get("gave_up_at")
-    assert state["provider_errors"] == STALE_SWEEP_MAX_ATTEMPTS + 2
+    assert state["provider_errors"] == 12
+    assert retry_due(stuck, NOW), "a failed call does not move the retry schedule"
     assert stuck.match_date.date() in registry.stale_unsettled_days(NOW, lookback_days=1)
 
 
@@ -248,7 +285,7 @@ def test_a_fresh_cache_hit_and_a_stale_one_are_told_apart_on_the_row(db, registr
 def test_a_cache_only_sweep_retires_nobody(db, registry):
     stuck = stranded(db, registry)
 
-    for _ in range(STALE_SWEEP_MAX_ATTEMPTS + 1):
+    for _ in range(12):
         one_pass(registry, stuck, cached_meta())
 
     assert not registry.recovery_state(stuck).get("gave_up_at")
@@ -267,16 +304,71 @@ def test_a_fresh_answer_that_omits_the_fixture_is_the_attempt(db, registry):
     assert state["last_outcome"] == "fresh_unanswered"
 
 
-def test_enough_fresh_answers_with_nothing_in_them_retire_the_fixture(db, registry):
-    """The one sentence the sweep may write: asked this many times, answered, still no result."""
+def test_the_first_attempt_is_dated_by_the_first_attempt_and_never_by_a_later_one(db, registry):
+    """`first_attempt_at` is the time of attempt 1, or absent - never the time of attempt 4.
+
+    A row that counted attempts before the field existed has no record of when the first was.
+    Stamping the next attempt's time on it would date the whole chase from its fourth ask, so
+    the field stays absent there: unknown, rather than a wrong time presented as a known one.
+    """
+    fresh = stranded(db, registry)
+    one_pass(registry, fresh, fresh_meta(), now=NOW)
+    one_pass(registry, fresh, fresh_meta(), now=NOW + timedelta(hours=6))
+    state = registry.recovery_state(fresh)
+    assert state["attempts"] == 2
+    assert state["first_attempt_at"] == NOW.isoformat(), "set by attempt 1 and kept by attempt 2"
+
+    legacy = stranded(db, registry)
+    legacy.match_metadata = dict(legacy.match_metadata, recovery={
+        "attempts": 3, "last_attempt_at": (NOW - timedelta(hours=20)).isoformat(),
+        "last_outcome": "fresh_unanswered"})
+    db.flush()
+    one_pass(registry, legacy, fresh_meta(), now=NOW)
+    state = registry.recovery_state(legacy)
+    assert state["attempts"] == 4
+    assert "first_attempt_at" not in state, "the fourth attempt's time is not the first attempt's"
+
+
+def test_fresh_answers_move_the_schedule_but_do_not_retire_a_recent_fixture(db, registry):
+    """Answered with nothing, several times: the fixture is asked about LATER, not given up on.
+
+    An empty answer says what the archive held at that moment. Two days after kickoff a result may
+    still appear, so the answer pushes the next ask out along the retry schedule and nothing more.
+    """
     stuck = stranded(db, registry)
 
-    for _ in range(STALE_SWEEP_MAX_ATTEMPTS):
+    for _ in range(3):
         one_pass(registry, stuck, fresh_meta())
 
     state = registry.recovery_state(stuck)
-    assert state["attempts"] == STALE_SWEEP_MAX_ATTEMPTS
-    assert f"no result after {STALE_SWEEP_MAX_ATTEMPTS} attempts" in state["gave_up_reason"]
+    assert state["attempts"] == 3
+    assert not state.get("gave_up_at"), "three empty answers two days in are not a reason to stop"
+    assert not retry_due(stuck, NOW), "just asked: the schedule waits before the next ask"
+    assert retry_due(stuck, NOW + timedelta(hours=6)), "two days old: one ask every six hours"
+    assert stuck.status == MatchStatus.LIVE, "nothing is invented about the match itself"
+
+
+def test_the_sweep_stops_only_where_the_schedule_runs_out_and_says_it_was_a_budget_decision(
+        db, registry):
+    """The one sentence the sweep may write when it stops: what it did, what came back, and why.
+
+    Past the last scheduled ask the fixture is given up on, straight after an answered ask. The
+    reason names the count and the last ask, and says in so many words that stopping is a limit on
+    spending and not evidence that the result does not exist.
+    """
+    stuck = stranded(db, registry, days_ago=RETRY_HORIZON.days - 0.5)
+
+    one_pass(registry, stuck, fresh_meta())
+
+    state = registry.recovery_state(stuck)
+    assert state["gave_up_at"] and state["stopped_by"] == "retry_budget"
+    reason = state["gave_up_reason"]
+    assert "asked the results provider 1 time" in reason
+    assert NOW.strftime("%Y-%m-%d %H:%M UTC") in reason, "when we last asked"
+    assert "request budget" in reason
+    assert "not evidence that no result exists" in reason
+    for claim in ("answers nothing", "live window", "no endpoint", "cannot exist", "never"):
+        assert claim not in reason, f"the reason may not claim {claim!r}"
     assert stuck.status == MatchStatus.LIVE, "nothing is invented about the match itself"
     assert registry.stale_unsettled_days(NOW, lookback_days=1) == []
 
@@ -340,67 +432,83 @@ def test_a_recovery_during_an_outage_is_still_a_recovery(db, registry):
     state = registry.recovery_state(stuck)
     assert outcome is RecoveryOutcome.RECOVERED
     assert state.get("attempts", 0) == 0
-    assert "without this sweep's results call" in state["recovered_by"]
+    assert "without this sweep's own call" in state["recovered_by"]
 
 
 # ------------------------------------------------------------------------- 5. the boundary
-def test_the_limit_is_reached_by_fresh_answers_and_by_nothing_else(db, registry):
+def test_only_an_answered_ask_can_end_the_schedule(db, registry):
     """
-    Same number of passes, opposite verdicts: the count is of evidence, not of passes.
+    Same age, same number of passes, opposite verdicts: stopping follows evidence, not passes.
 
-    `by_evidence` is asked three times and answered three times, so it is retired. `by_mixture`
-    is put through the same three passes, but two of them learned nothing -- one outage and one
-    cache hit -- so it has been answered once and stays in the sweep.
+    Both fixtures are past the last scheduled ask. `by_evidence` is answered once and is given up
+    on. `by_mixture` goes through an outage and a cache hit, neither of which is an answer, and is
+    still in the sweep - still owed the answered ask that alone may end it.
     """
-    by_evidence, by_mixture = stranded(db, registry), stranded(db, registry)
+    age = RETRY_HORIZON.days - 0.5
+    by_evidence, by_mixture = stranded(db, registry, days_ago=age), stranded(db, registry, days_ago=age)
 
-    for _ in range(STALE_SWEEP_MAX_ATTEMPTS):
-        one_pass(registry, by_evidence, fresh_meta())
-    for meta in (error_meta(), cached_meta(), fresh_meta()):
+    one_pass(registry, by_evidence, fresh_meta())
+    for meta in (error_meta(), cached_meta()):
         one_pass(registry, by_mixture, meta)
 
     retired, still_asked = registry.recovery_state(by_evidence), registry.recovery_state(by_mixture)
-    assert retired["attempts"] == STALE_SWEEP_MAX_ATTEMPTS and retired["gave_up_at"]
-    assert still_asked["attempts"] == 1, "one pass in three actually asked"
+    assert retired["attempts"] == 1 and retired["gave_up_at"]
+    assert still_asked.get("attempts", 0) == 0
     assert not still_asked.get("gave_up_at")
     assert still_asked["provider_errors"] == 1 and still_asked["cached_passes"] == 1
+    assert retry_due(by_mixture, NOW)
 
 
-def test_one_fresh_answer_short_of_the_limit_is_not_enough(db, registry):
-    stuck = stranded(db, registry)
-
-    for _ in range(STALE_SWEEP_MAX_ATTEMPTS - 1):
-        one_pass(registry, stuck, fresh_meta())
-
-    assert not registry.recovery_state(stuck).get("gave_up_at")
-    assert stuck.match_date.date() in registry.stale_unsettled_days(NOW, lookback_days=1)
-
-
-def test_a_fixture_past_the_horizon_is_given_up_even_when_nobody_could_be_asked(db, registry):
+def test_a_fixture_past_the_horizon_is_not_given_up_while_nobody_can_be_asked(db, registry):
     """
-    Age is a fact about the fixture and the provider's results window, not about this pass.
+    An outage can carry a fixture past the horizon; it may not retire it there.
 
-    The reason names the age and never claims an answer, so it stays true while the chain is down.
+    Stopping is a decision about spending on a question that keeps being answered with nothing.
+    A fixture whose last calls reached nobody has not been answered, so it stays in the sweep -
+    selected, due, and asked on the next pass the provider can be reached.
     """
-    old = stranded(db, registry, days_ago=STALE_SWEEP_MAX_AGE.days + 1)
-
+    old = stranded(db, registry, days_ago=RETRY_HORIZON.days + 1)
     one_pass(registry, old, error_meta())
 
     state = registry.recovery_state(old)
     assert state.get("attempts", 0) == 0
-    assert "results horizon" in state["gave_up_reason"]
-    assert "attempts" not in state["gave_up_reason"]
+    assert not state.get("gave_up_at")
+    assert [m.id for m in registry.recoverable_unsettled(NOW)] == [old.id], (
+        "the sweep has touched it, so it is still selected past the horizon")
+    assert retry_due(old, NOW)
+
+    one_pass(registry, old, fresh_meta())
+
+    state = registry.recovery_state(old)
+    assert state["gave_up_at"], "the first answered ask past the horizon ends it"
+    assert "1 other request went out and got no answer, and is not counted" in state["gave_up_reason"]
 
 
 # ------------------------------------------------- 6. the sweep end to end, with a stub provider
 class StubProvider(MatchDataProvider):
-    """A provider that answers exactly what a test tells it to, and counts what it was asked."""
+    """A provider that answers exactly what a test tells it to, and counts what it was asked.
+
+    BOTH endpoints obey `error`, because an outage is not endpoint-shaped: the sweep reopens
+    `matches/history.json` for the days behind the lookback AND polls `matches/live.json` once,
+    and a stub that failed only the first would have the sweep reach a live provider on the very
+    pass a test calls an outage. `results_calls` and `live_calls` are counted apart so a test can
+    say which question was put; `calls` is the results count the older tests read.
+    """
 
     name = "livescore"
     integration_status = "primary"
 
-    def __init__(self, results: Optional[List[ProviderFixture]] = None, error: Optional[Exception] = None):
-        self.results, self.error, self.calls = results or [], error, 0
+    def __init__(self, results: Optional[List[ProviderFixture]] = None, error: Optional[Exception] = None,
+                 live: Optional[List[ProviderFixture]] = None,
+                 results_error: Optional[Exception] = None):
+        self.results, self.error = results or [], error
+        #: A failure of `matches/history.json` alone, with the live feed answering. Outages are
+        #: not endpoint-shaped as a rule, but a 503 from one endpoint is the shape in which a
+        #: results request goes out and fails without the live poll's failure cooling the
+        #: provider down first.
+        self.results_error = results_error
+        self.live = list(live or [])
+        self.calls = self.live_calls = 0
 
     def is_configured(self) -> bool:
         return True
@@ -412,12 +520,15 @@ class StubProvider(MatchDataProvider):
         return []
 
     def get_live(self, keys):
-        return []
+        self.live_calls += 1
+        if self.error:
+            raise self.error
+        return list(self.live)
 
     def get_results(self, date_from: date, date_to: date, keys):
         self.calls += 1
-        if self.error:
-            raise self.error
+        if self.error or self.results_error:
+            raise self.error or self.results_error
         return list(self.results)
 
     def get_standings(self, key: str):
@@ -472,23 +583,28 @@ def build_service(db, provider: StubProvider) -> MatchDataService:
 
 
 def run_sweep(sweep_script, service: MatchDataService, stuck: Match):
-    """The script's own sweep, over the day the registry selects, with its report captured."""
+    """The script's own sweep, over the day the registry selects, with its printout captured."""
     days = service.registry.stale_unsettled_days(NOW, lookback_days=1, league_ids=service.league_ids())
     assert stuck.match_date.date() in days
     printed = io.StringIO()
     with redirect_stdout(printed):
-        by_outcome = sweep_script.sweep(service, days, [stuck], NOW)
-        sweep_script.report_outcomes(by_outcome, service.registry)
-    return by_outcome, printed.getvalue()
+        report = sweep_script.sweep(service, days, [stuck], NOW)
+        sweep_script.report_outcomes(report)
+    return report, printed.getvalue()
+
+
+def landed_in(report: dict, outcome: RecoveryOutcome) -> List[str]:
+    """The fixtures the pass filed under one outcome, as the report itself records them."""
+    return [row["match_id"] for row in report["fixtures"] if row["outcome"] == outcome.value]
 
 
 def reported_counts(sweep_script, report: str) -> dict:
     """
-    The four numbers off the report's own summary block, keyed by the label it printed them under.
+    The six numbers off the report's own summary block, keyed by the label it printed them under.
 
     Every bucket is printed on every pass, empty ones included, and always in enum order, so
     where a phrase lands in the text says nothing about what the pass concluded -- only the
-    number on its line does. Reading all four also asserts that all four lines are there.
+    number on its line does. Reading all six also asserts that all six lines are there.
     """
     counts = {}
     for outcome in RecoveryOutcome:
@@ -512,11 +628,12 @@ def test_the_sweep_recovers_a_real_answer_and_never_calls_it_an_attempt(db, regi
     provider = StubProvider([provider_fixture("ls-1", status=STATUS_FINISHED, kickoff=live_fixture_kickoff,
                                               home_score=2, away_score=1)])
 
-    by_outcome, printed = run_sweep(sweep_script, build_service(db, provider), stuck)
+    report, printed = run_sweep(sweep_script, build_service(db, provider), stuck)
 
     state = registry.recovery_state(stuck)
     assert provider.calls == 1, "one results request for the one day the registry selected"
-    assert [m.id for m, _ in by_outcome[RecoveryOutcome.RECOVERED]] == [stuck.id]
+    assert provider.live_calls == 1, "and one live poll, made because the fixture was due"
+    assert landed_in(report, RecoveryOutcome.RECOVERED) == [str(stuck.id)]
     assert stuck.status == MatchStatus.FINISHED
     assert state.get("attempts", 0) == 0
     assert state["recovered_as"] == f"{MatchStatus.FINISHED.value} 2-1", "the score the provider gave, read back off the row"
@@ -541,29 +658,63 @@ def test_a_fixture_the_provider_rescheduled_across_midnight_still_records_its_ou
     provider = StubProvider([provider_fixture("ls-6", status=STATUS_FINISHED, kickoff=moved,
                                               home_score=2, away_score=1)])
 
-    by_outcome, printed = run_sweep(sweep_script, build_service(db, provider), stuck)
+    report, printed = run_sweep(sweep_script, build_service(db, provider), stuck)
 
     assert stuck.match_date.date() == moved.date() != swept_day, "the provider moved it past midnight"
-    assert [m.id for m, _ in by_outcome[RecoveryOutcome.RECOVERED]] == [stuck.id]
+    assert landed_in(report, RecoveryOutcome.RECOVERED) == [str(stuck.id)]
     state = registry.recovery_state(stuck)
     assert state["recovered_as"] == f"{MatchStatus.FINISHED.value} 2-1"
     assert state.get("attempts", 0) == 0
     assert reported_counts(sweep_script, printed)["recovered"] == 1
 
 
-def test_the_sweep_does_not_count_an_attempt_when_the_provider_is_down(db, registry, sweep_script,
-                                                                       live_fixture_kickoff):
+def test_the_sweep_does_not_count_an_attempt_when_the_results_request_fails(
+        db, registry, sweep_script, live_fixture_kickoff):
+    """The results request about this fixture went out and got no answer: PROVIDER_ERROR, no
+    attempt, and the pass reports the failed request."""
     from app.services.providers.base import ProviderError
 
     stuck = registry.upsert_fixture(provider_fixture("ls-2", status=STATUS_LIVE, kickoff=live_fixture_kickoff))
     db.commit()
-    provider = StubProvider(error=ProviderError("livescore: 503 from results"))
+    provider = StubProvider(results_error=ProviderError("livescore: 503 from results"))
 
-    by_outcome, printed = run_sweep(sweep_script, build_service(db, provider), stuck)
+    report, printed = run_sweep(sweep_script, build_service(db, provider), stuck)
 
-    assert [m.id for m, _ in by_outcome[RecoveryOutcome.PROVIDER_ERROR]] == [stuck.id]
+    assert provider.calls == 1, "the results request went out"
+    assert landed_in(report, RecoveryOutcome.PROVIDER_ERROR) == [str(stuck.id)]
     assert registry.recovery_state(stuck).get("attempts", 0) == 0
     assert stuck.status == MatchStatus.LIVE
+    assert any(call.startswith("results") for call in report["failed_calls"])
+
+
+def test_a_whole_provider_outage_defers_the_fixture_and_reports_the_request_that_failed(
+        db, registry, sweep_script, live_fixture_kickoff):
+    """
+    The provider is down on every endpoint. The pass's live poll goes out first and fails, and the
+    cool-down it sets means the results request about this fixture never leaves.
+
+    Two facts, and each is written where it is true: the PASS made a request nobody answered, and
+    reports it as the outage it is; the FIXTURE was not asked about, so it is DEFERRED - not
+    "could not reach the provider", which would describe a request that was never made.
+    """
+    from app.services.providers.base import ProviderError
+
+    stuck = registry.upsert_fixture(provider_fixture("ls-7", status=STATUS_LIVE, kickoff=live_fixture_kickoff))
+    db.commit()
+    provider = StubProvider(error=ProviderError("livescore: 503"))
+
+    report, printed = run_sweep(sweep_script, build_service(db, provider), stuck)
+
+    assert provider.live_calls == 1 and provider.calls == 0, "the history request never left"
+    assert landed_in(report, RecoveryOutcome.DEFERRED) == [str(stuck.id)]
+    assert landed_in(report, RecoveryOutcome.PROVIDER_ERROR) == []
+    state = registry.recovery_state(stuck)
+    assert state["last_outcome"] == "deferred" and not state.get("provider_errors")
+    assert "cooling" in state["last_outcome_detail"] or "recent failure" in state["last_outcome_detail"]
+    assert report["failed_calls"] and report["failed_calls"][0].startswith("live:")
+    assert report["results_requests"] == 0, "nothing was sent to the archive, so nothing is charged"
+    assert "REQUESTS NOBODY ANSWERED" in printed
+    assert reported_counts(sweep_script, printed)["deferred"] == 1
 
 
 def test_the_sweep_counts_an_attempt_when_the_provider_answers_without_the_fixture(
@@ -578,9 +729,9 @@ def test_the_sweep_counts_an_attempt_when_the_provider_answers_without_the_fixtu
                              kickoff=live_fixture_kickoff + timedelta(hours=3),
                              home_score=0, away_score=0)
 
-    by_outcome, _ = run_sweep(sweep_script, build_service(db, StubProvider([other])), stuck)
+    report, _ = run_sweep(sweep_script, build_service(db, StubProvider([other])), stuck)
 
-    assert [m.id for m, _ in by_outcome[RecoveryOutcome.FRESH_UNANSWERED]] == [stuck.id]
+    assert landed_in(report, RecoveryOutcome.FRESH_UNANSWERED) == [str(stuck.id)]
     assert registry.recovery_state(stuck)["attempts"] == 1
     assert stuck.status == MatchStatus.LIVE
 
@@ -588,19 +739,35 @@ def test_the_sweep_counts_an_attempt_when_the_provider_answers_without_the_fixtu
 def test_the_report_tells_a_down_provider_from_a_provider_with_nothing_to_say(
         db, registry, sweep_script, live_fixture_kickoff):
     """
-    A reader budgeting a sweep has to separate them: one says wait for the provider to come back,
-    the other says these fixtures are not coming back. Both leave the fixture unsettled, so only
-    the report and the row say which happened.
+    A reader budgeting a sweep has to separate them: one says the provider could not be reached,
+    the other says it answered and had nothing for these fixtures yet. Both leave the fixture
+    unsettled, so only the report and the row say which happened.
 
     Both passes are read the same way: which bucket the fixture landed in, what its row now says,
-    and the four counts in the summary.
+    and the six counts in the summary.
     """
     from app.services.providers.base import ProviderError
 
     down = registry.upsert_fixture(provider_fixture("ls-4", status=STATUS_LIVE, kickoff=live_fixture_kickoff))
     db.commit()
     outage, outage_report = run_sweep(
-        sweep_script, build_service(db, StubProvider(error=ProviderError("503"))), down)
+        sweep_script, build_service(db, StubProvider(results_error=ProviderError("503"))), down)
+
+    # The outage: the request about it went out and nobody answered, so the fixture is in the
+    # error bucket and owes nothing. Read now, because the second sweep's call covers this
+    # fixture's day too.
+    assert landed_in(outage, RecoveryOutcome.PROVIDER_ERROR) == [str(down.id)]
+    assert landed_in(outage, RecoveryOutcome.FRESH_UNANSWERED) == []
+    outage_state = registry.recovery_state(down)
+    assert outage_state["last_outcome"] == RecoveryOutcome.PROVIDER_ERROR.value
+    assert outage_state.get("attempts", 0) == 0
+    assert outage_state["provider_errors"] == 1
+    assert reported_counts(sweep_script, outage_report) == {
+        "provider error": 1, "fresh, no result": 0, "cached": 0, "recovered": 0,
+        "deferred": 0, "not asked": 0}
+    assert "503" in outage_report, "the report names what failed, not merely that something did"
+    assert "REQUESTS NOBODY ANSWERED" in outage_report, "and says it was an outage"
+    assert outage["failed_calls"], "the pass itself reports the outage"
 
     # Its own clubs: two fixtures with the same clubs at the same kickoff are one fixture to the
     # registry, and this test needs two rows swept independently.
@@ -609,22 +776,14 @@ def test_the_report_tells_a_down_provider_from_a_provider_with_nothing_to_say(
     db.commit()
     silence, silence_report = run_sweep(sweep_script, build_service(db, StubProvider([])), silent)
 
-    # The outage: the question was never put, so the fixture is in the error bucket and owes nothing.
-    assert [m.id for m, _ in outage[RecoveryOutcome.PROVIDER_ERROR]] == [down.id]
-    assert outage[RecoveryOutcome.FRESH_UNANSWERED] == []
-    outage_state = registry.recovery_state(down)
-    assert outage_state["last_outcome"] == RecoveryOutcome.PROVIDER_ERROR.value
-    assert outage_state.get("attempts", 0) == 0
-    assert outage_state["provider_errors"] == 1
-    assert reported_counts(sweep_script, outage_report) == {
-        "provider error": 1, "fresh, no result": 0, "cached": 0, "recovered": 0}
-    assert "503" in outage_report, "the report names what failed, not merely that something did"
-
     # The silence: asked and answered with nothing, which is the one outcome that is evidence.
-    assert [m.id for m, _ in silence[RecoveryOutcome.FRESH_UNANSWERED]] == [silent.id]
-    assert silence[RecoveryOutcome.PROVIDER_ERROR] == []
+    assert landed_in(silence, RecoveryOutcome.FRESH_UNANSWERED) == [str(silent.id)]
+    assert landed_in(silence, RecoveryOutcome.PROVIDER_ERROR) == []
     silence_state = registry.recovery_state(silent)
     assert silence_state["last_outcome"] == RecoveryOutcome.FRESH_UNANSWERED.value
     assert silence_state["attempts"] == 1
+    assert silence_state["archive"]["state"] == "empty", "what the archive returned is on the row"
+    assert silence["failed_calls"] == [], "an empty answer is not an outage"
     assert reported_counts(sweep_script, silence_report) == {
-        "fresh, no result": 1, "provider error": 0, "cached": 0, "recovered": 0}
+        "fresh, no result": 1, "provider error": 0, "cached": 0, "recovered": 0,
+        "deferred": 0, "not asked": 0}

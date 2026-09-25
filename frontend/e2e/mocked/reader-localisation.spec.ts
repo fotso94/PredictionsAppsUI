@@ -98,6 +98,24 @@ const panelText = async (page: Page, testId: string): Promise<string> =>
   normalise(await page.locator(`[data-testid="${testId}"]`).first().innerText());
 
 /**
+ * One saved fixture that really is being played, for the dashboard's in-play sentence.
+ *
+ * Kicked off 40 minutes ago and reporting the 40th minute, so nothing about it is stale and the
+ * page can say so. It carries no `result_expected_by`, which is what every other fixture in this
+ * file carries too: with no deadline from the backend nothing here is measured against one.
+ */
+const inPlaySave = (): Record<string, unknown> => {
+  const match = baseMatches()[0];
+  match.status = 'live';
+  match.minute = '40';
+  match.kickoff_utc = new Date(Date.now() - 40 * 60_000).toISOString();
+  match.score = { home: 0, away: 1, ht_home: null, ht_away: null };
+  return {
+    match_id: match.id, note: null, saved_at: null, updated_at: null, match,
+  };
+};
+
+/**
  * Everything the stubs actually serve, as one searchable blob.
  *
  * WHY THIS EXISTS. The settlement rules, the market definitions, the missing-data sentences and
@@ -575,7 +593,14 @@ for (const count of COUNTS) {
  * to be inside its own `.num` element, which is only true if the lookup succeeded.
  *
  * `stubBackend` answers `/api/v1/me/favourites` from its catch-all with `{}`, which maps to zero
- * saves, so the counts are stubbed here on purpose.
+ * saves, so the payload is stubbed here on purpose.
+ *
+ * THE IN-PLAY COUNT NEEDS A FIXTURE THAT IS IN PLAY, and not merely a number in `counts`. The
+ * page counts the fixtures it was actually sent and can see are running, because the server's
+ * bucket is filled from a stored status — which a fixture keeps until its final score arrives —
+ * and "1 en direct" over a card with no running match on it is the one sentence a
+ * dashboard must never say (src/utils/resultDelay.ts). `counts.total` stays at 3: a server can
+ * hold more saves than it could serialise, and the saved sentence is about what it holds.
  */
 test('the dashboard’s saved and in-play counts are whole French sentences with the numeral picked out', async ({ page }) => {
   await seedPreferences(page, { language: 'fr', zone: DOUALA });
@@ -589,7 +614,7 @@ test('the dashboard’s saved and in-play counts are whole French sentences with
       unresolved: { teams: [], leagues: [] },
       limits: { teams: 10, leagues: 5 },
       saved_matches: {
-        upcoming: [], live: [], finished: [],
+        upcoming: [], live: [inPlaySave()], finished: [],
         counts: { upcoming: 2, live: 1, finished: 0, total: 3 },
       },
     }),

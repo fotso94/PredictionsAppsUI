@@ -216,9 +216,9 @@ class Settings(BaseSettings):
     # "last updated" is whatever the last visitor paid for. The scheduler makes that explicit.
     # One line in .env turns the whole thing off:  SYNC_SCHEDULER_ENABLED=false
     SYNC_SCHEDULER_ENABLED: bool = True
-    # Comma-separated subset of "fixtures,live,results,forecasts"; empty disables every task.
-    # One line in .env disables a single task, e.g. SYNC_SCHEDULER_TASKS=fixtures,results
-    SYNC_SCHEDULER_TASKS: str = "fixtures,live,results,forecasts,settle"
+    # Comma-separated subset of "fixtures,live,results,recover,forecasts,settle"; empty
+    # disables every task. One line in .env disables a single one.
+    SYNC_SCHEDULER_TASKS: str = "fixtures,live,results,recover,forecasts,settle"
     # How often the loop wakes up and asks each task whether it is due. Costs nothing by itself.
     SYNC_SCHEDULER_TICK_SECONDS: int = 60
     # Grace period after startup before the first tick. Development restarts the backend constantly;
@@ -251,13 +251,15 @@ class Settings(BaseSettings):
     #   national fixtures  24 a pass x 4 passes                            =  96
     #   results            8 a pass x 48 passes                            = 384
     #   live               capped below                                    = 420
+    #                      (the recovery pass's live poll spends out of this same ceiling)
+    #   recovery           SYNC_RECOVERY_MAX_REQUESTS_PER_DAY              =  40
     #   calendars          the existing CALENDAR_HEAD_DAILY_REQUEST_CEILING = 120
     #                      (the coverage rotation spends out of this same share, not beside it)
     #                                                                       -----
-    #                                                                       1,092
+    #                                                                       1,132
     #   + SYNC_SCHEDULER_BUDGET_RESERVE held back for page loads               50
     #                                                                       =====
-    #                                                                       1,142  of 1,200
+    #                                                                       1,182  of 1,200
     #
     # These are SIMULTANEOUS worst cases, which is deliberately pessimistic: the live ceiling is
     # only reached on a day whose live windows run for fourteen hours, and the results cap is only
@@ -290,13 +292,52 @@ class Settings(BaseSettings):
     # Below it the pass serves the club six and nothing else: coverage degrades to what this
     # installation has always had rather than the club competitions going unfetched.
     SYNC_NATIONAL_TEAM_BUDGET_FLOOR: int = 250
-    # Forecasts: ForecastService already enforces its own per-competition interval (24 h) and its own
-    # daily allowance, so this only controls how often it is offered the chance to rotate.
+    # ------------------------------------------------ getting back what an outage left stranded
+    # A match whose final score never arrived falls out of every refresh: the live poll stops
+    # considering it 150 minutes after kickoff (this application's polling window, not anything
+    # measured about a provider), and the results task only looks back SYNC_RESULTS_LOOKBACK_DAYS
+    # days. The recovery task goes and gets them unattended.
+    #
+    # WHAT IT ASKS, AND HOW OFTEN. Every competition is treated the same way. The archive has
+    # answered for national-team competitions (World Cup, AFCON, Copa America, Women's World Cup),
+    # and when asked on 2026-09-22 and 2026-09-25 it returned nothing dated 2026-09-18 or later for
+    # club and national competitions alike, for reasons not yet known
+    # (docs/evidence/livescore-archive-observations.json).
+    # So a result may appear days late, and each unsettled fixture is asked about on RETRY_SCHEDULE
+    # in match_registry.py: every pass for six hours, then every 2 h, 6 h, 12 h and 24 h as it ages,
+    # stopping at 14 days. That is 39 requests per competition-day over a fortnight against an
+    # archive that stays empty, and at most 4 a day once the day is behind the results lookback.
+    # Stopping is a budget decision and is written on the row as one. Nothing asks about a stopped
+    # match again on its own account; it is reopened only if a results request made later for
+    # another unsettled match in the same competition returns results dated on or after its date.
+    # A stop recorded by a rule since removed carries no `stopped_by`, and the recovery pass undoes
+    # it and puts the match back on this schedule.
+    #
+    # Half an hour is how long a reader can be shown "LIVE, HT" after connectivity comes back. It
+    # is a REPAIR rather than a refresh, so a pass that reaches no provider is reported as a
+    # failure but does not back off - a six-hour backoff taken during an outage is how a fixture
+    # stays wrong all night after the provider came back. See `_run_recovery`.
+    SYNC_RECOVERY_INTERVAL_SECONDS: int = 1800
+    # Results requests one recovery pass may make. One per competition holding a stranded fixture
+    # on a reopened day; the day's ceiling below is the real bound and this stops a single pass
+    # taking all of it. The pass's live poll is not counted here - it is charged to
+    # SYNC_LIVE_MAX_REQUESTS_PER_DAY above, so recovery adds nothing to the day's live worst case.
+    SYNC_RECOVERY_MAX_REQUESTS_PER_PASS: int = 4
+    # Results requests the recovery task may spend in a UTC day, and the figure the plan above
+    # adds up. 48 passes could otherwise spend 192. Every request that goes out is charged to it,
+    # answered or not: a request that failed was still sent and still costs the provider's plan. Under the retry schedule a competition-day
+    # behind the results lookback costs at most 4 a day, so 40 covers ten of them at once; a
+    # competition-day the allowance cannot reach is deferred and stays due for a later pass. It
+    # resets at UTC midnight with the provider's own allowance.
+    SYNC_RECOVERY_MAX_REQUESTS_PER_DAY: int = 40
+
     #: Scoring reads stored data only, so it costs nothing and can run often. Ten minutes means a
     #: match that finished is scored within ten minutes of its result being ingested.
     SYNC_SETTLE_INTERVAL_SECONDS: int = 600
     #: How far back to look for matches that finished but were never scored (a restart, an outage).
     SYNC_SETTLE_LOOKBACK_DAYS: int = 3
+    # Forecasts: ForecastService already enforces its own per-competition interval (24 h) and its own
+    # daily allowance, so this only controls how often it is offered the chance to rotate.
     SYNC_FORECASTS_INTERVAL_SECONDS: int = 6 * 3600
 
     # Cache TTLs (seconds) for provider data

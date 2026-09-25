@@ -1300,6 +1300,25 @@ const COUNT_CASES: CountCase[] = [
       '11 jours d’historique',
     ],
   },
+  {
+    /*
+     * How often the provider answered without a result, on a fixture the backend has stopped
+     * asking about.
+     *
+     * Zero never reaches the page — the notice is only rendered when `attempts` is above it, and
+     * a fixture retired with nothing answered would be a claim about a chase that never
+     * happened — but it is rendered here anyway, because the only way to know a French plural is
+     * right at one is to see what it does at zero, where French and English disagree.
+     */
+    key: 'fixture.result.attempts',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      'Le fournisseur a répondu une fois sans résultat pour ce match.',
+      'Le fournisseur a répondu une fois sans résultat pour ce match.',
+      'Le fournisseur a répondu 2 fois sans résultat pour ce match.',
+      'Le fournisseur a répondu 11 fois sans résultat pour ce match.',
+    ],
+  },
 ];
 
 /**

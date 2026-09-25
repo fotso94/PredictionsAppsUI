@@ -64,6 +64,12 @@ export default defineConfig({
        * would mix "the header is fixed" with an unknown number of unrelated failures in files
        * owned by other people. Run the mocked suite at 360 first, then widen it.
        *
+       * overdue-results.spec.ts joins it because the words it puts on a row are the longest any
+       * fixture row carries — a whole sentence about a result that never arrived, in the column
+       * that used to hold a five-character kickoff time, and in French as well — and 360 is the
+       * width where that either wraps cleanly or pushes the club names out of the row. The same
+       * file also holds the live scores this must not suppress, so it is run at all three widths.
+       *
        * national-teams.spec.ts joins it because 360 is where its subject matter breaks: a
        * competition called "World Cup CONCACAF Qualifiers" and a country called "Sao Tome And
        * Principe" are four and three times the width of "Arsenal", and the club/national control
@@ -73,7 +79,7 @@ export default defineConfig({
        * rest of the suite is still unmeasured here.
        */
       name: 'mocked-mobile-360',
-      testMatch: /mocked\/(navigation-continuity|national-teams)\.spec\.ts/,
+      testMatch: /mocked\/(navigation-continuity|national-teams|overdue-results)\.spec\.ts/,
       use: { ...devices['Galaxy S8'] },
     },
     {

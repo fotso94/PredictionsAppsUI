@@ -54,6 +54,7 @@ const SYNC_TASK_KEY: Record<string, MessageKey> = {
   fixtures: 'sync.task.fixtures',
   live: 'sync.task.live',
   results: 'sync.task.results',
+  recover: 'sync.task.recover',
   forecasts: 'sync.task.forecasts',
 };
 
@@ -64,7 +65,7 @@ export function syncTaskLabel(name: string): string {
 }
 
 /** The order the tasks read best in: what is on, then what is happening, then how it ended. */
-const TASK_ORDER = ['fixtures', 'live', 'results', 'forecasts'];
+const TASK_ORDER = ['fixtures', 'live', 'results', 'recover', 'forecasts'];
 
 /**
  * Which tasks belong to the forecast clock.

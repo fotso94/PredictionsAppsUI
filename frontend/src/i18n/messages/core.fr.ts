@@ -239,7 +239,7 @@ const core: Area<'core'> = {
   'matchday.nationalTeamDay': '{count, plural, =0 {Aucun match n’est enregistré à cette date} one {Le seul match enregistré à cette date est un match de sélections nationales} other {Les # matchs enregistrés à cette date sont tous des matchs de sélections nationales}}. Aucun match de club n’est enregistré à cette date.',
 
   // ─── de quelle sélection il s’agit ───────────────────────────────────────────────────────
-  // Une clé entière par type d’équipe, et non un radical suivi d’un qualificatif : l’article
+  // Une clé entière par type d’équipe, et non un radical suivi d’un qualificatif : l’article
   // et l’adjectif s’accordent avec un nom qui change d’une clé à l’autre.
   'squad.nationalSeniorMen': 'Sélection nationale',
   'squad.nationalSeniorWomen': 'Sélection nationale féminine',
@@ -325,6 +325,33 @@ const core: Area<'core'> = {
   'fixture.noMatchResult': 'Cette source n’a rien publié pour le résultat du match.',
   'fixture.alsoPublished': '{source, select, model {Le modèle} other {L’expert}} a aussi publié',
   'fixture.groupCount': ' {count, plural, one {match} other {matchs}}',
+
+  'fixture.result.overdue': 'Résultat en retard',
+  'fixture.result.givenUp': 'Non résolu',
+  'fixture.result.overdueShort': 'Un résultat était attendu {due}\u00a0; aucun ne nous est parvenu.',
+  'fixture.result.unreachableShort': 'Un résultat était attendu {due}\u00a0; notre dernière vérification n’a pas pu joindre le fournisseur.',
+  // « Reportée » et « notre propre quota » : aucune requête n’est partie, rien n’a échoué, et la
+  // phrase ne dit ni « n’a pas pu » ni « joindre ». Voir core.en.ts.
+  'fixture.result.heldBackShort': 'Un résultat était attendu {due}\u00a0; notre dernière vérification a été reportée pour respecter notre propre quota de requêtes.',
+  // Seul `heldBackShort` parle de « notre » quota. Les autres nomment la cause reçue du backend.
+  'fixture.result.heldBackProviderShort': 'Un résultat était attendu {due}\u00a0; notre dernière vérification n’a pas été envoyée, le fournisseur ayant signalé sa limite de requêtes atteinte.',
+  'fixture.result.heldBackCoolingShort': 'Un résultat était attendu {due}\u00a0; notre dernière vérification a été différée après l’échec d’une tentative précédente.',
+  'fixture.result.heldBackOtherShort': 'Un résultat était attendu {due}\u00a0; notre dernière vérification n’a pas été envoyée au fournisseur.',
+  'fixture.result.givenUpShort': 'Aucun résultat n’est arrivé\u00a0; nous avons cessé de demander {when}.',
+  'fixture.result.overdueDetail': 'Un résultat était attendu {due} et aucun ne nous est parvenu. Ce match n’est pas présenté comme en cours et aucun score n’est avancé.',
+  'fixture.result.givenUpDetail': 'Aucun résultat ne nous est jamais parvenu et nous avons cessé de demander {when}. Aucun score n’est avancé pour ce match.',
+  'fixture.result.stillAsking': 'Nous continuons à demander ce résultat.',
+  'fixture.result.lastCheckUnreachable': 'Notre dernière vérification, {when}, n’a pas pu joindre le fournisseur.',
+  'fixture.result.lastCheckEmpty': 'Le fournisseur a répondu pour la dernière fois {when}, sans résultat pour ce match.',
+  'fixture.result.lastCheckHeldBack': 'Notre dernière vérification, {when}, a été reportée pour respecter notre propre quota de requêtes\u00a0; le fournisseur n’a pas été interrogé.',
+  'fixture.result.lastCheckHeldBackProvider': 'Notre dernière vérification, {when}, n’a pas été envoyée\u00a0: le fournisseur avait signalé que sa limite de requêtes pour nous était atteinte.',
+  'fixture.result.lastCheckHeldBackCooling': 'Notre dernière vérification, {when}, n’a pas été envoyée\u00a0: nous marquions une pause après l’échec d’une requête précédente au fournisseur.',
+  'fixture.result.lastCheckHeldBackOther': 'Notre dernière vérification, {when}, n’a pas été envoyée au fournisseur.',
+  'fixture.result.lastCheckStoredCopy': 'Notre dernière vérification, {when}, a lu des résultats que nous avions déjà enregistrés au lieu d’interroger le fournisseur\u00a0; ils ne contenaient aucun résultat pour ce match.',
+  'fixture.result.attempts': '{count, plural, one {Le fournisseur a répondu une fois sans résultat pour ce match.} other {Le fournisseur a répondu # fois sans résultat pour ce match.}}',
+  'fixture.result.givenUpPolicy': 'Nous cessons de demander une fois qu’un match a eu toutes les vérifications que notre propre quota de requêtes lui accorde. Cette limite est la nôtre\u00a0; elle ne signifie pas qu’aucun résultat n’existe.',
+  'fixture.result.givenUpOtherPolicy': 'Cet arrêt vient de nos propres règles de demande, pas du fournisseur\u00a0; il ne signifie pas qu’aucun résultat n’existe.',
+  'fixture.result.title': '{fixture}\u00a0: {state}. Un r\u00e9sultat \u00e9tait attendu {due}.',
 
   // ─── qui l’a dit ────────────────────────────────────────────────────────────────────────
   'source.model': 'Modèle',
@@ -426,6 +453,7 @@ const core: Area<'core'> = {
   'sync.task.fixtures': 'Matchs et heures de coup d’envoi',
   'sync.task.live': 'Scores en direct',
   'sync.task.results': 'Résultats finaux',
+  'sync.task.recover': 'Résultats en retard',
   'sync.task.forecasts': 'Prévisions du modèle',
 
   'freshness.stored': 'Données stockées',

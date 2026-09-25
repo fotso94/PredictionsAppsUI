@@ -16,12 +16,16 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.predictions import League, Match, MatchStatus
 from app.services.match_cache import MatchCache
-from app.services.match_registry import MatchRegistry
+from app.services.match_registry import (
+    STALE_SWEEP_MAX_DAYS, UNSETTLED_GRACE, MatchRegistry, RecoveryOutcome,
+    classify_recovery_outcome, due_once_stop_is_undone, is_settled, next_ask_after,
+    recovery_state_of, retry_due,
+)
 from app.services.providers import competitions as comps
 from app.services.providers.base import (
     MatchDataProvider, ProviderError, ProviderFixture, ProviderNotConfiguredError,
-    ProviderQuotaError, ProviderAuthError, ProviderStanding, ProviderUnavailableError,
-    parse_utc,
+    ProviderQuotaError, ProviderAuthError, ProviderRequestNotSent, ProviderStanding,
+    ProviderUnavailableError, parse_utc,
 )
 from app.services.providers.registry import data_provider_chain
 
@@ -262,6 +266,26 @@ class SyncMeta:
     #: before this pass rather than during it, so a sighting can be timed by when the fixture was
     #: really offered instead of by when it was read back out.
     forward_fetched_at: Optional[str] = None
+    #: Outbound requests the calls this meta covers were CHARGED for, answered or not. Read off
+    #: each provider's own budget (`RequestBudget.granted`) before and after the call, so a
+    #: request that went out and then failed counts exactly like one that was answered, a burst
+    #: retry or an extra page counts as the extra request it was, and a call the budget refused
+    #: before sending counts nothing. A provider with no budget to read is charged `cost_hint`
+    #: when the call reached it. See `MatchDataService._call_chain`.
+    requests: int = 0
+    #: At least one provider was actually ASKED and did not answer: a request went out and came
+    #: back as a network failure, an HTTP error or a refusal from the provider itself. False when
+    #: every provider was passed over without a request leaving - cooling down after an earlier
+    #: failure, or refused by an allowance first - which is a skipped call, not an unreachable
+    #: provider. Only meaningful for a call that failed; on a call that was answered it may still
+    #: be True from a provider tried earlier in the chain.
+    request_failed: bool = False
+    #: Why each provider passed over WITHOUT a request was passed over, one entry per provider:
+    #: "cooling_down" (an earlier failure put it in cool-down), "our_allowance" (a ceiling this
+    #: installation configured, or a caller's `skip`), "provider_allowance" (the provider's own
+    #: reported window said it was spent) or "not_configured". A deferral is recorded with these,
+    #: so whoever words it for a reader can say whose limit it was, or that nobody's was.
+    not_sent: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {"provider": self.provider, "source": self.source, "stale": self.stale, "fetched_at": self.fetched_at,
@@ -271,7 +295,19 @@ class SyncMeta:
                 "forward_fixtures_seen": self.forward_fixtures_seen,
                 "forward_fixtures_stored": self.forward_fixtures_stored,
                 "forward_source": self.forward_source,
-                "forward_fetched_at": self.forward_fetched_at}
+                "forward_fetched_at": self.forward_fetched_at,
+                "requests": self.requests, "request_failed": self.request_failed,
+                "not_sent": list(self.not_sent)}
+
+
+#: The score periods a fixture carries besides the running score and half time. They travel
+#: through the cache with everything else: every provider answer is stored by `_call_chain` as
+#: these dicts and read back from them, so a field left out here never reaches the database at all.
+#: Leaving these out once meant that a knockout tie ingested through the results or live path lost
+#: its 90-minute score, and a shoot-out with an "AP" marker and no regulation score is one that
+#: settlement must withhold.
+_PERIOD_FIELDS = ("ft_home_score", "ft_away_score", "et_home_score", "et_away_score",
+                  "ps_home_score", "ps_away_score")
 
 
 def _fixture_to_dict(f: ProviderFixture) -> Dict[str, Any]:
@@ -285,6 +321,9 @@ def _fixture_to_dict(f: ProviderFixture) -> Dict[str, Any]:
         "kickoff_utc": f.kickoff_utc.isoformat(), "status": f.status, "minute": f.minute,
         "home_score": f.home_score, "away_score": f.away_score, "ht_home_score": f.ht_home_score, "ht_away_score": f.ht_away_score,
         "venue": f.venue, "round": f.round,
+        **{name: getattr(f, name) for name in _PERIOD_FIELDS},
+        "periods_reported": bool(f.periods_reported),
+        "kickoff_supplied": bool(f.kickoff_supplied),
     }
 
 
@@ -301,6 +340,11 @@ def _fixture_from_dict(d: Dict[str, Any]) -> ProviderFixture:
         kickoff_utc=parse_utc(d["kickoff_utc"]), status=d["status"], minute=d.get("minute"),
         home_score=d.get("home_score"), away_score=d.get("away_score"), ht_home_score=d.get("ht_home_score"), ht_away_score=d.get("ht_away_score"),
         venue=d.get("venue"), round=d.get("round"),
+        # A copy cached before these were carried simply has none, which reads as "not supplied".
+        periods_reported=bool(d.get("periods_reported")),
+        **{name: d.get(name) for name in _PERIOD_FIELDS},
+        # A copy cached before this was carried was written by code that trusted every kickoff.
+        kickoff_supplied=bool(d.get("kickoff_supplied", True)),
     )
 
 
@@ -338,6 +382,50 @@ def live_poll_within_daily_ceiling(cache, now: datetime) -> bool:
     return not cap or live_polls_today(cache, now) < cap
 
 
+#: One UTC day's count of RESULTS requests made by the recovery pass, and the ceiling over it.
+#:
+#: The recovery pass is the only thing that spends out of this, and it is counted separately from
+#: the results task for one reason: the results task's cost is bounded per PASS, which is a bound
+#: on the day only because its interval is fixed. The recovery pass reopens days behind that task's
+#: lookback, and how many of those exist depends on how long an outage lasted rather than on any
+#: interval, so the honest bound on it is a bound on the day. `SYNC_RECOVERY_MAX_REQUESTS_PER_DAY`
+#: is the figure the plan in config.py adds up.
+#:
+#: The pass's LIVE poll is deliberately not counted here. It is charged to `LIVE_POLL_COUNT_KEY`
+#: and refused by `SYNC_LIVE_MAX_REQUESTS_PER_DAY` exactly like the live task's own polls, so the
+#: day's worst case for live requests is the one ceiling it always was rather than two added
+#: together.
+RECOVERY_REQUEST_COUNT_KEY = "matchdata:recovery-requests:{day}"
+
+
+def recovery_requests_today(cache, now: datetime) -> int:
+    record = cache.get(RECOVERY_REQUEST_COUNT_KEY.format(day=now.strftime("%Y%m%d")))
+    return int(record.get("count") or 0) if isinstance(record, dict) else 0
+
+
+def note_recovery_requests(cache, now: datetime, count: int) -> None:
+    if count <= 0:
+        return
+    key = RECOVERY_REQUEST_COUNT_KEY.format(day=now.strftime("%Y%m%d"))
+    midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    ttl = int((midnight - now).total_seconds()) + 3600
+    cache.set(key, {"count": recovery_requests_today(cache, now) + int(count)}, ttl=ttl, stale_ttl=ttl)
+
+
+def recovery_requests_left_today(cache, now: datetime) -> Optional[int]:
+    """How many more results requests the recovery pass may spend today; None means no ceiling.
+
+    Zero as a SETTING means no ceiling, the way it does for every other request cap here. Zero as
+    a RETURN VALUE means the ceiling is reached, which is why the two are different types: a
+    caller that read them as one number would treat a disabled ceiling as a spent one and stop
+    recovering anything at all.
+    """
+    cap = max(int(settings.SYNC_RECOVERY_MAX_REQUESTS_PER_DAY), 0)
+    if not cap:
+        return None
+    return max(cap - recovery_requests_today(cache, now), 0)
+
+
 class MatchDataService:
     def __init__(self, db: Session, providers: Optional[List[MatchDataProvider]] = None, cache: Optional[MatchCache] = None,
                  now: Optional[datetime] = None, keys: Optional[List[str]] = None):
@@ -353,6 +441,11 @@ class MatchDataService:
         self.club_keys = [k for k in self.keys if not is_national_team_competition(k)]
         self.national_keys = [k for k in self.keys if is_national_team_competition(k)]
         self._league_keys: Optional[Dict[Any, str]] = None
+        #: What the results calls made through this instance recorded, per fixture and per
+        #: competition-day. The recovery pass reads them back to report one outcome per fixture.
+        self._outcomes: Dict[Any, Tuple[RecoveryOutcome, str]] = {}
+        self._written: set = set()
+        self._archive_seen: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
     # ------------------------------------------------------------------ helpers
     @property
@@ -382,6 +475,18 @@ class MatchDataService:
         payload = self.cache.get(COOLDOWN_KEY.format(name=name))
         return payload.get("reason") if isinstance(payload, dict) else None
 
+    def _cooldown_cause(self, name: str) -> str:
+        """Why a provider is cooling down, as a `SyncMeta.not_sent` kind.
+
+        A cool-down set because an allowance refused a request before it left is that allowance
+        still being spent, and a call skipped under it is skipped for the same reason. Only a
+        cool-down set after a request went out and failed is "cooling_down". A record written
+        before the cause was kept reads as the latter, which is what every such record was.
+        """
+        payload = self.cache.get(COOLDOWN_KEY.format(name=name))
+        cause = payload.get("cause") if isinstance(payload, dict) else None
+        return cause if cause in ("our_allowance", "provider_allowance") else "cooling_down"
+
     def clear_cooldowns(self) -> None:
         """Forget recent failures (used by the admin sync after credentials were fixed).
 
@@ -404,10 +509,19 @@ class MatchDataService:
             self.cache.delete(COOLDOWN_KEY.format(name=p.name))
         self.cache.delete(CALENDAR_HEAD_BACKOFF_KEY)
 
-    def _set_cooldown(self, name: str, reason: str, seconds: int) -> None:
-        self.cache.set(COOLDOWN_KEY.format(name=name), {"reason": reason, "until_seconds": seconds}, ttl=seconds, stale_ttl=seconds)
+    def _set_cooldown(self, name: str, reason: str, seconds: int, cause: str = "failure") -> None:
+        self.cache.set(COOLDOWN_KEY.format(name=name),
+                       {"reason": reason, "until_seconds": seconds, "cause": cause},
+                       ttl=seconds, stale_ttl=seconds)
 
-    def _call_chain(self, cache_key: str, ttl: int, meta: SyncMeta, fn, skip=None):
+    @staticmethod
+    def _granted(provider) -> Optional[int]:
+        """Requests this provider's budget has let out so far, or None when it keeps no count."""
+        granted = getattr(getattr(provider, "budget", None), "granted", None)
+        return granted if isinstance(granted, int) and not isinstance(granted, bool) else None
+
+    def _call_chain(self, cache_key: str, ttl: int, meta: SyncMeta, fn, skip=None,
+                    cost_hint: int = 1):
         """Run `fn(provider)` on the first working provider, with fresh/stale cache around it.
 
         `skip(provider)` lets a caller refuse to spend at one provider without refusing the whole
@@ -419,6 +533,15 @@ class MatchDataService:
         whoever happens to be first is how a per-provider limit stops binding on anybody.
 
         It is not consulted at all when the cache answers, because then nothing is spent.
+
+        WHAT WAS SPENT, AND WHETHER ANYONE WAS ASKED, are written on `meta` for every provider
+        tried, answered or not (`SyncMeta.requests`, `SyncMeta.request_failed`). Four ways past a
+        provider send nothing: its cool-down, the caller's `skip`, an allowance that refuses the
+        request before it leaves (`ProviderRequestNotSent`, raised by `RequestBudget`), and a
+        provider that is not configured. None of those is a provider that did not answer. Every
+        other `ProviderError` from `fn` is a request that went out and got no usable answer.
+        `cost_hint` is what one call costs at a provider that keeps no budget to read - one per
+        competition for a results call - and is charged only when the call reached it.
         """
         cached = self.cache.get(cache_key)
         if cached is not None:
@@ -428,30 +551,59 @@ class MatchDataService:
         for provider in self.providers:
             cooling = self._cooldown(provider.name)
             if cooling:
-                meta.errors.append(f"{provider.name}: skipped (recent failure: {cooling})")
+                cause = self._cooldown_cause(provider.name)
+                why = "recent failure" if cause == "cooling_down" else "allowance spent"
+                meta.errors.append(f"{provider.name}: skipped ({why}: {cooling})")
+                meta.not_sent.append(cause)
                 last_error = last_error or ProviderUnavailableError(cooling, provider=provider.name)
                 continue
             unaffordable = skip(provider) if skip is not None else None
             if unaffordable:
                 meta.errors.append(unaffordable)
-                last_error = last_error or ProviderQuotaError(unaffordable, provider=provider.name)
+                meta.not_sent.append("our_allowance")
+                last_error = last_error or ProviderRequestNotSent(unaffordable, provider=provider.name)
                 continue
+            before = self._granted(provider)
+            reached = True
             try:
                 data = fn(provider)
             except ProviderNotConfiguredError as exc:
+                reached = False
+                meta.not_sent.append("not_configured")
                 meta.errors.append(str(exc)); last_error = exc; continue
+            except ProviderRequestNotSent as exc:
+                # Refused before it left: our own ceiling, the provider's reported window, or no
+                # store to meter against. Nothing was asked, so nothing was unreachable. The
+                # cool-down until midnight is kept: that is when the day's allowance comes back.
+                reached = False
+                cause = ("provider_allowance" if getattr(exc, "refused_by", "ours") == "provider"
+                         else "our_allowance")
+                meta.not_sent.append(cause)
+                logger.warning("%s: %s", provider.name, exc)
+                meta.errors.append(str(exc)); self._record_status(provider.name, False, str(exc)); last_error = exc
+                self._set_cooldown(provider.name, str(exc), _seconds_until_utc_midnight(self.now),
+                                   cause=cause); continue
             except ProviderQuotaError as exc:
+                meta.request_failed = True
                 logger.warning("%s: %s", provider.name, exc)
                 meta.errors.append(str(exc)); self._record_status(provider.name, False, str(exc)); last_error = exc
                 self._set_cooldown(provider.name, str(exc), _seconds_until_utc_midnight(self.now)); continue
             except ProviderAuthError as exc:
+                meta.request_failed = True
                 logger.warning("%s: %s", provider.name, exc)
                 meta.errors.append(str(exc)); self._record_status(provider.name, False, str(exc)); last_error = exc
                 self._set_cooldown(provider.name, str(exc), AUTH_COOLDOWN_SECONDS); continue
             except ProviderError as exc:
+                meta.request_failed = True
                 logger.warning("%s: %s", provider.name, exc)
                 meta.errors.append(str(exc)); self._record_status(provider.name, False, str(exc)); last_error = exc
                 self._set_cooldown(provider.name, str(exc), UNAVAILABLE_COOLDOWN_SECONDS); continue
+            finally:
+                after = self._granted(provider)
+                if before is not None and after is not None:
+                    meta.requests += max(after - before, 0)
+                elif reached:
+                    meta.requests += max(int(cost_hint), 0)
             self._record_status(provider.name, True)
             meta.source, meta.provider, meta.fetched_at = "provider", provider.name, self.now.isoformat()
             self.cache.set(cache_key, {"provider": provider.name, "fetched_at": meta.fetched_at, "data": data}, ttl=ttl)
@@ -597,6 +749,36 @@ class MatchDataService:
             self._league_keys = mapping
         return self._league_keys
 
+    def _pending_groups(self, day: date) -> Dict[str, List[Match]]:
+        """Covered competition -> its matches on `day` that kicked off and are still unsettled.
+
+        A match whose league row carries no canonical key cannot name a competition. Those rows
+        predate the canonical registry, and everything that predates it is one of the club six -
+        national-team coverage is newer than the registry by construction - so an unattributable
+        match is put into every CLUB competition's group rather than the whole covered set. That
+        keeps such a match settling without letting one unidentifiable row re-expand a pass to all
+        35 competitions.
+
+        The cutoff is `UNSETTLED_GRACE`, the same 150 minutes the recovery pass calls a match
+        overdue by, so the two cannot drift apart.
+        """
+        cutoff = (self.now - UNSETTLED_GRACE).replace(tzinfo=None)
+        by_league = self._league_key_map()
+        groups: Dict[str, List[Match]] = {}
+        unattributed: List[Match] = []
+        for m in self.registry.matches_for_day(day, self.league_ids()):
+            if m.status not in (MatchStatus.SCHEDULED, MatchStatus.LIVE) or m.match_date > cutoff:
+                continue
+            key = by_league.get(getattr(m, "league_id", None))
+            if key is None:
+                unattributed.append(m)
+            else:
+                groups.setdefault(key, []).append(m)
+        if unattributed:
+            for key in self.club_keys:
+                groups.setdefault(key, []).extend(unattributed)
+        return groups
+
     def pending_result_keys(self, day: date) -> List[str]:
         """Covered competitions holding a match on `day` that kicked off and is still unsettled.
 
@@ -604,71 +786,226 @@ class MatchDataService:
         runs every half hour, so asking for every covered competition on every day that holds ANY
         unsettled match costs 35 x 2 x 48 = 3,360 requests a day against a 1,200/day plan. What a
         day actually needs is the competitions the unsettled matches are IN, which the stored rows
-        already say, and that costs nothing to work out.
-
-        A match whose league row carries no canonical key cannot name a competition. Those rows
-        predate the canonical registry, and everything that predates it is one of the club six -
-        national-team coverage is newer than the registry by construction - so an unattributable
-        match puts the CLUB set into the day rather than the whole covered set. That keeps such a
-        match settling, exactly as it does today, without letting one unidentifiable row re-expand
-        the pass to all 35.
-
-        The 150-minute cutoff and the two statuses are unchanged: a match is worth asking about
-        once it has had time to finish and is still not recorded as finished.
+        already say, and that costs nothing to work out. See `_pending_groups` for the rows.
         """
-        cutoff = (self.now - timedelta(minutes=150)).replace(tzinfo=None)
-        by_league = self._league_key_map()
-        pending: set = set()
-        unattributed = False
-        for m in self.registry.matches_for_day(day, self.league_ids()):
-            if m.status not in (MatchStatus.SCHEDULED, MatchStatus.LIVE) or m.match_date > cutoff:
-                continue
-            key = by_league.get(getattr(m, "league_id", None))
-            if key is None:
-                unattributed = True
-            else:
-                pending.add(key)
-        if unattributed:
-            pending.update(self.club_keys)
-        return [k for k in self.keys if k in pending]
+        groups = self._pending_groups(day)
+        return [k for k in self.keys if k in groups]
+
+    def due_result_keys(self, day: date,
+                        groups: Optional[Dict[str, List[Match]]] = None) -> List[str]:
+        """The pending competitions on `day` that the retry schedule says to ask about now.
+
+        A competition-day is due when any of its unsettled matches is (`retry_due`): never asked,
+        or asked long enough ago for its age. This is the ONE retry policy, applied wherever a
+        results call is made - the results task, the fixtures task's call on its way out of
+        `sync_day`, a reader's refresh and the recovery pass - so a missing result costs what the
+        schedule says wherever the question comes from. A match given up on is never due, and a
+        young one (under six hours) is due on every pass exactly as before.
+        """
+        groups = self._pending_groups(day) if groups is None else groups
+        now = self.now
+        return [k for k in self.keys if k in groups and any(retry_due(m, now) for m in groups[k])]
 
     def _pending_results_exist(self, day: date) -> bool:
         return bool(self.pending_result_keys(day))
 
-    def _sync_results(self, day: date, meta: SyncMeta, keys: Optional[List[str]] = None) -> None:
-        """Ingest finished results for `day`, for the competitions that still have one outstanding.
+    def _sync_results(self, day: date, meta: SyncMeta, keys: Optional[List[str]] = None) -> str:
+        """Ask for `day`'s finished results for the competitions due an ask, and write down what came back.
 
-        `keys` narrows that further - the scheduler caps how many competitions one pass may ask
-        about - and defaults to whatever `pending_result_keys` names, so a caller that passes
-        nothing gets the cheapest correct set rather than the whole covered list.
+        `keys` narrows the competitions - the scheduler caps how many one pass may ask about - and
+        defaults to whatever `due_result_keys` names, so a caller that passes nothing gets the
+        cheapest correct set.
+
+        WHAT IS RECORDED, where the call already happens so knowing it costs nothing extra:
+
+        * per COMPETITION and date, what the archive returned (`record_archive_observation`):
+          ANSWERED with the row count, or EMPTY. A call that went out and got no answer changes no
+          state; it is noted beside it as a failure, because "we could not ask" is not "there is
+          nothing". A call that never went out is not noted there at all.
+        * per unsettled FIXTURE the call covered, the outcome (`record_recovery_outcome`):
+          RECOVERED, FRESH_UNANSWERED (the attempt), PROVIDER_ERROR when a request went out and
+          nobody answered it, or DEFERRED when no request went out - our own allowance refused it,
+          or every provider was cooling down after a failure elsewhere. A fresh cache hit is not
+          written, because it teaches nothing and would put a write on every page load; the
+          recovery pass reports it for its own calls.
+
+        What the call was charged goes on `meta.requests`, answered or not (see `_call_chain`).
+
+        Returns what the call amounted to: "answered", "cached", "failed" (a request went out and
+        no provider answered it, including a stale copy served in its place), "deferred" (no
+        request went out) or "skipped" (nothing was due, no call attempted).
         """
-        pending = self.pending_result_keys(day)
+        groups = self._pending_groups(day)
+        due = self.due_result_keys(day, groups)
         if keys is not None:
-            pending = [k for k in pending if k in set(keys)]
-        if not pending:
-            return
-        key = f"matchdata:results:{day.isoformat()}:{','.join(pending)}"
+            due = [k for k in due if k in set(keys)]
+        if not due:
+            return "skipped"
+        covered: Dict[Any, Tuple[Match, str]] = {}
+        for key in due:
+            for m in groups.get(key, []):
+                covered.setdefault(m.id, (m, key))
+        #: Fixtures the sweep has stopped asking about can still share a competition-day with one it
+        #: has not. The answer is credited to them only if it settles them; otherwise their row is
+        #: left exactly as it was when we stopped.
+        stopped = {mid for mid, (m, _key) in covered.items() if recovery_state_of(m).get("gave_up_at")}
+        cache_key = f"matchdata:results:{day.isoformat()}:{','.join(due)}"
+        call = SyncMeta()
         try:
-            payload = self._call_chain(key, settings.MATCH_CACHE_TTL_RESULTS, meta,
-                                       lambda p: [_fixture_to_dict(f) for f in p.get_results(day, day, pending)])
+            payload = self._call_chain(cache_key, settings.MATCH_CACHE_TTL_RESULTS, call,
+                                       lambda p: [_fixture_to_dict(f) for f in p.get_results(day, day, due)],
+                                       cost_hint=len(due))
         except ProviderError as exc:
+            meta.requests += call.requests
+            meta.request_failed = meta.request_failed or call.request_failed
+            meta.not_sent.extend(call.not_sent)
+            meta.errors.extend(call.errors)
             meta.errors.append(f"results: {exc}")
-            return
-        meta.results_polled = True
-        self._store_fixtures((_fixture_from_dict(d) for d in payload), meta)
+            # A deferral is described by the chain's own record of why nothing left (a cool-down,
+            # an allowance), which names the reason; the last error alone would read like a
+            # failure of this call.
+            reason = (f"results: {exc}" if call.request_failed
+                      else "; ".join(call.errors) or f"results: {exc}")
+            outcome = self._note_results_failure(day, due, covered, call, reason, stopped)
+            self.db.commit()
+            return "failed" if outcome is RecoveryOutcome.PROVIDER_ERROR else "deferred"
+        meta.requests += call.requests
+        meta.request_failed = meta.request_failed or call.request_failed
+        meta.not_sent.extend(call.not_sent)
+        meta.source, meta.provider, meta.fetched_at, meta.stale = (
+            call.source, call.provider, call.fetched_at, call.stale)
+        meta.errors.extend(call.errors)
+        meta.results_polled = call.results_polled = True
+        fixtures = [_fixture_from_dict(d) for d in payload]
+        self._store_fixtures(fixtures, meta)
+        if call.source == "stale-cache":
+            # Every provider was passed over and an old copy was served instead. Whatever it
+            # settles is settled; for everything else this is an outage when a request went out and
+            # was not answered, and a deferral when none did.
+            reason = "; ".join(call.errors) or "no provider answered; a stored copy was served"
+            outcome = self._note_results_failure(day, due, covered, call, reason, stopped)
+            self.db.commit()
+            return "failed" if outcome is RecoveryOutcome.PROVIDER_ERROR else "deferred"
+        observed: Dict[str, Dict[str, Any]] = {}
+        if call.source == "provider":
+            counts = {key: 0 for key in due}
+            for fixture in fixtures:
+                comp_key = getattr(fixture.competition, "key", None)
+                if comp_key in counts:
+                    counts[comp_key] += 1
+            for key in due:
+                entry = self.registry.record_archive_observation(
+                    key, day, counts[key], provider=call.provider, asked_at=self.now)
+                observed[key] = self._archive_summary(entry)
+                self._archive_seen[(key, day.isoformat())] = observed[key]
+        for match, key in covered.values():
+            settled_now = is_settled(match.status)
+            if match.id in stopped and not settled_now:
+                continue
+            outcome, detail = classify_recovery_outcome(call, settled_before=False,
+                                                        settled_now=settled_now)
+            self._outcomes[match.id] = (outcome, detail)
+            if outcome is RecoveryOutcome.CACHED:
+                continue
+            if outcome is RecoveryOutcome.RECOVERED and not recovery_state_of(match):
+                # Settled at its first ask. Nothing was missing yet, so the row gets no bookkeeping
+                # from here; the recovery pass still credits it if it was the one that asked.
+                continue
+            archive = observed.get(key)
+            if outcome is RecoveryOutcome.FRESH_UNANSWERED and archive is not None:
+                detail = (f"{call.provider} answered for this competition on {day.isoformat()} with "
+                          f"{archive['rows']} row(s), none of them a result for this match")
+            self.registry.record_recovery_outcome(match, outcome, detail, self.now, archive=archive)
+            self._written.add(match.id)
         self.db.commit()
+        return "answered" if call.source == "provider" else "cached"
+
+    @staticmethod
+    def _archive_summary(entry: Dict[str, Any]) -> Dict[str, Any]:
+        return {"state": entry.get("state"), "rows": entry.get("rows"), "asked_at": entry.get("asked_at")}
+
+    @staticmethod
+    def _not_sent_detail(reason: str) -> str:
+        """What a fixture's row says when its due ask was never sent: why, in the chain's words."""
+        return (f"due an ask, and no request was made for it: {reason}. Nothing was asked, so "
+                f"nothing was learned; it stays due")
+
+    def _note_results_failure(self, day: date, keys: List[str],
+                              covered: Dict[Any, Tuple[Match, str]], call: SyncMeta, reason: str,
+                              stopped: set) -> RecoveryOutcome:
+        """A results call nobody answered: note it per competition and per fixture, as what it was.
+
+        Two different things arrive here and they are written down differently:
+
+        * PROVIDER_ERROR - a request went out and no provider answered it (`call.request_failed`).
+          That is an outage. It is noted per competition beside the archive's state, and counted
+          on each fixture as a provider error.
+        * DEFERRED - no request went out at all: our own allowance refused it before it left, or
+          every provider was cooling down after a failure elsewhere. Nothing was unreachable, so
+          nothing is noted about the archive, and each fixture's due ask is recorded as deferred.
+
+        Returns which of the two it was.
+        """
+        outcome = RecoveryOutcome.PROVIDER_ERROR if call.request_failed else RecoveryOutcome.DEFERRED
+        detail = reason if outcome is RecoveryOutcome.PROVIDER_ERROR else self._not_sent_detail(reason)
+        because = sorted(set(call.not_sent)) if outcome is RecoveryOutcome.DEFERRED else None
+        if outcome is RecoveryOutcome.PROVIDER_ERROR:
+            for key in keys:
+                self.registry.record_archive_failure(key, day, reason, at=self.now)
+        for match_id, (match, _key) in covered.items():
+            if match_id in stopped and not is_settled(match.status):
+                continue
+            if is_settled(match.status):
+                if recovery_state_of(match):
+                    settled = "the stale-cache copy of the day settled it"
+                    self.registry.record_recovery_outcome(match, RecoveryOutcome.RECOVERED, settled, self.now)
+                    self._written.add(match.id)
+                self._outcomes[match.id] = (RecoveryOutcome.RECOVERED, "the stale-cache copy of the day settled it")
+                continue
+            self.registry.record_recovery_outcome(match, outcome, detail, self.now,
+                                                  deferred_because=because)
+            self._outcomes[match.id] = (outcome, detail)
+            self._written.add(match.id)
+        return outcome
 
     def _live_window_open(self) -> bool:
+        """Whether any covered match is being played right now, give or take the window.
+
+        THE WINDOW IS NOT A CALENDAR DAY, and asking about one made it shut on matches still being
+        played. It runs from 15 minutes before a kickoff to 150 after, so it straddles midnight at
+        both ends: a 23:50 kickoff is inside it at 00:05, and a 00:05 kickoff is inside it at
+        23:50 the evening before. Reading only the matches dated TODAY lost both - not because
+        anything about the match had changed, but because the match belongs to a day nothing looks
+        at any more. That is the same rollover that strands a fixture for good, and around UTC
+        midnight is exactly when a national-team fixture in the Americas is at half time.
+
+        Three days is the whole of the fix and cannot need a fourth: no kickoff further from now
+        than 150 minutes back or 15 minutes forward can open a window, and that span cannot reach
+        past yesterday or into the day after tomorrow. The per-match test below is unchanged and
+        still decides, so widening the days looked at admits no match the window does not cover.
+        """
         now_naive = self.now.replace(tzinfo=None)
-        for m in self.registry.matches_for_day(self.now.date(), self.league_ids()):
-            if m.status == MatchStatus.FINISHED or m.status in (MatchStatus.POSTPONED, MatchStatus.CANCELLED):
-                continue
-            if m.match_date - timedelta(minutes=15) <= now_naive <= m.match_date + timedelta(minutes=150):
-                return True
+        today = self.now.date()
+        league_ids = self.league_ids()
+        for day in (today - timedelta(days=1), today, today + timedelta(days=1)):
+            for m in self.registry.matches_for_day(day, league_ids):
+                if m.status == MatchStatus.FINISHED or m.status in (MatchStatus.POSTPONED, MatchStatus.CANCELLED):
+                    continue
+                if m.match_date - timedelta(minutes=15) <= now_naive <= m.match_date + timedelta(minutes=150):
+                    return True
         return False
 
-    def _sync_live(self, meta: SyncMeta) -> None:
-        if not self._live_window_open():
+    def _sync_live(self, meta: SyncMeta, require_window: bool = True) -> None:
+        """Poll `matches/live.json` and store whatever it holds.
+
+        `require_window` is what keeps the ordinary live task from polling all night, and the
+        recovery pass is the one caller that switches it off. The window is this application's own
+        polling window; how long the feed itself keeps a finished match is not known. So the
+        recovery pass polls on the retry schedule and credits whatever the poll settles, and a poll
+        that does not mention a fixture is never read as an answer about it. It pays out of the
+        same daily live ceiling as the live task, so turning the gate off buys no extra requests.
+        """
+        if require_window and not self._live_window_open():
             return
         key = f"matchdata:live:{','.join(self.keys)}"
         try:
@@ -680,6 +1017,284 @@ class MatchDataService:
         meta.live_polled = True
         self._store_fixtures((_fixture_from_dict(d) for d in payload), meta)
         self.db.commit()
+
+    # ------------------------------------------------- fixtures no ordinary refresh reaches
+    def recovery_plan(self, max_days: int = STALE_SWEEP_MAX_DAYS) -> Dict[str, Any]:
+        """What a recovery pass would work on and what it would cost. Makes no request and no write.
+
+        STRANDED is every fixture still unsettled `UNSETTLED_GRACE` after kickoff and not given up
+        on, plus any fixture the pass will put back: a stop made by a rule since removed
+        (`superseded_stops`), which the pass undoes, and a given-up fixture the archive has since
+        been seen to move past (`reopen_candidates`), which it reopens. DUE is the part of that the
+        retry schedule says to ask about now. DAYS are the days behind the results lookback holding
+        a due fixture, which is the only part that costs a results request here - a day the results
+        task already walks is asked about there.
+
+        `results_requests` is what those days WANT rather than what a pass may spend: the per-pass
+        and per-day allowances are applied when the pass runs, and a plan that quietly pre-applied
+        them would hide the work being deferred. It counts one request per competition-day, the
+        first page; a day whose answer paginates costs more, and the pass charges what it actually
+        spent. `live_requests` is the poll the pass would make: 0 when nothing is due or when the
+        day's live ceiling would refuse it.
+        """
+        league_ids = self.league_ids()
+        now = self.now
+        superseded = self.registry.superseded_stops(league_ids)
+        known_superseded = {m.id for m in superseded}
+        reopenable = [m for m, _ in self.registry.reopen_candidates(league_ids)
+                      if m.id not in known_superseded]
+        stranded = self.registry.recoverable_unsettled(now, league_ids)
+        known = {m.id for m in stranded}
+        put_back = superseded + reopenable
+        stranded = stranded + [m for m in put_back if m.id not in known]
+        # A fixture the pass puts back is due as the schedule says once its stop is off the row -
+        # a reopened one at once - and `retry_due` cannot say that while the row still carries the
+        # stop, so it is asked without it.
+        due = [m for m in stranded
+               if (m.id in known_superseded and due_once_stop_is_undone(m, now))
+               or (m.id not in known_superseded and (retry_due(m, now)
+                                                     or m.id in {r.id for r in reopenable}))]
+        days = self.registry.stale_unsettled_days(
+            now, settings.SYNC_RESULTS_LOOKBACK_DAYS, league_ids=league_ids, max_days=max_days)
+        wanted = {day: set(self.due_result_keys(day)) for day in days}
+        # The same for the competition-days they put in play: behind the results lookback, within
+        # the pass's cap on days, one request per competition not already priced.
+        lookback_from = now.date() - timedelta(days=max(int(settings.SYNC_RESULTS_LOOKBACK_DAYS), 0))
+        due_ids = {m.id for m in due}
+        for m in put_back:
+            day = m.match_date.date()
+            key = self.registry.canonical_key_for_league(getattr(m, "league_id", None))
+            if m.id not in due_ids or day >= lookback_from or not key:
+                continue
+            if day not in wanted:
+                if len(wanted) >= max_days:
+                    continue
+                wanted[day] = set()
+            wanted[day].add(key)
+        days = sorted(wanted)
+        results_requests = sum(len(keys) for keys in wanted.values())
+        will_poll = bool(due) and self._live_poll_within_daily_ceiling()
+        return {"stranded": stranded, "due": due, "reopenable": reopenable,
+                "superseded": superseded, "days": days,
+                "results_requests": results_requests, "live_requests": 1 if will_poll else 0}
+
+    def recover_stranded(self, *, max_days: int = STALE_SWEEP_MAX_DAYS,
+                         max_results_requests: Optional[int] = None,
+                         poll_live: bool = True,
+                         days: Optional[List[date]] = None,
+                         stranded: Optional[List[Match]] = None) -> Dict[str, Any]:
+        """
+        One unattended pass over the fixtures no ordinary refresh reaches, within a stated bound.
+
+        WHAT IT ASKS, AND WHEN. Nothing is assumed about any competition from its type: the archive
+        has answered for national-team competitions and has also gone days without answering for
+        club ones (docs/evidence/livescore-archive-observations.json). So every fixture is asked
+        about on the same retry schedule (`RETRY_SCHEDULE`), which thins out with age and is a
+        budget policy only. The pass:
+
+        1. undoes any stop made by a rule this installation no longer applies
+           (`undo_superseded_stops`) - a stop no current policy made is taken off the row, not
+           renamed - and reopens any given-up fixture the archive has since been seen to move past
+           (`reopen_retired`). Both cost nothing;
+        2. if at least one fixture is due, polls `matches/live.json` once. How long that feed keeps
+           a finished match is not known, so a poll that settles a fixture is credited as its
+           recovery and a poll that does not mention one is not read as an answer about it either
+           way;
+        3. asks `matches/history.json` for each due competition-day BEHIND the results lookback
+           (the results task asks about the days inside it, on the same schedule). What each call
+           got back is recorded where it is made: see `_sync_results`.
+
+        WHAT IT SPENDS. At most `max_results_requests` results requests, floored by what is left
+        of `SYNC_RECOVERY_MAX_REQUESTS_PER_DAY`, plus one live poll charged to the live task's own
+        daily counter and ceiling. A pass with nothing due makes no request of either kind. What is
+        charged is what the provider was sent: a request that went out and failed was still spent
+        and counts against both ceilings exactly as an answered one does, a day whose answer ran to
+        a second page counts both pages, and a call refused before sending counts nothing.
+
+        WHAT IT CONCLUDES. Each fixture takes exactly one `RecoveryOutcome`. Only FRESH_UNANSWERED
+        - the provider answered for its competition and day without a result for it - is an
+        attempt. PROVIDER_ERROR is a request that went out and that nobody answered, and is
+        reported as a failure of the pass (`failed_calls`); DEFERRED is a due ask for which no
+        request was made - an allowance could not cover it, or the provider was cooling down after
+        a failure; NOT_ASKED is a fixture nothing was due for. None of those three spends an
+        attempt or retires anything.
+
+        `days` and `stranded` are for a caller that has already made the selection and wants this
+        exact pass over it; left out, the pass selects its own.
+        """
+        now = self.now
+        league_ids = self.league_ids()
+        self._outcomes, self._written, self._archive_seen = {}, set(), {}
+        undone = self.registry.undo_superseded_stops(now, league_ids)
+        reopened = self.registry.reopen_retired(now, league_ids)
+        if stranded is None:
+            stranded = self.registry.recoverable_unsettled(now, league_ids)
+        report: Dict[str, Any] = {
+            "stranded": len(stranded), "due": 0,
+            "reopened": [str(m.id) for m in reopened],
+            "stops_undone": [str(m.id) for m in undone],
+            "outcomes": {outcome.value: 0 for outcome in RecoveryOutcome},
+            "fixtures": [], "days": {}, "live": None, "live_note": None,
+            "results_requests": 0, "live_requests": 0,
+            "deferred": [], "errors": [], "failed_calls": [], "archive": {},
+            "retired": 0, "overdue": 0,
+        }
+        if not stranded:
+            report["note"] = "no fixture is stranded; no provider request was made"
+            self.db.commit()
+            return report
+
+        settled_before = {m.id: is_settled(m.status) for m in stranded}
+        swept_under = {m.id: m.match_date.date() for m in stranded}
+        due_now = {m.id for m in stranded if retry_due(m, now)}
+        report["due"] = len(due_now)
+        lookback = max(int(settings.SYNC_RESULTS_LOOKBACK_DAYS), 0)
+        lookback_from = now.date() - timedelta(days=lookback)
+        if days is None:
+            days = self.registry.stale_unsettled_days(now, lookback, league_ids=league_ids,
+                                                      max_days=max_days)
+
+        # -- one live poll, for every competition at once, and only when something is due.
+        live_meta, live_tried, report["live_note"] = self._recovery_live_poll(poll_live, bool(due_now))
+        report["live"] = live_meta.to_dict()
+        report["live_requests"] = live_meta.requests
+        if live_tried and (not live_meta.live_polled or live_meta.stale):
+            why = "; ".join(live_meta.errors) or "no provider answered"
+            if live_meta.request_failed:
+                # A poll went out and nobody answered it: the outage the pass must report.
+                report["failed_calls"].append("live: " + why)
+            else:
+                # Nothing left: every provider was cooling down, or an allowance refused the poll.
+                report["live_note"] = "live poll not made, no request was sent: " + why
+        report["errors"].extend(live_meta.errors)
+
+        # -- the archive, for each due competition-day behind the results lookback.
+        allowance = self._results_allowance(max_results_requests)
+        #: (day, competition) pairs a due ask was wanted for and the allowance could not cover. A
+        #: deferral is not an answer, so it is kept apart from what the calls recorded.
+        deferred_keys: set = set()
+        for day in days:
+            wanted = self.due_result_keys(day)
+            take = wanted[:max(allowance, 0)]
+            deferred_keys.update((day, key) for key in wanted[len(take):])
+            report["deferred"].extend(f"{key}@{day.isoformat()}" for key in wanted[len(take):])
+            if not take:
+                continue
+            meta = SyncMeta()
+            called = self._sync_results(day, meta, keys=take)
+            # WHAT WAS SENT IS WHAT WAS SPENT. `meta.requests` is read off the provider's own
+            # budget around the call, so a request that went out and failed is charged like one
+            # that was answered, an extra page is charged as the request it was, and a cache hit
+            # or a call refused before it left is charged nothing.
+            spent = meta.requests
+            allowance -= spent
+            report["results_requests"] += spent
+            report["days"][day.isoformat()] = {**meta.to_dict(), "competitions": len(take),
+                                               "call": called}
+            report["errors"].extend(meta.errors)
+            if called == "failed":
+                report["failed_calls"].append(f"results {day.isoformat()}: "
+                                              + ("; ".join(meta.errors) or "no provider answered"))
+            elif called == "deferred":
+                report["deferred"].extend(f"{key}@{day.isoformat()}" for key in take)
+        note_recovery_requests(self.cache, now, report["results_requests"])
+        reopened_ids = {m.id for m in reopened}
+        undone_ids = {m.id for m in undone}
+
+        # -- one outcome per fixture, from what the calls above actually recorded.
+        for match in stranded:
+            self.db.refresh(match)
+            if settled_before[match.id]:
+                continue
+            settled_now = is_settled(match.status)
+            key = self.registry.canonical_key_for_league(getattr(match, "league_id", None))
+            its_days = {swept_under[match.id], match.match_date.date()}
+            recorded = self._outcomes.get(match.id)
+            if recorded is not None:
+                outcome, detail = recorded
+                if match.id not in self._written:
+                    # A cached day, or a fixture settled at its first ask: `_sync_results` leaves
+                    # those off the row, and the pass that asked writes them itself.
+                    self.registry.record_recovery_outcome(match, outcome, detail, now)
+            elif settled_now:
+                outcome, detail = classify_recovery_outcome(
+                    live_meta if live_meta.live_polled else SyncMeta(),
+                    settled_before=False, settled_now=True)
+                self.registry.record_recovery_outcome(match, outcome, detail, now)
+            elif match.id in due_now and any((d, key) in deferred_keys for d in its_days):
+                outcome = RecoveryOutcome.DEFERRED
+                detail = ("due an ask, but the recovery allowance for this pass or this day was "
+                          "spent; it stays due")
+                self.registry.record_recovery_outcome(match, outcome, detail, now,
+                                                      deferred_because=["our_allowance"])
+            elif (match.id in due_now and all(d < lookback_from for d in its_days)
+                  and not its_days & set(days)):
+                outcome = RecoveryOutcome.DEFERRED
+                detail = (f"due an ask, but one pass reopens at most {max_days} day(s), oldest "
+                          f"first; it stays due")
+                self.registry.record_recovery_outcome(match, outcome, detail, now,
+                                                      deferred_because=["our_allowance"])
+            else:
+                outcome = RecoveryOutcome.NOT_ASKED
+                if match.id in due_now and any(d >= lookback_from for d in its_days):
+                    detail = "its day is inside the results lookback; the results task asks about it"
+                elif match.id in due_now:
+                    detail = "due, but no call this pass covered it"
+                else:
+                    upcoming = next_ask_after(match, now)
+                    detail = (f"not due under the retry schedule until "
+                              f"{upcoming.isoformat() if upcoming else 'it is reopened'}")
+            report["outcomes"][outcome.value] += 1
+            overdue = self.registry.overdue_state(match, now)
+            report["overdue"] += 1 if overdue["overdue"] else 0
+            report["retired"] += 1 if overdue["unresolved"] else 0
+            report["fixtures"].append({
+                "match_id": str(match.id), "match_date": match.match_date.isoformat(),
+                "status": match.status.value, "outcome": outcome.value, "detail": detail,
+                "reopened": match.id in reopened_ids, "stop_undone": match.id in undone_ids,
+                **overdue})
+        self.db.commit()
+        report["archive"] = {f"{key}@{day}": seen for (key, day), seen in self._archive_seen.items()}
+        return report
+
+    def _results_allowance(self, max_results_requests: Optional[int]) -> int:
+        """How many results requests this pass may make: the per-pass cap, floored by the day's.
+
+        Both bounds are real and the smaller wins. The per-pass cap stops one pass taking the
+        whole day's allowance in a single sweep; the daily ceiling is the figure the budget plan
+        adds up, and it is what stops a fortnight of stranded fixtures turning the repair into the
+        thing that starves the club competitions.
+        """
+        per_pass = (max(int(settings.SYNC_RECOVERY_MAX_REQUESTS_PER_PASS), 0)
+                    if max_results_requests is None else max(int(max_results_requests), 0))
+        left = recovery_requests_left_today(self.cache, self.now)
+        return per_pass if left is None else min(per_pass, left)
+
+    def _recovery_live_poll(self, poll_live: bool,
+                            anything_due: bool) -> Tuple[SyncMeta, bool, Optional[str]]:
+        """The pass's one live poll: its meta, whether a poll was attempted, and why not if not.
+
+        A poll the pass chose not to make is a policy decision and is never recorded as an error:
+        an error is a call that was made and that nobody answered, which is what an outage looks
+        like. The three reasons not to poll are that the caller said not to, that no stranded
+        fixture is due under the retry schedule, and that the day's live ceiling is reached.
+        """
+        meta = SyncMeta()
+        if not poll_live:
+            return meta, False, "live poll not attempted by this pass"
+        if not anything_due:
+            return meta, False, "no stranded fixture is due under the retry schedule"
+        if not self._live_poll_within_daily_ceiling():
+            return meta, False, (f"live poll skipped: the day's live-poll ceiling is reached "
+                                 f"({self._live_polls_today()}/"
+                                 f"{int(settings.SYNC_LIVE_MAX_REQUESTS_PER_DAY)})")
+        self._sync_live(meta, require_window=False)
+        # A poll that went out is counted, answered or not: the provider charged it either way.
+        # One served from the 60-second live cache, or refused before it left, spent nothing, and
+        # charging it to the ceiling would stop the day early over a request never made.
+        if meta.requests > 0:
+            self._note_live_poll()
+        return meta, True, None
 
     # ------------------------------------------------------ the coverage calendar (see the top)
     def coverage_record(self, key: str) -> Dict[str, Any]:
@@ -1150,7 +1765,8 @@ class MatchDataService:
             #
             # The test is CONTAINMENT, not equality, because the two are not always the same
             # string: the chain skips a provider that failed recently by recording
-            # "<name>: skipped (recent failure: <why>)" while the error it raises carries only
+            # "<name>: skipped (recent failure: <why>)" - or "(allowance spent: <why>)" when the
+            # cool-down was an allowance refusing - while the error it raises carries only
             # "<why>". Comparing those for equality lets the skip through twice, which is the
             # over-count this guard exists to prevent.
             message = str(exc)

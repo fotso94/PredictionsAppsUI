@@ -12,6 +12,7 @@ import useFavourites from '@/hooks/useFavourites'
 import { usePersonalPreferences } from '@/services/favourites.service'
 import { footballDataService } from '@/services/football-data.service'
 import { CoverageSummary } from '@/services/match-data-source'
+import { isPlayableNow } from '@/utils/resultDelay'
 import { formatNumber, type MessageKey } from '@/i18n'
 import { useT } from '@/i18n/react'
 import Emphasised from '@/i18n/Emphasised'
@@ -86,6 +87,27 @@ const DashboardPage: React.FC = () => {
     || user?.username
     || user?.email
     || null
+
+  /**
+   * How many of this reader's saved matches are being played, right now, as the tile says.
+   *
+   * NOT `savedMatches.counts.live`, which is the backend's status bucket: every row whose stored
+   * status is LIVE lands in it, and a fixture whose final score has not arrived keeps that status
+   * until one does. That count put "1 in play now" at the top of this page above a feed that had
+   * already filed the same fixture under "Awaiting a result" — the page contradicting itself in
+   * two lines, with the false half in the larger type.
+   *
+   * So it is counted here from the fixtures themselves, by the one function every other surface
+   * asks (src/utils/resultDelay.ts), and the two halves of the screen agree by construction. The
+   * bucket is still the right place to look: it holds exactly the rows the backend stored as
+   * live, which is a superset of the ones being played. Anything the server counted but could not
+   * serialise is not a fixture this page can see, let alone call in play.
+   *
+   * Recomputed every render rather than memoised: the answer changes with the clock and not with
+   * the list, and a count that went stale between two polls would be the same lie in a smaller
+   * font.
+   */
+  const inPlayNow = savedMatches.live.filter(entry => isPlayableNow(entry.match)).length
 
   /**
    * Measured from what this installation holds — site-wide, not per user, and labelled as such.
@@ -169,14 +191,16 @@ const DashboardPage: React.FC = () => {
                       value={formatNumber(savedMatches.counts.total)}
                       className="num"
                     />
-                    {savedMatches.counts.live > 0 && (
+                    {inPlayNow > 0 && (
                       <>
                         {' · '}
-                        <Emphasised
-                          sentence={t('reader.dashboard.liveCount', { count: formatNumber(savedMatches.counts.live) })}
-                          value={formatNumber(savedMatches.counts.live)}
-                          className="num"
-                        />
+                        <span data-testid="dashboard-live-count">
+                          <Emphasised
+                            sentence={t('reader.dashboard.liveCount', { count: formatNumber(inPlayNow) })}
+                            value={formatNumber(inPlayNow)}
+                            className="num"
+                          />
+                        </span>
                       </>
                     )}
                   </p>

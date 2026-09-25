@@ -47,7 +47,9 @@ from app.models.predictions import (
 )
 from app.models.users import AccountStatus, User, UserType
 from app.services import match_matching
-from app.services.match_registry import STALE_SWEEP_MAX_AGE, UNSETTLED_GRACE, MatchRegistry
+from app.services.match_registry import (
+    RETRY_HORIZON, STALE_SWEEP_MAX_AGE, STOP_POLICY, UNSETTLED_GRACE, MatchRegistry,
+)
 from app.services.providers.base import (
     STATUS_FINISHED, STATUS_LIVE, STATUS_SCHEDULED, ProviderCompetition, ProviderFixture, ProviderTeam,
 )
@@ -663,35 +665,58 @@ def test_the_sweep_is_capped_so_it_cannot_reopen_the_whole_season(db, registry):
     assert days == sorted(days), "oldest first: the fixtures that have been wrong longest"
 
 
-def test_the_sweep_gives_up_in_writing_and_stops_asking(db, registry):
+def test_the_sweep_stops_in_writing_only_where_its_budget_runs_out(db, registry):
     """
-    A provider that has not answered in three passes is not going to. Giving up is recorded.
+    Stopping is where the retry schedule runs out, and it is written down as a budget decision.
 
-    The row keeps the status it has -- a score nobody reported is not a score -- but it stops
-    costing a provider request, and `match_metadata.recovery` says when and why.
+    Three empty answers two days after kickoff are no reason to stop. An empty answer says what
+    the archive returned when it was asked, and nothing about whether it will return more later -
+    that has not been observed either way, which is exactly why one empty answer cannot justify
+    stopping; the schedule still has twelve days to run. The empty answer that
+    leaves no room for another ask inside `RETRY_HORIZON` is where the sweep stops, and the row
+    says so: `stopped_by`, how often we asked, and that the limit is on what we spend rather than
+    on what exists. The row keeps its status -- a score nobody reported is not a score -- and stops
+    costing a provider request.
     """
-    stuck = _stranded(db, registry, days_ago=2)
+    recent = _stranded(db, registry, days_ago=2)
     now = datetime.now(timezone.utc)
-
     for _ in range(3):
-        registry.record_recovery_attempt(stuck, now)
+        registry.record_recovery_attempt(recent, now)
 
-    state = registry.recovery_state(stuck)
+    state = registry.recovery_state(recent)
     assert state["attempts"] == 3
-    assert state["gave_up_at"] and "no result after 3 attempts" in state["gave_up_reason"]
-    assert stuck.status == MatchStatus.LIVE, "nothing is invented about the match itself"
-    assert registry.stale_unsettled_days(now, lookback_days=1) == []
+    assert not state.get("gave_up_at"), "three empty answers two days in are not the end of the budget"
+    assert recent.match_date.date() in registry.stale_unsettled_days(
+        now + timedelta(hours=7), lookback_days=1), "and it is asked about again on the schedule"
+
+    late = _stranded(db, registry, days_ago=13)
+    at = late.match_date.replace(tzinfo=timezone.utc) + timedelta(days=13, hours=12)
+    state = registry.record_recovery_attempt(late, at)
+
+    assert state["gave_up_at"] and state["stopped_by"] == STOP_POLICY
+    reason = state["gave_up_reason"]
+    assert f"{RETRY_HORIZON.days}-day results horizon of our request budget" in reason
+    assert "not evidence that no result exists" in reason
+    assert late.status == MatchStatus.LIVE, "nothing is invented about the match itself"
+    assert late.match_date.date() not in registry.stale_unsettled_days(
+        at + timedelta(days=1), lookback_days=1, max_days=30), "and it costs no further request"
 
 
-def test_a_fixture_past_the_results_horizon_is_given_up_at_once(db, registry):
-    """Beyond the horizon the provider's results endpoint has nothing to say; asking is waste."""
+def test_a_fixture_past_the_retry_horizon_is_stopped_after_one_answered_ask(db, registry):
+    """
+    Past `RETRY_HORIZON` the schedule has no ask left to spend on a fixture, so the first answered
+    ask stops it. Where our budget ends is all this says; it is no statement about what the
+    provider's archive holds for that date.
+    """
     old = _stranded(db, registry, days_ago=30)
     now = datetime.now(timezone.utc)
 
-    assert registry.stale_unsettled_days(now, lookback_days=1) == [], "too old to be offered at all"
+    assert registry.stale_unsettled_days(now, lookback_days=1) == [], (
+        "older than the horizon and never asked about: the sweep does not start on it")
 
     state = registry.record_recovery_attempt(old, now)
-    assert state["gave_up_at"] and "results horizon" in state["gave_up_reason"]
+    assert state["gave_up_at"] and state["stopped_by"] == STOP_POLICY
+    assert "results horizon of our request budget" in state["gave_up_reason"]
 
 
 def test_the_horizon_that_selects_a_fixture_is_the_horizon_that_gives_up_on_it(db, registry):
@@ -700,7 +725,7 @@ def test_the_horizon_that_selects_a_fixture_is_the_horizon_that_gives_up_on_it(d
 
     `unsettled_before` selects a fixture and `record_recovery_attempt` ages it, and each provider
     request the sweep spends is charged against the day it reopens. A fixture inside one bound and
-    outside the other is offered, paid for, and abandoned as too old in the same pass.
+    outside the other would be offered, paid for, and stopped in the same pass.
     """
     horizon = int(STALE_SWEEP_MAX_AGE.days)
     just_outside = _stranded(db, registry, days_ago=horizon + 1)

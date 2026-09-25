@@ -14,7 +14,7 @@ No network: httpx.MockTransport throughout, and an in-memory Redis stand-in for 
 budget. Nothing here makes a provider request or touches a real allowance.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 import httpx
 import pytest
@@ -244,7 +244,12 @@ def test_a_turn_is_refused_when_the_provider_says_its_window_is_empty():
 
 def test_a_429_still_teaches_us_the_window_even_though_it_fails():
     redis = FakeRedis()
-    budget = RequestBudget("gameforecast", 8, client=redis)
+    # A fixed clock, because the last assertion is about the clock. The reset header is 25,972 s
+    # (7h13m) ahead of whenever the response is observed, so on the wall clock that lands within
+    # the tolerance of UTC midnight for twenty minutes every afternoon (about 16:37-16:57 UTC) and
+    # this test went red there. Observed at noon, the window ends at 19:13 UTC, nowhere near it.
+    budget = RequestBudget("gameforecast", 8, client=redis,
+                           now=datetime(2026, 9, 24, 12, 0, tzinfo=timezone.utc))
     handler = _with_headers({"message": "You have exceeded the DAILY quota for Requests on your "
                                         "current plan, BASIC."}, status=429,
                             headers=dict(RATE_LIMIT_HEADERS, **{"x-ratelimit-requests-remaining": "0"}))

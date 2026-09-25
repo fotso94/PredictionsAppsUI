@@ -44,57 +44,118 @@ REGRESSIVE_STATUSES = (MatchStatus.SCHEDULED, MatchStatus.LIVE)
 #: The tightest window there is; a club that appears twice an hour apart is playing twice.
 SHARED_SLOT_WINDOW = match_matching.EXACT_WINDOW
 
-#: How long after kickoff a fixture is left alone before anything calls it unsettled. The same
-#: grace the results gate applies, so a sweep never asks about a game that is still being played.
+#: How long after kickoff a fixture is left alone before anything calls it unsettled. This is THIS
+#: APPLICATION'S polling window: the live task stops considering a match 150 minutes after kickoff
+#: and the results gate starts asking at the same moment. It is not a measurement of how long any
+#: provider keeps a finished match on any endpoint.
 UNSETTLED_GRACE = timedelta(minutes=150)
-#: How many days older than the results lookback one sweep may reopen. A results call costs one
-#: provider request per competition per day, so this cap is the sweep's entire extra cost.
+#: How many days older than the results lookback one recovery pass may reopen. A results call
+#: costs one provider request per competition per day, so this caps what one pass can take.
 STALE_SWEEP_MAX_DAYS = 2
-#: How many sweeps one fixture is re-asked about before it is given up on. Only a pass that
-#: actually put the question counts: see `RecoveryOutcome`.
-STALE_SWEEP_MAX_ATTEMPTS = 3
-#: The outer bound on how far back the sweep will look at all, measured from the moment of the
-#: sweep. Without one, a row the provider will never answer about is a cost that never ends; and a
-#: results endpoint is a window on the recent past rather than an archive, so the further back the
-#: question, the less there is to get. `unsettled_before` selects by it and the recording side
-#: gives up by it, both against the same clock, so a fixture is never offered and then abandoned
-#: as too old in one pass.
-STALE_SWEEP_MAX_AGE = timedelta(days=14)
+
+#: THE RETRY SCHEDULE: how often a fixture still unsettled after `UNSETTLED_GRACE` is asked about,
+#: by how long ago it kicked off. One schedule for every competition, club or national-team.
+#:
+#: It is a BUDGET POLICY and nothing more. It bounds what one missing result can cost and asserts
+#: nothing about whether the result exists or when it will appear. The archive has answered for
+#: national-team competitions (World Cup, AFCON, Copa America, Women's World Cup), and on
+#: 2026-09-22 and 2026-09-25 it returned nothing dated 2026-09-18 or later for club and national
+#: competitions alike, cause unknown (docs/evidence/livescore-archive-observations.json). So a
+#: result may appear days after the match, and the schedule keeps asking, ever more rarely, rather
+#: than stopping on the evening itself.
+#:
+#: Each entry is (up to this age, at most one ask per this gap). Against an archive that stays
+#: empty, one competition-day costs 16 requests in its first 24 hours, 16 more over days 1-6 and 7
+#: over days 7-13: 39 in all, where a flat half-hourly cadence would spend 672 over the same
+#: fortnight. Behind the results lookback the recovery pass pays for these out of
+#: `SYNC_RECOVERY_MAX_REQUESTS_PER_DAY` (40), and no competition-day that old costs more than 4 a
+#: day, so that allowance covers ten stranded competition-days at once before any has to wait.
+RETRY_SCHEDULE: Tuple[Tuple[timedelta, timedelta], ...] = (
+    (timedelta(hours=6), timedelta(0)),          # every pass, as the results task always has
+    (timedelta(hours=24), timedelta(hours=2)),
+    (timedelta(days=3), timedelta(hours=6)),
+    (timedelta(days=7), timedelta(hours=12)),
+    (timedelta(days=14), timedelta(hours=24)),
+)
+#: Where the schedule ends. A fixture whose next ask would fall past it is given up on, and only
+#: straight after an ask the provider ANSWERED, so an outage can never retire anything. What can
+#: undo that is narrow, and stated where it is done: `MatchRegistry.reopen_retired`.
+RETRY_HORIZON = RETRY_SCHEDULE[-1][0]
+#: What `stopped_by` says on a stop the retry schedule made. It is the only policy that stops the
+#: sweep, so it is the only value a stop in force may carry.
+STOP_POLICY = "retry_budget"
+#: Stops made under a policy this installation still applies. A row carrying `gave_up_at` with any
+#: other `stopped_by` - or none, which is every stop written before the field existed - was stopped
+#: by a rule that has since been removed, and `MatchRegistry.undo_superseded_stops` undoes it
+#: rather than letting it stand under a policy that did not make it.
+CURRENT_STOP_POLICIES = frozenset({STOP_POLICY})
+#: The same horizon under the name the selection reads. A fixture older than this that the sweep
+#: has never asked about predates the sweep, and is not started on.
+STALE_SWEEP_MAX_AGE = RETRY_HORIZON
+#: Passes run on an interval that drifts by seconds, so a gap counts as elapsed slightly early.
+#: Without this a 2-hour gap measured at 1:59:58 waits for the next pass and becomes 2.5 hours.
+RETRY_SLACK = timedelta(minutes=5)
+#: How many dated archive observations one competition keeps (newest dates win).
+ARCHIVE_OBSERVATIONS_KEPT = 120
 
 
 class RecoveryOutcome(str, Enum):
     """
-    What one sweep pass learned about one stranded fixture. Exactly one of these is an attempt.
+    What one pass learned about one unsettled fixture. Exactly one of these is an attempt.
 
-    "Attempt" is the sweep's word for evidence that the provider has nothing to say, and
-    `STALE_SWEEP_MAX_ATTEMPTS` of them retire a fixture with "no result after N attempts" written
-    on the row. That sentence is only true of a fixture somebody was actually asked about, so the
-    three outcomes where nobody was asked, or the answer was one we already held, are recorded
-    without moving the counter.
+    An attempt is the provider being asked about the fixture's competition and day, ANSWERING, and
+    the answer holding no result for it. Attempts are what the retry schedule counts from and what
+    a reader is told. Everything else is recorded apart, so that "the provider had nothing" and
+    "nobody could reach the provider" never read as the same fact.
     """
 
-    #: The question was never put: every provider in the chain failed or was cooling down, or no
-    #: results call was made for the day at all. Nothing was learned, so it cannot retire a
-    #: fixture -- three outages in a row would otherwise give up on a fixture nobody asked about.
-    #: It is still counted on the row, because a sweep failing silently for a week is its own
-    #: defect and this is where that becomes visible.
+    #: A request for a results call covering this fixture WENT OUT and no provider answered it: the
+    #: network failed, the provider returned an error, or the provider itself refused it. Nothing
+    #: was learned, so it spends no attempt, does not move the retry schedule and can never retire
+    #: a fixture. It is counted on the row, and a recovery pass that met one reports itself as
+    #: failed: an outage has to be visible as an outage. A call that never left is not this: see
+    #: DEFERRED.
     PROVIDER_ERROR = "provider_error"
-    #: The day was served out of the cache, fresh or stale. This pass did not put the question,
-    #: and it cannot tell who did: the results cache key is per day and per competition set, and
+    #: The day was served out of the cache. This pass did not put the question, and it cannot tell
+    #: who did: the results cache key is per day and per competition set, and
     #: `MatchDataService.matches_for_day(day, refresh=True)` shares it, which
-    #: `GET /api/v1/matches?date=...` reaches for any date a reader asks for. So a stored answer
-    #: may be one the sweep has already seen, or a genuinely fresh one a reader's request fetched
-    #: moments ago. An attempt is evidence the provider was asked and had nothing, and evidence
-    #: nobody can date is not evidence, so no attempt is spent. Erring this way costs a fixture
-    #: one more pass in the sweep; erring the other way writes "no result after N attempts" about
-    #: a question this sweep never put.
+    #: `GET /api/v1/matches?date=...` reaches for any date a reader asks for. Evidence nobody can
+    #: date is not evidence, so no attempt is spent.
     CACHED = "cached"
-    #: A provider was asked during this pass, answered, and the fixture is still unsettled. The
-    #: only outcome that is evidence, and so the only one that counts toward giving up.
+    #: A provider was asked, answered, and had no result for the fixture. The only outcome that is
+    #: evidence, and so the only attempt. It says what the archive held at that moment and nothing
+    #: about what it will hold later.
     FRESH_UNANSWERED = "fresh_unanswered"
-    #: The fixture is settled now and was not before the pass. There is nothing left to retry, so
-    #: no attempt is spent; what settled it is written on the row instead.
+    #: The fixture is settled now and was not before the pass. What settled it is written on the row.
     RECOVERED = "recovered"
+    #: The fixture was due an ask and NO REQUEST WAS MADE for it: the recovery allowance for the
+    #: pass or the day was spent, our own daily ceiling for the provider (or the provider's own
+    #: reported window) refused the request before it left, or every provider was cooling down
+    #: after a failure elsewhere. Neither an answer nor an outage - nothing was asked, so nothing
+    #: was unreachable. Recorded on the row, spends no attempt, and the fixture stays due.
+    DEFERRED = "deferred"
+    #: Nothing the pass did asked about this fixture because nothing was due: the retry schedule
+    #: does not call for an ask yet, or its day is inside the results lookback and the results task
+    #: asks about it. Reported by the pass and never written on the row, since nothing happened.
+    NOT_ASKED = "not_asked"
+
+
+class ArchiveState(str, Enum):
+    """What `matches/history.json` returned for ONE competition on ONE date, the last time we asked.
+
+    Recorded where the results call already happens (`MatchDataService._sync_results`), so knowing
+    it costs no request. The three states are deliberately narrow:
+
+    * ANSWERED -- rows came back for that competition and date.
+    * EMPTY    -- the call succeeded and returned nothing. That says what the archive held WHEN we
+                  asked, and nothing about whether it will ever hold more.
+    * UNKNOWN  -- never asked, or every ask failed. The default for every competition, club or
+                  national-team alike: nothing is assumed about a competition from its type.
+    """
+
+    ANSWERED = "answered"
+    EMPTY = "empty"
+    UNKNOWN = "unknown"
 
 
 def is_settled(status: MatchStatus) -> bool:
@@ -172,39 +233,39 @@ def played_outcome(home: int, away: int) -> str:
 
 def classify_recovery_outcome(meta, *, settled_before: bool, settled_now: bool) -> Tuple[RecoveryOutcome, str]:
     """
-    Which of the four outcomes one day's results call produced for one stranded fixture.
+    Which outcome one call produced for one unsettled fixture it covered.
 
-    `meta` is the `SyncMeta` that `MatchDataService._sync_results` filled for the fixture's own
-    day. It is read by attribute rather than imported, because match_data_service imports this
-    module. Three of its fields carry the answer:
+    `meta` is the `SyncMeta` the call left behind: a results call for the fixture's competition
+    and day, or a live poll. It is read by attribute rather than imported, because
+    match_data_service imports this module. Three of its fields carry the answer:
 
-    * `results_polled` is set only once the call chain has returned, so False means the question
-      was never put -- every provider failed or was cooling down, or `_sync_results` returned
-      early because the day held nothing pending. `errors` separates those two in the wording;
-      the decision is the same either way, and it is not to count an attempt.
-    * `source` says where the answer came from. "provider" is the only value meaning somebody was
-      asked during this pass; "cache" and "stale-cache" mean the day came out of the store, which
-      says nothing about when or by whom it was put there (see `RecoveryOutcome.CACHED`). They are
-      reported apart because a stale copy also says the provider is not currently reachable.
-    * `errors` may hold entries on a pass that succeeded anyway: the chain records every provider
-      it gave up on before the one that answered. So a failed pass is `results_polled` being
+    * `results_polled` OR `live_polled` is set only once the call chain has returned. Neither being
+      set means no provider answered. With `errors` recorded, the chain tried and got nothing, and
+      `request_failed` says which way: a request went out and nobody answered it (PROVIDER_ERROR),
+      or none ever left - an allowance refused it first, or every provider was cooling down
+      (DEFERRED). With no errors, no call was attempted at all - the day held nothing pending, or
+      the pass declined to ask - and that is NOT_ASKED. None of the three spends an attempt. A meta
+      that does not say whether a request left is read as one that did, which is what every
+      caller before `request_failed` existed meant.
+    * `source` says where an answer came from. "provider" is the only value meaning somebody was
+      asked during this pass; "cache" and "stale-cache" mean the day came out of the store (see
+      `RecoveryOutcome.CACHED`), and they are reported apart because a stale copy also says the
+      provider is not currently reachable.
+    * `errors` may hold entries on a call that succeeded anyway: the chain records every provider
+      it gave up on before the one that answered. So a failed call is `results_polled` being
       False, never `errors` being non-empty.
 
-    The meta covers the DAY and not the fixture, which leaves one pair it cannot separate: a
-    fresh answer that never mentioned this fixture, and a fresh answer that mentioned it and
-    still calls it unfinished. `fixtures_seen` and `fixtures_stored` count a day's fixtures
-    without naming them. Both land in FRESH_UNANSWERED, which is the right bucket for both: each
-    is the provider, asked now, holding no final result for this fixture, and that is exactly
-    what the attempt counter measures.
+    A LIVE POLL THAT DOES NOT MENTION A FIXTURE IS NOT HANDED HERE. How long the live feed keeps a
+    finished match is not known, so its silence about a fixture is not evidence either way; only a
+    poll that SETTLED the fixture is classified, as a recovery.
 
-    `settled_before` is this fixture's own state, read before the sync ran. A fixture already
-    settled cannot have been recovered by the pass and was never the sweep's to ask about, so
-    offering one is a caller error rather than a recovery to be credited.
+    `settled_before` is this fixture's own state, read before the call. A fixture already settled
+    cannot have been recovered by it, so offering one is a caller error.
     """
     if settled_before:
         raise ValueError("this fixture was already settled before the pass; the sweep asks about "
                          "unsettled fixtures only, and a status it did not change is not a recovery")
-    asked = bool(getattr(meta, "results_polled", False))
+    asked = bool(getattr(meta, "results_polled", False)) or bool(getattr(meta, "live_polled", False))
     source = getattr(meta, "source", None) or "database"
     provider = getattr(meta, "provider", None) or source
     if settled_now:
@@ -212,10 +273,15 @@ def classify_recovery_outcome(meta, *, settled_before: bool, settled_now: bool) 
             return RecoveryOutcome.RECOVERED, f"a fresh answer from {provider} settled it"
         if asked:
             return RecoveryOutcome.RECOVERED, f"the {source} copy of the day settled it"
-        return RecoveryOutcome.RECOVERED, "settled without this sweep's results call"
+        return RecoveryOutcome.RECOVERED, "settled without this sweep's own call"
     if not asked:
         errors = getattr(meta, "errors", None) or []
-        return RecoveryOutcome.PROVIDER_ERROR, "; ".join(errors) or "no results call was made for this day"
+        if errors and getattr(meta, "request_failed", True):
+            return RecoveryOutcome.PROVIDER_ERROR, "; ".join(errors)
+        if errors:
+            return RecoveryOutcome.DEFERRED, ("no request was made for this fixture: "
+                                              + "; ".join(errors))
+        return RecoveryOutcome.NOT_ASKED, "no call was made for this fixture"
     if source in ("cache", "stale-cache"):
         return RecoveryOutcome.CACHED, f"served from {source}"
     return RecoveryOutcome.FRESH_UNANSWERED, f"{provider} answered and had no result for it"
@@ -230,6 +296,117 @@ def _naive_utc(dt: datetime) -> datetime:
 
 def _aware_utc(dt: datetime) -> datetime:
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+
+def _parse_instant(value) -> Optional[datetime]:
+    """A timestamp the sweep wrote into JSONB, read back as an aware UTC datetime, or None."""
+    if isinstance(value, datetime):
+        return _aware_utc(value)
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return _aware_utc(datetime.fromisoformat(value.strip().replace("Z", "+00:00")))
+    except ValueError:
+        return None
+
+
+def _utc_label(value) -> str:
+    """An instant as a reader sees it in a recorded sentence: "2026-10-08 12:00 UTC"."""
+    instant = _parse_instant(value)
+    return instant.strftime("%Y-%m-%d %H:%M UTC") if instant else "an unrecorded time"
+
+
+def recovery_state_of(match) -> Dict[str, object]:
+    """What the sweep has recorded for this fixture. Tolerates rows with no metadata at all."""
+    return dict((getattr(match, "match_metadata", None) or {}).get("recovery") or {})
+
+
+def retry_gap(age: timedelta) -> timedelta:
+    """The least time between two asks about a fixture this old. See `RETRY_SCHEDULE`.
+
+    Past `RETRY_HORIZON` the last gap still applies: a fixture only gets there without having been
+    given up on when no provider answered it (an outage), and it is still owed an answered ask.
+    """
+    for up_to, gap in RETRY_SCHEDULE:
+        if age <= up_to:
+            return gap
+    return RETRY_SCHEDULE[-1][1]
+
+
+def _schedule_clock(state: Dict[str, object]) -> Optional[datetime]:
+    """The ask the next one is measured from, or None when an ask is owed now.
+
+    The clock is the last ANSWERED ask (`last_attempt_at`). A call that reached nobody learned
+    nothing, so it does not push the next ask back: during an outage a due fixture stays due and
+    each pass tries again, which is also what keeps the outage visible pass after pass. A fixture
+    reopened since its last answered ask is owed one at once.
+    """
+    last = _parse_instant(state.get("last_attempt_at"))
+    if last is None:
+        return None
+    reopened = _parse_instant(state.get("reopened_at"))
+    if reopened is not None and reopened > last:
+        return None
+    return last
+
+
+def _next_ask_from(state: Dict[str, object], kickoff: Optional[datetime],
+                   now: datetime) -> Optional[datetime]:
+    """The earliest moment from `now` at which the schedule allows an ask; None if given up on."""
+    if state.get("gave_up_at"):
+        return None
+    now = _aware_utc(now)
+    last = _schedule_clock(state)
+    if last is None or kickoff is None:
+        return now
+    kickoff = _aware_utc(kickoff)
+    due = max(now, last)
+    # The gap only widens with age, so reading it at the candidate moment and moving the candidate
+    # out to it settles within a step per tier.
+    for _ in range(len(RETRY_SCHEDULE) + 2):
+        gap = retry_gap(due - kickoff)
+        if due - last >= gap:
+            break
+        due = last + gap
+    return due
+
+
+def next_ask_after(match, now: datetime) -> Optional[datetime]:
+    """When the schedule next allows an ask about this fixture: `now` if it is due, None if given up on."""
+    return _next_ask_from(recovery_state_of(match), getattr(match, "match_date", None), now)
+
+
+def retry_due(match, now: datetime) -> bool:
+    """Whether the retry schedule calls for asking about this fixture on a pass at `now`.
+
+    Never for a fixture given up on (until `MatchRegistry.reopen_retired` reopens it), always for
+    one never asked, and otherwise once `retry_gap` - read at the fixture's age now - has passed
+    since the last answered ask.
+    """
+    return _retry_due_from(recovery_state_of(match), getattr(match, "match_date", None), now)
+
+
+def _retry_due_from(state: Dict[str, object], kickoff: Optional[datetime], now: datetime) -> bool:
+    if state.get("gave_up_at"):
+        return False
+    last = _schedule_clock(state)
+    if last is None or kickoff is None:
+        return True
+    now = _aware_utc(now)
+    return now - last >= retry_gap(now - _aware_utc(kickoff)) - RETRY_SLACK
+
+
+def due_once_stop_is_undone(match, now: datetime) -> bool:
+    """Whether the retry schedule would call for an ask at `now` with the row's stop taken off.
+
+    For pricing a pass before it runs (`MatchDataService.recovery_plan`): a stop made by a removed
+    rule is undone at the start of the pass, and from then on the fixture is due exactly when its
+    recorded asks and its age say so. Reads the row; writes nothing.
+    """
+    state = recovery_state_of(match)
+    for field in ("gave_up_at", "gave_up_reason", "stopped_by"):
+        state.pop(field, None)
+    return _retry_due_from(state, getattr(match, "match_date", None), now)
 
 
 class MatchRegistry:
@@ -852,7 +1029,15 @@ class MatchRegistry:
     def _apply_fixture(self, match: Match, fixture: ProviderFixture, home: Team, away: Team, league: League) -> None:
         # Only the provider that owns the match record moves the kickoff. A secondary provider with a
         # stale calendar may disagree; it is logged and ignored instead of dragging the fixture around.
-        if self._owns_match(match, fixture.provider):
+        # And only a kickoff the provider actually stated: a results row with a date and no time
+        # is mapped to midnight, and writing that over the stored kickoff would invent one.
+        if not fixture.kickoff_supplied:
+            if match.match_date is not None and \
+                    _aware_utc(match.match_date).date() != _aware_utc(fixture.kickoff_utc).date():
+                logger.warning("Provider %s reports match %s on %s without a kickoff time (stored %s); "
+                               "kickoff left unchanged", fixture.provider, match.id,
+                               fixture.kickoff_utc.date(), match.match_date)
+        elif self._owns_match(match, fixture.provider):
             match.match_date = _naive_utc(fixture.kickoff_utc)
         elif match.match_date is not None and fixture.kickoff_utc is not None and \
                 abs(_aware_utc(match.match_date) - _aware_utc(fixture.kickoff_utc)) > match_matching.EXACT_WINDOW:
@@ -1012,55 +1197,50 @@ class MatchRegistry:
     # -------------------------------------------------- fixtures the refreshes no longer reach
     def unsettled_before(self, cutoff: datetime, league_ids: Optional[Iterable[uuid.UUID]] = None,
                          now: Optional[datetime] = None,
-                         max_age: timedelta = STALE_SWEEP_MAX_AGE,
-                         max_attempts: int = STALE_SWEEP_MAX_ATTEMPTS) -> List[Match]:
+                         max_age: timedelta = STALE_SWEEP_MAX_AGE) -> List[Match]:
         """
-        Fixtures still SCHEDULED or LIVE long after kickoff that are worth asking about again.
+        Fixtures still SCHEDULED or LIVE at or before `cutoff` that the sweep has not given up on.
 
-        Neither refresh reaches these. The live poll only looks at today, and the results task only
-        looks back `SYNC_RESULTS_LOOKBACK_DAYS` days, so a fixture whose final score never arrived
-        inside that window is never asked about again and stays on the site reading LIVE for ever.
+        Neither refresh reaches these on its own. The live poll considers a match for
+        `UNSETTLED_GRACE` after kickoff, and the results task only looks back
+        `SYNC_RESULTS_LOOKBACK_DAYS` days, so a fixture whose final score did not arrive inside
+        those windows is asked about by the recovery pass or by nobody.
 
-        `cutoff` is the youngest kickoff worth reopening; `max_age` is measured from `now`, the same
-        clock `record_recovery_attempt` ages a fixture against, so the horizon offers exactly the
-        fixtures it does not immediately give up on. Measuring it from `cutoff` instead would push
-        the floor a further `now - cutoff` into the past, and every fixture in that strip would be
-        offered, cost its provider requests, and be abandoned as too old in the same pass.
+        Two populations. A fixture that kicked off within `max_age` of `now` is selected whether or
+        not anything has asked about it yet. An older one is selected only if the sweep has already
+        been asking about it, i.e. it carries recovery bookkeeping: it is either still owed an
+        answered ask (an outage can carry a fixture past the horizon, and the horizon may only be
+        applied after an answer), or `reopen_retired` has just reopened it. An older fixture the
+        sweep never touched predates it and is not started on.
 
-        Oldest first, so a sweep that can only afford a few days spends them on the fixtures that
-        have been wrong longest. A fixture the sweep has given up on is not returned again: see
-        `record_recovery_attempt` for what giving up means and when it happens.
+        Oldest first. A fixture given up on is not returned: see `record_recovery_attempt`.
         """
-        floor = _naive_utc((now or datetime.now(timezone.utc)) - max_age)
+        now = now or datetime.now(timezone.utc)
+        floor = _naive_utc(now - max_age)
         rows = self.db.query(Match).filter(
             Match.status.in_(REGRESSIVE_STATUSES),
             Match.match_date <= _naive_utc(cutoff),
-            Match.match_date >= floor,
+            or_(Match.match_date >= floor, Match.match_metadata.has_key("recovery")),
         )
         if league_ids is not None:
             rows = rows.filter(Match.league_id.in_(list(league_ids)))
-        out = []
-        for m in rows.order_by(Match.match_date.asc()).all():
-            state = self.recovery_state(m)
-            if state.get("gave_up_at") or int(state.get("attempts") or 0) >= max_attempts:
-                continue
-            out.append(m)
-        return out
+        return [m for m in rows.order_by(Match.match_date.asc()).all()
+                if not recovery_state_of(m).get("gave_up_at")]
 
     def stale_unsettled_days(self, now: datetime, lookback_days: int,
                              league_ids: Optional[Iterable[uuid.UUID]] = None,
                              max_days: int = STALE_SWEEP_MAX_DAYS, **limits) -> List[date]:
         """
-        The days OLDER than the results lookback that still hold a recoverable unsettled fixture.
+        The days OLDER than the results lookback holding a fixture the retry schedule says is due.
 
         Oldest first and capped at `max_days`, because a results call costs one provider request
-        per competition per day: the cap is the entire extra cost of the sweep, and it is what
-        keeps an unanswerable fixture from being re-asked without end.
+        per competition per day. A day holding only fixtures that were asked about recently enough
+        is not offered: `retry_due` is the one schedule every caller shares.
 
         A day the results task already covers is never offered here. The task walks back from
-        today through `lookback_days`, so the sweep starts the instant before the earliest of
-        those days: paying twice for one day would be the sweep's whole budget spent on a day
-        that was going to be asked about anyway.
+        today through `lookback_days`, so the sweep starts the instant before the earliest of those
+        days: paying twice for one day would spend the recovery allowance on a day that was going
+        to be asked about anyway.
         """
         covered_from = now.date() - timedelta(days=max(int(lookback_days), 0))
         cutoff = min(now - UNSETTLED_GRACE,
@@ -1068,6 +1248,8 @@ class MatchRegistry:
                                       tzinfo=timezone.utc) - timedelta(microseconds=1))
         days: List[date] = []
         for m in self.unsettled_before(cutoff, league_ids, now=now, **limits):
+            if not retry_due(m, now):
+                continue
             day = m.match_date.date()
             if day not in days:
                 days.append(day)
@@ -1075,10 +1257,306 @@ class MatchRegistry:
                 break
         return days
 
+    def recoverable_unsettled(self, now: datetime, league_ids: Optional[Iterable[uuid.UUID]] = None,
+                              grace: timedelta = UNSETTLED_GRACE, **limits) -> List[Match]:
+        """Every fixture still unsettled `grace` after kickoff and not given up on, oldest first.
+
+        `stale_unsettled_days` answers a narrower question - which days BEHIND the results lookback
+        are worth reopening - because that is the part that costs the recovery allowance. This is
+        the whole population the pass reports on, whichever day it sits on: a range on the kickoff
+        column, so which side of a UTC midnight a fixture sits on changes nothing about whether it
+        is selected. Whether it is ASKED about on a given pass is `retry_due`'s decision.
+        """
+        return self.unsettled_before(now - grace, league_ids, now=now, **limits)
+
+    def recovered_since(self, since: datetime, kicked_off_before: datetime) -> List[Match]:
+        """Settled fixtures the sweep recovered at or after `since` that kicked off before
+        `kicked_off_before`: results that arrived later than a kickoff-dated window reaches."""
+        rows = self.db.query(Match).filter(Match.status.in_(TERMINAL_STATUSES),
+                                           Match.match_date < _naive_utc(kicked_off_before),
+                                           Match.match_metadata.has_key("recovery"))
+        floor = _aware_utc(since)
+        out = []
+        for match in rows.order_by(Match.match_date.asc()).all():
+            recovered_at = _parse_instant(recovery_state_of(match).get("recovered_at"))
+            if recovered_at is not None and recovered_at >= floor:
+                out.append(match)
+        return out
+
+    # ------------------------------------------------------ what the archive has shown us
+    def _archive_store(self, key: str, create: bool = False) -> Tuple[Optional[League], Dict[str, Dict]]:
+        league = self.ensure_canonical_league(key) if create else self.league_for_key(key)
+        if league is None:
+            return None, {}
+        store = (league.league_metadata or {}).get("archive_observations") or {}
+        return league, {day: dict(entry) for day, entry in store.items()}
+
+    def _save_archive_store(self, league: League, store: Dict[str, Dict]) -> None:
+        kept = dict(sorted(store.items(), reverse=True)[:ARCHIVE_OBSERVATIONS_KEPT])
+        meta = dict(league.league_metadata or {})
+        meta["archive_observations"] = kept
+        league.league_metadata = meta
+        self.db.flush()
+
+    def archive_observation(self, key: Optional[str], day: date) -> Dict[str, object]:
+        """What the archive returned for `key` on `day` when last asked. UNKNOWN if never asked.
+
+        Only a successful answer sets the state. A call that failed leaves the state as it was and
+        is recorded beside it (`last_failed_at`, `last_failure`), because "we could not ask" says
+        nothing about what the archive holds.
+        """
+        entry: Dict[str, object] = {}
+        if key:
+            entry = dict(self._archive_store(key)[1].get(day.isoformat()) or {})
+        entry.setdefault("state", ArchiveState.UNKNOWN.value)
+        return entry
+
+    def archive_observations(self, key: str) -> Dict[str, Dict]:
+        """Every dated observation kept for `key`, keyed by ISO date."""
+        return self._archive_store(key)[1]
+
+    def record_archive_observation(self, key: str, day: date, rows: int, *, provider: Optional[str],
+                                   asked_at: datetime) -> Dict[str, object]:
+        """Write down what one successful results call returned for one competition and date."""
+        league, store = self._archive_store(key, create=True)
+        stamp = _aware_utc(asked_at).isoformat()
+        entry = store.get(day.isoformat()) or {}
+        state = ArchiveState.ANSWERED if rows > 0 else ArchiveState.EMPTY
+        entry.update({"state": state.value, "rows": int(rows), "asked_at": stamp,
+                      "provider": provider})
+        entry.setdefault("first_asked_at", stamp)
+        entry["times_asked"] = int(entry.get("times_asked") or 0) + 1
+        if state is ArchiveState.ANSWERED:
+            entry["last_answered_at"] = stamp
+        store[day.isoformat()] = entry
+        self._save_archive_store(league, store)
+        return entry
+
+    def record_archive_failure(self, key: str, day: date, error: str, *, at: datetime) -> None:
+        """Note a results call for `key` on `day` that no provider answered. The state is untouched."""
+        league, store = self._archive_store(key, create=True)
+        entry = store.get(day.isoformat()) or {}
+        entry["last_failed_at"] = _aware_utc(at).isoformat()
+        entry["last_failure"] = (error or "no provider answered")[:200]
+        store[day.isoformat()] = entry
+        self._save_archive_store(league, store)
+
+    def archive_answered_through(self, key: Optional[str],
+                                 asked_after: Optional[datetime] = None) -> Optional[date]:
+        """The latest date the archive has returned rows for in `key`, optionally only counting
+        answers given after `asked_after`. None when no such answer has been observed."""
+        if not key:
+            return None
+        latest: Optional[date] = None
+        for iso, entry in self._archive_store(key)[1].items():
+            answered_at = _parse_instant(entry.get("last_answered_at"))
+            if answered_at is None:
+                continue
+            if asked_after is not None and answered_at <= _aware_utc(asked_after):
+                continue
+            try:
+                day = date.fromisoformat(iso)
+            except ValueError:
+                continue
+            latest = day if latest is None or day > latest else latest
+        return latest
+
+    def reopen_candidates(self, league_ids: Optional[Iterable[uuid.UUID]] = None
+                          ) -> List[Tuple[Match, Dict[str, object]]]:
+        """Every given-up fixture the archive has since moved past, with the observation that did it.
+
+        Read-only: `reopen_retired` is what acts on it, and `MatchDataService.recovery_plan` prices
+        a pass with it without writing anything.
+
+        A fixture qualifies when its competition's archive has returned rows, AFTER we stopped
+        asking, for a date on or after the fixture's own - the archive now reaching that far is
+        the thing we stopped waiting for - and when, at the moment we stopped, it had not already
+        answered that far. If it had, it covered the date then and still had nothing, and reopening
+        on more of the same would only repeat that ask. For the same reason a fixture whose own
+        date has answered with rows since we stopped, without settling it, does not qualify.
+        """
+        rows = self.db.query(Match).filter(Match.status.in_(REGRESSIVE_STATUSES),
+                                           Match.match_metadata.has_key("recovery"))
+        if league_ids is not None:
+            rows = rows.filter(Match.league_id.in_(list(league_ids)))
+        found: List[Tuple[Match, Dict[str, object]]] = []
+        for match in rows.order_by(Match.match_date.asc()).all():
+            state = recovery_state_of(match)
+            stopped_at = _parse_instant(state.get("gave_up_at"))
+            if stopped_at is None:
+                continue
+            key = self.canonical_key_for_league(getattr(match, "league_id", None))
+            through = self.archive_answered_through(key, asked_after=stopped_at)
+            fixture_day = match.match_date.date()
+            if through is None or through < fixture_day:
+                continue
+            try:
+                before = date.fromisoformat(str(state.get("archive_answered_through") or ""))
+            except ValueError:
+                before = None
+            if before is not None and before >= fixture_day:
+                continue
+            # The fixture's own date answered with rows after we stopped and did not settle it:
+            # that answer already covered it, so there is nothing new to ask.
+            own = _parse_instant(self.archive_observation(key, fixture_day).get("last_answered_at"))
+            if own is not None and own > stopped_at:
+                continue
+            found.append((match, {"date": through, **self.archive_observation(key, through)}))
+        return found
+
+    def reopen_retired(self, now: datetime,
+                       league_ids: Optional[Iterable[uuid.UUID]] = None) -> List[Match]:
+        """Put back in the sweep every fixture `reopen_candidates` names.
+
+        GIVING UP IS A BUDGET DECISION, and this undoes it on evidence it did not have. WHAT THAT
+        EVIDENCE CAN BE is narrow, and nothing here goes looking for it: the observations are the
+        ones results calls record anyway (`MatchDataService._sync_results`), and a results call is
+        made for a competition-day only when some OTHER fixture of that competition is unsettled
+        and due. Nothing asks the archive on a stopped fixture's behalf. So a stopped fixture is
+        reopened only if such a call happens and returns rows dated on or after its date; a
+        competition that plays no unsettled fixture again never reopens anything.
+
+        Deciding costs nothing. A reopened fixture is owed one ask at once; if that answer still
+        holds nothing it is given up on again with the archive's reach recorded, and the same
+        evidence does not reopen it twice. The previous stop is kept on the row.
+        """
+        reopened: List[Match] = []
+        for match, seen in self.reopen_candidates(league_ids):
+            state = recovery_state_of(match)
+            stops = list(state.get("previous_stops") or [])
+            stops.append({"gave_up_at": state.get("gave_up_at"),
+                          "gave_up_reason": state.get("gave_up_reason"),
+                          "attempts": state.get("attempts")})
+            state["previous_stops"] = stops[-5:]
+            for field in ("gave_up_at", "gave_up_reason", "stopped_by", "archive_answered_through"):
+                state.pop(field, None)
+            state["reopened_at"] = _aware_utc(now).isoformat()
+            state["reopened_because"] = (
+                f"after we stopped asking, the archive returned {seen.get('rows')} row(s) for this "
+                f"competition dated {seen['date'].isoformat()} (asked "
+                f"{_utc_label(seen.get('asked_at'))}), on or after this match's date")
+            self._store_recovery(match, state)
+            logger.info("Reopening match %s (%s): %s", match.id, match.match_date,
+                        state["reopened_because"])
+            reopened.append(match)
+        return reopened
+
+    # ----------------------------------------------- stops a removed rule made, undone
+    def superseded_stops(self, league_ids: Optional[Iterable[uuid.UUID]] = None) -> List[Match]:
+        """Unsettled fixtures stopped by a rule this installation no longer applies. Read-only.
+
+        A stop in force carries `stopped_by` naming a current policy (`CURRENT_STOP_POLICIES`).
+        Anything else holding `gave_up_at` was written by a rule that has been removed: the
+        three-attempts rule, and the rule that stopped national-team fixtures six hours after
+        kickoff, both of which wrote `gave_up_at` and `gave_up_reason` and no `stopped_by`. Oldest
+        first.
+        """
+        rows = self.db.query(Match).filter(Match.status.in_(REGRESSIVE_STATUSES),
+                                           Match.match_metadata.has_key("recovery"))
+        if league_ids is not None:
+            rows = rows.filter(Match.league_id.in_(list(league_ids)))
+        out: List[Match] = []
+        for match in rows.order_by(Match.match_date.asc()).all():
+            state = recovery_state_of(match)
+            if state.get("gave_up_at") and state.get("stopped_by") not in CURRENT_STOP_POLICIES:
+                out.append(match)
+        return out
+
+    def undo_superseded_stops(self, now: datetime,
+                              league_ids: Optional[Iterable[uuid.UUID]] = None) -> List[Match]:
+        """Undo every stop a current policy did not make, and put the fixture on the retry schedule.
+
+        A STOP IS NOT RENAMED. Serving an old stop as `stopped_by: "retry_budget"` would attribute
+        it to a policy that did not make it, and leaving it in place would keep the fixture stopped
+        under a rule that no longer exists. So the stop is taken off the row: `gave_up_at`,
+        `gave_up_reason` and whatever `stopped_by` it had are removed, and from then on the fixture
+        is asked about exactly as the current schedule says for its age and its recorded asks -
+        which, past the horizon, is one more answered ask and then a stop the current policy does
+        make, recorded as one.
+
+        What the old rule concluded in prose is WITHDRAWN rather than carried over: its stop reason
+        and its last outcome detail were written by a rule whose premises were removed with it (one
+        of them asserted that a competition's archive answers nothing, which the recorded archive
+        observations do not show). The facts beside them stay: the count of answered asks, when
+        they were made, what the last outcome was, and when the old stop was made, kept under
+        `previous_stops` with the moment it was undone.
+
+        Makes no request. Written for the recovery pass to run on every pass, so a stop like this
+        is undone on this installation's own clock with nobody having to find it.
+        """
+        undone: List[Match] = []
+        stamp = _aware_utc(now).isoformat()
+        for match in self.superseded_stops(league_ids):
+            state = recovery_state_of(match)
+            withdrawn = [field for field in ("gave_up_reason", "last_outcome_detail") if state.get(field)]
+            stops = list(state.get("previous_stops") or [])
+            stops.append({"gave_up_at": state.get("gave_up_at"),
+                          "attempts": state.get("attempts"),
+                          "stopped_by": state.get("stopped_by") or None,
+                          "undone_at": stamp,
+                          "withdrawn": withdrawn})
+            state["previous_stops"] = stops[-5:]
+            for field in ("gave_up_at", "gave_up_reason", "stopped_by", "archive_answered_through",
+                          "last_outcome_detail", "next_ask_after"):
+                state.pop(field, None)
+            state["stop_undone_at"] = stamp
+            state["stop_undone_because"] = (
+                "the stop recorded on this fixture was made by a rule this installation no longer "
+                "applies; it records no current policy as having made it, so it was undone and the "
+                "fixture returned to the retry schedule")
+            self._note_next_ask(match, state, now)
+            self._store_recovery(match, state)
+            logger.info("Undid a stop made under a removed rule on match %s (%s, still %s); it is "
+                        "back on the retry schedule", match.id, match.match_date, match.status)
+            undone.append(match)
+        return undone
+
+    # ------------------------------------------------------------ the row's own bookkeeping
+    @classmethod
+    def overdue_state(cls, match: Match, now: datetime,
+                      grace: timedelta = UNSETTLED_GRACE) -> Dict[str, object]:
+        """Whether this fixture is past the point of still reading as in play, and what is known.
+
+        Two different facts, kept apart:
+
+        * `overdue` -- the fixture is unsettled and kickoff was longer ago than `grace`, this
+          application's own polling window. A status of "LIVE, HT" five hours after kickoff is the
+          absence of a report, and this is the fact a reader has to be shown instead.
+        * `unresolved` -- the sweep has stopped asking, at a recorded moment, for a recorded
+          reason. It says we stopped paying, never that no result exists. `stopped_by` is the
+          policy the ROW records as having made the stop, and None when it records none: that is a
+          stop from before the field existed, made by a rule since removed, which
+          `undo_superseded_stops` undoes on the next recovery pass rather than attributing it to
+          the retry budget.
+
+        `last_outcome` is what the last call covering the fixture actually got, so "the provider
+        answered with nothing" (fresh_unanswered) and "nobody could reach the provider"
+        (provider_error) stay distinguishable. Nothing here reads or writes a score.
+        """
+        state = recovery_state_of(match)
+        age = now - _aware_utc(match.match_date)
+        overdue = not is_settled(match.status) and age > grace
+        upcoming = next_ask_after(match, now)
+        return {
+            "overdue": overdue,
+            "unresolved": bool(state.get("gave_up_at")),
+            "reason": state.get("gave_up_reason"),
+            "stopped_by": (state.get("stopped_by") or None) if state.get("gave_up_at") else None,
+            "minutes_since_kickoff": int(age.total_seconds() // 60),
+            "attempts": int(state.get("attempts") or 0),
+            "provider_errors": int(state.get("provider_errors") or 0),
+            "cached_passes": int(state.get("cached_passes") or 0),
+            "deferrals": int(state.get("deferrals") or 0),
+            "last_outcome": state.get("last_outcome"),
+            "last_outcome_detail": state.get("last_outcome_detail"),
+            "archive": state.get("archive"),
+            "next_ask_after": upcoming.isoformat() if upcoming else None,
+        }
+
     @staticmethod
     def recovery_state(match: Match) -> Dict[str, object]:
         """What the sweep has already tried for this fixture, as stored on the row."""
-        return dict((match.match_metadata or {}).get("recovery") or {})
+        return recovery_state_of(match)
 
     def _store_recovery(self, match: Match, state: Dict[str, object]) -> Dict[str, object]:
         """Put the sweep's bookkeeping back on the row. JSONB is replaced whole, never mutated."""
@@ -1088,53 +1566,89 @@ class MatchRegistry:
         self.db.flush()
         return state
 
-    @staticmethod
-    def _past_horizon_reason(match: Match, now: datetime, max_age: timedelta) -> Optional[str]:
-        """Why this fixture is beyond asking about at all, or None while it is still in range."""
-        age = now - _aware_utc(match.match_date)
-        if age > max_age:
-            return f"kickoff is {age.days} days old, past the {max_age.days}-day results horizon"
-        return None
+    def _stop_reason(self, state: Dict[str, object], horizon: timedelta) -> str:
+        """The sentence written on the row when the sweep stops: what we did, what came back, that
+        stopping was a budget decision, and what - exactly - could still make us ask again. It
+        claims nothing about whether a result exists, and it promises nothing the code does not
+        do: nothing asks about the match once it is stopped, and the one thing that reopens it is
+        an answer to a results call made for another fixture (`reopen_retired`)."""
+        attempts = int(state.get("attempts") or 0)
+        errors = int(state.get("provider_errors") or 0)
+        text = (f"We asked the results provider {attempts} time{'' if attempts == 1 else 's'}, most "
+                f"recently {_utc_label(state.get('last_attempt_at'))}, and each answer it gave held "
+                f"no result for this match.")
+        if errors:
+            text += (f" {errors} other request{'' if errors == 1 else 's'} went out and got no "
+                     f"answer, and {'is' if errors == 1 else 'are'} not counted.")
+        text += (f" We stopped at the {horizon.days}-day results horizon of our request budget: a "
+                 f"limit on what we spend, not evidence that no result exists. No further request "
+                 f"is made on this match's behalf. It is asked about once more only if a results "
+                 f"request we make later, for another unsettled match in this competition, returns "
+                 f"results dated on or after this match's date when none that recent had come back "
+                 f"before we stopped.")
+        return text
 
-    def _give_up(self, match: Match, state: Dict[str, object], now: datetime, reason: str) -> None:
+    def _give_up(self, match: Match, state: Dict[str, object], now: datetime,
+                 horizon: timedelta) -> None:
+        key = self.canonical_key_for_league(getattr(match, "league_id", None))
+        through = self.archive_answered_through(key)
         state["gave_up_at"] = now.isoformat()
-        state["gave_up_reason"] = reason
-        logger.warning("Giving up on match %s (%s, still %s): %s. It keeps its stored status; "
-                       "no further provider request will be spent on it.",
-                       match.id, match.match_date, match.status, reason)
+        state["gave_up_reason"] = self._stop_reason(state, horizon)
+        state["stopped_by"] = STOP_POLICY
+        # What the archive had reached when we stopped, so `reopen_retired` can tell new reach from
+        # reach we had already seen.
+        state["archive_answered_through"] = through.isoformat() if through else None
+        state.pop("next_ask_after", None)
+        logger.warning("Stopped asking about match %s (%s, still %s) under the retry budget after "
+                       "%s answered ask(s). It keeps its stored status.",
+                       match.id, match.match_date, match.status, state.get("attempts"))
+
+    def _note_next_ask(self, match: Match, state: Dict[str, object], now: datetime) -> None:
+        upcoming = _next_ask_from(state, getattr(match, "match_date", None), now)
+        if upcoming is None:
+            state.pop("next_ask_after", None)
+        else:
+            state["next_ask_after"] = upcoming.isoformat()
 
     def record_recovery_attempt(self, match: Match, now: Optional[datetime] = None,
-                                max_attempts: int = STALE_SWEEP_MAX_ATTEMPTS,
-                                max_age: timedelta = STALE_SWEEP_MAX_AGE,
-                                detail: str = "") -> Dict[str, object]:
+                                detail: str = "", archive: Optional[Dict[str, object]] = None,
+                                max_age: timedelta = RETRY_HORIZON) -> Dict[str, object]:
         """
-        Count one sweep attempt against a fixture, and give up on it when it has had enough.
+        Count one answered ask against a fixture, and stop asking when the schedule has run out.
 
         An attempt is `RecoveryOutcome.FRESH_UNANSWERED` and nothing else: the provider was asked
-        during the pass, answered, and had no result for this fixture. Passes that learned
-        nothing go to `record_recovery_outcome`, which leaves the count alone.
+        about the fixture's competition and day, answered, and had no result for it. It moves the
+        retry schedule's clock (`last_attempt_at`).
 
-        Giving up is written on the row, under `match_metadata.recovery`: `gave_up_at` and
-        `gave_up_reason` beside the attempt count. `unsettled_before` then skips the fixture for
-        good, so the sweep stops spending requests on a question the provider is not going to
-        answer. Only the bookkeeping moves: the status, the scores and the result are untouched,
-        because a score nobody reported is not a score.
+        THE ONLY PLACE THE SWEEP GIVES UP, and so it only ever gives up straight after an answer.
+        If the next ask the schedule allows would fall past `max_age` after kickoff, the fixture is
+        given up on: `gave_up_at`, `stopped_by = "retry_budget"` and a reason saying how many times
+        we asked, when last, and that stopping is a budget decision. `unsettled_before` then skips
+        the fixture unless `reopen_retired` puts it back. Only bookkeeping moves: the status, the
+        scores and the result are untouched, because a score nobody reported is not a score.
         """
         now = now or datetime.now(timezone.utc)
-        state = self.recovery_state(match)
+        state = recovery_state_of(match)
         attempts = int(state.get("attempts") or 0) + 1
         state["attempts"] = attempts
+        # Written only by the attempt that IS the first. A row that already counted attempts before
+        # this field existed has no record of when the first was, and stamping this one's time on
+        # it would date the chase from its fourth ask; the field stays absent there, as unknown.
+        if attempts == 1:
+            state.setdefault("first_attempt_at", now.isoformat())
         state["last_attempt_at"] = now.isoformat()
         state["last_outcome"] = RecoveryOutcome.FRESH_UNANSWERED.value
         state["last_outcome_at"] = now.isoformat()
         if detail:
             state["last_outcome_detail"] = detail
+        if archive:
+            state["archive"] = dict(archive)
         if not state.get("gave_up_at"):
-            reason = self._past_horizon_reason(match, now, max_age)
-            if reason is None and attempts >= max_attempts:
-                reason = f"no result after {attempts} attempts"
-            if reason:
-                self._give_up(match, state, now, reason)
+            age = now - _aware_utc(match.match_date)
+            if age + retry_gap(age) > max_age:
+                self._give_up(match, state, now, max_age)
+            else:
+                self._note_next_ask(match, state, now)
         return self._store_recovery(match, state)
 
     def _settled_by(self, match: Match) -> str:
@@ -1146,46 +1660,57 @@ class MatchRegistry:
 
     def record_recovery_outcome(self, match: Match, outcome: RecoveryOutcome, detail: str = "",
                                 now: Optional[datetime] = None,
-                                max_attempts: int = STALE_SWEEP_MAX_ATTEMPTS,
-                                max_age: timedelta = STALE_SWEEP_MAX_AGE) -> Dict[str, object]:
+                                archive: Optional[Dict[str, object]] = None,
+                                max_age: timedelta = RETRY_HORIZON,
+                                deferred_because: Optional[Iterable[str]] = None) -> Dict[str, object]:
         """
-        Write down what one sweep pass learned about this fixture, counting it only if it counts.
+        Write down what one call learned about this fixture, counting it only if it counts.
 
-        `RecoveryOutcome.FRESH_UNANSWERED` is the one outcome that spends an attempt, and it is
-        handed straight to `record_recovery_attempt`. A provider error and a cached day each get
-        their own counter so an unproductive sweep can be seen to be unproductive, and neither
-        moves `attempts`. A recovery is written with what settled it and closes the fixture out:
-        there is nothing left to retry and so nothing to give up on.
+        FRESH_UNANSWERED is the one outcome that spends an attempt, and it goes straight to
+        `record_recovery_attempt`. The others each keep their own counter and never move
+        `attempts`, never move the retry schedule and never give a fixture up: PROVIDER_ERROR
+        (a request went out and nobody answered it), CACHED (a stored answer), DEFERRED (no request
+        was made). RECOVERED closes the fixture out with what settled it. NOT_ASKED writes nothing,
+        because nothing happened to the fixture.
 
-        The age bound applies to the other three outcomes all the same. It is a fact about the
-        fixture and the provider's results window rather than about this pass, so a fixture that
-        has drifted past the horizon is given up with that reason even when nobody could be
-        asked; that reason names the age and never claims an answer.
+        A DEFERRED ask records WHY nothing was sent (`deferred_because`, the kinds `SyncMeta.not_sent`
+        names: "our_allowance", "provider_allowance", "cooling_down", "not_configured"), so the
+        reason a reader is given can be the true one - "held back by our own allowance" is not
+        true of an ask skipped while the provider cooled down after a failure.
         """
         now = now or datetime.now(timezone.utc)
         if outcome is RecoveryOutcome.FRESH_UNANSWERED:
-            return self.record_recovery_attempt(match, now, max_attempts=max_attempts,
-                                                max_age=max_age, detail=detail)
-        state = self.recovery_state(match)
+            return self.record_recovery_attempt(match, now, detail=detail, archive=archive,
+                                                max_age=max_age)
+        state = recovery_state_of(match)
+        if outcome is RecoveryOutcome.NOT_ASKED:
+            return state
         state["last_outcome"] = outcome.value
         state["last_outcome_at"] = now.isoformat()
         if detail:
             state["last_outcome_detail"] = detail
+        if archive:
+            state["archive"] = dict(archive)
         if outcome is RecoveryOutcome.RECOVERED:
             state["recovered_at"] = now.isoformat()
             state["recovered_as"] = self._settled_by(match)
             state["recovered_by"] = detail or "settled during the sweep"
+            state.pop("next_ask_after", None)
             return self._store_recovery(match, state)
         if outcome is RecoveryOutcome.PROVIDER_ERROR:
             state["provider_errors"] = int(state.get("provider_errors") or 0) + 1
             state["last_provider_error_at"] = now.isoformat()
+            if detail:
+                state["last_provider_error"] = detail[:300]
         elif outcome is RecoveryOutcome.CACHED:
             state["cached_passes"] = int(state.get("cached_passes") or 0) + 1
             state["last_cached_at"] = now.isoformat()
+        elif outcome is RecoveryOutcome.DEFERRED:
+            state["deferrals"] = int(state.get("deferrals") or 0) + 1
+            state["last_deferred_at"] = now.isoformat()
+            state["last_deferred_because"] = sorted(set(deferred_because or [])) or None
         if not state.get("gave_up_at"):
-            reason = self._past_horizon_reason(match, now, max_age)
-            if reason:
-                self._give_up(match, state, now, reason)
+            self._note_next_ask(match, state, now)
         return self._store_recovery(match, state)
 
     def resolve_match_id(self, raw: str) -> Optional[uuid.UUID]:

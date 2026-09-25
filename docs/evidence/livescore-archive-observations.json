@@ -1,0 +1,200 @@
+{
+  "endpoint": "matches/history.json (Live Score API)",
+  "note": "Every archive query this project has made, as OBSERVATIONS: which competition, which date range was asked for, when it was asked, and how many rows came back. None of this establishes that data cannot exist - an empty answer on one day says what the archive held on that day. No credential appears: key and secret are request parameters.",
+  "observations": [
+    {
+      "asked_on": "2026-09-22",
+      "competition_id": "3",
+      "name": "La Liga",
+      "from": "2026-09-16",
+      "to": "2026-09-16",
+      "rows": 3
+    },
+    {
+      "asked_on": "2026-09-22",
+      "competition_id": "3",
+      "name": "La Liga",
+      "from": "2026-09-15",
+      "to": "2026-09-22",
+      "rows": 8,
+      "dates_present": [
+        "2026-09-16",
+        "2026-09-17"
+      ]
+    },
+    {
+      "asked_on": "2026-09-22",
+      "competition_id": "3",
+      "name": "La Liga",
+      "from": "2026-09-18",
+      "to": "2026-09-20",
+      "rows": 0
+    },
+    {
+      "asked_on": "2026-09-22",
+      "competition_id": "3",
+      "name": "La Liga",
+      "from": "2026-09-19",
+      "to": "2026-09-19",
+      "rows": 0
+    },
+    {
+      "asked_on": "2026-09-22",
+      "competition_id": "2",
+      "name": "Premier League",
+      "from": "2026-09-19",
+      "to": "2026-09-19",
+      "rows": 0
+    },
+    {
+      "asked_on": "2026-09-22",
+      "competition_id": "2",
+      "name": "Premier League",
+      "from": "2026-09-19",
+      "to": "2026-09-20",
+      "rows": 0
+    },
+    {
+      "asked_on": "2026-09-22",
+      "competition_id": null,
+      "name": "(no filter)",
+      "from": "2026-09-19",
+      "to": "2026-09-19",
+      "rows": 0
+    },
+    {
+      "asked_on": "2026-09-22",
+      "competition_id": null,
+      "name": "(no filter)",
+      "from": "2026-09-15",
+      "to": "2026-09-22",
+      "rows": 30,
+      "note": "first page, many competitions"
+    },
+    {
+      "asked_on": "2026-09-23",
+      "competition_id": "362",
+      "name": "FIFA World Cup",
+      "from": "2026-06-10",
+      "to": "2026-07-20",
+      "rows": 30,
+      "national_team": true
+    },
+    {
+      "asked_on": "2026-09-23",
+      "competition_id": "227",
+      "name": "Africa Cup of Nations",
+      "from": "2026-01-01",
+      "to": "2026-02-15",
+      "rows": 16,
+      "national_team": true
+    },
+    {
+      "asked_on": "2026-09-23",
+      "competition_id": "271",
+      "name": "Copa America",
+      "from": "2024-06-15",
+      "to": "2024-07-20",
+      "rows": 30,
+      "national_team": true
+    },
+    {
+      "asked_on": "2026-09-23",
+      "competition_id": "490",
+      "name": "Women's World Cup",
+      "from": "2023-07-15",
+      "to": "2023-08-25",
+      "rows": 30,
+      "national_team": true
+    },
+    {
+      "asked_on": "2026-09-24",
+      "competition_id": "350",
+      "name": "UEFA Nations League",
+      "from": "2026-09-24",
+      "to": "2026-09-24",
+      "rows": 0,
+      "national_team": true
+    },
+    {
+      "asked_on": "2026-09-24",
+      "competition_id": "228",
+      "name": "AFCON Qualifications",
+      "from": "2026-09-24",
+      "to": "2026-09-24",
+      "rows": 0,
+      "national_team": true
+    },
+    {
+      "asked_on": "2026-09-25",
+      "competition_id": "350",
+      "name": "UEFA Nations League",
+      "from": "2026-09-24",
+      "to": "2026-09-24",
+      "rows": 0,
+      "national_team": true
+    },
+    {
+      "asked_on": "2026-09-25",
+      "competition_id": "228",
+      "name": "AFCON Qualifications",
+      "from": "2026-09-24",
+      "to": "2026-09-24",
+      "rows": 0,
+      "national_team": true
+    },
+    {
+      "asked_on": "2026-09-25",
+      "competition_id": "371",
+      "name": "National Teams Friendlies",
+      "from": "2026-09-24",
+      "to": "2026-09-24",
+      "rows": 0,
+      "national_team": true
+    },
+    {
+      "asked_on": "2026-09-25",
+      "competition_id": "412",
+      "name": "Arabian Gulf Cup",
+      "from": "2026-09-24",
+      "to": "2026-09-24",
+      "rows": 0,
+      "national_team": true
+    },
+    {
+      "asked_on": "2026-09-25",
+      "competition_id": "3",
+      "name": "La Liga",
+      "from": "2026-09-16",
+      "to": "2026-09-24",
+      "rows": 5,
+      "dates_present": [
+        "2026-09-16",
+        "2026-09-17"
+      ]
+    }
+  ],
+  "what_the_observations_support": [
+    "National-team competitions DO have archived results: World Cup, AFCON, Copa America and the Women's World Cup all answered for past tournaments.",
+    "Club and national competitions alike returned NOTHING dated 2026-09-18 or later, whether asked 2-4 days after (2026-09-22) or 1-7 days after (2026-09-25).",
+    "La Liga answered for 2026-09-16 and 2026-09-17 on both 2026-09-22 and 2026-09-25, so the boundary is between 09-17 and 09-18 and did not move in three days."
+  ],
+  "what_they_do_not_support": [
+    "That any competition, national or club, lacks an archive.",
+    "That a result for 2026-09-18 or later will never appear. A simple lag of about five days was tested and REFUTED on 2026-09-25; a longer lag, a trial restriction, or an upstream stall are all still open.",
+    "Any provider retention period. The 150-minute figure is this application's own polling window."
+  ],
+  "live_feed": [
+    {
+      "observed_at": "2026-09-24T21:06Z",
+      "endpoint": "matches/live.json",
+      "finding": "a poll carried seven UEFA Nations League fixtures that kicked off 18:45-18:49 (about 2h20m earlier) and not Andorra v Malta, which kicked off 16:01 (about 5h05m earlier)"
+    },
+    {
+      "observed_at": "2026-09-24T23:08Z",
+      "endpoint": "matches/live.json",
+      "finding": "3 rows in total: 2 FINISHED at FT, 1 IN PLAY at minute 79; every row has date null"
+    }
+  ],
+  "live_feed_caveat": "Two observations of one feed on one evening. They show what it carried at those moments, not how long the provider retains a finished match. The provider's own documentation describes finished matches remaining in the live feed after full time, with inconsistent durations; that is a question for the provider."
+}

@@ -10,6 +10,7 @@ Four tasks, because the four kinds of data do not go stale at the same rate:
   fixtures   the day's matches and the next few days      - hours
   live       scores, ONLY while a covered match is in its live window - minutes
   results    finished matches, so settlement has something to score   - half hours
+  recover    fixtures no refresh reaches any more, asked on a thinning retry schedule - half hours
   forecasts  third-party model forecasts, rotated by ForecastService  - hours
 
 Nothing here fetches anything itself. Each task calls the service that already knows how to talk to
@@ -41,13 +42,14 @@ import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
 from app.core.config import settings
 from app.services.forecast_service import ForecastService
 from app.services.match_cache import MatchCache
 from app.services.match_data_service import (
     COVERAGE_CALENDAR_KEY, MatchDataService, SyncMeta, live_polls_today, note_live_poll,
+    recovery_requests_left_today, recovery_requests_today,
 )
 from app.services.providers import competitions as comps
 
@@ -56,11 +58,19 @@ logger = logging.getLogger(__name__)
 TASK_FIXTURES = "fixtures"
 TASK_LIVE = "live"
 TASK_RESULTS = "results"
+TASK_RECOVER = "recover"
 TASK_FORECASTS = "forecasts"
 TASK_SETTLE = "settle"
-#: Order matters: `settle` runs after `results`, so a result ingested this pass is scored in it
-#: rather than half an hour later.
-TASK_NAMES: Tuple[str, ...] = (TASK_FIXTURES, TASK_LIVE, TASK_RESULTS, TASK_FORECASTS, TASK_SETTLE)
+#: Order matters: `settle` runs after `results` AND after `recover`, so a result ingested this
+#: pass is scored in it rather than half an hour later - which is the difference between a
+#: recovered final score reaching the reader's forecast now and reaching it on the next tick.
+TASK_NAMES: Tuple[str, ...] = (TASK_FIXTURES, TASK_LIVE, TASK_RESULTS, TASK_RECOVER,
+                               TASK_FORECASTS, TASK_SETTLE)
+
+#: Tasks whose failure is recorded but never penalised with an exponential wait. Only the repair
+#: qualifies: for a REFRESH a retry is a provider request nobody asked for, so backing off is
+#: right, but the repair exists precisely to be running at the moment connectivity returns.
+NO_BACKOFF_TASKS: FrozenSet[str] = frozenset({TASK_RECOVER})
 
 #: What one forecast competition's turn is assumed to cost when its provider will not price it:
 #: a league-id discovery and then the fetch, which is the expensive case. The dry run is an upper
@@ -224,6 +234,7 @@ class SyncScheduler:
             TASK_FIXTURES: settings.SYNC_FIXTURES_INTERVAL_SECONDS,
             TASK_LIVE: settings.SYNC_LIVE_INTERVAL_SECONDS,
             TASK_RESULTS: settings.SYNC_RESULTS_INTERVAL_SECONDS,
+            TASK_RECOVER: settings.SYNC_RECOVERY_INTERVAL_SECONDS,
             TASK_FORECASTS: settings.SYNC_FORECASTS_INTERVAL_SECONDS,
             TASK_SETTLE: settings.SYNC_SETTLE_INTERVAL_SECONDS,
         }[name]
@@ -269,11 +280,22 @@ class SyncScheduler:
             state["next_due_at"] = (now + timedelta(seconds=self.interval(name))).isoformat()
         else:
             failures = int(state.get("consecutive_failures") or 0) + 1
-            backoff = self._backoff_seconds(name, failures)
             state["failures"] = int(state.get("failures") or 0) + 1
             state["consecutive_failures"] = failures
             state["last_error_at"] = now.isoformat()
             state["last_error"] = (error or "task reported no usable data")[:MAX_ERROR_CHARS]
+            if name in NO_BACKOFF_TASKS:
+                # A REPAIR KEEPS ITS CADENCE THROUGH A FAILURE. The pass that reached no provider
+                # is the pass a stranded fixture is waiting on, and parking it for six hours is how
+                # a fixture stays wrong all night after connectivity came back. The failure is
+                # still recorded in full - `last_error`, the streak, the failure count - so the
+                # task appears in the health signals alongside the other five; only the penalty is
+                # dropped. See `_run_recovery` for what one pass costs while an outage lasts.
+                state["backoff_seconds"] = None
+                state["next_due_at"] = (now + timedelta(seconds=self.interval(name))).isoformat()
+                self._save_state(name, state)
+                return state
+            backoff = self._backoff_seconds(name, failures)
             state["backoff_seconds"] = backoff
             # Back off rather than retrying on the next tick: whatever broke is unlikely to be fixed
             # in sixty seconds, and each retry is a provider request nobody asked for.
@@ -675,7 +697,9 @@ class SyncScheduler:
             # A day costs one request per competition that still holds an unsettled match on it,
             # and nothing at all for the competitions that do not. That is the difference between
             # 3,360 requests a day at 35 competitions and the handful a matchday actually needs.
-            wanted = self._results_order(service, service.pending_result_keys(day), turn)
+            # Of those, only the ones the retry schedule says are due are asked: a match under six
+            # hours past kickoff is due every pass, an older one ever more rarely (RETRY_SCHEDULE).
+            wanted = self._results_order(service, service.due_result_keys(day), turn)
             take = wanted[:max(allowance, 0)] if cap else []
             out["deferred"].extend(f"{key}@{day.isoformat()}" for key in wanted[len(take):])
             meta = SyncMeta()
@@ -711,14 +735,73 @@ class SyncScheduler:
                     True, None)
         meta = SyncMeta()
         service._sync_live(meta)
-        # Only a request is counted. A poll served from the 60-second live cache spent nothing, and
-        # charging it to the ceiling would stop the day early over requests that never happened.
-        if meta.source == "provider":
+        # Only a request is counted, and every request is: a poll that went out and failed was
+        # charged by the provider exactly like an answered one, so it counts against the ceiling
+        # too. A poll served from the 60-second live cache, or refused before it left, spent
+        # nothing, and charging it would stop the day early over requests that never happened.
+        if meta.requests > 0:
             self._note_live_poll()
         out = {"live_window_open": True, **meta.to_dict(), "polls_today": self._live_polls_today()}
         out["errors"] = _clip(out["errors"])
         ok = not out["errors"]
         return out, ok, "; ".join(out["errors"]) or None
+
+    def _run_recovery(self, services: _Services) -> Tuple[Dict[str, Any], bool, Optional[str]]:
+        """Go and get the final scores nothing else will, unattended and inside a stated bound.
+
+        THE HOLE THIS FILLS. The live poll considers a match for 150 minutes after kickoff - this
+        application's polling window - and the results task looks back `SYNC_RESULTS_LOOKBACK_DAYS`
+        days. A match whose result did not arrive inside both sat reading "LIVE, HT" until somebody
+        ran `scripts/repair_unsettled_matches.py`. This is that sweep, on a clock: see
+        `MatchDataService.recover_stranded` for what it asks, when, and what it concludes.
+
+        WHAT IS A FAILURE. A pass fails when a request it sent was not answered (`failed_calls`):
+        that is an outage, and it must show as one. A pass whose calls were answered is a healthy
+        pass however little came back - "the archive returned no rows for that date" is what the
+        call observed, recorded per competition and date, and not a fault here. It says what the
+        archive answered when asked, not why, and not whether it will ever answer otherwise. A call that
+        never left - refused by an allowance, or skipped while the provider cools down after a
+        failure - is a deferral and not a failure: nothing was unreachable. A pass with nothing due
+        makes no call and is a success with nothing to say.
+
+        A FAILED PASS DOES NOT BACK OFF, and this is the one place in this module where that is
+        true. `_record` backs a failing task off exponentially, up to six hours, because a retry is
+        a provider request nobody asked for. For a repair that reasoning inverts: the pass that
+        reaches no provider is the pass a stranded fixture is waiting on, and parking it for six
+        hours is how a fixture stays wrong all night after connectivity came back - which is what
+        happened on 2026-09-24, when backoff pushed the results task to a two-hour wait and the
+        live task past 22:30. So `NO_BACKOFF_TASKS` holds this task and only this task. The failure
+        is still recorded in full (`last_error`, the streak), so an outage lasting a week does not
+        read on the status endpoint like a week with nothing to repair.
+
+        WHAT NOT BACKING OFF COSTS. During an outage the provider cool-down `_call_chain` sets
+        after a failure (two minutes) turns every later call in the same pass into a skip, so a
+        pass makes about one real request, and a failed call does not move the retry schedule. That
+        one request is charged: to the recovery task's daily ceiling when it was a results request,
+        to the live ceiling when it was the poll, so an outage that lasts all day ends at those
+        ceilings rather than running past them. `_budget_block` and `RequestBudget` bound it besides.
+
+        A pass that RAISES is still a failure: `_maybe_run` catches it and backs off, which is
+        what should happen to a bug.
+        """
+        service = services.match
+        report = service.recover_stranded()
+        report["requests"] = int(report.get("results_requests") or 0) + int(report.get("live_requests") or 0)
+        report["recovery_requests_today"] = self._recovery_requests_today()
+        report["errors"] = _clip(report.get("errors") or [])
+        report["failed_calls"] = _clip(report.get("failed_calls") or [])
+        report["deferred"] = list(report.get("deferred") or [])[:MAX_STORED_ERRORS]
+        # The per-fixture detail is the part that grows without bound, and `status()` publishes
+        # `last_result` on every call. The counts and the deferrals are kept; the roll-call is
+        # trimmed to the fixtures a reader would act on.
+        report["fixtures"] = list(report.get("fixtures") or [])[:MAX_STORED_ERRORS]
+        if report["failed_calls"]:
+            return report, False, ("reached no provider on " + str(len(report["failed_calls"]))
+                                   + " call(s): " + "; ".join(report["failed_calls"]))
+        return report, True, None
+
+    def _recovery_requests_today(self) -> int:
+        return recovery_requests_today(self.cache, self.now)
 
     def _run_forecasts(self, services: _Services) -> Tuple[Dict[str, Any], bool, Optional[str]]:
         # ForecastService already rotates least-recently-synced first, holds its own lock, enforces
@@ -737,8 +820,21 @@ class SyncScheduler:
 
         now = services.match.now
         lookback = max(int(settings.SYNC_SETTLE_LOOKBACK_DAYS), 1)
-        service = SettlementService(self._db_of(services))
-        report = service.settle_range(start=now - timedelta(days=lookback), end=now)
+        since = now - timedelta(days=lookback)
+        db = self._db_of(services)
+        service = SettlementService(db)
+        report = service.settle_range(start=since, end=now, commit=False)
+        # A RESULT CAN ARRIVE LATER THAN THE WINDOW ABOVE LOOKS BACK. The recovery sweep keeps
+        # asking for up to `RETRY_HORIZON` after kickoff, so a final score recovered on day five
+        # belongs to a match this range no longer includes and would be stored and never scored.
+        # Those matches are added here - only the ones the sweep settled inside the same window -
+        # through the same idempotent `settle_match` the range uses.
+        late = services.match.registry.recovered_since(since, kicked_off_before=since)
+        for match in late:
+            service.settle_match(match, report)
+        report["late_recoveries"] = [str(m.id) for m in late]
+        db.flush()
+        db.commit()
         errors = _clip(list(report.get("errors") or []))
         report["errors"] = errors
         return report, not errors, "; ".join(errors) or None
@@ -752,6 +848,7 @@ class SyncScheduler:
             TASK_FIXTURES: self._run_fixtures,
             TASK_LIVE: self._run_live,
             TASK_RESULTS: self._run_results,
+            TASK_RECOVER: self._run_recovery,
             TASK_FORECASTS: self._run_forecasts,
             TASK_SETTLE: self._run_settle,
         }[name](services)
@@ -1014,19 +1111,45 @@ class SyncScheduler:
                 return 0, f"the day's live-poll ceiling is reached ({polled}/{cap})"
             return 1, ("1 request (matches/live.json covers every competition at once); "
                        f"{polled} poll(s) made today of at most {cap or 'unbounded'}")
+        if name == TASK_RECOVER:
+            plan = service.recovery_plan()
+            if not plan["stranded"]:
+                return 0, "no fixture is stranded; a recovery pass makes no request"
+            if not plan["due"]:
+                return 0, (f"{len(plan['stranded'])} stranded fixture(s), none due an ask under the "
+                           f"retry schedule; a recovery pass makes no request")
+            left = recovery_requests_left_today(self.cache, self.now)
+            per_pass = max(int(settings.SYNC_RECOVERY_MAX_REQUESTS_PER_PASS), 0)
+            allowance = per_pass if left is None else min(per_pass, left)
+            results = min(plan["results_requests"], allowance)
+            live_left = bool(plan["live_requests"])
+            basis = (f"{len(plan['stranded'])} stranded fixture(s), {len(plan['due'])} due under "
+                     f"the retry schedule, over {len(plan['days'])} day(s) behind the results "
+                     f"lookback: {results} results request(s) of the {plan['results_requests']} "
+                     f"they want, capped at {allowance} left to this pass")
+            if live_left:
+                basis += ("; plus 1 live poll, charged to the live task's daily ceiling rather "
+                          "than added beside it")
+            else:
+                basis += "; the live poll is refused, the day's live ceiling being reached"
+            # The live poll is priced here because it IS a request this pass would make, even
+            # though it is billed to another task's ceiling. An estimate that left it out would
+            # under-report the pass, which is the one direction an estimate must not err in.
+            return results + (1 if live_left else 0), basis
         lookback = max(int(settings.SYNC_RESULTS_LOOKBACK_DAYS), 0)
         cap = max(int(settings.SYNC_RESULTS_MAX_REQUESTS_PER_PASS), 0)
         today = service.now.date()
         spent, days_with_work, deferred = 0, 0, 0
         for offset in range(lookback + 1):
-            pending = service.pending_result_keys(today - timedelta(days=offset))
+            pending = service.due_result_keys(today - timedelta(days=offset))
             if pending:
                 days_with_work += 1
             take = min(len(pending), max(cap - spent, 0)) if cap else 0
             spent += take
             deferred += len(pending) - take
-        basis = (f"1 request per competition holding an unsettled match: {spent} over "
-                 f"{days_with_work} day(s) with work, capped at {cap} a pass")
+        basis = (f"1 request per competition holding an unsettled match the retry schedule "
+                 f"says is due: {spent} over {days_with_work} day(s) with work, capped at {cap} "
+                 f"a pass")
         if deferred:
             basis += f"; {deferred} deferred to the next pass by that cap"
         return spent, basis
@@ -1067,6 +1190,11 @@ class SyncScheduler:
             "calendar_refresh_per_pass": int(settings.SYNC_COVERAGE_CALENDAR_REFRESH_PER_PASS),
             "live_polls_today": self._live_polls_today(),
             "live_polls_per_day_ceiling": int(settings.SYNC_LIVE_MAX_REQUESTS_PER_DAY),
+            # Published beside the live counter because the recovery pass spends out of BOTH: its
+            # results requests out of this one, its live poll out of the one above. Two numbers,
+            # because one of them is the recovery task's own ceiling and the other is not.
+            "recovery_requests_today": self._recovery_requests_today(),
+            "recovery_requests_per_day_ceiling": int(settings.SYNC_RECOVERY_MAX_REQUESTS_PER_DAY),
         }
 
     def status(self) -> Dict[str, Any]:

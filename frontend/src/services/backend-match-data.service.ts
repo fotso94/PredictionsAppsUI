@@ -159,6 +159,44 @@ export interface ApiMatch {
     et_home?: number | null; et_away?: number | null;
     ps_home?: number | null; ps_away?: number | null;
   } | null;
+  /**
+   * When a result should have arrived: the backend's kickoff plus its own unsettled grace.
+   *
+   * Optional because a payload from before this field existed simply has none, and a missing
+   * value must never be filled in here — the grace is a constant of the backend's polling, not of
+   * the calendar, so a number chosen in the browser would be a guess dressed as a deadline.
+   */
+  result_expected_by?: string | null;
+  /**
+   * The stale sweep's record for this fixture; null until it has ever been touched by one.
+   *
+   * `gave_up_reason` is on the wire and is not mapped: it is operator prose, in English, and no
+   * reader-facing sentence is built from it. What a reader is told comes from the timestamps and
+   * the count, in their own language.
+   */
+  recovery?: {
+    attempts: number | null;
+    last_attempt_at: string | null;
+    gave_up_at: string | null;
+    gave_up_reason: string | null;
+    /** The policy the row says made the stop: `retry_budget`, or null for a stop from a rule
+     *  since removed (the backend undoes those on its next recovery pass). Absent on older backends. */
+    stopped_by?: string | null;
+    /*
+     * What the sweep's most recent pass over this fixture learned, and when: `provider_error`
+     * (a call went out and nobody could be reached), `fresh_unanswered` (the provider answered
+     * without a result), `deferred` (no request went out, so nothing failed: an allowance - ours or
+     * the provider's reported one - refused it, or the provider was cooling down after an earlier
+     * failure; `last_deferred_because` says which), `cached` (our stored copy was read instead of
+     * a call) or `recovered`. Optional because a backend that predates them sends none, and a
+     * missing outcome is read as "not stated", never as any of them.
+     */
+    last_outcome?: string | null;
+    last_outcome_at?: string | null;
+    /** Why a deferred check never left, one entry per provider tried: our_allowance,
+     *  provider_allowance, cooling_down or not_configured. */
+    last_deferred_because?: string[] | null;
+  } | null;
   venue: string | null;
   round: string | null;
   season: string | null;
@@ -469,6 +507,21 @@ export function mapApiMatch(match: ApiMatch): Match {
     externalId: match.external_id,
     minute: match.minute,
     lastSyncedAt: match.last_synced_at,
+    // Both carried through as sent. `undefined` stays `undefined`: a payload that does not say
+    // when a result was due is not a payload saying none is due, and resultDelay() draws the
+    // distinction rather than guessing past it.
+    resultExpectedBy: match.result_expected_by,
+    recovery: match.recovery
+      ? {
+        attempts: match.recovery.attempts,
+        lastAttemptAt: match.recovery.last_attempt_at,
+        gaveUpAt: match.recovery.gave_up_at,
+        stoppedBy: match.recovery.stopped_by ?? null,
+        lastOutcome: match.recovery.last_outcome ?? null,
+        lastOutcomeAt: match.recovery.last_outcome_at ?? null,
+        lastDeferredBecause: match.recovery.last_deferred_because ?? null,
+      }
+      : match.recovery,
     // Carried through untouched. The brief is already the finished statement — reason codes,
     // wording, rounded percentages and all — so re-deriving any of it here would be a second
     // version of the same fact, free to drift from the one the backend stands behind.

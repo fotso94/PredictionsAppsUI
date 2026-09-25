@@ -42,6 +42,7 @@
  */
 
 import type { SavedMatch } from '@/types';
+import { isPlayableNow, resultDelay } from '@/utils/resultDelay';
 
 /** Identifies the software that wrote the file, as RFC 5545 requires. */
 const PRODID = '-//Soccer Predictions//Saved fixtures snapshot//EN';
@@ -192,10 +193,42 @@ function finalScore(entry: SavedMatch): string | null {
   return entry.match.status === 'finished' ? storedScore(entry) : null;
 }
 
-/** The score of a match that is being played as the snapshot is taken, or null. */
+/**
+ * The score of a match that is being played as the snapshot is taken, or null.
+ *
+ * `isPlayableNow` rather than the stored status, because a fixture whose final score has not arrived
+ * keeps `live` or `halftime` until one does, and this file is written once and never corrected. Its line
+ * says "with the match still being played", in the present tense, in a file that will sit in a
+ * reader's calendar for months: the one place in this product where a wrong tense cannot be
+ * repaired by the next refresh.
+ */
 function inPlayScore(entry: SavedMatch): string | null {
-  const { status } = entry.match;
-  return status === 'live' || status === 'halftime' ? storedScore(entry) : null;
+  return isPlayableNow(entry.match) ? storedScore(entry) : null;
+}
+
+/**
+ * Why a fixture carries no score in this snapshot even though its kickoff has long passed.
+ *
+ * Without it the entry says nothing at all about such a fixture, and a reader opening their
+ * calendar weeks later finds a kickoff time and silence where a result should be. This says which
+ * silence it is, and it is deliberately not a score.
+ */
+function unresolvedLine(entry: SavedMatch): string | null {
+  const delay = resultDelay(entry.match);
+  if (!delay) return null;
+  /*
+   * Both sentences stay on the facts the row carries: when a result was due, that none had reached
+   * us, and whether we had stopped asking. Stopping is a limit of ours, so the given-up sentence
+   * says a result may still exist, and says where to look — this file cannot be updated with it.
+   * Neither sentence says the match was or was not being played: what is known is that the row
+   * had stopped changing, which is evidence about our data, not about the football.
+   */
+  return delay.state === 'given_up'
+    ? 'No result for this fixture had reached us when this snapshot was taken, and we had stopped '
+      + 'asking for it. That is a limit of ours, not a sign that no result exists. Nothing here is '
+      + 'a score, and this file will not be updated with one; check the match page.'
+    : 'A result for this fixture was due before this snapshot was taken and had not reached us. '
+      + 'It was not shown as in play at that moment, and nothing here is a score.';
 }
 
 /** What a reader sees in their calendar's list view. Postponed and cancelled say so. */
@@ -212,6 +245,8 @@ function descriptionFor(entry: SavedMatch, timed: boolean, takenAt: string): str
   if (entry.match.league?.name) lines.push(entry.match.league.name);
   const score = finalScore(entry);
   if (score) lines.push(`Final score as stored: ${score}`);
+  const unresolved = unresolvedLine(entry);
+  if (unresolved) lines.push(unresolved);
   const running = inPlayScore(entry);
   if (running) {
     lines.push(

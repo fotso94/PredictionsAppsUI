@@ -48,8 +48,16 @@ export interface SavedMatchesPanelProps {
   className?: string
 }
 
+/*
+ * `unresolved` holds a fixture whose result passed its deadline and never arrived. Its row still
+ * carries a status of LIVE or SCHEDULED, because that is the last thing a provider said about it,
+ * and under "In play now" this page would assert in a heading a match that finished hours ago.
+ * The heading says what is actually true of every fixture under it: a result was expected and is
+ * not here. Each row then says which of the two states it is in and how late it is.
+ */
 const GROUP_TITLE: Record<FeedPhase, string> = {
   live: 'In play now',
+  unresolved: 'Awaiting a result',
   result: 'Results',
   upcoming: 'Coming up',
 }
@@ -57,6 +65,7 @@ const GROUP_TITLE: Record<FeedPhase, string> = {
 /** The short word used in the summary line at the top, where space is tight. */
 const GROUP_SUMMARY: Record<FeedPhase, (count: number) => string> = {
   live: count => `${count} in play`,
+  unresolved: count => `${count} awaiting a result`,
   result: count => (count === 1 ? '1 result' : `${count} results`),
   upcoming: count => `${count} coming up`,
 }

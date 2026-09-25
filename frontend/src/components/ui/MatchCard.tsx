@@ -11,6 +11,8 @@ import { isMatchLive, isMatchFinished, getMatchStatusText, getMatchStatusBadgeCl
 import { predictionSourceLabel, forecastSyncMessage } from '@/utils/predictionLabels'
 import { marketLead, formatPercent, unavailableText } from './probability'
 import { periodLines } from './scoreline'
+import { resultDelay } from '@/utils/resultDelay'
+import { ResultDelayLabel, ResultDelayNotice } from './ResultDelayNotice'
 import { onTeamLogoError, onLeagueLogoError } from './imageFallback'
 
 interface MatchCardProps {
@@ -77,7 +79,15 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, fo
   const confidenceBasis = isExpertPrediction ? 'published' : 'derived'
   const hiddenForecastNote = !prediction ? forecastStateText(match.providerForecast?.state) : null
   const pausedNote = !prediction ? forecastSyncMessage(forecastSync) : null
-  const showScore = (isMatchLive(match) || isMatchFinished(match)) && match.result
+  /*
+   * Read before anything asks the stored status what is happening. Past the backend's deadline for
+   * a result, `isMatchLive` is still true and would put a pulsing LIVE badge, a minute and a
+   * scoreline on a match that ended hours ago — so the delay withholds all three and the notice
+   * below takes the scoreline's place.
+   */
+  const delay = resultDelay(match)
+  const live = isMatchLive(match) && !delay
+  const showScore = (live || isMatchFinished(match)) && match.result
 
   /**
    * The 1X2 market. `outcome` is null when the source published no match-result market, and
@@ -119,9 +129,11 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, fo
               ))}
             </div>
             <div className="flex items-center space-x-2">
-              {(isMatchLive(match) || match.status === 'postponed' || match.status === 'cancelled') && (
+              {delay ? (
+                <ResultDelayLabel delay={delay} />
+              ) : (live || match.status === 'postponed' || match.status === 'cancelled') && (
                 <span className={getMatchStatusBadgeClasses(match)}>
-                  {getMatchStatusText(match)}{isMatchLive(match) && match.minute ? ` ${match.minute}'` : ''}
+                  {getMatchStatusText(match)}{live && match.minute ? ` ${match.minute}'` : ''}
                 </span>
               )}
               <div className="flex items-center space-x-2 text-xs text-secondary-400">
@@ -155,7 +167,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, fo
             <div className="px-4">
               {showScore && match.result ? (
                 <div className="text-center">
-                  <div className={`text-2xl font-bold ${isMatchLive(match) ? 'text-green-500' : 'text-white'}`}>
+                  <div className={`text-2xl font-bold ${live ? 'text-green-500' : 'text-white'}`}>
                     {match.result.homeScore} - {match.result.awayScore}
                   </div>
                   {/*
@@ -169,13 +181,16 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, showPredictions = true, fo
                       {line}
                     </div>
                   ))}
-                  {match.status === 'halftime' && (
+                  {match.status === 'halftime' && !delay && (
                     <div className="text-xs text-secondary-400 mt-1">HT</div>
                   )}
                   {isMatchFinished(match) && (
                     <div className="text-xs text-secondary-400 mt-1">FT</div>
                   )}
                 </div>
+              ) : delay ? (
+                /* "VS" reads as a fixture still to come, and this one's kickoff has been and gone. */
+                <ResultDelayNotice delay={delay} className="max-w-[12rem]" />
               ) : (
                 <div className="text-secondary-400 text-sm font-medium">VS</div>
               )}

@@ -184,7 +184,20 @@ test('a fixture in play keeps its running score under a running label across a r
    * `refresh=false` answers the same question out of the database, for nothing.
    */
   const fixtures = await storedFixtures(api);
-  const inPlay = fixtures.filter(m => (m.status === 'live' || m.status === 'halftime') && m.score);
+  /*
+   * IN PLAY MEANS THE SAME THING HERE AS IT DOES ON THE PAGE, which is not what the stored status
+   * alone says. A fixture keeps `live` or `halftime` until its final score arrives, and
+   * the local database holds several of those at any time; picking one would set this test up
+   * against a match that finished hours ago and then assert the page is calling it live — a test
+   * that fails when the application is right. `result_expected_by` is the backend's own deadline
+   * for a result, and a fixture inside it is one the application will still show running.
+   */
+  const stillRunning = (m: ApiMatch): boolean => {
+    const due = m.result_expected_by ? Date.parse(m.result_expected_by) : NaN;
+    return !Number.isNaN(due) && due > Date.now();
+  };
+  const inPlay = fixtures.filter(m => (m.status === 'live' || m.status === 'halftime') && m.score
+    && stillRunning(m));
   test.skip(inPlay.length === 0, 'no fixture is in play in the local database right now');
   const fixture = inPlay[0];
 
@@ -222,7 +235,7 @@ test('a fixture in play keeps its running score under a running label across a r
 
   const current = await (await api.get(`/api/v1/matches/${fixture.id}`)).json();
   record(current);
-  test.skip(current.status !== 'live' && current.status !== 'halftime',
+  test.skip((current.status !== 'live' && current.status !== 'halftime') || !stillRunning(current),
     'the fixture stopped being in play while the test was running');
 
   const shown = await scoreline.innerText();
