@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect, APIRequestContext, Download, Page } from '@playwright/test';
 import { apiContext, ensureQaExpertToken, QA_EXPERT } from '../support/qa-account';
+import { expectNothingSpentBesidesTheScheduler, providerSpend } from '../support/provider-spend';
 
 /**
  * Control, privacy and the calendar snapshot, against the real local stack.
@@ -102,15 +103,6 @@ async function followTeam(api: APIRequestContext, bearer: string, teamId: string
   const response = await api.put(`/api/v1/me/favourites/teams/${teamId}`, auth(bearer));
   expect(response.ok(), 'the QA account could not follow a team through the API').toBe(true);
   followedInThisTest.add(teamId);
-}
-
-/** Every provider's spend today, so a test can prove this whole journey moved none of it. */
-async function providerSpend(api: APIRequestContext): Promise<Record<string, number>> {
-  const status = await (await api.get('/api/v1/data-providers/status')).json();
-  const spend: Record<string, number> = {};
-  for (const provider of status.chain ?? []) spend[provider.name] = provider.budget?.used_today ?? 0;
-  spend.forecasts = status.forecasts?.budget?.used_today ?? 0;
-  return spend;
 }
 
 /** Sign in through the real form, as a visitor would. Resolves once the route has changed. */
@@ -458,8 +450,11 @@ for (const viewport of VIEWPORTS) {
      * E5, made executable, and the cost of the whole journey.
      *
      * The copy check is the "read your own copy back" step written down so it stays done. The
-     * spend check is the standing rule: browsing, toggling and exporting must move no provider
-     * counter, and this exercise touches more of the personal surfaces than any other test here.
+     * spend check is the standing rule: browsing, toggling and exporting must spend no provider
+     * request, and this exercise touches more of the personal surfaces than any other test here.
+     * The scheduler's own requests over the same window are subtracted exactly rather than hoped
+     * absent (e2e/support/provider-spend.ts): on 2026-09-25 its live poll landed inside this
+     * window and failed a journey that had spent nothing.
      */
     test('nothing on the panel nudges, and none of this spends a provider request', async ({ page }) => {
       const api = await apiContext();
@@ -499,7 +494,8 @@ for (const viewport of VIEWPORTS) {
 
       await page.waitForLoadState('networkidle');
       expect(refreshRequests, 'the personal pages must never ask a provider to refresh').toBe(0);
-      expect(await providerSpend(api), 'browsing and exporting spent a provider request').toEqual(before);
+      expectNothingSpentBesidesTheScheduler(before, await providerSpend(api),
+        'browsing and exporting spent a provider request');
 
       await api.dispose();
     });

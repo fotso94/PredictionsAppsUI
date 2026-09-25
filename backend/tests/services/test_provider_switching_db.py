@@ -432,6 +432,9 @@ def test_league_team_and_status_endpoints(client):
     status = client.get("/api/v1/data-providers/status").json()
     assert status["active_provider"] == "sample" and status["chain"][0]["name"] == "sample"
     assert status["forecasts"]["active_provider"] == "sample" and status["covered_competitions"] == ["premier_league", "la_liga"]
+    # what each scheduler task sent, per pass and in total, is published beside its other state
+    for task in status["scheduler"]["tasks"].values():
+        assert {"last_requests_sent", "requests_sent_total"} <= set(task)
 
 
 def test_unconfigured_primary_without_fallback_returns_503(client, monkeypatch):

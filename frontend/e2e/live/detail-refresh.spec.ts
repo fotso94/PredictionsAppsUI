@@ -1,6 +1,7 @@
 import { test, expect, APIRequestContext, Page } from '@playwright/test';
 import { apiContext } from '../support/qa-account';
 import { ApiMatch } from '../support/api-stub';
+import { expectNothingSpentBesidesTheScheduler, spendFromStatus, SpendReading } from '../support/provider-spend';
 
 /**
  * The match page's return refresh, against the running backend and the rows it already holds.
@@ -26,17 +27,19 @@ import { ApiMatch } from '../support/api-stub';
  *    database's contents are a fact about the day, not a constant of the test. On 2026-09-19 at
  *    19:58 UTC it held seven, with minutes advancing; the handover for this work recorded none,
  *    which is exactly why neither test may assume either way.
- *  - IT CANNOT SEPARATE OUR SPEND FROM THE SCHEDULER'S BY ASSERTION ALONE. The backend polls live
- *    scores every 120 seconds on its own, and that spend is real and is not the browser's. The
- *    measurement below is therefore bracketed by the scheduler's own run counters and retried if
- *    it ran inside the window, so the counters are only ever read across a window the browser had
- *    to itself. A window the scheduler shared proves nothing and is not allowed to pass as proof.
+ *  - IT CANNOT TELL WHO SPOKE TO A PROVIDER, only who PAID one. The backend polls live scores
+ *    every 120 seconds on its own. What that costs is subtracted exactly: each budget carries the
+ *    scheduler's own ledger, read in the same transaction as the counter
+ *    (e2e/support/provider-spend.ts). But a provider's `last_success_at` has no such ledger, and
+ *    the scheduler's poll moves it too, so the measurement below is still bracketed by the
+ *    scheduler's run counters and retried if it ran inside the window. A window the scheduler
+ *    shared proves nothing about contact and is not allowed to pass as proof.
  */
 
 /** What every provider has spent today, plus who else has been running. */
 interface Spend {
-  /** `used_today` per provider in the chain, and for the forecast provider. */
-  budgets: Record<string, number>;
+  /** Per budgeted provider: `used_today`, and what the scheduler itself has sent it. */
+  budgets: SpendReading;
   /** When each provider last ANSWERED us. A provider request would move this even at no cost. */
   contacted: Record<string, string | null>;
   /** The scheduler's own pass counters, so a background pass can be told apart from ours. */
@@ -45,13 +48,9 @@ interface Spend {
 
 async function spendSnapshot(api: APIRequestContext): Promise<Spend> {
   const status = await (await api.get('/api/v1/data-providers/status')).json();
-  const budgets: Record<string, number> = {};
+  const budgets = spendFromStatus(status);
   const contacted: Record<string, string | null> = {};
-  for (const provider of status.chain ?? []) {
-    budgets[provider.name] = provider.budget?.used_today ?? 0;
-    contacted[provider.name] = provider.last_success_at ?? null;
-  }
-  budgets.forecasts = status.forecasts?.budget?.used_today ?? 0;
+  for (const provider of status.chain ?? []) contacted[provider.name] = provider.last_success_at ?? null;
   const runs: Record<string, number> = {};
   const tasks = Object.entries(status.scheduler?.tasks ?? {}) as Array<[string, { runs?: number }]>;
   for (const [name, task] of tasks) runs[name] = task.runs ?? 0;
@@ -126,10 +125,11 @@ test('coming back to a match page reads it once, from stored data, and spends no
   /*
    * ONE MEASURED RETURN, TAKEN IN A WINDOW THE BROWSER HAD TO ITSELF.
    *
-   * The scheduler polls live scores every two minutes and that spend is its own. Rather than
-   * excuse a moved counter after the fact — which would turn this assertion into one that can
-   * never fail — the window is bracketed by the scheduler's run counters and taken again if it
-   * ran inside. An attempt is only ever CONCLUDED from, never explained away.
+   * The scheduler polls live scores every two minutes. What that costs is subtracted exactly
+   * below, but it also moves each provider's last-contact time, which has no ledger to subtract.
+   * Rather than excuse a moved timestamp after the fact — which would turn that assertion into one
+   * that can never fail — the window is bracketed by the scheduler's run counters and taken again
+   * if it ran inside. An attempt is only ever CONCLUDED from, never explained away.
    */
   let measured: { before: Spend; after: Spend } | null = null;
   let readsBefore = 0;
@@ -157,8 +157,8 @@ test('coming back to a match page reads it once, from stored data, and spends no
   expect(reads(), 'the return issued more than one read of the match').toBe(readsBefore + 1);
 
   // What the return cost the providers, in both accountings the backend keeps.
-  expect(measured.after.budgets, 'coming back to a match page spent a provider request')
-    .toEqual(measured.before.budgets);
+  expectNothingSpentBesidesTheScheduler(measured.before.budgets, measured.after.budgets,
+    'coming back to a match page spent a provider request');
   // And no provider was even spoken to: a call that returned from cache still moves this.
   expect(measured.after.contacted, 'coming back to a match page contacted a provider')
     .toEqual(measured.before.contacted);

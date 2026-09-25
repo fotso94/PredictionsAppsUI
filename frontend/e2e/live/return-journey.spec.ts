@@ -1,5 +1,6 @@
 import { test, expect, APIRequestContext, Page } from '@playwright/test';
 import { apiContext, ensureQaExpertToken, QA_EXPERT } from '../support/qa-account';
+import { expectNothingSpentBesidesTheScheduler, providerSpend } from '../support/provider-spend';
 
 /**
  * Coming BACK: the half of the journey that begins after the reader has already been here once.
@@ -136,15 +137,6 @@ async function clearQaFavourites(api: APIRequestContext, bearer: string): Promis
       await api.delete(`/api/v1/me/saved-matches/${entry.match_id}`, auth(bearer));
     }
   }
-}
-
-/** Every provider's spend today, so a test can prove browsing moved none of it. */
-async function providerSpend(api: APIRequestContext): Promise<Record<string, number>> {
-  const status = await (await api.get('/api/v1/data-providers/status')).json();
-  const spend: Record<string, number> = {};
-  for (const provider of status.chain ?? []) spend[provider.name] = provider.budget?.used_today ?? 0;
-  spend.forecasts = status.forecasts?.budget?.used_today ?? 0;
-  return spend;
 }
 
 /** The row for one fixture in the feed, saved or reached through a follow. */
@@ -345,7 +337,9 @@ test('coming back to the tab picks up a change made elsewhere, and spends no pro
   expect(favouriteReads, 'the focus/visibilitychange pair must collapse into one read').toBe(1);
 
   // The whole constraint in one assertion: not one provider request was spent getting there.
-  expect(await providerSpend(api)).toEqual(before);
+  // The scheduler's own requests in the same window are subtracted exactly, not hoped absent.
+  expectNothingSpentBesidesTheScheduler(before, await providerSpend(api),
+    'coming back to the tab spent a provider request');
   await api.dispose();
 });
 

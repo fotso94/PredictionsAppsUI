@@ -1,5 +1,6 @@
 import { test, expect, APIRequestContext, Page } from '@playwright/test';
 import { apiContext, QA_EXPERT } from '../support/qa-account';
+import { expectNothingSpentBesidesTheScheduler, providerSpend, SpendReading } from '../support/provider-spend';
 
 /**
  * THE PERSONAL JOURNEY, PROVED AGAINST THE RUNNING BACKEND AND A REAL ACCOUNT.
@@ -24,13 +25,13 @@ import { apiContext, QA_EXPERT } from '../support/qa-account';
  *  - Every read is a stored read. Nothing here passes `refresh=true`, so no provider request is
  *    issued and no trial allowance is spent. The forecast provider is paused on a spent daily
  *    allowance and must stay untouched.
- *  - The gameforecast counter for the current UTC day is read before the first test and after the
- *    last, and asserted equal. Every provider's counter is printed at both ends, so the claim can
- *    be checked rather than believed.
- *  - Separately, and this is the assertion that actually holds the rule: no request THIS BROWSER
- *    issues may carry `refresh=true`, checked per test against the page's own traffic. The
- *    counters alone cannot carry it — the backend's scheduler moves them by itself; the note on
- *    `afterAll` has the measurement.
+ *  - Every provider's counter for the current UTC day is read before the first test and after the
+ *    last, and what moved it is asserted to be the scheduler's and nothing else's: the backend's
+ *    scheduler spends on its own, and its share is subtracted exactly, from a ledger read in the
+ *    same transaction as the counter. The note on `afterAll` has the measurement that made this
+ *    necessary. Both readings are printed, so the claim can be checked rather than believed.
+ *  - Separately: no request THIS BROWSER issues may carry `refresh=true`, checked per test against
+ *    the page's own traffic, which names the page that asked where a counter cannot.
  *
  * WHAT IS WRITTEN, AND WHAT IS PUT BACK
  *  - Saved-match rows and followed-team rows on the QA account, and nothing else. Every one is
@@ -196,15 +197,6 @@ async function playedFixture(api: APIRequestContext): Promise<Fixture | null> {
   return null;
 }
 
-/** Every provider's spend today, so this file can prove it moved none of it. */
-async function providerSpend(api: APIRequestContext): Promise<Record<string, number>> {
-  const status = await (await api.get('/api/v1/data-providers/status')).json();
-  const spend: Record<string, number> = {};
-  for (const provider of status.chain ?? []) spend[provider.name] = provider.budget?.used_today ?? 0;
-  spend.gameforecast = status.forecasts?.budget?.used_today ?? 0;
-  return spend;
-}
-
 /** What the QA account currently holds saved, straight from the API. */
 async function savedMatchIds(api: APIRequestContext, bearer: string): Promise<string[]> {
   const response = await api.get('/api/v1/me/saved-matches', auth(bearer));
@@ -324,20 +316,19 @@ async function storageDump(page: Page): Promise<{
 
 /* ----------------------------------------------------- the allowance, before and after it all */
 
-let spendBefore: Record<string, number> = {};
+let spendBefore: SpendReading = {};
 
 /**
  * Every `/api/v1` request THIS BROWSER made during the current test.
  *
- * The counters alone cannot answer the question this file has to answer, and it took a measurement
- * to see why. See the note on the afterAll hook below.
+ * The counters say whether anything but the scheduler spent; this says which page asked. See the
+ * note on the afterAll hook below.
  */
 let browserCalls: string[] = [];
 
 test.beforeAll(async () => {
   const api = await apiContext();
   spendBefore = await providerSpend(api);
-  console.log(`[journey-proof] gameforecast used_today BEFORE: ${spendBefore.gameforecast}`);
   console.log(`[journey-proof] all providers BEFORE: ${JSON.stringify(spendBefore)}`);
   await api.dispose();
 });
@@ -353,33 +344,26 @@ test.beforeEach(async ({ page }) => {
 test.afterAll(async () => {
   const api = await apiContext();
   const spendAfter = await providerSpend(api);
-  console.log(`[journey-proof] gameforecast used_today AFTER:  ${spendAfter.gameforecast}`);
   console.log(`[journey-proof] all providers AFTER:  ${JSON.stringify(spendAfter)}`);
 
   /*
-   * THE FORECAST ALLOWANCE IS THE ONE THAT IS ASSERTED, AND HERE IS THE MEASUREMENT BEHIND THAT.
+   * EVERY PROVIDER'S COUNTER IS ASSERTED, WITH THE SCHEDULER'S SHARE SUBTRACTED EXACTLY.
    *
-   * The obvious assertion — every provider's counter is where it started — is not sound against
-   * this installation, and a test carrying it would fail on the backend's own housekeeping rather
-   * than on anything the browser did. Measured on 2026-09-19 with NOTHING running at all, no
-   * browser open and no test in flight: livescore `used_today` read 186 at 15:42:56 and 187 at
-   * 15:45:36. The scheduler's `live` task has `interval_seconds: 120` and today's fixture list
-   * holds matches in play, so that counter advances by about one every two minutes on its own.
-   * A forty-second run straddles such a tick often enough to be flaky, and the failure would say
-   * "browsing spent a request" about a request browsing did not make.
+   * This used to assert gameforecast alone, and the reason was measured: on 2026-09-19, with
+   * nothing running at all, livescore `used_today` read 186 at 15:42:56 and 187 at 15:45:36,
+   * because the scheduler's `live` task polls every 120 seconds while a match is in play. A run
+   * this long straddles such a tick, and a bare before/after comparison would blame the browser
+   * for a request it did not make.
    *
-   * So the rule is asserted where it is actually decidable:
-   *   - gameforecast, the PAUSED provider whose allowance is spent, must not move. Its scheduled
-   *     task is paused, nothing else touches it, and any movement here would be ours.
-   *   - and no request this browser issued may carry `refresh=true` — the thing the rule actually
-   *     forbids — which is checked per test, against the browser's own traffic, and cannot be
-   *     confused with the scheduler's.
-   * The other counters are printed, not asserted, and the reason is written here rather than left
-   * for the next person to rediscover.
+   * The backend now keeps a ledger of what the scheduler sends, written by the same Redis script
+   * that moves `used_today` and read in the same transaction as it, so the scheduler's requests in
+   * this window are subtracted to the request rather than excused (e2e/support/provider-spend.ts).
+   * What is left must be zero for every provider, the paused gameforecast included. The per-test
+   * check below - no request this browser issued carries `refresh=true` - stays: it names the
+   * page that asked, which a counter cannot.
    */
-  expect(spendAfter.gameforecast,
-    'the paused forecast provider must not be asked for anything: its allowance is spent')
-    .toBe(spendBefore.gameforecast);
+  expectNothingSpentBesidesTheScheduler(spendBefore, spendAfter,
+    'this file\'s journeys spent a provider request');
   await api.dispose();
 });
 

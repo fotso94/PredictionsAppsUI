@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { apiContext } from '../support/qa-account';
+import { expectNothingSpentBesidesTheScheduler, providerSpend } from '../support/provider-spend';
 import { ApiMatch } from '../support/api-stub';
 
 /**
@@ -97,12 +98,14 @@ test('three distinct forecast timestamps reach the API', async () => {
 
 test('no provider request is spent by browsing', async () => {
   const api = await apiContext();
-  const before = await (await api.get('/api/v1/data-providers/status')).json();
+  const before = await providerSpend(api);
   const today = new Date().toISOString().slice(0, 10);
   await api.get(`/api/v1/matches?date=${today}&refresh=false`);
   await api.get('/api/v1/leagues');
-  const after = await (await api.get('/api/v1/data-providers/status')).json();
 
-  expect(after.forecasts.budget?.used_today ?? 0).toBe(before.forecasts.budget?.used_today ?? 0);
+  // Every provider, not only the forecast one: the scheduler's own requests in the window are
+  // subtracted exactly, so its live polls no longer make the match-data counters unassertable.
+  expectNothingSpentBesidesTheScheduler(before, await providerSpend(api),
+    'browsing the stored day and the league list spent a provider request');
   await api.dispose();
 });

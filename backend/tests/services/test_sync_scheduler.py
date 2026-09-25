@@ -267,6 +267,9 @@ def build(cache, clock, provider=None, forecast=None, matches=None, tasks=None):
         forecast_service_factory=lambda db: forecast,
         tasks=tasks if tasks is not None else [TASK_FIXTURES, TASK_LIVE, TASK_RESULTS, TASK_FORECASTS],
         close_sessions=False,
+        # The budgets and the scheduler's ledger read from the same fake as everything else, so
+        # `status()` never reaches for the machine's real Redis.
+        budget_client=cache._redis(),
     )
     return scheduler, provider, forecast, match_service
 
@@ -939,13 +942,180 @@ def test_status_reports_why_a_task_is_skipping(cache, clock, redis_client):
 
 def test_status_says_when_the_state_store_is_unavailable(clock):
     """Without Redis the scheduler cannot remember when anything last ran; freshness must not be faked."""
-    scheduler = SyncScheduler(cache=MatchCache(client=None), now=clock)
+    scheduler = SyncScheduler(cache=MatchCache(client=None), now=clock, budget_client=None)
     scheduler.cache._checked = True  # no Redis, and do not go looking for one
 
     status = scheduler.status()
 
     assert status["state_store_available"] is False
     assert all(task["never_run"] for task in status["tasks"].values())
+    # and what the scheduler has sent is unknown, which is not the same as nothing
+    assert all(task["requests_sent_total"] is None for task in status["tasks"].values())
+
+
+# --------------------------------------------------------------- what the scheduler itself sent
+#
+# `used_today` is the whole day's spend, and a browser test that compares it before and after a
+# journey is also measuring every pass the scheduler made in between - on 2026-09-25 a live poll one
+# second before the closing read failed a journey that spent nothing. These pin what the status
+# publishes so such a test can subtract the scheduler's share exactly.
+class SpendingDataProvider(StubDataProvider):
+    """A stub that pays for each call out of its budget before answering, as the real providers do."""
+
+    def _spend(self) -> None:
+        if self.budget is not None:
+            self.budget.consume()
+
+    def get_fixtures(self, day: date, keys) -> List[ProviderFixture]:
+        self._spend()
+        return super().get_fixtures(day, keys)
+
+    def get_live(self, keys) -> List[ProviderFixture]:
+        self._spend()
+        return super().get_live(keys)
+
+    def get_results(self, date_from: date, date_to: date, keys) -> List[ProviderFixture]:
+        self._spend()
+        return super().get_results(date_from, date_to, keys)
+
+
+def test_status_publishes_what_each_pass_sent_and_a_running_total(cache, clock, redis_client):
+    budget = RequestBudget("stub", daily_limit=100, client=redis_client, now=clock)
+    kicked_off = [FakeMatch(NOW - timedelta(minutes=20))]
+    scheduler, provider, _, _ = build(cache, clock, provider=SpendingDataProvider(budget=budget),
+                                      matches=kicked_off)
+
+    untouched = scheduler.status()["tasks"][TASK_LIVE]
+    assert untouched["last_requests_sent"] is None and untouched["requests_sent_total"] == {}
+
+    scheduler.run_once(only=[TASK_LIVE])
+    live = scheduler.status()["tasks"][TASK_LIVE]
+    assert provider.calls == ["live"]
+    assert live["last_requests_sent"] == {"stub": 1}
+    assert live["requests_sent_total"] == {"stub": 1}
+
+    clock.tick(settings.SYNC_LIVE_INTERVAL_SECONDS + settings.MATCH_CACHE_TTL_LIVE)
+    scheduler.run_once(only=[TASK_LIVE])
+    live = scheduler.status()["tasks"][TASK_LIVE]
+    assert provider.calls == ["live", "live"]
+    assert live["last_requests_sent"] == {"stub": 1}, "the last pass, not the sum"
+    assert live["requests_sent_total"] == {"stub": 2}, "a running total that only grows"
+
+    fixtures = scheduler.status()["tasks"][TASK_FIXTURES]
+    assert fixtures["requests_sent_total"] == {}, "one task's spend is never another's"
+
+
+def test_a_pass_that_sent_nothing_says_so(cache, clock, redis_client):
+    budget = RequestBudget("stub", daily_limit=100, client=redis_client, now=clock)
+    tomorrow = [FakeMatch(NOW + timedelta(days=1))]
+    scheduler, provider, _, _ = build(cache, clock, provider=SpendingDataProvider(budget=budget),
+                                      matches=tomorrow)
+
+    scheduler.run_once(only=[TASK_LIVE])  # no live window: no request
+
+    live = scheduler.status()["tasks"][TASK_LIVE]
+    assert provider.calls == []
+    assert live["last_requests_sent"] == {} and live["requests_sent_total"] == {}
+
+
+def test_every_request_a_pass_is_charged_for_is_on_its_record(cache, clock, redis_client):
+    """A fixtures pass asks for fixtures, then results, then live scores: the record holds them all."""
+    budget = RequestBudget("stub", daily_limit=100, client=redis_client, now=clock)
+    in_play = [FakeMatch(NOW - timedelta(minutes=20)), FakeMatch(NOW - timedelta(hours=4))]
+    scheduler, provider, _, _ = build(cache, clock, provider=SpendingDataProvider(budget=budget),
+                                      matches=in_play)
+
+    scheduler.run_once(only=[TASK_FIXTURES])
+
+    fixtures = scheduler.status()["tasks"][TASK_FIXTURES]
+    assert len(provider.calls) == 3, provider.calls
+    assert fixtures["last_requests_sent"] == {"stub": 3}
+    assert fixtures["requests_sent_total"] == {"stub": 3}
+    assert budget.used_today() == 3
+
+
+def test_what_the_scheduler_did_not_send_is_exactly_what_is_left_over(cache, clock, redis_client):
+    """The subtraction a browser test makes, over a window holding a scheduler pass AND a page load."""
+    budget = RequestBudget("stub", daily_limit=100, client=redis_client, now=clock)
+    status_side = RequestBudget("stub", daily_limit=100, client=redis_client, now=clock)
+    scheduler, provider, _, _ = build(cache, clock, provider=SpendingDataProvider(budget=budget))
+
+    before = status_side.snapshot()
+    scheduler.run_once(only=[TASK_FIXTURES])
+    budget.consume(reason="page")  # a reader's refresh on the same provider, beside the pass
+    after = status_side.snapshot()
+
+    spent = after["used_today"] - before["used_today"]
+    by_scheduler = after["scheduler_sent"]["total"] - before["scheduler_sent"]["total"]
+    assert by_scheduler == len(provider.calls) > 0
+    assert after["scheduler_sent"]["by_task"] == {TASK_FIXTURES: by_scheduler}
+    assert spent - by_scheduler == 1, "the page load, and nothing else"
+
+
+def test_the_running_total_is_never_behind_a_pass_still_in_flight(cache, clock, redis_client):
+    """A total written when the pass is RECORDED lags the counter for as long as the pass runs.
+
+    Read mid-pass - after the poll has been paid for, before `_record` - the status must already
+    carry it, or a test whose closing read lands there blames the poll on the page it measured.
+    """
+    budget = RequestBudget("stub", daily_limit=100, client=redis_client, now=clock)
+    status_side = RequestBudget("stub", daily_limit=100, client=redis_client, now=clock)
+    readings = []
+
+    class ReadsMidPass(SpendingDataProvider):
+        def get_live(self, keys):
+            answer = super().get_live(keys)  # the poll has gone out and been charged...
+            readings.append((status_side.snapshot(), scheduler.status()["tasks"][TASK_LIVE]))
+            return answer                    # ...and the pass has not finished
+
+    kicked_off = [FakeMatch(NOW - timedelta(minutes=20))]
+    scheduler, _, _, _ = build(cache, clock, provider=ReadsMidPass(budget=budget), matches=kicked_off)
+    before = status_side.snapshot()
+
+    scheduler.run_once(only=[TASK_LIVE])
+
+    (during, task), = readings
+    assert during["used_today"] - before["used_today"] == 1
+    assert during["scheduler_sent"]["total"] - before["scheduler_sent"]["total"] == 1
+    assert task["requests_sent_total"] == {"stub": 1}
+    assert task["runs"] == 0, "the pass was not recorded yet, so nothing that waits for it could see this"
+
+
+def test_a_pass_that_raises_still_records_what_it_sent(cache, clock, redis_client):
+    budget = RequestBudget("stub", daily_limit=100, client=redis_client, now=clock)
+
+    class PaysThenBreaks(SpendingDataProvider):
+        def get_live(self, keys):
+            self._spend()
+            raise RuntimeError("a bug after the request went out")
+
+    kicked_off = [FakeMatch(NOW - timedelta(minutes=20))]
+    scheduler, _, _, _ = build(cache, clock, provider=PaysThenBreaks(budget=budget), matches=kicked_off)
+
+    report = scheduler.run_once(only=[TASK_LIVE])
+
+    assert report["tasks"][TASK_LIVE]["ok"] is False
+    live = scheduler.status()["tasks"][TASK_LIVE]
+    assert live["last_requests_sent"] == {"stub": 1}, "the provider charged it all the same"
+    assert live["requests_sent_total"] == {"stub": 1}
+
+
+def test_a_provider_built_deep_inside_a_pass_is_still_charged_to_it(cache, clock, redis_client):
+    """ForecastService builds its own provider chain for the fixtures it syncs, out of the
+    scheduler's sight. Attribution follows the pass, not the provider object."""
+
+    class BuildsItsOwnProvider(StubForecastService):
+        def ensure_synced(self, *args, **kwargs):
+            RequestBudget("stub-forecast", 8, client=redis_client, now=clock).consume()
+            return super().ensure_synced(*args, **kwargs)
+
+    scheduler, _, _, _ = build(cache, clock, forecast=BuildsItsOwnProvider())
+
+    scheduler.run_once(only=[TASK_FORECASTS])
+
+    forecasts = scheduler.status()["tasks"][TASK_FORECASTS]
+    assert forecasts["last_requests_sent"] == {"stub-forecast": 1}
+    assert forecasts["requests_sent_total"] == {"stub-forecast": 1}
 
 
 # --------------------------------------------------------------------- one-shot script

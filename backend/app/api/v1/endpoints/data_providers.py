@@ -53,6 +53,15 @@ async def provider_status(db: Session = Depends(get_db)):
 
     On the night this was added ours read "3 of 8 used, 5 left" while the provider's read "0
     left": the divergence is the finding, so both are published rather than reconciled.
+
+    WHO SPENT IT. `used_today` is the whole day's spend, and the scheduler moves it on its own - the
+    `live` task every two minutes while a match is in play. So each `budget` block also carries
+    `scheduler_sent` (`total` and `by_task`): what the scheduler has sent that provider since its
+    ledger began, a running total written by the same Redis script that moves the counter and read
+    in the same transaction as `used_today`. Between two readings, the change in `used_today` minus
+    the change in `scheduler_sent.total` is exactly what everything else - page loads, admin syncs -
+    spent. The same ledger is published per task as `scheduler.tasks.<task>.requests_sent_total`,
+    beside `last_requests_sent` for the task's most recent pass.
     """
     data = MatchDataService(db).provider_status()
     data["forecasts"] = ForecastService(db).status()

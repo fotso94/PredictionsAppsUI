@@ -22,6 +22,7 @@ pin both halves - the refusal that must not count, and the over-limit day that m
 No network, no real Redis, no sleeping: a fake clock and an in-memory stand-in.
 """
 
+import threading
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -29,7 +30,8 @@ import pytest
 from app.services.providers import budget as budget_module
 from app.services.providers.base import ProviderQuotaError
 from app.services.providers.budget import (
-    KEY_TTL_SECONDS, ProviderRateLimit, RequestBudget, budget_key, by_reason_key, refused_key,
+    KEY_TTL_SECONDS, SCHEDULER_SENT_KEY, ProviderRateLimit, RequestBudget, budget_key,
+    by_reason_key, refused_key, spending_for_task,
 )
 from app.services.providers.http import RateLimitReading
 from tests.providers.support import FakeRedis
@@ -52,18 +54,41 @@ class Clock:
         self.now = self.now + timedelta(seconds=seconds)
 
 
+class _Transaction:
+    """A MULTI/EXEC pipeline over the fake: queues reads and answers them as one step."""
+
+    def __init__(self, client, transaction):
+        self.client, self.transaction, self.queued = client, transaction, []
+
+    def get(self, key):
+        self.queued.append(("get", key))
+        return self
+
+    def hgetall(self, key):
+        self.queued.append(("hgetall", key))
+        return self
+
+    def execute(self):
+        self.client.transactions.append((self.transaction, list(self.queued)))
+        return [getattr(self.client, command)(key) for command, key in self.queued]
+
+
 class LuaRedis(FakeRedis):
     """FakeRedis that speaks EVAL, so the atomic reserve runs instead of the fallback.
 
-    Executes the reserve contract the script implements - check the limit, and only then move the
-    usage counter - and records what it was asked to run, so a test can prove the production path
-    was taken and that nothing incremented the usage key behind the script's back.
+    Executes the reserve contract the script implements - check the limit, then (inside a scheduler
+    pass) the ledger, and only then move the usage counter - and records what it was asked to run,
+    so a test can prove the production path was taken and that nothing incremented the usage key
+    or the ledger behind the script's back. Its pipelines record what they were asked to read
+    together.
     """
 
     def __init__(self):
         super().__init__()
         self.scripts = []
         self.direct_incrby = []
+        self.direct_hincrby = []
+        self.transactions = []
 
     def _bump(self, key, amount):
         self.store[key] = int(self.store.get(key) or 0) + int(amount)
@@ -73,15 +98,25 @@ class LuaRedis(FakeRedis):
         self.direct_incrby.append(key)
         return self._bump(key, amount)
 
+    def hincrby(self, key, field, amount):  # by_reason, and the fallback path's ledger
+        self.direct_hincrby.append(key)
+        return super().hincrby(key, field, amount)
+
+    def pipeline(self, transaction=True):
+        return _Transaction(self, transaction)
+
     def eval(self, script, numkeys, *args):
         self.scripts.append(script)
-        usage_key, refused = list(args[:numkeys])
-        amount, limit, ttl = (int(a) for a in args[numkeys:])
+        keys, argv = list(args[:numkeys]), list(args[numkeys:])
+        usage_key, refused = keys[:2]
+        amount, limit, ttl = (int(a) for a in argv[:3])
         used = int(self.store.get(usage_key) or 0)
         if limit > 0 and used + amount > limit:
             if self._bump(refused, amount) == amount:
                 self.ttls[refused] = ttl
             return [used, 0]
+        if len(keys) > 2:
+            FakeRedis.hincrby(self, keys[2], argv[3], amount)
         new_value = self._bump(usage_key, amount)
         if new_value == amount:
             self.ttls[usage_key] = ttl
@@ -479,3 +514,179 @@ def test_a_reading_whose_window_has_turned_is_not_reported_as_a_live_zero():
     assert budget.remaining_effective() == 8
     view = budget.snapshot()["provider_reported"]
     assert view["known"] is True and view["window_expired"] is True and view["remaining"] is None
+
+
+# ------------------------------------------------------------ who spent it: the scheduler's ledger
+#
+# `used_today` is the whole day's spend, and the scheduler moves it on its own. On 2026-09-25 at
+# 17:42:01 UTC a browser test read livescore 730 -> 731 across a journey that spent nothing; the one
+# request in the window was the scheduler's live poll a second earlier. These pin the ledger that
+# lets that window be read exactly: what the scheduler sent, written with the counter and read with
+# it, so "spent" minus "sent by the scheduler" is what everything else spent.
+def _spent_by_others(before, after):
+    """What moved `used_today` between two snapshots that the scheduler did not send."""
+    return ((after["used_today"] - before["used_today"])
+            - (after["scheduler_sent"]["total"] - before["scheduler_sent"]["total"]))
+
+
+def test_a_scheduler_grant_moves_the_counter_and_the_ledger_in_the_same_script():
+    client = LuaRedis()
+    budget = RequestBudget("livescore", 1200, client=client)
+
+    with spending_for_task("live") as spend:
+        budget.consume()
+    budget.consume()  # a page load, beside the pass: counted, not the scheduler's
+
+    assert budget.used_today() == 2
+    assert client.store[SCHEDULER_SENT_KEY] == {"livescore:live": 1}
+    assert spend.granted == {"livescore": 1}
+    assert set(client.scripts) == {budget_module._RESERVE_LUA}
+    assert client.direct_incrby == [] and SCHEDULER_SENT_KEY not in client.direct_hincrby, \
+        "the counter and the ledger must only move inside the script, together"
+
+
+def test_the_ledger_is_written_after_the_limit_check_and_before_the_counter():
+    """Redis does not roll a script back when a command in it fails.
+
+    A HINCRBY that failed AFTER the INCRBY would leave the request counted, raise, and send the
+    caller down the fallback path to count it a second time. Written first, a failure writes nothing.
+    """
+    script = budget_module._RESERVE_LUA
+
+    assert script.index("return {used, 0}") < script.index("redis.call('HINCRBY', KEYS[3]")
+    assert script.index("redis.call('HINCRBY', KEYS[3]") < script.index("redis.call('INCRBY', KEYS[1]")
+
+
+def test_a_ledger_the_script_cannot_write_does_not_count_the_request_twice():
+    """The ordering above, as behaviour: the script fails before writing, the fallback counts once."""
+
+    class LedgerOfTheWrongType(LuaRedis):
+        def eval(self, script, numkeys, *args):
+            if numkeys > 2 and not isinstance(self.store.get(args[2]), dict):
+                self.scripts.append(script)
+                raise RuntimeError("WRONGTYPE Operation against a key holding the wrong kind of value")
+            return super().eval(script, numkeys, *args)
+
+    client = LedgerOfTheWrongType()
+    client.store[SCHEDULER_SENT_KEY] = "not a hash"
+    budget = RequestBudget("livescore", 1200, client=client)
+
+    with spending_for_task("live") as spend:
+        budget.consume()  # must not raise: an unwritable ledger never blocks a request
+
+    assert budget.used_today() == 1, "counted once by the fallback, not once by each path"
+    assert spend.granted == {"livescore": 1}, "the pass still knows what it sent"
+
+
+def test_a_request_refused_during_a_pass_is_in_neither_counter():
+    client = LuaRedis()
+    budget = RequestBudget("gameforecast", 1, client=client)
+
+    with spending_for_task("forecasts") as spend:
+        budget.consume()
+        with pytest.raises(ProviderQuotaError):
+            budget.consume()
+
+    assert (budget.used_today(), budget.refused_today()) == (1, 1)
+    assert client.store[SCHEDULER_SENT_KEY] == {"gameforecast:forecasts": 1}
+    assert spend.granted == {"gameforecast": 1}
+
+
+def test_the_snapshot_reads_the_counter_and_the_ledger_in_one_transaction():
+    client = LuaRedis()
+    budget = RequestBudget("livescore", 1200, client=client)
+    with spending_for_task("live"):
+        budget.consume()
+    with spending_for_task("fixtures"):
+        budget.consume(3)
+    with spending_for_task("forecasts"):  # another provider's ledger entry is not this one's
+        RequestBudget("gameforecast", 8, client=client).consume()
+    budget.consume()  # not the scheduler's
+
+    client.transactions.clear()
+    snapshot = budget.snapshot()
+
+    assert snapshot["used_today"] == 5
+    assert snapshot["scheduler_sent"] == {"total": 4, "by_task": {"live": 1, "fixtures": 3}}
+    assert client.transactions == [
+        (True, [("get", budget_key("livescore")), ("hgetall", SCHEDULER_SENT_KEY)])], \
+        "the counter and the ledger have to come from one instant of the store"
+    assert snapshot["used_today"] - snapshot["scheduler_sent"]["total"] == 1
+
+
+def test_a_window_that_cuts_through_a_pass_still_subtracts_exactly():
+    """The 2026-09-25 shape. A total recorded when the pass ENDS is behind the counter for as long
+    as the pass is in flight, so a reading taken then blames the scheduler's request on whoever was
+    being measured. Written at the grant, the ledger is never behind."""
+    client = LuaRedis()
+    scheduler_side = RequestBudget("livescore", 1200, client=client)
+    status_side = RequestBudget("livescore", 1200, client=client)  # what the status endpoint builds
+
+    before = status_side.snapshot()
+    with spending_for_task("live"):
+        scheduler_side.consume()               # the live poll goes out...
+        during = status_side.snapshot()        # ...and the test's closing read lands mid-pass
+    after = status_side.snapshot()
+
+    assert during["used_today"] - before["used_today"] == 1
+    assert _spent_by_others(before, during) == 0
+    assert _spent_by_others(during, after) == 0
+
+    scheduler_side.consume()  # and a request nobody scheduled is the one thing left over
+    assert _spent_by_others(before, status_side.snapshot()) == 1
+
+
+def test_the_counting_fallback_keeps_the_ledger_too():
+    client = BrokenEvalRedis()
+    budget = RequestBudget("livescore", 1200, client=client)
+
+    with spending_for_task("results") as spend:
+        budget.consume(2)
+
+    assert budget.used_today() == 2
+    assert client.store[SCHEDULER_SENT_KEY] == {"livescore:results": 2}
+    assert spend.granted == {"livescore": 2}
+    assert budget.snapshot()["scheduler_sent"] == {"total": 2, "by_task": {"results": 2}}
+
+
+def test_a_ledger_the_fallback_cannot_write_never_blocks_the_request():
+    class NoLedger(BrokenEvalRedis):
+        def hincrby(self, key, field, amount):
+            if key == SCHEDULER_SENT_KEY:
+                raise RuntimeError("WRONGTYPE")
+            return super().hincrby(key, field, amount)
+
+    budget = RequestBudget("livescore", 1200, client=NoLedger())
+
+    with spending_for_task("live") as spend:
+        budget.consume()
+
+    assert budget.used_today() == 1 and spend.granted == {"livescore": 1}
+
+
+def test_a_grant_the_store_never_saw_is_the_pass_s_but_the_ledger_is_unknown():
+    """Fail open with no store: the pass sent it, and neither the counter nor the ledger saw it."""
+    budget = RequestBudget("livescore", 1200, client=UnreachableRedis())
+
+    with spending_for_task("live") as spend:
+        budget.consume()
+
+    assert spend.granted == {"livescore": 1}
+    snapshot = budget.snapshot()
+    assert snapshot["enforced"] is False and snapshot["unmetered_today"] == 1
+    assert snapshot["scheduler_sent"] is None, "an unreadable ledger is unknown, never zero"
+
+
+def test_a_request_granted_on_another_thread_during_a_pass_is_not_the_pass_s():
+    """The scheduler runs in its own thread; a page load is served on another at the same moment."""
+    client = LuaRedis()
+    budget = RequestBudget("livescore", 1200, client=client)
+
+    with spending_for_task("live") as spend:
+        page = threading.Thread(target=budget.consume)
+        page.start()
+        page.join()
+
+    assert budget.used_today() == 1
+    assert SCHEDULER_SENT_KEY not in client.store
+    assert spend.granted == {}

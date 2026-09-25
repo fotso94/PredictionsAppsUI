@@ -27,9 +27,15 @@ Accounting rules (owner requirement):
   `enforced` to false, so a degraded day never reads as an untouched allowance.
 - Spending is attributed by `reason` (discovery / fetch / page / retry / calendar) in a parallel
   hash, so a plan that is being eaten by league discovery can be told apart from one eaten by
-  real fetches. The label is the kind of call, not who made it: nothing here distinguishes a
-  scheduled pass from a reader's page load. Attribution is best effort and never blocks or fails
-  a request.
+  real fetches. The label is the kind of call, not who made it. Attribution is best effort and
+  never blocks or fails a request.
+- WHO spent is recorded for one spender only: the background scheduler. A pass runs inside
+  `spending_for_task`, and every request it is granted is added to an all-time, per-task ledger
+  (`SCHEDULER_SENT_KEY`) by the SAME script that moves the usage counter, so the two can never be
+  read half-updated. Everything the counter holds that the ledger does not was spent by something
+  other than the scheduler - a page load, an admin sync. On the atomic path, which every real
+  client takes, that difference is exact at every instant: it is what lets a test prove browsing
+  spent nothing while the scheduler keeps polling.
 - The counter is OUR ceiling, keyed to OUR day. It is not the provider's window, and on
   2026-09-19 the two were shown not to be the same window at all: a clean UTC-day counter had
   five of eight left when the provider refused with "you have exceeded the DAILY quota". So the
@@ -44,16 +50,24 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Iterator, Optional, Tuple
 
 from app.services.providers.base import ProviderQuotaError, ProviderRequestNotSent
 
 logger = logging.getLogger(__name__)
 
 # Atomic check-and-increment: the counter only moves when the request is actually allowed out.
-# KEYS[1] usage counter, KEYS[2] refused counter. ARGV: amount, limit, ttl.
+# KEYS[1] usage counter, KEYS[2] refused counter, KEYS[3] (only for a scheduler pass) the
+# scheduler's ledger. ARGV: amount, limit, ttl, and with KEYS[3] the ledger field.
 # Returns {new_usage, allowed}
+#
+# The ledger is written BEFORE the usage counter. Redis does not roll a script back when a command
+# in it fails, so a HINCRBY that failed after the INCRBY would leave the request counted, raise,
+# and send the caller down the fallback path to count it a second time. Failing first writes
+# nothing. Both writes land in one atomic script either way, so no reader can tell the order.
 _RESERVE_LUA = """
 local used = tonumber(redis.call('GET', KEYS[1]) or '0')
 local amount = tonumber(ARGV[1])
@@ -64,6 +78,7 @@ if limit > 0 and (used + amount) > limit then
   if refused == amount then redis.call('EXPIRE', KEYS[2], ttl) end
   return {used, 0}
 end
+if KEYS[3] then redis.call('HINCRBY', KEYS[3], ARGV[4], amount) end
 local newv = redis.call('INCRBY', KEYS[1], amount)
 if newv == amount then redis.call('EXPIRE', KEYS[1], ttl) end
 return {newv, 1}
@@ -77,7 +92,8 @@ FAIL_OPEN_MIN_DAILY_LIMIT = 100
 
 #: Recognised spending reasons, for attribution only (an unknown one is recorded as "other").
 #: They name the KIND of call that spent, not the caller: a scheduled pass and a reader's page
-#: load both fetch, and these counters cannot be split between them.
+#: load both fetch, and these counters cannot be split between them. The caller is what
+#: `SCHEDULER_SENT_KEY` records.
 REASONS = ("discovery", "fetch", "page", "retry", "calendar")
 
 #: "the caller passed nothing", kept apart from a caller that passed None meaning "unknown".
@@ -106,6 +122,89 @@ def refused_key(provider: str, day: Optional[datetime] = None) -> str:
 
 def by_reason_key(provider: str, day: Optional[datetime] = None) -> str:
     return f"{budget_key(provider, day)}:by_reason"
+
+
+# --------------------------------------------------------------------------- the scheduler's ledger
+#: Every request the background scheduler has been granted, per provider and task, since this
+#: ledger began. One hash with fields "{provider}:{task}", in the same store as the usage counters
+#: because it is written by the same script and read in the same transaction as them.
+#:
+#: NOT day-scoped and never expired: it is a running total, and what it answers is a difference
+#: between two readings. A day-scoped copy would drop to zero at the UTC reset and turn every window
+#: that crosses midnight into a negative spend.
+SCHEDULER_SENT_KEY = "provider:budget:sent-by-scheduler"
+
+
+def scheduler_ledger_field(provider: str, task: str) -> str:
+    return f"{provider}:{task}"
+
+
+class TaskSpend:
+    """What one scheduler pass has been granted so far, per provider, counted as each grant is made.
+
+    Counts every grant, metered or not: this is what the pass sent. The Redis ledger beside it can
+    only count what the store could record, exactly like the usage counter it is compared with.
+    """
+
+    def __init__(self, task: str):
+        self.task = task
+        self.granted: Dict[str, int] = {}
+
+    def add(self, provider: str, amount: int) -> None:
+        self.granted[provider] = self.granted.get(provider, 0) + int(amount)
+
+
+#: The scheduler pass spending on this thread, if any. A context variable rather than a flag on a
+#: budget object because a pass builds its providers several layers down - the forecast task's
+#: fixture sync constructs a whole second provider chain - and every one of them must be counted.
+#: Each thread has its own context, so a page load served beside the scheduler's executor thread is
+#: never attributed to it.
+_TASK_SPENDING: ContextVar[Optional[TaskSpend]] = ContextVar("request_budget_task", default=None)
+
+
+@contextmanager
+def spending_for_task(task: str) -> Iterator[TaskSpend]:
+    """Attribute every request granted inside this block, on this thread, to scheduler task `task`."""
+    spend = TaskSpend(task)
+    token = _TASK_SPENDING.set(spend)
+    try:
+        yield spend
+    finally:
+        _TASK_SPENDING.reset(token)
+
+
+def _decode(value: Any) -> str:
+    return value.decode("utf-8") if isinstance(value, (bytes, bytearray)) else str(value)
+
+
+def _ledger_by_provider(raw: Any) -> Dict[str, Dict[str, int]]:
+    """The ledger hash as {provider: {task: total}}. A field that is not "provider:task" is skipped."""
+    ledger: Dict[str, Dict[str, int]] = {}
+    for field, value in (raw or {}).items():
+        provider, _, task = _decode(field).partition(":")
+        if not provider or not task:
+            continue
+        try:
+            ledger.setdefault(provider, {})[task] = int(_decode(value))
+        except (TypeError, ValueError):  # pragma: no cover - a field someone else wrote
+            continue
+    return ledger
+
+
+def read_scheduler_sent(client: Any = None) -> Optional[Dict[str, Dict[str, int]]]:
+    """{provider: {task: requests sent since the ledger began}}, or None when it cannot be read.
+
+    None is "unknown", never "the scheduler sent nothing": a caller subtracting it from a spend
+    must not be handed a zero it would read as a fact.
+    """
+    client = client if client is not None else _redis()
+    if client is None:
+        return None
+    try:
+        return _ledger_by_provider(client.hgetall(SCHEDULER_SENT_KEY))
+    except Exception as exc:
+        logger.debug("Scheduler request ledger unreadable: %s", exc)
+        return None
 
 
 # --------------------------------------------------------------------------- the provider's own view
@@ -538,7 +637,7 @@ class RequestBudget:
         if self._client is None:
             if self.fail_open:
                 self._note_unmetered(amount)
-                self.granted += int(amount)
+                self._note_granted(amount)
                 return
             raise ProviderRequestNotSent("budget store unavailable; refusing outbound request",
                                          provider=self.provider)
@@ -557,10 +656,17 @@ class RequestBudget:
             # show spending on a day the counter reads as untouched. Record it as unmetered
             # instead, which is what `snapshot()` reports and what drops `enforced` to false.
             self._note_unmetered(amount)
-            self.granted += int(amount)
+            self._note_granted(amount)
             return
-        self.granted += int(amount)
+        self._note_granted(amount)
         self._record_reason(reason, amount)
+
+    def _note_granted(self, amount: int) -> None:
+        """A request is going out: count it on this object and on the scheduler pass sending it."""
+        self.granted += int(amount)
+        spend = _TASK_SPENDING.get()
+        if spend is not None:
+            spend.add(self.provider, amount)
 
     def _note_refused(self, amount: int) -> None:
         """Count a refusal the reserve script never saw. Best effort; never raises.
@@ -645,12 +751,20 @@ class RequestBudget:
         The non-atomic path is genuinely weaker: two concurrent reservations can read the same
         `used` and both proceed, so a limit can be overshot by the number of racing callers. That
         is bounded and visible in the counter. Not counting at all is unbounded and invisible.
+
+        Inside a scheduler pass the same script also adds the grant to the scheduler's ledger, so
+        the usage counter and the ledger move together or not at all.
         """
+        spend = _TASK_SPENDING.get()
+        keys = [key, self._refused_key()]
+        args = [amount, self.daily_limit, KEY_TTL_SECONDS]
+        if spend is not None:
+            keys.append(SCHEDULER_SENT_KEY)
+            args.append(scheduler_ledger_field(self.provider, spend.task))
         evaluate = getattr(self._client, "eval", None)
         if callable(evaluate):
             try:
-                result = evaluate(_RESERVE_LUA, 2, key, self._refused_key(),
-                                  amount, self.daily_limit, KEY_TTL_SECONDS)
+                result = evaluate(_RESERVE_LUA, len(keys), *keys, *args)
                 return int(result[0]), bool(int(result[1])), True
             except ProviderQuotaError:  # pragma: no cover - defensive
                 raise
@@ -682,11 +796,28 @@ class RequestBudget:
             new_value = self._client.incrby(key, amount)
             if new_value == amount:
                 self._client.expire(key, KEY_TTL_SECONDS)
-            return int(new_value), True, True
         except Exception as exc:
             logger.warning("Budget update failed for %s: %s", self.provider, exc)
             used, allowed = self._store_unavailable(exc)
             return used, allowed, False
+        self._ledger_by_counting(amount)
+        return int(new_value), True, True
+
+    def _ledger_by_counting(self, amount: int) -> None:
+        """The fallback path's half of the scheduler's ledger. Best effort; never raises.
+
+        Not atomic with the usage counter, like everything else on this path. Kept outside the
+        counting `try` above: the request has been counted and is going out, and a ledger that
+        could not be written must not turn that into a second grant or a refusal.
+        """
+        spend = _TASK_SPENDING.get()
+        if spend is None:
+            return
+        try:
+            self._client.hincrby(SCHEDULER_SENT_KEY, scheduler_ledger_field(self.provider, spend.task),
+                                 amount)
+        except Exception as exc:  # the ledger is never worth failing a request
+            logger.warning("Scheduler ledger update failed for %s/%s: %s", self.provider, spend.task, exc)
 
     def snapshot(self) -> dict:
         """Our accounting and the provider's, side by side, so a divergence is legible.
@@ -700,8 +831,12 @@ class RequestBudget:
 
         Cost: one extra Redis GET per snapshot (the stored reading), on a payload that already
         reads three counters.
+
+        `scheduler_sent` is read in the same transaction as the usage counter, and only a reading
+        taken that way can be subtracted from it: two separate reads with a scheduler grant between
+        them would show that grant on one side and not the other.
         """
-        counted, counter_readable = self._counter_read(self._usage_key())
+        counted, counter_readable, ledger = self._counter_and_ledger()
         unmetered = self.unmetered_today()
         # Every outbound request today this process knows about. Reporting the counter alone turns
         # a day spent through a broken counter into an untouched allowance, which is the reading
@@ -744,4 +879,35 @@ class RequestBudget:
             # Uncounted grants are excluded: those this code does know how it produced.
             "over_limit": bool(self.daily_limit) and counted > self.daily_limit,
             "by_reason": self.by_reason(),
+            #: What the background scheduler has sent this provider, per task, since the ledger
+            #: began - a running total, NOT a figure for today. Read in the same transaction as
+            #: `counted_today`, so between two snapshots the change in `used_today` minus the change
+            #: in `scheduler_sent.total` is exactly what everything other than the scheduler spent.
+            #: None when the ledger could not be read: unknown, not zero.
+            "scheduler_sent": (None if ledger is None else
+                               {"total": sum(ledger.values()), "by_task": ledger}),
         }
+
+    def _counter_and_ledger(self) -> Tuple[int, bool, Optional[Dict[str, int]]]:
+        """(the usage counter, whether it answered, this provider's scheduler ledger by task).
+
+        One MULTI/EXEC where the client offers a pipeline, which every redis-py client does, so the
+        pair is a single instant of the store. A client without one - the simple fakes in the test
+        suite - is read twice, in the same order.
+        """
+        if self._client is None:
+            return 0, False, None
+        pipeline = getattr(self._client, "pipeline", None)
+        if callable(pipeline):
+            try:
+                pipe = pipeline(transaction=True)
+                pipe.get(self._usage_key())
+                pipe.hgetall(SCHEDULER_SENT_KEY)
+                raw_count, raw_ledger = pipe.execute()
+                return (int(raw_count) if raw_count else 0, True,
+                        _ledger_by_provider(raw_ledger).get(self.provider, {}))
+            except Exception as exc:
+                logger.warning("Budget snapshot transaction failed for %s: %s", self.provider, exc)
+        counted, readable = self._counter_read(self._usage_key())
+        ledger = read_scheduler_sent(self._client)
+        return counted, readable, None if ledger is None else ledger.get(self.provider, {})

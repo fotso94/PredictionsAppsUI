@@ -51,9 +51,13 @@ from app.services.match_data_service import (
     COVERAGE_CALENDAR_KEY, MatchDataService, SyncMeta, live_polls_today, note_live_poll,
     recovery_requests_left_today, recovery_requests_today,
 )
+from app.services.providers import budget as request_budget
 from app.services.providers import competitions as comps
 
 logger = logging.getLogger(__name__)
+
+#: "The caller did not say which budget store to read", kept apart from None, which means "none".
+_REAL_BUDGET_STORE = object()
 
 TASK_FIXTURES = "fixtures"
 TASK_LIVE = "live"
@@ -194,9 +198,14 @@ class SyncScheduler:
                  match_service_factory: Optional[Callable[[Any], MatchDataService]] = None,
                  forecast_service_factory: Optional[Callable[[Any], ForecastService]] = None,
                  tasks: Optional[Iterable[str]] = None,
-                 close_sessions: bool = True):
+                 close_sessions: bool = True,
+                 budget_client: Any = _REAL_BUDGET_STORE):
         self._session_factory = session_factory
         self.cache = cache or MatchCache()
+        #: The store the request budgets count in, which is where the scheduler's ledger of what it
+        #: sent lives (see `status`). Not `cache`: the budgets are kept in a different Redis
+        #: database, and the ledger has to sit beside the counters it is compared with.
+        self._budget_client = budget_client
         #: A datetime or a zero-argument callable; None means "real clock". Tests pass a fake clock.
         self._now = now
         self._match_factory = match_service_factory
@@ -264,13 +273,17 @@ class SyncScheduler:
         return int(min(base * (2 ** max(consecutive_failures - 1, 0)), BACKOFF_MAX_SECONDS))
 
     def _record(self, name: str, *, result: Optional[Dict[str, Any]], ok: bool,
-                error: Optional[str], started: datetime) -> Dict[str, Any]:
+                error: Optional[str], started: datetime,
+                sent: Optional[Dict[str, int]] = None) -> Dict[str, Any]:
         now = self.now
         state = self.state(name)
         state["last_run_at"] = now.isoformat()
         state["last_duration_ms"] = int(max((now - started).total_seconds(), 0) * 1000)
         state["runs"] = int(state.get("runs") or 0) + 1
         state["last_result"] = result
+        # Per provider, every request this pass was granted - including by a pass that then raised,
+        # because the provider charged those all the same.
+        state["last_requests_sent"] = dict(sent or {})
         state["last_skip_reason"] = None
         if ok:
             state["last_success_at"] = now.isoformat()
@@ -905,14 +918,19 @@ class SyncScheduler:
         started = self.now
         try:
             try:
-                result, ok, error = self._execute(name, services)
+                # Every request granted on this thread until the block ends is this task's, whichever
+                # provider object grants it - see `request_budget.spending_for_task`.
+                with request_budget.spending_for_task(name) as spend:
+                    result, ok, error = self._execute(name, services)
             except Exception as exc:  # a broken task must not stop the other three, or the loop
                 logger.exception("Sync task %s failed", name)
-                state = self._record(name, result=None, ok=False, error=str(exc), started=started)
+                state = self._record(name, result=None, ok=False, error=str(exc), started=started,
+                                     sent=spend.granted)
                 return {"ran": True, "ok": False, "error": str(exc),
                         "next_due_at": state.get("next_due_at"),
                         "consecutive_failures": state.get("consecutive_failures")}
-            state = self._record(name, result=result, ok=ok, error=error, started=started)
+            state = self._record(name, result=result, ok=ok, error=error, started=started,
+                                 sent=spend.granted)
             outcome: Dict[str, Any] = {"ran": True, "ok": ok, "result": result,
                                        "duration_ms": state.get("last_duration_ms"),
                                        "next_due_at": state.get("next_due_at")}
@@ -1212,6 +1230,7 @@ class SyncScheduler:
             "state_store_available": self.cache.available,
             "tasks": {},
         }
+        ledger = self._requests_ledger()
         for name in TASK_NAMES:
             state = self.state(name)
             is_due, why = self.due(name)
@@ -1235,8 +1254,26 @@ class SyncScheduler:
                 "next_due_at": state.get("next_due_at"),
                 "due_now": is_due,
                 "reason_not_due": why,
+                # Per provider, what the last pass that ran was granted. None for a task whose last
+                # pass was recorded before this was kept.
+                "last_requests_sent": state.get("last_requests_sent"),
+                # Per provider, everything this task has sent since the ledger began: a running
+                # total that only grows. It is written with the budget counter it is compared with,
+                # at the instant each request is granted, so it is never behind a pass still in
+                # flight. None when the ledger cannot be read - unknown, not zero.
+                "requests_sent_total": (None if ledger is None else
+                                        {provider: tasks[name] for provider, tasks in ledger.items()
+                                         if name in tasks}),
             }
         return payload
+
+    def _requests_ledger(self) -> Optional[Dict[str, Dict[str, int]]]:
+        """{provider: {task: requests sent}} from the budget store, or None when it is unreadable."""
+        if self._budget_client is None:
+            return None
+        if self._budget_client is _REAL_BUDGET_STORE:
+            return request_budget.read_scheduler_sent()
+        return request_budget.read_scheduler_sent(self._budget_client)
 
     # ------------------------------------------------------------------ background loop
     @property

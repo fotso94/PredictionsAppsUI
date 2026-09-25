@@ -260,7 +260,7 @@ def build(db, cache, clock, provider: ArchiveDouble, tasks=(TASK_RECOVER,)) -> S
     return SyncScheduler(session_factory=lambda: db, cache=cache, now=clock,
                          match_service_factory=match_factory,
                          forecast_service_factory=lambda _db: None,
-                         tasks=list(tasks), close_sessions=False)
+                         tasks=list(tasks), close_sessions=False, budget_client=cache._redis())
 
 
 def unattended(scheduler: SyncScheduler) -> Dict[str, object]:
