@@ -11,6 +11,9 @@ scheduler actually spent. Only the values go:
 
     ... /api-client/matches/live.json?key=REDACTED&secret=REDACTED "HTTP/1.1 200 OK"
 
+TheSportsDB takes its key in the URL PATH instead - /api/v1/json/<key>/eventsnextleague.php - so
+that segment is replaced too.
+
 The same text reaches places other than the log. A provider error's message is stored in the Redis
 status payload served by GET /api/v1/data-providers/status and in a match row's recovery
 `last_provider_error`, so `ProviderError` redacts its own message with the same function.
@@ -38,6 +41,14 @@ _CREDENTIAL_PARAM = re.compile(
     re.IGNORECASE,
 )
 
+#: TheSportsDB's v1 API carries its key as a path segment: /api/v1/json/<key>/eventsnextleague.php.
+#: The segment is replaced whatever it holds - the public test key "123" too, which costs nothing.
+_CREDENTIAL_PATH_SEGMENT = re.compile(
+    r"(/api/v\d+/json/)"
+    r"(?!" + REDACTED + r"(?:[/\s?#'\"<>]|$))[^/\s?#'\"<>]+",
+    re.IGNORECASE,
+)
+
 #: Arguments of these types are formatted as themselves and cannot hold a query string.
 _PLAIN_ARGS = (int, float, bool, type(None))
 
@@ -46,13 +57,14 @@ _TRACEBACK_FORMATTER = logging.Formatter()
 
 
 def redact_credentials(text: str) -> str:
-    """`text` with the value of every credential-bearing query parameter replaced by REDACTED."""
-    return _CREDENTIAL_PARAM.sub(r"\1=" + REDACTED, text)
+    """`text` with every credential-bearing query value and path segment replaced by REDACTED."""
+    text = _CREDENTIAL_PARAM.sub(r"\1=" + REDACTED, text)
+    return _CREDENTIAL_PATH_SEGMENT.sub(r"\1" + REDACTED, text)
 
 
 def contains_credentials(text: str) -> bool:
-    """True when `text` still shows the value of a credential-bearing query parameter."""
-    return _CREDENTIAL_PARAM.search(text) is not None
+    """True when `text` still shows a credential-bearing query value or path segment."""
+    return _CREDENTIAL_PARAM.search(text) is not None or _CREDENTIAL_PATH_SEGMENT.search(text) is not None
 
 
 def _redact_arg(arg: Any) -> Any:

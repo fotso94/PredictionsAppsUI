@@ -12,6 +12,9 @@ The line is kept, because the path and the status are useful. Only the values ar
 A provider error's message goes further than the log: it is stored in the Redis status payload
 served by GET /api/v1/data-providers/status and in a match row's recovery `last_provider_error`.
 
+TheSportsDB carries its key in the URL PATH instead, /api/v1/json/<key>/..., and that line was found
+in the live log after the query rule shipped, so the segment is replaced too.
+
 The credentials below are fakes. Nothing here makes a real request - httpx.MockTransport throughout.
 """
 
@@ -19,6 +22,7 @@ import io
 import json
 import logging
 import sys
+from datetime import date
 
 import httpx
 import pytest
@@ -34,6 +38,7 @@ from app.services.providers.base import ProviderAuthError, ProviderError, Provid
 from app.services.providers.budget import RequestBudget
 from app.services.providers.http import ProviderHttpClient
 from app.services.providers.livescore_api import LiveScoreAPIProvider
+from app.services.providers.thesportsdb_provider import TheSportsDBProvider
 from tests.providers.support import FakeRedis, json_response, make_transport
 
 KEY = "abc123"
@@ -42,6 +47,9 @@ BASE_URL = "https://livescore-api.com/api-client"
 PATH = "/api-client/matches/live.json"
 URL = f"https://livescore-api.com{PATH}?key={KEY}&secret={SECRET}"
 REDACTED_QUERY = f"{PATH}?key={REDACTED}&secret={REDACTED}"
+
+#: A fake TheSportsDB key, which that provider sends as a path segment rather than a parameter.
+PATH_KEY = "654321"
 
 
 def assert_hidden(text):
@@ -111,6 +119,21 @@ def test_a_live_score_request_is_logged_with_its_path_and_status_but_not_its_cre
     assert_hidden(out)
     assert REDACTED_QUERY in lines[0]
     assert "HTTP/1.1 200 OK" in lines[0].replace('\\"', '"')
+
+
+def test_a_thesportsdb_request_is_logged_without_the_key_in_its_path(app_log):
+    transport, recorder = make_transport(lambda request: json_response({"events": []}))
+    provider = TheSportsDBProvider(api_key=PATH_KEY, transport=transport,
+                                   budget=RequestBudget("thesportsdb", 100, client=FakeRedis()))
+
+    provider.get_fixtures(date(2026, 9, 25), ["premier_league"])
+
+    assert f"/json/{PATH_KEY}/" in recorder.requests[0].url.path
+    out = app_log()
+    lines = [line for line in out.splitlines() if "HTTP Request" in line]
+    assert len(lines) == 1, out
+    assert PATH_KEY not in out
+    assert f"/api/v1/json/{REDACTED}/eventsnextleague.php" in lines[0]
 
 
 def test_every_record_reaching_the_root_handler_is_redacted_however_it_was_built(app_log):
@@ -222,6 +245,18 @@ def test_other_parameters_and_lookalike_names_are_left_alone():
 
     assert redact_credentials(text) == text
     assert not contains_credentials(text)
+
+
+def test_a_key_carried_as_a_path_segment_is_redacted_and_the_rest_of_the_path_kept():
+    url = f"https://www.thesportsdb.com/api/v1/json/{PATH_KEY}/eventsnextleague.php?id=4328"
+
+    assert redact_credentials(url) == (
+        f"https://www.thesportsdb.com/api/v1/json/{REDACTED}/eventsnextleague.php?id=4328")
+    # As a bare base URL, the form it takes in a client's configuration.
+    assert redact_credentials(f"https://www.thesportsdb.com/api/v1/json/{PATH_KEY}") == (
+        f"https://www.thesportsdb.com/api/v1/json/{REDACTED}")
+    assert contains_credentials(url)
+    assert not contains_credentials(redact_credentials(url))
 
 
 def test_redaction_is_idempotent():
