@@ -1,0 +1,141 @@
+{
+    "id": 27381,
+    "odds": [
+        {
+            "key": "match_winner",
+            "type": "3_ways",
+            "run_at": "2026-09-24",
+            "values": {
+                "Away": 4.33,
+                "Draw": 3.5,
+                "Home": 1.83
+            }
+        }
+    ],
+    "round": "League B - 1",
+    "score": {
+        "p1": {
+            "away": null,
+            "home": null
+        },
+        "final": {
+            "away": null,
+            "home": null
+        },
+        "winner": null,
+        "fulltime": {
+            "away": null,
+            "home": null
+        },
+        "overtime": {
+            "away": null,
+            "home": null
+        },
+        "penalties": {
+            "away": null,
+            "home": null
+        }
+    },
+    "league": {
+        "id": 36,
+        "name": "UEFA Nations League"
+    },
+    "referee": "Orel Grinfeld",
+    "start_at": "2026-09-25T16:00:00+00:00",
+    "team_away": {
+        "id": 606,
+        "name": "Northern Ireland"
+    },
+    "team_home": {
+        "id": 590,
+        "name": "Georgia"
+    },
+    "updated_at": "2026-09-21",
+    "predictions": [
+        {
+            "run_at": "2026-09-24",
+            "reasoning": {
+                "de": "Georgien zeigt eine bessere aktuelle Form mit soliden Heimergebnissen, während Nordirland auswärts Schwierigkeiten hat, Tore zu erzielen.",
+                "en": "Georgia shows better recent form with solid home results, while Northern Ireland struggles to score consistently away from home.",
+                "es": "Georgia muestra una mejor forma reciente con resultados sólidos en casa, mientras que Irlanda del Norte lucha por marcar fuera de casa.",
+                "fr": "La Géorgie montre une meilleure forme récente avec des résultats solides à domicile, tandis que l'Irlande du Nord a du mal à marquer à l'extérieur.",
+                "it": "La Georgia mostra una forma migliore recente con solidi risultati casalinghi, mentre l'Irlanda del Nord fatica a segnare in trasferta.",
+                "pt": "A Geórgia mostra uma forma recente melhor com resultados sólidos em casa, enquanto a Irlanda do Norte luta para marcar fora de casa."
+            },
+            "exact_score": {
+                "0_0": 10,
+                "0_1": 12,
+                "0_2": 4,
+                "0_3": 1,
+                "1_0": 20,
+                "1_1": 15,
+                "1_2": 6,
+                "1_3": 1,
+                "2_0": 10,
+                "2_1": 12,
+                "2_2": 3,
+                "2_3": 1,
+                "3_0": 1,
+                "3_1": 2,
+                "3_2": 1,
+                "3_3": 0,
+                "other": 1
+            },
+            "total_goals": {
+                "over_0_5": 90,
+                "over_1_5": 70,
+                "over_2_5": 45,
+                "over_3_5": 25,
+                "under_0_5": 10,
+                "under_1_5": 30,
+                "under_2_5": 55,
+                "under_3_5": 75
+            },
+            "match_result": {
+                "away": 25,
+                "draw": 30,
+                "home": 45
+            },
+            "away_team_goals": {
+                "over_0_5": 55,
+                "over_1_5": 25,
+                "over_2_5": 10,
+                "over_3_5": 2,
+                "under_0_5": 45,
+                "under_1_5": 75,
+                "under_2_5": 90,
+                "under_3_5": 98
+            },
+            "home_team_goals": {
+                "over_0_5": 75,
+                "over_1_5": 45,
+                "over_2_5": 15,
+                "over_3_5": 5,
+                "under_0_5": 25,
+                "under_1_5": 55,
+                "under_2_5": 85,
+                "under_3_5": 95
+            },
+            "both_teams_score": {
+                "no": 45,
+                "yes": 55
+            },
+            "recommended_bets": {
+                "1": "matchResult.homeWinProbability",
+                "2": "totalGoals.under2_5",
+                "3": "bothTeamsScore.yes"
+            },
+            "first_half_winner": {
+                "away": 20,
+                "draw": 50,
+                "home": 30
+            },
+            "team_to_score_first": {
+                "away": 35,
+                "home": 50,
+                "neither": 15
+            }
+        }
+    ],
+    "status_code": "NOT_STARTED"
+}

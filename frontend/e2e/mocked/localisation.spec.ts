@@ -584,6 +584,8 @@ const SAME_IN_BOTH_ON_PURPOSE: Record<string, string> = {
   'provider.expert': 'the same word in French',
   'measured.sourceKind.expert': 'the same word in French',
   'filters.sources': 'the same word in French',
+  // The French betting term is the English one, letter for letter.
+  'selections.market.doubleChance': 'the same term in French',
   'filters.group.source': 'the same word in French',
   // "Clubs" is the French word too, plural included. The two alternatives beside it are not —
   // "National teams" is « Sélections » and "All" is « Tous » — so this is the only one of the
@@ -777,6 +779,48 @@ interface CountCase {
 }
 
 const COUNT_CASES: CountCase[] = [
+  // ── the selections area (reader) ──────────────────────────────────────────────────────────
+  {
+    key: 'selections.dock.count',
+    params: (n: number) => ({ count: n }),
+    fr: ['0 sélection', '1 sélection', '2 sélections', '11 sélections'],
+  },
+  {
+    key: 'selections.copy.count',
+    params: (n: number) => ({ count: n }),
+    fr: ['0 sélection', '1 sélection', '2 sélections', '11 sélections'],
+  },
+  {
+    key: 'selections.suggest.ageHours',
+    params: (n: number) => ({ count: n }),
+    fr: ['0 heure', '1 heure', '2 heures', '11 heures'],
+  },
+  {
+    key: 'selections.suggest.days',
+    params: (n: number) => ({ count: n }),
+    fr: ['0 prochain jour', '1 prochain jour', '2 prochains jours', '11 prochains jours'],
+  },
+  {
+    key: 'selections.dock.combinedPriceMissing',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      'Pas de cote combinée\u00a0: une sélection n’a pas de cote. Saisissez les cotes de votre bookmaker.',
+      'Pas de cote combinée\u00a0: une sélection n’a pas de cote. Saisissez les cotes de votre bookmaker.',
+      'Pas de cote combinée\u00a0: 2 sélections n’ont pas de cote. Saisissez les cotes de votre bookmaker.',
+      'Pas de cote combinée\u00a0: 11 sélections n’ont pas de cote. Saisissez les cotes de votre bookmaker.',
+    ],
+  },
+  {
+    // Rendered only above zero; the form at 0 is the `one` form French selects there.
+    key: 'selections.dock.handoffRefused',
+    params: (n: number) => ({ count: n, reasons: 'coup d’envoi donné' }),
+    fr: [
+      'Une sélection de ce navigateur n’a pas pu être ajoutée à votre compte\u00a0: coup d’envoi donné',
+      'Une sélection de ce navigateur n’a pas pu être ajoutée à votre compte\u00a0: coup d’envoi donné',
+      '2 sélections de ce navigateur n’ont pas pu être ajoutées à votre compte\u00a0: coup d’envoi donné',
+      '11 sélections de ce navigateur n’ont pas pu être ajoutées à votre compte\u00a0: coup d’envoi donné',
+    ],
+  },
   {
     key: 'duration.minutes',
     params: (n: number) => ({ count: n }),

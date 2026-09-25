@@ -4,6 +4,7 @@ import Header from './Header'
 import Footer from './Footer'
 import ScrollBehaviour from './ScrollBehaviour'
 import ProviderStatusBanner from '@/components/ui/ProviderStatusBanner'
+import SlipDock from '@/components/slips/SlipDock'
 import { useT } from '@/i18n/react'
 
 /**
@@ -36,6 +37,8 @@ const Layout: React.FC = () => {
       <main id="main" className="flex-1">
         <Outlet />
       </main>
+      {/* The reader's slip follows them to every page; it is the one control that has to. */}
+      <SlipDock />
       <Footer />
     </div>
   )

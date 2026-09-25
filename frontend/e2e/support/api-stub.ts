@@ -917,6 +917,25 @@ export async function stubBackend(page: Page, options: StubOptions = {}): Promis
     if (path === '/matches/live') {
       return json(route, { matches: [], provider: 'livescore', source: 'provider', stale: false, errors: [] });
     }
+    if (/^\/matches\/[^/]+\/markets$/.test(path)) {
+      // No stored forecast for a stubbed fixture unless a spec says otherwise (see parlay-builder.spec.ts).
+      const id = path.split('/')[2];
+      return json(route, {
+        match_id: id, provider: null, normalisation_version: 'markets.v1', built_at: new Date().toISOString(),
+        forecast: { record_id: null, snapshot_id: null, captured_before_kickoff: null, retrieved_at: null, model_run_at: null,
+          provider_updated_at: null, state: 'unavailable', state_reason: 'no forecast for this match' },
+        groups: [], recommended_bets: [], provider_odds: null, anomalies: [], reason: 'no stored forecast for this fixture',
+      });
+    }
+    if (path === '/suggestions/capabilities') {
+      return json(route, { normalisation_version: 'markets.v1', families: [] });
+    }
+    if (path === '/suggestions') {
+      return json(route, { generated_at: new Date().toISOString(), rules: {}, pool: { fixtures_in_window: 0, qualifying: 0, excluded: {} }, combinations: [], shortfall: 'no fixture in the window has a selection at or above the requested probability' });
+    }
+    if (path === '/me/slips' && request.method() === 'GET') {
+      return json(route, { slips: [] });
+    }
     if (path.startsWith('/matches/')) {
       const id = path.split('/')[2];
       // The list-shaped fixture by default; `matchById: matchDetail` is how a test asks for the

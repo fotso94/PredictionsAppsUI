@@ -37,6 +37,8 @@ const MatchDetailPage = lazy(() => import('@/pages/MatchDetailPage'))
 const LeaguesPage = lazy(() => import('@/pages/LeaguesPage'))
 const LeagueDetailPage = lazy(() => import('@/pages/LeagueDetailPage'))
 const TeamDetailPage = lazy(() => import('@/pages/TeamDetailPage'))
+const SelectionsPage = lazy(() => import('@/pages/SelectionsPage'))
+const SuggestionsPage = lazy(() => import('@/pages/SuggestionsPage'))
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const RegisterPage = lazy(() => import('@/pages/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/pages/ForgotPasswordPage'))
@@ -231,6 +233,8 @@ function App() {
           <Route path="league/:id" element={routed(<LeagueDetailPage />)} />
           <Route path="leagues/:leagueId" element={routed(<LeagueDetailPage />)} />
           <Route path="teams/:teamId" element={routed(<TeamDetailPage />)} />
+          <Route path="selections" element={routed(<SelectionsPage />)} />
+          <Route path="selections/suggestions" element={routed(<SuggestionsPage />)} />
 
           {/* Protected routes - require authentication */}
           <Route

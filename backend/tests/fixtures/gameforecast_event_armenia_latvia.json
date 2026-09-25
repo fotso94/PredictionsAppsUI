@@ -1,0 +1,141 @@
+{
+    "id": 27415,
+    "odds": [
+        {
+            "key": "match_winner",
+            "type": "3_ways",
+            "run_at": "2026-09-24",
+            "values": {
+                "Away": 5,
+                "Draw": 3.6,
+                "Home": 1.7
+            }
+        }
+    ],
+    "round": "League C - 1",
+    "score": {
+        "p1": {
+            "away": null,
+            "home": null
+        },
+        "final": {
+            "away": null,
+            "home": null
+        },
+        "winner": null,
+        "fulltime": {
+            "away": null,
+            "home": null
+        },
+        "overtime": {
+            "away": null,
+            "home": null
+        },
+        "penalties": {
+            "away": null,
+            "home": null
+        }
+    },
+    "league": {
+        "id": 36,
+        "name": "UEFA Nations League"
+    },
+    "referee": "Martin Matosa",
+    "start_at": "2026-09-25T16:00:00+00:00",
+    "team_away": {
+        "id": 633,
+        "name": "Latvia"
+    },
+    "team_home": {
+        "id": 589,
+        "name": "Armenia"
+    },
+    "updated_at": "2026-09-21",
+    "predictions": [
+        {
+            "run_at": "2026-09-24",
+            "reasoning": {
+                "de": "Armenien hat in den letzten direkten Duellen gegen Lettland eine historische Überlegenheit gezeigt. Die relative defensive Stabilität Armeniens zu Hause und die offensiven Schwierigkeiten Lettlands deuten auf einen knappen Sieg der Heimmannschaft hin.",
+                "en": "Armenia has demonstrated historical superiority in recent head-to-head matches against Latvia. Armenia's relative defensive stability at home and Latvia's offensive struggles suggest a narrow victory for the home side.",
+                "es": "Armenia ha demostrado una superioridad histórica en los enfrentamientos directos recientes contra Letonia. La relativa estabilidad defensiva de Armenia en casa y las dificultades ofensivas de Letonia sugieren una victoria ajustada para los locales.",
+                "fr": "L'Arménie a montré une supériorité historique dans les confrontations directes récentes contre la Lettonie. La solidité défensive relative de l'Arménie à domicile et les difficultés offensives de la Lettonie suggèrent une victoire serrée pour les locaux.",
+                "it": "L'Armenia ha mostrato una superiorità storica nei recenti scontri diretti contro la Lettonia. La relativa stabilità difensiva dell'Armenia in casa e le difficoltà offensive della Lettonia suggeriscono una vittoria di misura per i padroni di casa.",
+                "pt": "A Arménia demonstrou superioridade histórica nos confrontos diretos recentes contra a Letónia. A relativa estabilidade defensiva da Arménia em casa e as dificuldades ofensivas da Letónia sugerem uma vitória apertada para a equipa da casa."
+            },
+            "exact_score": {
+                "0_0": 10,
+                "0_1": 10,
+                "0_2": 5,
+                "0_3": 0,
+                "1_0": 20,
+                "1_1": 15,
+                "1_2": 5,
+                "1_3": 1,
+                "2_0": 10,
+                "2_1": 15,
+                "2_2": 3,
+                "2_3": 1,
+                "3_0": 1,
+                "3_1": 2,
+                "3_2": 1,
+                "3_3": 0,
+                "other": 1
+            },
+            "total_goals": {
+                "over_0_5": 90,
+                "over_1_5": 70,
+                "over_2_5": 45,
+                "over_3_5": 25,
+                "under_0_5": 10,
+                "under_1_5": 30,
+                "under_2_5": 55,
+                "under_3_5": 75
+            },
+            "match_result": {
+                "away": 20,
+                "draw": 25,
+                "home": 55
+            },
+            "away_team_goals": {
+                "over_0_5": 50,
+                "over_1_5": 20,
+                "over_2_5": 5,
+                "over_3_5": 0,
+                "under_0_5": 50,
+                "under_1_5": 80,
+                "under_2_5": 95,
+                "under_3_5": 100
+            },
+            "home_team_goals": {
+                "over_0_5": 80,
+                "over_1_5": 50,
+                "over_2_5": 20,
+                "over_3_5": 5,
+                "under_0_5": 20,
+                "under_1_5": 50,
+                "under_2_5": 80,
+                "under_3_5": 95
+            },
+            "both_teams_score": {
+                "no": 55,
+                "yes": 45
+            },
+            "recommended_bets": {
+                "1": "matchResult.homeWinProbability",
+                "2": "totalGoals.under2_5",
+                "3": "bothTeamsScore.no"
+            },
+            "first_half_winner": {
+                "away": 15,
+                "draw": 50,
+                "home": 35
+            },
+            "team_to_score_first": {
+                "away": 25,
+                "home": 60,
+                "neither": 15
+            }
+        }
+    ],
+    "status_code": "NOT_STARTED"
+}

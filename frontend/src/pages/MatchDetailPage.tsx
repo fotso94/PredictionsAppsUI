@@ -28,6 +28,7 @@ import { providerLabel, betLabels } from '@/utils/predictionLabels'
 import { isMatchLive, isMatchFinished, getMatchStatusText, getMatchStatusBadgeClasses } from '@/utils/matchFilters'
 import { resultDelay } from '@/utils/resultDelay'
 import { ResultDelayLabel, ResultDelayNotice } from '@/components/ui/ResultDelayNotice'
+import MarketsPanel from '@/components/markets/MarketsPanel'
 
 const DAY_LABEL = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 
@@ -671,6 +672,13 @@ const MatchDetailPage: React.FC = () => {
               </SourcePanel>
             )}
           </div>
+
+          {/*
+            Every selection the model forecast supports, with an "Add to slip" on each. Below the
+            two source panels, because it is built from the same forecast the model panel shows
+            and adds nothing to what the reader has not already been told about its provenance.
+          */}
+          <MarketsPanel match={match} className="mt-4 sm:mt-6" />
 
           {/*
             ODDS: A PANEL ONLY WHEN THERE IS A FEED BEHIND IT.

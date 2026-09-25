@@ -16,6 +16,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from app.db.base import Base
 from app.core.config import settings
 from app.models.provider_data import ProviderEntityRef, ProviderForecastRecord  # noqa: F401
+from app.models.slips import SelectionSlip, SelectionSlipLeg  # noqa: F401
 
 # Import all models for Alembic autogenerate (66 models across 5 schemas)
 from app.models import (

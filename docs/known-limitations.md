@@ -378,6 +378,40 @@ the feature, and exhausting it would also stop the ordinary fixtures sync until 
 provider would have to fail continuously for hours for this to bite, and it has not happened, but
 nothing in the code prevents it.
 
+## Selections and slips
+
+The markets panel, the slip and the suggested combinations (docs/markets-capability-matrix.md
+has the market-by-market statement) are built from stored forecasts and stored results only.
+What they do not do, on purpose:
+
+- **No odds feed.** A price on a selection is either the reader's own (typed in) or the 1X2
+  decimal price GameForecastAPI carries in its payload, dated with that payload and with no
+  bookmaker named. No other market's price is derived from it, and a combination with any leg
+  unpriced has no combined price. Potential returns are quoted figures from a given price, never
+  from a probability.
+- **One selection per fixture.** Two selections on one match are correlated and cannot be priced
+  or given a joint probability by multiplying them, so same-game combinations are not offered.
+  A combined probability across different matches is shown as an approximation assuming
+  independence, never as a calibrated prediction.
+- **Suggestions are a ranking, not a model.** Highest published probability per fixture among the
+  allowed markets, cut into disjoint sets; near-certainties above 95% are left out by default and
+  said to be. Fewer legs than asked are returned rather than padded.
+- **Not everything settles automatically.** First-half markets need a stored half-time score;
+  "team to score first" needs the order of goals, which no configured source records (a 0-0
+  settles "neither"); a tie decided beyond 90 minutes with no 90-minute score stored is withheld.
+  Such legs read *unresolved*, with the reason, and are never guessed. There is no manual
+  resolution of a leg in this release.
+- **"Recorded" is the reader's own statement.** The application does not place bets, hold funds,
+  initiate payments or confirm that any bet exists. A recorded slip is kept as it was; changing
+  it means duplicating it.
+- **Corners, cards, shots, fouls, penalties and player markets are not offered**, because no
+  configured source publishes probabilities for them and they are not invented from other
+  statistics. The paid options researched are listed for the owner in the capability matrix;
+  none was taken.
+- **Coverage is what the stored forecasts cover.** On 2026-09-25 that is the five domestic
+  leagues and the UEFA Nations League; CONCACAF Nations League fixtures are stored without
+  forecasts and the Champions League has neither stored fixtures nor forecasts.
+
 ## Expert convictions
 
 An expert's conviction is optional and is now stored as null when they do not give one. Twenty-six

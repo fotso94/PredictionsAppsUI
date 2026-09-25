@@ -361,6 +361,18 @@ async def upcoming_matches(
     }
 
 
+@router.get("/{match_id}/markets", summary="Every selection the stored provider forecast supports for this fixture")
+async def match_markets(match_id: str, db: Session = Depends(get_db)):
+    """Stored data only: the markets are read from the forecast already on disk, never fetched."""
+    service = MatchDataService(db)
+    resolved = service.registry.resolve_match_id(match_id)
+    match = service.match_by_id(resolved) if resolved else None
+    if match is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
+    from app.services.forecast_markets import envelope_for_match
+    return envelope_for_match(db, match, ForecastService(db))
+
+
 @router.get("/{match_id}", summary="Match detail with expert prediction and provider forecast")
 async def match_detail(match_id: str, db: Session = Depends(get_db)):
     service = MatchDataService(db)

@@ -532,21 +532,12 @@ for (const language of ['en', 'fr'] as const) {
   });
 }
 
-/**
- * The guard on the guard: a plural added to this area would be invisible to the table above AND
- * would fail a test in another package's file, which is a confusing place to find out.
- *
- * It fails here instead, in the area's own spec, naming the key — and this is the test to delete
- * on the day COUNT_CASES in localisation.spec.ts can take a reader entry.
+/*
+ * The reader area now counts things (the selections dock, the suggested combinations), and its
+ * count-bearing messages are rendered at 0, 1, 2 and 11 in COUNT_CASES in localisation.spec.ts,
+ * like every other area's. The guard that once refused a reader plural until that table could
+ * take one was retired on the day it said to.
  */
-test('no reader message uses a plural the reader area has no table for', () => {
-  const withPlural = (Object.keys(readerEn) as Array<keyof typeof en>)
-    .filter(key => /,\s*plural\s*,/.test(fr[key]) || /,\s*plural\s*,/.test(en[key]));
-  expect(
-    withPlural,
-    'a reader message counts something. It must be listed in COUNT_CASES in localisation.spec.ts first, and that file belongs to another package',
-  ).toEqual([]);
-});
 
 /** The same counts on the page itself, drawn from real rows rather than from a catalogue. */
 for (const count of COUNTS) {

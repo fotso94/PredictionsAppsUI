@@ -84,10 +84,11 @@ import SearchDropdown from './SearchDropdown'
  * before they can change it. `href` is not translated: a URL is an address, and translating one
  * would break every existing link, bookmark and test.
  */
-const navigationItems = (t: (key: 'nav.home' | 'nav.matches' | 'nav.leagues' | 'nav.dashboard') => string): NavItem[] => [
+const navigationItems = (t: (key: 'nav.home' | 'nav.matches' | 'nav.leagues' | 'nav.dashboard' | 'selections.nav') => string): NavItem[] => [
   { name: t('nav.home'), href: '/' },
   { name: t('nav.matches'), href: '/matches' },
   { name: t('nav.leagues'), href: '/leagues' },
+  { name: t('selections.nav'), href: '/selections' },
   { name: t('nav.dashboard'), href: '/dashboard' },
 ]
 

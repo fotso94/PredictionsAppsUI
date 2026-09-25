@@ -1,0 +1,141 @@
+{
+    "id": 27419,
+    "odds": [
+        {
+            "key": "match_winner",
+            "type": "3_ways",
+            "run_at": "2026-09-24",
+            "values": {
+                "Away": 3.4,
+                "Draw": 3,
+                "Home": 2.3
+            }
+        }
+    ],
+    "round": "League C - 1",
+    "score": {
+        "p1": {
+            "away": null,
+            "home": null
+        },
+        "final": {
+            "away": null,
+            "home": null
+        },
+        "winner": null,
+        "fulltime": {
+            "away": null,
+            "home": null
+        },
+        "overtime": {
+            "away": null,
+            "home": null
+        },
+        "penalties": {
+            "away": null,
+            "home": null
+        }
+    },
+    "league": {
+        "id": 36,
+        "name": "UEFA Nations League"
+    },
+    "referee": null,
+    "start_at": "2026-09-26T16:00:00+00:00",
+    "team_away": {
+        "id": 612,
+        "name": "Luxembourg"
+    },
+    "team_home": {
+        "id": 585,
+        "name": "Bulgaria"
+    },
+    "updated_at": "2026-09-21",
+    "predictions": [
+        {
+            "run_at": "2026-09-24",
+            "reasoning": {
+                "de": "Bulgarien hat einen historischen Vorteil und spielt zu Hause. Beide Teams zeigten zuletzt offensive Schwierigkeiten, was für ein enges Spiel mit wenigen Toren spricht.",
+                "en": "Bulgaria holds a historical edge and plays at home. Both teams have shown recent offensive struggles, favoring a tight match with few goals.",
+                "es": "Bulgaria tiene una ventaja histórica y juega en casa. Ambos equipos han mostrado dificultades ofensivas recientes, favoreciendo un partido cerrado con pocos goles.",
+                "fr": "La Bulgarie a un avantage historique et joue à domicile. Les deux équipes ont montré des difficultés offensives récentes, favorisant un match serré avec peu de buts.",
+                "it": "La Bulgaria ha un vantaggio storico e gioca in casa. Entrambe le squadre hanno mostrato recenti difficoltà offensive, favorendo una partita chiusa con pochi gol.",
+                "pt": "A Bulgária tem uma vantagem histórica e joga em casa. Ambas as equipas mostraram dificuldades ofensivas recentes, favorecendo um jogo fechado com poucos golos."
+            },
+            "exact_score": {
+                "0_0": 10,
+                "0_1": 12,
+                "0_2": 5,
+                "0_3": 1,
+                "1_0": 20,
+                "1_1": 15,
+                "1_2": 5,
+                "1_3": 1,
+                "2_0": 10,
+                "2_1": 10,
+                "2_2": 3,
+                "2_3": 1,
+                "3_0": 2,
+                "3_1": 3,
+                "3_2": 1,
+                "3_3": 0,
+                "other": 1
+            },
+            "total_goals": {
+                "over_0_5": 90,
+                "over_1_5": 70,
+                "over_2_5": 45,
+                "over_3_5": 25,
+                "under_0_5": 10,
+                "under_1_5": 30,
+                "under_2_5": 55,
+                "under_3_5": 75
+            },
+            "match_result": {
+                "away": 25,
+                "draw": 30,
+                "home": 45
+            },
+            "away_team_goals": {
+                "over_0_5": 55,
+                "over_1_5": 25,
+                "over_2_5": 10,
+                "over_3_5": 2,
+                "under_0_5": 45,
+                "under_1_5": 75,
+                "under_2_5": 90,
+                "under_3_5": 98
+            },
+            "home_team_goals": {
+                "over_0_5": 75,
+                "over_1_5": 45,
+                "over_2_5": 15,
+                "over_3_5": 5,
+                "under_0_5": 25,
+                "under_1_5": 55,
+                "under_2_5": 85,
+                "under_3_5": 95
+            },
+            "both_teams_score": {
+                "no": 55,
+                "yes": 45
+            },
+            "recommended_bets": {
+                "1": "matchResult.homeWinProbability",
+                "2": "totalGoals.under2_5",
+                "3": "bothTeamsScore.no"
+            },
+            "first_half_winner": {
+                "away": 20,
+                "draw": 50,
+                "home": 30
+            },
+            "team_to_score_first": {
+                "away": 35,
+                "home": 55,
+                "neither": 10
+            }
+        }
+    ],
+    "status_code": "NOT_STARTED"
+}

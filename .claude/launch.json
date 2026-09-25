@@ -4,10 +4,31 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--port", "3100", "--strictPort"],
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "3100",
+        "--strictPort"
+      ],
       "cwd": "frontend",
       "port": 3100,
       "autoPort": false
+    },
+    {
+      "name": "frontend-isolated",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "3101",
+        "--strictPort",
+        "--mode",
+        "dev8001"
+      ],
+      "cwd": "frontend",
+      "port": 3101,
+      "autoPort": false,
+      "_note": "Reads frontend/.env.dev8001.local (gitignored): VITE_API_BASE_URL=http://localhost:8001, a backend started without provider credentials and with SYNC_SCHEDULER_ENABLED=false against soccer_predictions_dev."
     }
   ]
 }
