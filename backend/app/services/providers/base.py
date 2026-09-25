@@ -14,16 +14,25 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from app.core.redaction import redact_credentials
+
 
 # ---------------------------------------------------------------------------
 # Errors
 # ---------------------------------------------------------------------------
 
 class ProviderError(Exception):
-    """Base class for provider failures."""
+    """Base class for provider failures.
+
+    The message is redacted here, once, for every provider: it is stored in the Redis status
+    payload that GET /api/v1/data-providers/status serves and in a match's recovery
+    `last_provider_error`, and it is built from text we do not control - an httpx error, a
+    provider's error body - which may quote the request URL, and Live Score's URL carries the key
+    and secret.
+    """
 
     def __init__(self, message: str, provider: str = "", status_code: Optional[int] = None):
-        super().__init__(message)
+        super().__init__(redact_credentials(message) if isinstance(message, str) else message)
         self.provider = provider
         self.status_code = status_code
 

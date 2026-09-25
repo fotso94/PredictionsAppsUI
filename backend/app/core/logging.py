@@ -9,6 +9,7 @@ import json
 from datetime import datetime
 
 from app.core.config import settings
+from app.core.redaction import install_credential_redaction
 
 
 class JSONFormatter(logging.Formatter):
@@ -25,9 +26,10 @@ class JSONFormatter(logging.Formatter):
             "line": record.lineno,
         }
         
-        # Add exception info if present
+        # Add exception info if present. The redaction filter leaves the traceback it redacted
+        # in exc_text; rendering it again from exc_info would print what it removed.
         if record.exc_info:
-            log_data["exception"] = self.formatException(record.exc_info)
+            log_data["exception"] = record.exc_text or self.formatException(record.exc_info)
         
         # Add extra fields
         if hasattr(record, "extra"):
@@ -69,6 +71,13 @@ def setup_logging():
     logging.getLogger("uvicorn").setLevel(logging.INFO)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    
+
+    # Provider credentials never reach the log: Live Score's travel in the query string, and httpx
+    # logs every request URL. Everything reaching the root handler is redacted, and so is what
+    # uvicorn's own handlers print, which it attached before this module was imported.
+    uvicorn_handlers = [handler for name in ("uvicorn", "uvicorn.error", "uvicorn.access")
+                        for handler in logging.getLogger(name).handlers]
+    install_credential_redaction([console_handler, *uvicorn_handlers])
+
     return root_logger
 

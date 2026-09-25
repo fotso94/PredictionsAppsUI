@@ -26,10 +26,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Optional
 
-import re
-
 import httpx
 
+from app.core.redaction import redact_credentials
 from app.services.providers.base import (
     ProviderAuthError,
     ProviderQuotaError,
@@ -229,7 +228,7 @@ class ProviderHttpClient:
             text = (response.text or "").strip()
         if not text:
             return ""
-        text = re.sub(r"(key|secret|token)=[^&\s]+", r"\1=<hidden>", text, flags=re.I)
+        text = redact_credentials(text)
         return f": {text[:160]}"
 
     def get_json(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
