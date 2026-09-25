@@ -46,10 +46,10 @@ Columns: **Provider / field** · **Documented** (publicly, by the provider) · *
 | Clean sheet | — | no | no | — | — | **not offered as such**; "team under 0.5 goals" is the same event and is served under team totals | regulation-time score | none |
 | Teams to score (either/both) | covered by BTTS and team over 0.5 | — | — | — | — | via those markets | regulation-time score | none |
 | Exact score | GameForecast `exact_score` | yes | yes | 92/92 (listed scorelines; 0% entries dropped per adapter rule) | same | yes; the `other` remainder is shown as a line, never a selection | regulation-time score | none |
-| Half-time / full-time | — | no source | no | — | — | **unavailable**; not derived by multiplying the first-half and full-time markets, which are not independent | both scores are stored, so settlement would be possible if a source published it | would need a provider that publishes it |
+| Half-time / full-time | — | GameForecast: no. **Sportmonks publishes all nine HT/FT combinations** | no | — | — | **unavailable**; not derived by multiplying the first-half and full-time markets, which are not independent | both scores are stored, so settlement would be possible if a source published it | Sportmonks (over budget) |
 | First team to score | GameForecast `team_to_score_first` | yes | yes | 92/92 | same | displayed and selectable, marked **not tracked automatically** | needs the order of goals; no configured source records it. A 0-0 settles `neither` | none |
-| Corners | — | GameForecast: no. Boggio: no. Sportmonks/FootyStats: statistics, not predictions (see research) | no | — | — | **unavailable** | `match_results.home/away_corners` exist but the active provider does not fill them | paid data; no prediction source found |
-| Cards | — | as corners | no | — | — | **unavailable** | card columns exist, unfilled | paid data |
+| Corners | — | GameForecast: no. Boggio: no. **Sportmonks publishes corner over/under probabilities** (lines 4–11); FootyStats: statistics only | no | — | — | **unavailable** | `match_results.home/away_corners` exist but the active provider does not fill them | Sportmonks base plan + Predictions add-on (over budget); no corner *results* source configured to settle them |
+| Cards | — | none of the four researched publishes card probabilities (Sportmonks' list has no cards market) | no | — | — | **unavailable** | card columns exist, unfilled | none found |
 | Shots / shots on target | — | none of the four researched publish predictions for them | no | — | — | **unavailable** | none | paid data, statistics only |
 | Fouls, penalties, player-specific | — | none | no | — | — | **unavailable** | none | none found within budget |
 
@@ -85,14 +85,14 @@ and half-time/full-time. Free first; the owner's ceiling is $25/month.
 | --- | --- | --- | --- |
 | **GameForecastAPI** (current) | nothing new: every market it publishes is already served. Paid tiers raise the allowance (Pro $19/mo: 5,000 requests/month, 120/min; Ultra $74/mo; Mega $149/mo) and add history; the free tier is 10 requests/day. Its "40+ markets" claim resolves, in the payload we hold, to the families above. | free (held); $19/mo for Pro | **No purchase needed for markets.** A Pro tier would only matter if the 8-a-day allowance blocks forecast coverage — a separate decision. |
 | **Boggio Football Prediction API** | 1X2, BTTS, over/under 2.5 and 3.5, home/away over 0.5 and 1.5 — a subset of what GameForecast already gives. No corners, cards or shots. Free: 100 calls/month, 12 h ahead; Pro $14.99, Ultra $24.99, Mega $29.99. | free / $14.99–$29.99 | **Not recommended**: fills no gap. |
-| **Sportmonks Predictions add-on** | AI predictions incl. value bets; the add-on is bundled with odds ("Odds & Predictions" €24/mo, €15 on yearly) on top of a base plan from €29/mo (€24 yearly). Predictions cover 1,350+ leagues; corners/cards appear as *statistics*, not as predicted markets. | ≥ €29 + €15–24 /mo (≈ $60+) | **Over budget** and its prediction markets overlap ours; would add an odds feed (50+ bookmakers), which is the one thing this product lacks. Owner's call. |
+| **Sportmonks Predictions add-on** | Probabilities for: full-time result, first-half winner, **HT/FT (all nine)**, double chance, correct score, team to score first, BTTS, match goals O/U 1.5–4.5, home/away goals O/U 0.5–3.5, **corners O/U (lines 4–11)**, plus value bets. No cards market. The add-on is bundled with odds ("Odds & Predictions" €24/mo, €15 on yearly) on top of a base plan from €29/mo (€24 yearly); predictions cover 1,350+ leagues. *Correction 2026-09-25: an earlier version of this row said Sportmonks offered corners only as statistics; its documentation lists corner probabilities.* | ≥ €29 + €15–24 /mo (≈ $60+) | **Over budget.** It is the one researched source that would fill two gaps (corners, HT/FT) with genuine probabilities, and it would add an odds feed. Settling corner markets would still need a corner *result* source, which the active provider does not supply. Owner's call. |
 | **FootyStats API** | statistics (over/unders, BTTS, corners, cards, goals) per team and league — the historical-statistics product, not predictions. From $36.07/mo (official price page returned 403 to us twice; figure from two third-party listings). | ≈ $36/mo | **Over budget**; and statistics are not probabilities — using them as corner "predictions" would be inventing a model, which this product does not do. |
 
-**Recommendation:** no additional provider now. The four gap families (corners, cards, shots,
-player props) have no prediction source within the ceiling; the two statistics products would
-only supply inputs for a model this product is not allowed to build. The sole purchase with a
-demonstrated benefit would be an *odds feed* (Sportmonks bundle), which is out of budget and is
-listed for the owner rather than taken.
+**Recommendation:** no additional provider now. Within the $25/month ceiling nothing fills a gap:
+Boggio overlaps what is already served, FootyStats is statistics. Above the ceiling, Sportmonks is
+the one source that would add genuine corner and HT/FT probabilities and an odds feed — listed for
+the owner rather than taken. Cards, shots, fouls, penalties and player props have no probability
+source among the four at any price.
 
 ## Paid-provider decisions left for the owner
 
@@ -101,5 +101,6 @@ listed for the owner rather than taken.
    taken: over budget.
 2. **GameForecast Pro ($19/mo)**: only if the free tier's 8 requests/day is what limits forecast
    coverage of the added international competitions. Not a markets decision.
-3. **Corner/card/shot predictions**: no source found at any price that publishes probabilities
-   rather than statistics. Nothing to buy.
+3. **Corner and HT/FT probabilities**: Sportmonks publishes them (same bundle as the odds feed
+   above, ≈ €44–53/mo). Corners would also need a corner *result* feed to settle. Cards, shots,
+   fouls, penalties and player props: no probability source found at any price.

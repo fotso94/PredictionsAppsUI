@@ -438,7 +438,8 @@ def test_settlement_on_read_against_stored_results(client, db, as_user):
         {l["match"]["home"]["name"]: l["state"] for l in listed["void"]["legs"]}
     assert void_states == {"Bulgaria": "void", "Austria": "void", "Armenia": "won"}
     assert listed["void"]["state"] == "won", "void legs drop out; the remaining leg won"
-    assert listed["void"]["price"] == pytest.approx(1.6), "a void leg's price drops out of the combination"
+    assert listed["void"]["price"] == pytest.approx(1.5 * 1.2 * 1.6), "the original price is history"
+    assert listed["void"]["effective_price"] == pytest.approx(1.6), "what the combination pays on: the void legs' prices drop out"
     assert listed["unresolved"]["state"] == "pending", "an overdue fixture with no result keeps the slip pending"
     unresolved_leg = {l["match"]["home"]["name"]: l for l in listed["unresolved"]["legs"]}
     assert unresolved_leg["Georgia"]["state"] == "unresolved"
@@ -460,3 +461,106 @@ def test_a_recorded_bet_cannot_be_placed_on_a_fixture_already_played(client, db,
     _result(db, match, 0, 1, ht=(0, 0))
     refused = client.post(f"/api/v1/me/slips/{slip['id']}/record", json={})
     assert refused.status_code == 409 and refused.json()["detail"]["code"] == "fixture_finished"
+
+
+# ----------------------------------------------------------------------------- the review's defects
+def test_replacing_a_selection_is_atomic_so_a_refused_replacement_leaves_the_original(client, db, as_user):
+    as_user(_user(db))
+    match = _match(db, _league(db), "Bulgaria", "Luxembourg", KICKOFF_AHEAD)
+    payload = json.loads(json.dumps(load("bulgaria_luxembourg")))
+    del payload["predictions"][0]["first_half_winner"]
+    _forecast(db, match, payload)
+    slip = client.post("/api/v1/me/slips", json={"legs": [leg_body(match, "match_result:home", 2.3)]}).json()
+    leg_id = slip["legs"][0]["id"]
+
+    refused = client.put(f"/api/v1/me/slips/{slip['id']}/legs/{leg_id}", json={"selection_id": "first_half_result:home"})
+    assert refused.status_code == 422 and refused.json()["detail"]["code"] == "selection_unavailable"
+    kept = client.get(f"/api/v1/me/slips/{slip['id']}").json()
+    assert [l["id"] for l in kept["legs"]] == [leg_id], "the original leg is untouched by a refused replacement"
+    assert kept["legs"][0]["selection"]["selection_id"] == "match_result:home"
+
+    swapped = client.put(f"/api/v1/me/slips/{slip['id']}/legs/{leg_id}", json={"selection_id": "total_goals:under@2.5", "odds": 1.8}).json()
+    assert [l["selection"]["selection_id"] for l in swapped["legs"]] == ["total_goals:under@2.5"]
+    assert swapped["legs"][0]["id"] != leg_id and swapped["legs"][0]["position"] == 0
+    assert swapped["legs"][0]["odds"]["value"] == pytest.approx(1.8)
+    assert swapped["price"] == pytest.approx(1.8)
+
+
+def test_a_void_leg_adjusts_the_return_and_never_inflates_it(client, db, as_user):
+    """Defect: a recorded 2.00 x 3.00 with 1,000 XAF staked still showed 6,000 after the first leg voided."""
+    as_user(_user(db))
+    league = _league(db)
+    first = _match(db, league, "Bulgaria", "Luxembourg", KICKOFF_AHEAD)
+    second = _match(db, league, "Armenia", "Latvia", KICKOFF_AHEAD + timedelta(hours=2))
+    _forecast(db, first, load("bulgaria_luxembourg"))
+    _forecast(db, second, load("armenia_latvia"))
+    slip = client.post("/api/v1/me/slips", json={"name": "double", "legs": [leg_body(first, "match_result:home", 2.0),
+                                                                            leg_body(second, "match_result:home", 3.0)]}).json()
+    recorded = client.post(f"/api/v1/me/slips/{slip['id']}/record", json={"currency": "XAF", "stake": "1000"}).json()
+    assert recorded["price"] == pytest.approx(6.0) and recorded["effective_price"] == pytest.approx(6.0)
+    assert recorded["potential"]["gross_return"] == "6000" and recorded["potential"]["net_profit"] == "5000"
+
+    first.status = MatchStatus.POSTPONED
+    db.flush()
+    after = client.get(f"/api/v1/me/slips/{slip['id']}").json()
+    assert after["counts"]["void"] == 1
+    assert after["price"] == pytest.approx(6.0), "the recorded price is history and stays"
+    assert after["effective_price"] == pytest.approx(3.0), "what the combination now pays on"
+    assert after["potential"]["gross_return"] == "3000" and after["potential"]["net_profit"] == "2000"
+    assert "dropped out" in after["effective_price_note"]
+    assert after["potential_withheld_reason"] is None
+
+
+def test_a_void_leg_under_a_typed_combined_price_withholds_the_adjusted_return(client, db, as_user):
+    as_user(_user(db))
+    league = _league(db)
+    first = _match(db, league, "Bulgaria", "Luxembourg", KICKOFF_AHEAD)
+    second = _match(db, league, "Armenia", "Latvia", KICKOFF_AHEAD + timedelta(hours=2))
+    _forecast(db, first, load("bulgaria_luxembourg"))
+    _forecast(db, second, load("armenia_latvia"))
+    # Two legs without their own prices; the reader records the bookmaker's combined 6.50.
+    slip = client.post("/api/v1/me/slips", json={"legs": [leg_body(first, "both_teams_score:no"), leg_body(second, "both_teams_score:no")]}).json()
+    recorded = client.post(f"/api/v1/me/slips/{slip['id']}/record", json={"currency": "XAF", "stake": "1000", "price": 6.5}).json()
+    assert recorded["potential"]["gross_return"] == "6500"
+
+    second.status = MatchStatus.CANCELLED
+    db.flush()
+    after = client.get(f"/api/v1/me/slips/{slip['id']}").json()
+    assert after["price"] == pytest.approx(6.5) and after["price_source"] == "user"
+    assert after["effective_price"] is None
+    assert after["potential"] is None, "6,500 XAF would be an invention once a leg is void"
+    assert "cannot be computed" in after["potential_withheld_reason"]
+
+
+def test_a_leg_is_attributed_only_to_a_snapshot_holding_the_numbers_it_was_taken_from(client, db, as_user):
+    """Defect: a re-fetch that changed only a newly served block reused the old snapshot id."""
+    as_user(_user(db))
+    match = _match(db, _league(db), "Bulgaria", "Luxembourg", KICKOFF_AHEAD)
+    record = _forecast(db, match, load("bulgaria_luxembourg"))
+    old_snapshot = client.get(f"/api/v1/matches/{match.id}/markets").json()["forecast"]["snapshot_id"]
+    assert old_snapshot
+
+    # The provider revises only the first-half block; the current row is updated, no snapshot yet.
+    revised = json.loads(json.dumps(load("bulgaria_luxembourg")))
+    revised["predictions"][0]["first_half_winner"] = {"home": 40, "draw": 40, "away": 20}
+    record.raw_payload = revised
+    db.flush()
+    envelope = client.get(f"/api/v1/matches/{match.id}/markets").json()
+    assert envelope["forecast"]["snapshot_id"] is None, "no stored snapshot holds these numbers"
+    slip = client.post("/api/v1/me/slips", json={"legs": [leg_body(match, "first_half_result:home")]}).json()
+    assert slip["legs"][0]["probability"] == pytest.approx(0.40)
+    assert slip["legs"][0]["snapshot_id"] is None, "no evidence is better than the wrong evidence"
+
+    # The sync writes the new snapshot; from then on the leg's numbers are attributable.
+    parsed = parse_event(revised)
+    db.add(ProviderForecastSnapshot(
+        id=uuid.uuid4(), match_id=match.id, provider="gameforecast", external_event_id=str(revised["id"]),
+        content_hash=content_hash(parsed), home_win_prob=parsed.home_prob, draw_prob=parsed.draw_prob, away_win_prob=parsed.away_prob,
+        match_confidence="exact", matched_by="provider_id", first_fetched_at=(NOW - timedelta(hours=1)).replace(tzinfo=None),
+        last_fetched_at=(NOW - timedelta(hours=1)).replace(tzinfo=None), kickoff_at_capture=match.match_date,
+        captured_before_kickoff=True, raw_payload=revised))
+    db.flush()
+    again = client.get(f"/api/v1/matches/{match.id}/markets").json()
+    assert again["forecast"]["snapshot_id"] not in (None, old_snapshot)
+    slip2 = client.post("/api/v1/me/slips", json={"legs": [leg_body(match, "first_half_result:home")]}).json()
+    assert slip2["legs"][0]["snapshot_id"] == again["forecast"]["snapshot_id"]

@@ -54,15 +54,25 @@ export function slipText(t: TranslateFn, input: SlipTextInput): string {
   return lines.join('\n')
 }
 
-/** The product of the legs' probabilities, or null when any leg has none. Labelled as an approximation wherever shown. */
-export function combinedProbability(legs: Array<{ probability: number | null }>): number | null {
-  if (legs.length === 0) return null
+/**
+ * The product of the legs' probabilities, or null when any leg has none - or when any leg is a
+ * draw-no-bet selection: its probability is conditional on there being no draw, and a conditional
+ * figure multiplied with the other legs' unconditional ones is not the chance of anything. Labelled
+ * as an approximation wherever shown; `combinedProbabilityWithheld` says when and why it is not.
+ */
+export function combinedProbability(legs: Array<{ probability: number | null; selection: { market_id: string } }>): number | null {
+  if (legs.length === 0 || combinedProbabilityWithheld(legs)) return null
   let product = 1
   for (const leg of legs) {
     if (leg.probability === null) return null
     product *= leg.probability
   }
   return product
+}
+
+/** True when a combined probability must not be shown for these legs (a draw-no-bet selection is among them). */
+export function combinedProbabilityWithheld(legs: Array<{ selection: { market_id: string } }>): boolean {
+  return legs.some(leg => leg.selection.market_id === 'draw_no_bet')
 }
 
 /** The product of the legs' prices, or null when any leg has none. Nothing is invented for a missing one. */

@@ -40,6 +40,12 @@ class SlipUpdate(BaseModel):
                                  description="Stake as decimal text in that currency ('5050', '12.50'); empty string clears it")
 
 
+class LegReplace(BaseModel):
+    """Body of PUT .../legs/{leg_id}: another selection on the same fixture, swapped in one step."""
+    selection_id: str = Field(description="The selection to put in this leg's place; same fixture")
+    odds: Optional[float] = Field(default=None, gt=1.0, le=1000.0)
+
+
 class LegOddsUpdate(BaseModel):
     odds: Optional[float] = Field(default=None, gt=1.0, le=1000.0, description="null clears a user-entered price")
 

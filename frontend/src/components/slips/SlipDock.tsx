@@ -6,7 +6,7 @@ import { backendInstant, formatDateTime, formatPercentValue } from '@/i18n'
 import useAuth from '@/hooks/useAuth'
 import { describeSlipError, useSlips, type DockLeg } from '@/services/slips.service'
 import { selectionSentence, stateLabel } from '@/utils/marketLabels'
-import { combinedPrice, combinedProbability, slipText } from '@/utils/slipText'
+import { combinedPrice, combinedProbability, combinedProbabilityWithheld, slipText } from '@/utils/slipText'
 import type { SignInHandoff } from '@/components/favourites/useMatchSaving'
 
 /**
@@ -133,8 +133,11 @@ const SlipDock: React.FC = () => {
 
   const editable = !active || active.status !== 'recorded'
   const price = active?.price ?? combinedPrice(legs)
+  const voided = (active?.counts.void ?? 0) > 0
+  const effective = active ? active.effective_price : price
   const missingPrices = legs.filter(l => !l.odds).length
   const chance = combinedProbability(legs)
+  const chanceWithheld = combinedProbabilityWithheld(legs)
 
   const copy = async () => {
     const text = slipText(t, {
@@ -189,6 +192,7 @@ const SlipDock: React.FC = () => {
         aria-expanded={open}
         aria-controls="slip-dock"
         data-testid="slip-dock-toggle"
+        data-signed-in={signedIn}
       >
         <span>{open ? t('selections.action.hideSlip') : t('selections.action.showSlip')}</span>
         <span className="rounded-full bg-dark-950/40 px-2 text-xs" data-testid="slip-dock-count">{count}</span>
@@ -234,15 +238,26 @@ const SlipDock: React.FC = () => {
           {count > 0 && (
             <div className="mt-3 space-y-2 text-xs" data-testid="slip-dock-summary">
               {price !== null ? (
-                <p className="text-white" data-testid="slip-combined-price">{t('selections.dock.combinedPrice', { price: price.toFixed(2) })}</p>
+                <p className="text-white" data-testid="slip-combined-price">
+                  {voided ? t('selections.dock.priceOriginal', { price: price.toFixed(2) }) : t('selections.dock.combinedPrice', { price: price.toFixed(2) })}
+                </p>
               ) : (
                 <p className="text-secondary-400" data-testid="slip-combined-price-missing">{t('selections.dock.combinedPriceMissing', { count: missingPrices })}</p>
+              )}
+              {voided && effective !== null && (
+                <p className="text-white" data-testid="slip-effective-price">{t('selections.dock.priceEffective', { price: effective.toFixed(2) })}</p>
+              )}
+              {voided && active?.potential_withheld_reason && (
+                <p className="text-warning-200" data-testid="slip-potential-withheld">{t('selections.dock.potentialWithheld', { reason: active.potential_withheld_reason })}</p>
               )}
               {chance !== null && (
                 <p className="text-secondary-300" data-testid="slip-combined-probability">
                   {t('selections.dock.combinedProbability', { value: formatPercentValue(chance * 100, 1) })}
                   <span className="block text-[11px] text-secondary-500">{t('selections.dock.combinedProbabilityNote')}</span>
                 </p>
+              )}
+              {chanceWithheld && (
+                <p className="text-[11px] text-secondary-400" data-testid="slip-combined-probability-withheld">{t('selections.dock.combinedProbabilityWithheld')}</p>
               )}
               {signedIn && active && editable && (
                 <div className="flex flex-wrap items-end gap-2">

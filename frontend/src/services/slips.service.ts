@@ -107,13 +107,17 @@ class SlipsStore {
    */
   bindAccount = async (userId: string | null): Promise<void> => {
     if (userId === this.state.userId && (userId === null || this.state.status !== 'idle')) return
+    // Every identity change ends the session: what was on screen belonged to somebody else, and
+    // a write or read still on the wire for them may not land here (see `guard`).
     this.session += 1
     const session = this.session
     if (!userId) {
       this.set({ signedIn: false, userId: null, slips: [], activeId: null, status: 'idle', error: null, handoffRefused: [] })
       return
     }
-    this.set({ signedIn: true, userId, status: 'loading', error: null, handoffRefused: [] })
+    // Cleared BEFORE the first await: the previous account's slips must not stay on screen for
+    // even one render of the next account's session.
+    this.set({ signedIn: true, userId, slips: [], activeId: null, status: 'loading', error: null, handoffRefused: [] })
     try {
       await this.handOffLocalDraft(session)
       if (session !== this.session) return
@@ -127,6 +131,10 @@ class SlipsStore {
   private async handOffLocalDraft(session: number): Promise<void> {
     const draft = this.state.local
     if (draft.legs.length === 0) return
+    // Taken off the shelf before the first request goes out: a reload while the hand-off is on
+    // the wire would otherwise hand the same legs over again and leave two slips.
+    writeLocal(EMPTY_LOCAL)
+    this.set({ local: EMPTY_LOCAL })
     const refused: Array<{ leg: LocalLeg; reason: string }> = []
     let created: ApiSlip | null = null
     for (const leg of draft.legs) {
@@ -141,8 +149,7 @@ class SlipsStore {
       }
     }
     if (session !== this.session) return
-    writeLocal(EMPTY_LOCAL)
-    this.set({ local: EMPTY_LOCAL, handoffRefused: refused, activeId: created?.id ?? this.state.activeId })
+    this.set({ handoffRefused: refused, activeId: created?.id ?? this.state.activeId })
   }
 
   /* ------------------------------------------------------------------ reads */
@@ -170,7 +177,19 @@ class SlipsStore {
   /** Start a fresh draft: the next add creates it. */
   startNew = (): void => { this.set({ activeId: null }) }
 
-  private apply(slip: ApiSlip, makeActive = true): ApiSlip {
+  /**
+   * Refuse an answer that belongs to a session that has ended.
+   *
+   * A write issued as account A can come back after account B has signed in on the same machine;
+   * applying it would put A's slip on B's screen - the favourites store had exactly this hole.
+   * Every write captures the session it was issued in and checks it here before touching state.
+   */
+  private guard(session: number): void {
+    if (session !== this.session) throw new SessionEnded()
+  }
+
+  private apply(slip: ApiSlip, makeActive = true, session: number = this.session): ApiSlip {
+    this.guard(session)
     const others = this.state.slips.filter(s => s.id !== slip.id)
     this.set({ slips: [slip, ...others], activeId: makeActive ? slip.id : this.state.activeId, status: 'ready', error: null })
     return slip
@@ -208,20 +227,25 @@ class SlipsStore {
       this.set({ local })
       return
     }
+    const session = this.session
     const slip = this.active()
     const body: SlipLegInput = { match_id: match.id, selection_id: selection.selection_id, odds: options.odds ?? null }
     if (!slip) {
       const { data } = await apiClient.post<ApiSlip>(API, { name: null, legs: [body] })
-      this.apply(data)
+      this.apply(data, true, session)
       return
     }
     const existing = slip.legs.find(l => l.match.id === match.id)
     if (existing) {
       if (!options.replace) throw new SlipConflict('one_per_match')
-      await apiClient.delete<ApiSlip>(`${API}/${slip.id}/legs/${existing.id}`)
+      // One request, one step: the server validates the replacement before it removes anything,
+      // so a refused replacement leaves the original leg exactly where it was.
+      const { data } = await apiClient.put<ApiSlip>(`${API}/${slip.id}/legs/${existing.id}`, { selection_id: selection.selection_id, odds: options.odds ?? null })
+      this.apply(data, true, session)
+      return
     }
     const { data } = await apiClient.post<ApiSlip>(`${API}/${slip.id}/legs`, body)
-    this.apply(data)
+    this.apply(data, true, session)
   }
 
   removeLeg = async (matchId: string): Promise<void> => {
@@ -231,11 +255,12 @@ class SlipsStore {
       this.set({ local })
       return
     }
+    const session = this.session
     const slip = this.active()
     const leg = slip?.legs.find(l => l.match.id === matchId)
     if (!slip || !leg) return
     const { data } = await apiClient.delete<ApiSlip>(`${API}/${slip.id}/legs/${leg.id}`)
-    this.apply(data)
+    this.apply(data, true, session)
   }
 
   setLegOdds = async (matchId: string, odds: number | null): Promise<void> => {
@@ -245,11 +270,12 @@ class SlipsStore {
       this.set({ local })
       return
     }
+    const session = this.session
     const slip = this.active()
     const leg = slip?.legs.find(l => l.match.id === matchId)
     if (!slip || !leg) return
     const { data } = await apiClient.patch<ApiSlip>(`${API}/${slip.id}/legs/${leg.id}`, { odds })
-    this.apply(data)
+    this.apply(data, true, session)
   }
 
   clearActive = async (): Promise<void> => {
@@ -258,10 +284,12 @@ class SlipsStore {
       this.set({ local: EMPTY_LOCAL })
       return
     }
+    const session = this.session
     const slip = this.active()
     if (!slip) return
     if (slip.status === 'draft') {
       await apiClient.delete(`${API}/${slip.id}`)
+      this.guard(session)
       this.set({ slips: this.state.slips.filter(s => s.id !== slip.id), activeId: null })
     } else {
       this.set({ activeId: null })
@@ -271,24 +299,29 @@ class SlipsStore {
   /* ------------------------------------------------------------------ slip-level writes (signed in) */
 
   update = async (id: string, patch: { name?: string | null; note?: string | null; status?: SlipStatus; currency?: string | null; stake?: string | null }): Promise<ApiSlip> => {
+    const session = this.session
     const { data } = await apiClient.patch<ApiSlip>(`${API}/${id}`, patch)
-    return this.apply(data, id === this.state.activeId)
+    return this.apply(data, id === this.state.activeId, session)
   }
 
   record = async (id: string, body: { reference?: string | null; currency?: string | null; stake?: string | null; price?: number | null }): Promise<ApiSlip> => {
+    const session = this.session
     const { data } = await apiClient.post<ApiSlip>(`${API}/${id}/record`, body)
-    const recorded = this.apply(data, false)
+    const recorded = this.apply(data, false, session)
     if (this.state.activeId === id) this.set({ activeId: null })
     return recorded
   }
 
   duplicate = async (id: string): Promise<ApiSlip> => {
+    const session = this.session
     const { data } = await apiClient.post<ApiSlip>(`${API}/${id}/duplicate`)
-    return this.apply(data, true)
+    return this.apply(data, true, session)
   }
 
   remove = async (id: string): Promise<void> => {
+    const session = this.session
     await apiClient.delete(`${API}/${id}`)
+    this.guard(session)
     this.set({ slips: this.state.slips.filter(s => s.id !== id), activeId: this.state.activeId === id ? null : this.state.activeId })
   }
 
@@ -297,6 +330,13 @@ class SlipsStore {
     this.session += 1
     this.state = { status: 'idle', error: null, slips: [], activeId: null, local: readLocal(), handoffRefused: [], signedIn: false, userId: null }
     this.listeners.forEach(listener => listener())
+  }
+}
+
+/** An answer that arrived after the session that asked for it had ended. Applied nowhere. */
+export class SessionEnded extends Error {
+  constructor() {
+    super('This slip answer belongs to a session that has ended, and was discarded.')
   }
 }
 

@@ -183,7 +183,7 @@ const MarketBlock: React.FC<{
 
 const MarketsPanel: React.FC<MarketsPanelProps> = ({ match, className }) => {
   const t = useT()
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const { hasSelection, fixtureTaken, store } = useSlips(user?.id ?? null)
   const [envelope, setEnvelope] = useState<ApiMarketEnvelope | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -205,7 +205,9 @@ const MarketsPanel: React.FC<MarketsPanelProps> = ({ match, className }) => {
     return () => { alive = false }
   }, [match.id])
 
-  const closed = envelope?.forecast.state === 'kickoff_passed'
+  // Closed while the fixture has kicked off - and while the session's identity is still being
+  // resolved, so a selection can never be filed under the wrong account (or under nobody's).
+  const closed = envelope?.forecast.state === 'kickoff_passed' || authLoading
   const onAdd = async (selection: ApiMarketSelection, replace: boolean) => {
     await store.addSelection(summary, selection, { replace })
   }

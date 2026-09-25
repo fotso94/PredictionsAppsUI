@@ -146,10 +146,24 @@ _SNAPSHOT_FIELDS = (
 )
 
 
-def content_hash(forecast: ProviderForecast) -> str:
-    """Stable hash of a forecast's values, used to tell a genuinely new snapshot from a re-fetch."""
+def _legacy_content_hash(forecast: ProviderForecast) -> str:
+    """The hash as written before the selectable blocks were part of it (rows still carry it)."""
     payload = {name: getattr(forecast, name) for name in _SNAPSHOT_FIELDS}
     payload["model_run_at"] = forecast.model_run_at.isoformat() if forecast.model_run_at else None
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+
+def content_hash(forecast: ProviderForecast) -> str:
+    """Stable hash of a forecast's values, used to tell a genuinely new snapshot from a re-fetch.
+
+    Covers the five stored markets AND every other selectable block plus the carried prices
+    (`app.services.markets.markets_digest`): a payload that changed only its first-half block is a
+    new forecast, and a leg taken from it must be attributable to a snapshot that holds it.
+    """
+    payload = {name: getattr(forecast, name) for name in _SNAPSHOT_FIELDS}
+    payload["model_run_at"] = forecast.model_run_at.isoformat() if forecast.model_run_at else None
+    from app.services.markets import markets_digest
+    payload["markets_digest"] = markets_digest(forecast.raw) if isinstance(forecast.raw, dict) else None
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
 
 
@@ -811,7 +825,15 @@ class ForecastService:
     @staticmethod
     def _same_content(snapshot: ProviderForecastSnapshot, forecast: ProviderForecast, digest: str) -> bool:
         if snapshot.content_hash:
-            return snapshot.content_hash == digest
+            if snapshot.content_hash == digest:
+                return True
+            # A hash written before the selectable blocks were part of it: the same content only
+            # if the legacy hash matches AND the blocks themselves do. Otherwise it is a new snapshot,
+            # which is exactly what a changed first-half block or price has to become.
+            if snapshot.content_hash == _legacy_content_hash(forecast):
+                from app.services.markets import markets_digest
+                return markets_digest(snapshot.raw_payload) == markets_digest(forecast.raw)
+            return False
         # Rows backfilled by the migration have no hash: compare the stored values instead.
         pairs = (
             (snapshot.home_win_prob, forecast.home_prob), (snapshot.draw_prob, forecast.draw_prob),

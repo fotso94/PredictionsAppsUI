@@ -89,9 +89,18 @@ const SlipCard: React.FC<{ slip: ApiSlip }> = ({ slip }) => {
       <Card.Body>
         <ul className="space-y-2">{slip.legs.map(leg => <LegLine key={leg.id} leg={leg} />)}</ul>
         <div className="mt-3 space-y-1 text-xs text-secondary-300">
-          {slip.price !== null ? <p data-testid="history-price">{t('selections.dock.combinedPrice', { price: slip.price.toFixed(2) })}{slip.counts.void > 0 ? ` — ${t('selections.history.voidNote')}` : ''}</p>
-            : <p className="text-secondary-500">{slip.price_note}</p>}
-          {slip.potential && <p>{t('selections.dock.potential', { gross: `${slip.potential.gross_return} ${slip.potential.currency}`, net: `${slip.potential.net_profit} ${slip.potential.currency}` })}</p>}
+          {slip.price !== null ? (
+            <p data-testid="history-price">
+              {slip.counts.void > 0 ? t('selections.dock.priceOriginal', { price: slip.price.toFixed(2) }) : t('selections.dock.combinedPrice', { price: slip.price.toFixed(2) })}
+            </p>
+          ) : <p className="text-secondary-500">{slip.price_note}</p>}
+          {slip.counts.void > 0 && slip.effective_price !== null && (
+            <p data-testid="history-effective-price">{t('selections.dock.priceEffective', { price: slip.effective_price.toFixed(2) })} — {t('selections.history.voidNote')}</p>
+          )}
+          {slip.counts.void > 0 && slip.potential_withheld_reason && (
+            <p className="text-warning-200" data-testid="history-potential-withheld">{t('selections.dock.potentialWithheld', { reason: slip.potential_withheld_reason })}</p>
+          )}
+          {slip.potential && <p data-testid="history-potential">{t('selections.dock.potential', { gross: `${slip.potential.gross_return} ${slip.potential.currency}`, net: `${slip.potential.net_profit} ${slip.potential.currency}` })}</p>}
           {slip.recorded_note && <p className="text-[11px] text-secondary-500">{slip.recorded_note}</p>}
         </div>
         {error && <p role="alert" className="mt-2 text-xs text-danger-300">{t('selections.dock.error', { reason: error })}</p>}

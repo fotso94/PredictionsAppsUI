@@ -227,3 +227,21 @@ def test_untrackable_markets_are_not_suggested_unless_asked_for(db):
     picks = {leg["selection"]["market_id"] for c in asked["combinations"] for leg in c["legs"]}
     assert picks == {"team_to_score_first"}
     assert all(leg["why"]["settlement"]["capable"] is False for c in asked["combinations"] for leg in c["legs"])
+
+
+def test_a_combination_with_a_draw_no_bet_leg_withholds_the_combined_probability(db):
+    """Defect: P(home | no draw) was multiplied with the other legs' unconditional probabilities."""
+    league = _league(db)
+    base = load("bulgaria_luxembourg")
+    _fixture(db, league, "A", "B", NOW + timedelta(days=1), base, home_draw_away=(60, 20, 20))  # DNB home = 0.75
+    _fixture(db, league, "C", "D", NOW + timedelta(days=1), base, home_draw_away=(70, 15, 15))  # 1X2 home = 0.70
+    out = suggest(db, now=NOW, legs=2, min_probability=0.6, markets=["match_result", "draw_no_bet"])
+    (combo,) = out["combinations"]
+    markets = {leg["selection"]["market_id"] for leg in combo["legs"]}
+    assert "draw_no_bet" in markets
+    assert combo["combined_probability"]["value"] is None
+    assert "conditional" in combo["combined_probability"]["basis"]
+    for leg in combo["legs"]:
+        assert leg["why"]["probability"] is not None, "each leg's own probability is still shown"
+    plain = suggest(db, now=NOW, legs=2, min_probability=0.6, markets=["match_result"])
+    assert plain["combinations"][0]["combined_probability"]["value"] == pytest.approx(0.60 * 0.70, abs=1e-6)

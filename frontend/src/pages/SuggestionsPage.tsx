@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
 import Card from '@/components/ui/Card'
@@ -99,12 +99,16 @@ const SuggestionsPage: React.FC = () => {
   const [result, setResult] = useState<ApiSuggestions | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  /** The most recent request's number: an older answer landing after a newer one is ignored. */
+  const latest = useRef(0)
 
   useEffect(() => {
     footballDataService.getTopLeagues().then(setLeagues).catch(() => setLeagues([]))
   }, [])
 
   const generate = useCallback(async () => {
+    const request = latest.current + 1
+    latest.current = request
     setLoading(true)
     setError(null)
     try {
@@ -116,11 +120,14 @@ const SuggestionsPage: React.FC = () => {
         odds_max: oddsMax ? Number(oddsMax.replace(',', '.')) : undefined,
         include_stale: includeStale,
       })
+      // The answer to an older set of filters must not overwrite the answer to the current one.
+      if (request !== latest.current) return
       setResult(data)
     } catch (failure) {
+      if (request !== latest.current) return
       setError(describeSlipError(failure))
     } finally {
-      setLoading(false)
+      if (request === latest.current) setLoading(false)
     }
   }, [legs, minProbability, maxProbability, markets, competition, days, oddsMin, oddsMax, includeStale])
 
@@ -235,8 +242,12 @@ const SuggestionsPage: React.FC = () => {
                   </button>
                 </div>
                 <p className="mt-1 text-xs text-secondary-300" data-testid="suggested-combined">
-                  {t('selections.dock.combinedProbability', { value: formatPercentValue(combination.combined_probability.value * 100, 1) })}
-                  <span className="block text-[11px] text-secondary-500">{t('selections.dock.combinedProbabilityNote')}</span>
+                  {combination.combined_probability.value === null
+                    ? <span data-testid="suggested-combined-withheld">{t('selections.dock.combinedProbabilityWithheld')}</span>
+                    : <>
+                      {t('selections.dock.combinedProbability', { value: formatPercentValue(combination.combined_probability.value * 100, 1) })}
+                      <span className="block text-[11px] text-secondary-500">{t('selections.dock.combinedProbabilityNote')}</span>
+                    </>}
                   <span className="block text-[11px] text-secondary-500">
                     {combination.combined_odds ? t('selections.suggest.combinedOdds', { price: combination.combined_odds.value.toFixed(2) }) : t('selections.suggest.noCombinedOdds')}
                   </span>

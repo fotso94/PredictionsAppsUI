@@ -1,6 +1,7 @@
 import { test, expect, Page, Route, Request } from '@playwright/test';
 import { ApiMatch, Json, dayPayload, fixtureAt, matchDetail, stubBackend } from '../support/api-stub';
-import { signIn } from '../support/auth';
+import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, regularUser, signIn, type BackendUser } from '../support/auth';
+import { registerAuthHandler } from '../support/api-stub';
 import en from '../../src/i18n/messages/en';
 import fr from '../../src/i18n/messages/fr';
 import { compileMessage, renderMessage } from '../../src/i18n/format';
@@ -134,6 +135,8 @@ interface StoredLeg {
   id: string; match: ApiMatch; selection: Json; odds: number | null; state: string; settlement: Json | null;
 }
 interface StoredSlip {
+  /** Whose slip this is; the stub answers a reader with their own only, as the server does. */
+  owner?: string | null;
   id: string; name: string | null; status: string; note: string | null; currency: string | null; stake: string | null;
   price: number | null; recorded_at: string | null; recorded_reference: string | null; legs: StoredLeg[];
 }
@@ -144,6 +147,17 @@ class SlipWorld {
   refreshRequests = 0;
 
   slipWrites = 0;
+
+  /** When set, the next leg-creating write waits on it before answering (a slow server). */
+  holdNextLegWrite: Promise<void> | null = null;
+
+  /** Selection ids the server refuses in a PUT replacement (a forecast that moved between page and click). */
+  refuseReplacement = new Set<string>();
+
+  /** When set, the FIRST suggestions request waits on it; later ones answer at once. */
+  holdFirstSuggestions: Promise<void> | null = null;
+
+  suggestionsServed = 0;
 
   private seq = 0;
 
@@ -156,8 +170,13 @@ class SlipWorld {
         : states.includes('pending') ? 'pending'
           : states.includes('unresolved') ? 'unresolved'
             : states.length > 0 && states.filter(s => s !== 'void').every(s => s === 'won') ? 'won' : 'pending';
+    const voided = slip.legs.some(l => l.state === 'void');
     const priced = slip.legs.filter(l => l.state !== 'void');
-    const price = slip.price ?? (priced.length > 0 && priced.every(l => l.odds) ? Math.round(priced.reduce((p, l) => p * (l.odds as number), 1) * 10000) / 10000 : null);
+    const original = slip.price ?? (slip.legs.length > 0 && slip.legs.every(l => l.odds) ? Math.round(slip.legs.reduce((p, l) => p * (l.odds as number), 1) * 10000) / 10000 : null);
+    const remaining = priced.length > 0 && priced.every(l => l.odds) ? Math.round(priced.reduce((p, l) => p * (l.odds as number), 1) * 10000) / 10000 : null;
+    const price = original;
+    const effective = voided ? (slip.price !== null ? null : remaining) : original;
+    const withheld = voided && effective === null ? 'a selection was voided and the adjusted return cannot be computed: not every remaining selection carries its own price' : null;
     const missing = priced.filter(l => !l.odds).length;
     const counts: Json = { legs: slip.legs.length };
     for (const s of ['pending', 'won', 'lost', 'void', 'unresolved']) counts[s] = states.filter(v => v === s).length;
@@ -165,9 +184,12 @@ class SlipWorld {
       id: slip.id, name: slip.name, status: slip.status, note: slip.note, currency: slip.currency, stake: slip.stake,
       price, price_source: price !== null ? (slip.price !== null ? 'user' : 'user') : null, price_missing_legs: missing,
       price_note: price !== null ? "the product of the legs' prices; a void leg drops out of it" : 'no combined price: at least one selection has no price for exactly that selection',
-      potential: price !== null && slip.stake && slip.currency
-        ? { currency: slip.currency, stake: slip.stake, gross_return: (Number(slip.stake) * price).toFixed(slip.currency === 'XAF' ? 0 : 2), net_profit: (Number(slip.stake) * price - Number(slip.stake)).toFixed(slip.currency === 'XAF' ? 0 : 2), rounding: "half-up to the currency's minor unit", note: 'a quoted figure from the price given; not money held or promised by this application' }
+      effective_price: effective, effective_price_source: effective !== null ? 'user' : null,
+      effective_price_note: voided ? (effective !== null ? 'the void selection has dropped out' : withheld) : null,
+      potential: effective !== null && slip.stake && slip.currency
+        ? { currency: slip.currency, stake: slip.stake, gross_return: (Number(slip.stake) * effective).toFixed(slip.currency === 'XAF' ? 0 : 2), net_profit: (Number(slip.stake) * effective - Number(slip.stake)).toFixed(slip.currency === 'XAF' ? 0 : 2), rounding: "half-up to the currency's minor unit", note: 'a quoted figure from the price given; not money held or promised by this application' }
         : null,
+      potential_withheld_reason: withheld,
       recorded_at: slip.recorded_at, recorded_reference: slip.recorded_reference,
       recorded_note: slip.status === 'recorded' ? "the reader's own statement that this was placed elsewhere; nothing here is confirmed by any bookmaker" : null,
       state, settled_at: null, counts, created_at: START.toISOString(), updated_at: now.toISOString(),
@@ -192,9 +214,13 @@ const json = (route: Route, body: unknown, status = 200) =>
 
 /** The markets, suggestions and slips endpoints, on top of stubBackend(). */
 async function stubSelections(page: Page, world: SlipWorld, options: {
-  envelopes: Record<string, Json>; matches: ApiMatch[]; suggestions?: Json; clock?: () => Date;
+  envelopes: Record<string, Json>; matches: ApiMatch[]; suggestions?: Json; staleSuggestions?: Json; clock?: () => Date;
+  /** Who is signed in, for a world with more than one reader; the default world has one. */
+  owner?: () => string | null;
 }): Promise<void> {
   const now = () => options.clock?.() ?? START;
+  const ownerNow = () => options.owner?.() ?? 'the-reader';
+  const mine = () => world.slips.filter(s => (s.owner ?? 'the-reader') === ownerNow());
   await stubBackend(page, {
     day: (date) => dayPayload(date, options.matches),
     matchById: (id) => options.matches.find(m => m.id === id) ?? matchDetail(id),
@@ -217,13 +243,20 @@ async function stubSelections(page: Page, world: SlipWorld, options: {
       ] });
     }
     if (path === '/suggestions') {
-      return json(route, options.suggestions ?? { generated_at: now().toISOString(), rules: {}, pool: { fixtures_in_window: 0, qualifying: 0, excluded: {} }, combinations: [], shortfall: 'no fixture in the window has a selection at or above the requested probability' });
+      world.suggestionsServed += 1;
+      const empty = { generated_at: now().toISOString(), rules: {}, pool: { fixtures_in_window: 0, qualifying: 0, excluded: {} }, combinations: [], shortfall: 'no fixture in the window has a selection at or above the requested probability' };
+      if (world.suggestionsServed === 1 && world.holdFirstSuggestions) {
+        await world.holdFirstSuggestions;
+        return json(route, options.staleSuggestions ?? options.suggestions ?? empty);
+      }
+      return json(route, options.suggestions ?? empty);
     }
     if (path.startsWith('/me/slips')) {
       if (request.method() !== 'GET') world.slipWrites += 1;
       const body = request.postDataJSON?.() as Json | null;
       const parts = path.split('/').filter(Boolean); // me, slips, id?, legs?, legId?
-      const slip = parts[2] ? world.slips.find(s => s.id === parts[2]) : undefined;
+      const owner = ownerNow();
+      const slip = parts[2] ? mine().find(s => s.id === parts[2]) : undefined;
       const findMatch = (id: string) => options.matches.find(m => m.id === id);
       const addLeg = (target: StoredSlip, input: Json): Json | null => {
         const match = findMatch(input.match_id as string);
@@ -239,10 +272,12 @@ async function stubSelections(page: Page, world: SlipWorld, options: {
         return null;
       };
       if (path === '/me/slips' && request.method() === 'GET') {
-        return json(route, { slips: world.slips.map(s => world.serialize(s, now())) });
+        return json(route, { slips: mine().map(s => world.serialize(s, now())) });
       }
       if (path === '/me/slips' && request.method() === 'POST') {
-        const created: StoredSlip = { id: world.next('slip'), name: (body?.name as string | null) ?? null, status: 'draft', note: null, currency: null, stake: null, price: null, recorded_at: null, recorded_reference: null, legs: [] };
+        // A slow server: the write belongs to whoever sent it, whatever happens on screen meanwhile.
+        if (world.holdNextLegWrite) { const held = world.holdNextLegWrite; world.holdNextLegWrite = null; await held; }
+        const created: StoredSlip = { owner, id: world.next('slip'), name: (body?.name as string | null) ?? null, status: 'draft', note: null, currency: null, stake: null, price: null, recorded_at: null, recorded_reference: null, legs: [] };
         for (const input of (body?.legs as Json[] | undefined) ?? []) {
           const refused = addLeg(created, input);
           if (refused) return json(route, { detail: refused.detail }, refused.status as number);
@@ -265,6 +300,7 @@ async function stubSelections(page: Page, world: SlipWorld, options: {
         return route.fulfill({ status: 204, body: '' });
       }
       if (parts[3] === 'legs' && parts.length === 4 && request.method() === 'POST') {
+        if (world.holdNextLegWrite) { const held = world.holdNextLegWrite; world.holdNextLegWrite = null; await held; }
         const refused = addLeg(slip, body ?? {});
         if (refused) return json(route, { detail: refused.detail }, refused.status as number);
         return json(route, world.serialize(slip, now()), 201);
@@ -275,6 +311,17 @@ async function stubSelections(page: Page, world: SlipWorld, options: {
         if (slip.status === 'recorded') return json(route, { detail: { message: 'recorded', code: 'recorded_immutable' } }, 409);
         if (request.method() === 'DELETE') slip.legs = slip.legs.filter(l => l.id !== leg.id);
         if (request.method() === 'PATCH') leg.odds = (body?.odds as number | null) ?? null;
+        if (request.method() === 'PUT') {
+          // Atomic on the server: the replacement is validated first; a refusal changes nothing.
+          if (world.refuseReplacement.has(body?.selection_id as string)) {
+            return json(route, { detail: { message: 'that selection is no longer offered by the current forecast', code: 'selection_unavailable' } }, 422);
+          }
+          const without: StoredSlip = { ...slip, legs: slip.legs.filter(l => l.id !== leg.id) };
+          const refused = addLeg(without, { match_id: leg.match.id, selection_id: body?.selection_id, odds: body?.odds ?? null });
+          if (refused) return json(route, { detail: refused.detail }, refused.status as number);
+          const added = without.legs[without.legs.length - 1];
+          slip.legs = slip.legs.map(l => (l.id === leg.id ? added : l));
+        }
         return json(route, world.serialize(slip, now()));
       }
       if (parts[3] === 'record') {
@@ -286,7 +333,7 @@ async function stubSelections(page: Page, world: SlipWorld, options: {
         return json(route, world.serialize(slip, now()));
       }
       if (parts[3] === 'duplicate') {
-        const copy: StoredSlip = { ...slip, id: world.next('slip'), status: 'draft', recorded_at: null, recorded_reference: null, price: null, legs: slip.legs.map(l => ({ ...l, id: world.next('leg'), state: 'pending', settlement: null })) };
+        const copy: StoredSlip = { ...slip, owner, id: world.next('slip'), status: 'draft', recorded_at: null, recorded_reference: null, price: null, legs: slip.legs.map(l => ({ ...l, id: world.next('leg'), state: 'pending', settlement: null })) };
         world.slips.unshift(copy);
         return json(route, world.serialize(copy, now()), 201);
       }
@@ -517,9 +564,11 @@ for (const language of ['en', 'fr'] as const) {
       await expect(settled).toHaveAttribute('data-state', 'won');
       await expect(settled.locator('[data-testid="history-leg"][data-state="won"]')).toContainText(say(language, 'selections.history.actual', { actual: '0-1' }));
       await expect(settled.locator('[data-testid="history-leg"][data-state="void"]')).toContainText('voids draw-no-bet');
-      // The void leg's price dropped out: 3.40, not 5.10.
-      await expect(settled.getByTestId('history-price')).toContainText('3.40');
-      await expect(settled.getByTestId('history-price')).toContainText(say(language, 'selections.history.voidNote'));
+      // The original price is history (5.10); what the combination pays on is the remaining leg's 3.40.
+      await expect(settled.getByTestId('history-price')).toContainText('5.10');
+      await expect(settled.getByTestId('history-effective-price')).toContainText('3.40');
+      await expect(settled.getByTestId('history-effective-price')).toContainText(say(language, 'selections.history.voidNote'));
+      await expect(settled.getByTestId('history-potential')).toContainText('34.00');
 
       const open = page.locator('[data-testid="history-slip"]').filter({ has: page.getByRole('heading', { name: 'Open', exact: true }) });
       await expect(open).toHaveAttribute('data-state', 'pending');
@@ -576,6 +625,210 @@ for (const language of ['en', 'fr'] as const) {
     });
   });
 }
+
+/* ============================================================= the review's defects, reproduced */
+
+/** Two people on one machine: /auth/me answers as whoever signed in last through the form. */
+async function twoAccounts(page: Page): Promise<{ current: () => string | null }> {
+  const A = regularUser({ user_id: '00000000-0000-4000-8000-00000000000a', email: 'a@predictions-local.dev', full_name: 'Reader A' });
+  const B = regularUser({ user_id: '00000000-0000-4000-8000-00000000000b', email: 'b@predictions-local.dev', full_name: 'Reader B' });
+  let current: BackendUser | null = A;
+  await page.addInitScript(({ accessKey, refreshKey }) => {
+    window.localStorage.setItem(accessKey, 'e2e-two-accounts-access');
+    window.localStorage.setItem(refreshKey, 'e2e-two-accounts-refresh');
+  }, { accessKey: ACCESS_TOKEN_KEY, refreshKey: REFRESH_TOKEN_KEY });
+  const handler = async (route: Route, request: Request) => {
+    const path = new URL(request.url()).pathname.replace(/^\/api\/v1\/auth/, '');
+    const session = (user: BackendUser) => ({ access_token: 'e2e-two-accounts-access', refresh_token: 'e2e-two-accounts-refresh', token_type: 'bearer', user });
+    if (path === '/me') return current ? json(route, current) : json(route, { detail: 'Not authenticated' }, 401);
+    if (path === '/login') {
+      const body = request.postDataJSON() as { email?: string };
+      current = body.email === B.email ? B : A;
+      return json(route, session(current));
+    }
+    if (path === '/logout') { current = null; return json(route, { message: 'Logged out successfully' }); }
+    if (path === '/refresh') return json(route, { access_token: 'e2e-two-accounts-access', refresh_token: 'e2e-two-accounts-refresh', token_type: 'bearer' });
+    return json(route, { detail: 'Not found' }, 404);
+  };
+  registerAuthHandler(page, handler);
+  await page.route('**/api/v1/auth/**', handler);
+  return { current: () => current?.email ?? null };
+}
+
+async function signOutThroughTheHeader(page: Page): Promise<void> {
+  const accountMenu = page.locator('header button[aria-haspopup]').last();
+  await accountMenu.click();
+  await page.getByRole('menuitem', { name: /sign out/i }).click();
+  await page.waitForURL('**/login**');
+}
+
+async function signInThroughTheForm(page: Page, email: string): Promise<void> {
+  await expect(page).toHaveURL(/\/login/);
+  await page.locator('input[type="email"], input[name="email"]').first().fill(email);
+  await page.locator('input[type="password"]').first().fill('local-only-e2e-fixture');
+  await page.getByRole('button', { name: /^sign in$/i }).first().click();
+  await page.waitForURL(url => !url.pathname.startsWith('/login'), { timeout: 15_000 });
+}
+
+test('mocked: a slip write that lands after the account changed does not reach the next account', async ({ page }) => {
+  const world = new SlipWorld();
+  const match = bulgaria();
+  await fixClock(page);
+  const accounts = await twoAccounts(page);
+  await stubSelections(page, world, { envelopes: { [match.id]: envelope(match.id) }, matches: [match, armenia()], owner: accounts.current });
+  let release: () => void = () => {};
+  world.holdNextLegWrite = new Promise<void>(resolve => { release = resolve; });
+
+  // Reader A adds a selection; the server is slow to answer. The add waits for A's session to
+  // be bound (the control is disabled until then), so this is A's write, not a browser draft.
+  await page.goto(`/match/${match.id}`);
+  await expect(page.getByTestId('markets-panel')).toBeVisible();
+  await expect(page.getByTestId('slip-dock-toggle')).toHaveAttribute('data-signed-in', 'true');
+  await selectionRow(page, 'match_result:home').getByTestId('selection-add').click();
+  await expect.poll(() => world.slipWrites, 'A\'s write must be on the wire').toBe(1);
+
+  // Reader B signs in on the same machine while A's write is still on the wire, and moves about
+  // WITHOUT a reload - the ordering that lets A's answer arrive in B's document.
+  await signOutThroughTheHeader(page);
+  await signInThroughTheForm(page, 'b@predictions-local.dev');
+  // Through the dock's own link: it is on every page at every width, and it is an in-app link.
+  await page.getByTestId('slip-dock-toggle').click();
+  await page.getByTestId('slip-history-link').click();
+  await expect(page).toHaveURL(/\/selections$/);
+  await expect(page.getByTestId('history-empty'), 'B holds nothing').toBeVisible();
+  await expect(page.getByTestId('slip-dock-count')).toHaveText('0');
+
+  // A's write lands now, in B's document, as A's slip. It belongs to a session that has ended.
+  release();
+  await expect.poll(() => world.slips.length, 'the server did create A\'s slip').toBe(1);
+  expect(world.slips[0].owner).toBe('a@predictions-local.dev');
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId('slip-dock-count'), "A's slip must never appear on B's dock").toHaveText('0');
+  await expect(page.getByTestId('history-empty'), "and never in B's history").toBeVisible();
+  await expect(page.getByTestId('history-slip')).toHaveCount(0);
+  await page.getByTestId('slip-dock-toggle').click();
+  await expect(page.getByTestId('slip-dock').getByTestId('slip-leg')).toHaveCount(0);
+  await expect(page.locator('main')).not.toContainText('Bulgaria');
+});
+
+test('mocked: a refused replacement leaves the original selection on the slip', async ({ page }) => {
+  const world = new SlipWorld();
+  const match = bulgaria();
+  await fixClock(page);
+  await signIn(page);
+  await stubSelections(page, world, { envelopes: { [match.id]: envelope(match.id) }, matches: [match] });
+  world.refuseReplacement.add('total_goals:under@2.5');
+  await page.goto(`/match/${match.id}`);
+  await selectionRow(page, 'match_result:home').getByTestId('selection-add').click();
+  await expect(selectionRow(page, 'match_result:home').getByTestId('selection-on-slip')).toBeVisible();
+
+  // The replacement is refused by the server (the forecast moved between the page and the click).
+  await selectionRow(page, 'total_goals:under@2.5').getByTestId('selection-add').click();
+  await expect(selectionRow(page, 'total_goals:under@2.5').getByRole('alert')).toContainText('no longer offered');
+  await expect(selectionRow(page, 'match_result:home').getByTestId('selection-on-slip'), 'the original stays').toBeVisible();
+  await expect(page.getByTestId('slip-dock-count')).toHaveText('1');
+  expect(world.slips[0].legs.map(l => l.selection.selection_id)).toEqual(['match_result:home']);
+
+  // A replacement the server accepts swaps in one step.
+  await selectionRow(page, 'both_teams_score:no').getByTestId('selection-add').click();
+  await expect(selectionRow(page, 'both_teams_score:no').getByTestId('selection-on-slip')).toBeVisible();
+  await expect(selectionRow(page, 'match_result:home').getByTestId('selection-on-slip')).toHaveCount(0);
+  expect(world.slips[0].legs.map(l => l.selection.selection_id)).toEqual(['both_teams_score:no']);
+});
+
+test('mocked: an older suggestions answer does not overwrite the newer filters\' results', async ({ page }) => {
+  const world = new SlipWorld();
+  const first = bulgaria();
+  const second = armenia();
+  const combination = (label: string, matches: ApiMatch[]): Json => ({
+    generated_at: START.toISOString(), rules: {}, pool: { fixtures_in_window: matches.length, qualifying: matches.length, excluded: {} },
+    combinations: [{ index: 1, legs: matches.map((m, i) => ({
+      match: { id: m.id, home: m.home, away: m.away, competition: m.competition, kickoff_utc: m.kickoff_utc, status: 'scheduled' },
+      selection: sel('match_result', 'home', 0.7),
+      why: { probability: 0.7, probability_source: 'provider', threshold: 0.6, ceiling: 0.95, rank: i + 1,
+        forecast: { provider: 'gameforecast', snapshot_id: 's', model_run_at: null, retrieved_at: null, state: 'available', age_hours: 1, captured_before_kickoff: true },
+        warnings: [], settlement: REGULATION, provider_odds: null },
+    })), combined_probability: { value: 0.49, basis: 'assuming independence' }, combined_odds: null }],
+    shortfall: label,
+  });
+  let release: () => void = () => {};
+  world.holdFirstSuggestions = new Promise<void>(resolve => { release = resolve; });
+  await fixClock(page);
+  await stubSelections(page, world, { envelopes: {}, matches: [first, second],
+    staleSuggestions: combination('STALE ANSWER', [first, second]), suggestions: combination('CURRENT ANSWER', [second]) });
+
+  // 'commit', not 'load': the first suggestions request is deliberately held, and this test must
+  // not depend on what else the load event waits for while it is.
+  await page.goto('/selections/suggestions', { waitUntil: 'commit' });
+  await expect(page.getByTestId('suggest-form')).toBeVisible();
+  // The page's first request (3 legs) is still on the wire when the reader changes the filters.
+  await page.getByTestId('suggest-legs').fill('2');
+  await expect(page.getByTestId('suggest-shortfall')).toContainText('CURRENT ANSWER');
+  release();
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId('suggest-shortfall'), 'the older answer must not replace the newer one').toContainText('CURRENT ANSWER');
+  await expect(page.getByTestId('suggested-leg')).toHaveCount(1);
+});
+
+test('mocked: a void selection shows the recorded price and the effective one, and withholds what it cannot compute', async ({ page }) => {
+  const world = new SlipWorld();
+  const first = bulgaria();
+  const second = armenia();
+  world.slips.push({
+    id: 'slip-void', name: 'Void one', status: 'recorded', note: null, currency: 'XAF', stake: '1000', price: null, recorded_at: START.toISOString(), recorded_reference: null,
+    legs: [
+      { id: 'v1', match: first, selection: sel('match_result', 'home', 0.45), odds: 2.0, state: 'void', settlement: { state: 'void', rule: 'a fixture never played to a result voids every selection on it', basis: 'fixture' } },
+      { id: 'v2', match: second, selection: sel('match_result', 'home', 0.55), odds: 3.0, state: 'pending', settlement: null },
+    ],
+  });
+  world.slips.push({
+    id: 'slip-void-typed', name: 'Typed price', status: 'recorded', note: null, currency: 'XAF', stake: '1000', price: 6.5, recorded_at: START.toISOString(), recorded_reference: null,
+    legs: [
+      { id: 'v3', match: first, selection: sel('both_teams_score', 'no', 0.55), odds: null, state: 'void', settlement: { state: 'void', rule: 'void', basis: 'fixture' } },
+      { id: 'v4', match: second, selection: sel('both_teams_score', 'no', 0.55), odds: null, state: 'pending', settlement: null },
+    ],
+  });
+  await fixClock(page);
+  await signIn(page);
+  await stubSelections(page, world, { envelopes: {}, matches: [first, second] });
+  await page.goto('/selections');
+
+  const priced = page.locator('[data-testid="history-slip"]').filter({ has: page.getByRole('heading', { name: 'Void one', exact: true }) });
+  await expect(priced.getByTestId('history-price')).toContainText('6.00');
+  await expect(priced.getByTestId('history-effective-price')).toContainText('3.00');
+  await expect(priced.getByTestId('history-potential')).toContainText('3000');
+  await expect(priced.getByTestId('history-potential')).not.toContainText('6000');
+
+  const typed = page.locator('[data-testid="history-slip"]').filter({ has: page.getByRole('heading', { name: 'Typed price', exact: true }) });
+  await expect(typed.getByTestId('history-price')).toContainText('6.50');
+  await expect(typed.getByTestId('history-potential')).toHaveCount(0);
+  await expect(typed.getByTestId('history-potential-withheld')).toContainText('cannot be computed');
+  await expect(typed).not.toContainText('6500');
+});
+
+test('mocked: a draw-no-bet selection withholds the combined chance and keeps each leg\'s own', async ({ page }) => {
+  const world = new SlipWorld();
+  const first = bulgaria();
+  const second = armenia();
+  const dnb = envelope(first.id);
+  (dnb.groups as Json[])[0].markets = [
+    ...((dnb.groups as Json[])[0].markets as Json[]),
+    { market_id: 'draw_no_bet', group: 'outcome', period: 'regulation', line: null, available: true, unavailable_reason: null, warnings: [], settlement: REGULATION,
+      selections: [sel('draw_no_bet', 'home', 0.6429, { probability_source: 'calculated', calculation: { formula: 'P(home | no draw) = P(home) / (P(home) + P(away))', inputs: { home: 0.45, away: 0.25 }, source_market: 'match_result', note: 'calculated from provider probabilities' } })] },
+  ];
+  await fixClock(page);
+  await stubSelections(page, world, { envelopes: { [first.id]: dnb, [second.id]: envelope(second.id) }, matches: [first, second] });
+  await page.goto(`/match/${first.id}`);
+  await selectionRow(page, 'draw_no_bet:home').getByTestId('selection-add').click();
+  await page.goto(`/match/${second.id}`);
+  await selectionRow(page, 'match_result:home').getByTestId('selection-add').click();
+  await page.getByTestId('slip-dock-toggle').click();
+  const dock = page.getByTestId('slip-dock');
+  await expect(dock.getByTestId('slip-leg')).toHaveCount(2);
+  await expect(dock.getByTestId('slip-combined-probability')).toHaveCount(0);
+  await expect(dock.getByTestId('slip-combined-probability-withheld')).toContainText('conditional');
+  await expect(dock.getByTestId('slip-leg').first()).toContainText('64%');
+});
 
 test('mocked: the page stays inside the viewport at every width and logs no error', async ({ page }) => {
   const world = new SlipWorld();

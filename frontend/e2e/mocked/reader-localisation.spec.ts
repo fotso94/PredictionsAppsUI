@@ -1,7 +1,6 @@
 import { expect, test, Page, Route, Request } from '@playwright/test';
 import en from '../../src/i18n/messages/en';
 import fr from '../../src/i18n/messages/fr';
-import readerEn from '../../src/i18n/messages/reader.en';
 import { compileMessage, renderMessage } from '../../src/i18n/format';
 import {
   ApiMatch, baseCoverage, baseLeagues, baseMatches, baseStatus, matchDetail, stubBackend,

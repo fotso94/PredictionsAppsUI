@@ -249,10 +249,19 @@ def suggest(db: Session, *, now: Optional[datetime] = None, legs: int = DEFAULT_
     }
 
 
+DNB_WITHHELD = ("withheld: a draw-no-bet selection's probability is conditional on there being no draw, and "
+                "conditional and unconditional probabilities cannot be multiplied into one figure; the legs' own "
+                "probabilities are shown instead")
+
+
 def _combination(index: int, block: List[Dict[str, Any]]) -> Dict[str, Any]:
-    product = Decimal(1)
-    for leg in block:
-        product *= Decimal(str(leg["why"]["probability"]))
+    if any(leg["selection"]["market_id"] == DRAW_NO_BET for leg in block):
+        combined: Dict[str, Any] = {"value": None, "basis": DNB_WITHHELD}
+    else:
+        product = Decimal(1)
+        for leg in block:
+            product *= Decimal(str(leg["why"]["probability"]))
+        combined = {"value": float(product.quantize(Decimal("0.000001"))), "basis": INDEPENDENCE_NOTE}
     prices = [leg["why"].get("provider_odds") for leg in block]
     combined_odds = None
     if block and all(p and p.get("value") for p in prices):
@@ -264,6 +273,6 @@ def _combination(index: int, block: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {
         "index": index,
         "legs": block,
-        "combined_probability": {"value": float(product.quantize(Decimal("0.000001"))), "basis": INDEPENDENCE_NOTE},
+        "combined_probability": combined,
         "combined_odds": combined_odds,
     }

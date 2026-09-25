@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.predictions import Match, MatchStatus
 from app.models.slips import (
-    SETTLEMENT_STATES, SLIP_STATUS_DRAFT, SLIP_STATUS_RECORDED, SLIP_STATUS_SAVED, STATE_PENDING,
+    SETTLEMENT_STATES, SLIP_STATUS_DRAFT, SLIP_STATUS_RECORDED, SLIP_STATUS_SAVED, STATE_PENDING, STATE_VOID,
     SelectionSlip, SelectionSlipLeg,
 )
 from app.models.users import User
@@ -241,6 +241,28 @@ class SlipService:
             leg.odds_source = None
             leg.odds_captured_at = None
 
+    def replace_leg(self, user: User, slip: SelectionSlip, leg_id: Any, selection_id: str,
+                    odds: Optional[float] = None) -> SelectionSlipLeg:
+        """Swap the selection on one fixture in one step: the new leg is validated before the old one goes.
+
+        Deleting first and adding afterwards left a slip with nothing on the fixture whenever the
+        replacement was refused. Here every check runs against the slip WITHOUT the old leg, and only
+        then is the old leg removed and the new one put in its place - or nothing changes at all.
+        """
+        self._mutable(slip)
+        old = self._leg(slip, leg_id)
+        others = [leg for leg in slip.legs if leg.id != old.id]
+        new = self._build_leg(slip, others, str(old.match_id), selection_id, odds)
+        new.position = old.position
+        # Same transaction, two statements: the old row must be gone before the new one is written,
+        # or UNIQUE(slip_id, match_id) refuses the insert. Nothing is committed between the two.
+        slip.legs.remove(old)
+        self.db.delete(old)
+        self.db.flush()
+        slip.legs.append(new)
+        self.db.flush()
+        return new
+
     def remove_leg(self, user: User, slip: SelectionSlip, leg_id: Any) -> None:
         self._mutable(slip)
         leg = self._leg(slip, leg_id)
@@ -369,23 +391,43 @@ class SlipService:
     def _serialize(self, slip: SelectionSlip, matches: Dict, teams: Dict, leagues: Dict, current: Dict) -> Dict[str, Any]:
         legs = [self._serialize_leg(leg, matches.get(leg.match_id), teams, leagues, current.get(leg.match_id))
                 for leg in sorted(slip.legs, key=lambda l: l.position)]
-        computed, source, missing = effective_price(slip.legs)
-        if slip.status == SLIP_STATUS_RECORDED and slip.price is not None:
-            price, price_source = Decimal(slip.price), slip.price_source
+        # TWO PRICES, KEPT APART. `price` is the ORIGINAL: what was recorded, or the product of every
+        # leg's price on a slip not yet recorded. `effective_price` is what the combination pays on
+        # after a void leg has dropped out: the product of the remaining legs' own prices - and only
+        # when every remaining leg carries one. A combined price the reader typed cannot be adjusted
+        # for a void leg without guessing how the bookmaker priced that leg, so the return is
+        # withheld rather than shown at the original figure.
+        voided = any(leg.state == STATE_VOID for leg in slip.legs)
+        original, original_source, missing = _original_price(slip)
+        remaining, remaining_source, remaining_missing = effective_price(slip.legs)
+        if voided:
+            effective = remaining if remaining_missing == 0 else None
+            effective_source = remaining_source if effective is not None else None
         else:
-            price, price_source = computed, source
+            effective, effective_source = original, original_source
+        withheld = None
+        if voided and effective is None:
+            withheld = ("a selection was voided and the adjusted return cannot be computed: "
+                        + ("not every remaining selection carries its own price" if remaining_missing
+                           else "no price is held for the remaining selections"))
         counts = {state: sum(1 for leg in slip.legs if leg.state == state) for state in SETTLEMENT_STATES}
         counts["legs"] = len(slip.legs)
         return {
             "id": str(slip.id), "name": slip.name, "status": slip.status, "note": slip.note,
             "currency": slip.currency,
             "stake": money_text(slip.currency, slip.stake_minor) if slip.currency and slip.stake_minor is not None else None,
-            "price": float(price) if price is not None else None, "price_source": price_source,
+            "price": float(original) if original is not None else None, "price_source": original_source,
             "price_missing_legs": missing,
-            "price_note": ("the product of the legs' prices; a void leg drops out of it" if price is not None and price_source != "user"
-                           else "the combined price the reader recorded" if price is not None else
+            "price_note": ("the combined price the reader recorded" if original is not None and original_source == "user"
+                           else "the product of the legs' prices" if original is not None else
                            "no combined price: at least one selection has no price for exactly that selection"),
-            "potential": potential_return(slip.currency, slip.stake_minor, price),
+            "effective_price": float(effective) if effective is not None else None,
+            "effective_price_source": effective_source,
+            "effective_price_note": (None if not voided else
+                                     ("the product of the remaining selections' own prices; the void selection has dropped out"
+                                      if effective is not None else withheld)),
+            "potential": potential_return(slip.currency, slip.stake_minor, effective),
+            "potential_withheld_reason": withheld,
             "recorded_at": _iso(slip.recorded_at), "recorded_reference": slip.recorded_reference,
             "recorded_note": ("the reader's own statement that this was placed elsewhere; nothing here is confirmed by any bookmaker"
                               if slip.status == SLIP_STATUS_RECORDED else None),
@@ -435,6 +477,26 @@ class SlipService:
             "kickoff_utc": _iso(match.match_date), "status": status_label(match), "minute": meta.get("minute"),
             "score": serialize_score(meta),
         }
+
+
+def _original_price(slip: SelectionSlip) -> Tuple[Optional[Decimal], Optional[str], int]:
+    """The price as recorded, or - before recording - the product of every leg's price, void or not."""
+    if slip.status == SLIP_STATUS_RECORDED and slip.price is not None:
+        return Decimal(slip.price), slip.price_source, 0
+    total = Decimal(1)
+    sources = set()
+    missing = 0
+    counted = 0
+    for leg in slip.legs:
+        if leg.odds_value is None:
+            missing += 1
+            continue
+        total *= Decimal(leg.odds_value)
+        sources.add(leg.odds_source or "user")
+        counted += 1
+    if missing or counted == 0:
+        return None, None, missing
+    return total.quantize(Decimal("0.0001")), (sources.pop() if len(sources) == 1 else "mixed"), 0
 
 
 def _clean(value: Optional[str], limit: int) -> Optional[str]:

@@ -278,3 +278,46 @@ def test_rebuilding_from_a_snapshot_keeps_the_snapshots_own_times_and_says_when_
     assert [g["group"] for g in envelope["groups"]] == list(m.GROUP_ORDER)
     assert m.find_selection(envelope, "total_goals:over@2.5")["probability"] == pytest.approx(0.45)
     assert len(m.available_selections(envelope)) > 30
+
+
+# ----------------------------------------------------------------------- snapshot identity
+def test_the_markets_digest_covers_every_selectable_block_and_the_prices():
+    """Defect: a payload whose first-half block (or team totals, 0.5/1.5 lines, first scorer or odds)
+    changed hashed as unchanged, so no snapshot was written and a leg taken from the new numbers
+    pointed at a snapshot holding the old ones."""
+    base = load("bulgaria_luxembourg")
+    same = copy.deepcopy(base)
+    same["predictions"][0]["reasoning"] = {"en": "reworded"}   # prose is not a selection
+    assert m.markets_digest(base) == m.markets_digest(same)
+    for block, change in (("first_half_winner", {"home": 40, "draw": 40, "away": 20}),
+                          ("home_team_goals", {"over_0_5": 80, "under_0_5": 20}),
+                          ("total_goals", dict(base["predictions"][0]["total_goals"], over_0_5=95, under_0_5=5)),
+                          ("team_to_score_first", {"home": 60, "away": 30, "neither": 10}),
+                          ("match_result", {"home": 50, "draw": 30, "away": 20})):
+        changed = copy.deepcopy(base)
+        changed["predictions"][0][block] = change
+        assert m.markets_digest(changed) != m.markets_digest(base), block
+    repriced = copy.deepcopy(base)
+    repriced["odds"][0]["values"]["Home"] = 2.6
+    assert m.markets_digest(repriced) != m.markets_digest(base), "the carried prices are evidence too"
+    assert m.markets_digest({"id": 1, "predictions": []}) is None
+    assert m.markets_digest(None) is None
+
+
+def test_the_snapshot_hash_changes_with_the_first_half_block_and_legacy_hashes_are_still_recognised():
+    from types import SimpleNamespace
+    from app.services.forecast_service import ForecastService, _legacy_content_hash, content_hash
+    from app.services.providers.gameforecast import parse_event
+    base = load("bulgaria_luxembourg")
+    changed = copy.deepcopy(base)
+    changed["predictions"][0]["first_half_winner"] = {"home": 40, "draw": 40, "away": 20}
+    before, after = parse_event(base), parse_event(changed)
+    assert _legacy_content_hash(before) == _legacy_content_hash(after), "the old hash could not see the change"
+    assert content_hash(before) != content_hash(after), "the new one can"
+
+    # A snapshot hashed under the old scheme: same blocks -> same content; a changed block -> new snapshot.
+    legacy = SimpleNamespace(content_hash=_legacy_content_hash(before), raw_payload=base)
+    assert ForecastService._same_content(legacy, before, content_hash(before)) is True
+    assert ForecastService._same_content(legacy, after, content_hash(after)) is False
+    fresh = SimpleNamespace(content_hash=content_hash(before), raw_payload=base)
+    assert ForecastService._same_content(fresh, after, content_hash(after)) is False

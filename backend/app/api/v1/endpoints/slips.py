@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_active_user, get_db
 from app.models.users import User
-from app.schemas.slips import LegInput, LegOddsUpdate, SlipCreate, SlipRecord, SlipUpdate
+from app.schemas.slips import LegInput, LegOddsUpdate, LegReplace, SlipCreate, SlipRecord, SlipUpdate
 from app.services.slips import SlipError, SlipService
 
 router = APIRouter()
@@ -111,6 +111,19 @@ async def remove_leg(slip_id: str, leg_id: str, current_user: User = Depends(get
     try:
         slip = service.get(current_user, slip_id)
         service.remove_leg(current_user, slip, leg_id)
+    except SlipError as error:
+        _raise(error)
+    db.commit()
+    return service.serialize(slip)
+
+
+@router.put("/slips/{slip_id}/legs/{leg_id}", summary="Replace the selection on this leg's fixture, atomically")
+async def replace_leg(slip_id: str, leg_id: str, body: LegReplace, current_user: User = Depends(get_current_active_user),
+                      db: Session = Depends(get_db)):
+    service = SlipService(db)
+    try:
+        slip = service.get(current_user, slip_id)
+        service.replace_leg(current_user, slip, leg_id, body.selection_id, body.odds)
     except SlipError as error:
         _raise(error)
     db.commit()

@@ -23,25 +23,26 @@ from sqlalchemy.orm import Session
 
 from app.models.predictions import Match
 from app.models.provider_data import ProviderForecastRecord, ProviderForecastSnapshot
-from app.services.forecast_service import ForecastService, content_hash
-from app.services.markets import PROVIDER_GAMEFORECAST, markets_for_forecast, no_forecast_envelope
-from app.services.providers.gameforecast import parse_event
+from app.services.forecast_service import ForecastService
+from app.services.markets import PROVIDER_GAMEFORECAST, markets_digest, markets_for_forecast, no_forecast_envelope
 
 
 def _snapshot_for(record: ProviderForecastRecord, snapshots: List[ProviderForecastSnapshot]) -> Optional[ProviderForecastSnapshot]:
-    if not snapshots:
+    """The snapshot whose selectable content is what the current row serves - or None.
+
+    Compared on the payloads themselves (`markets_digest`), not on the stored hash, because rows
+    hashed under the older scheme cannot say whether their first-half block or prices match. No
+    match means no attribution: a leg with no snapshot is honest, a leg pointing at a snapshot that
+    holds other numbers is not.
+    """
+    digest = markets_digest(record.raw_payload)
+    if not snapshots or digest is None:
         return None
-    digest = None
-    if isinstance(record.raw_payload, dict):
-        forecast = parse_event(record.raw_payload)
-        if forecast is not None:
-            digest = content_hash(forecast)
     ordered = sorted(snapshots, key=lambda s: (s.first_fetched_at or datetime.min), reverse=True)
-    if digest:
-        for snapshot in ordered:
-            if snapshot.content_hash == digest:
-                return snapshot
-    return ordered[0]
+    for snapshot in ordered:
+        if markets_digest(snapshot.raw_payload) == digest:
+            return snapshot
+    return None
 
 
 def envelopes_for_matches(db: Session, matches: Iterable[Match], forecasts: Optional[ForecastService] = None,

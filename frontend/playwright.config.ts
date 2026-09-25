@@ -79,7 +79,7 @@ export default defineConfig({
        * rest of the suite is still unmeasured here.
        */
       name: 'mocked-mobile-360',
-      testMatch: /mocked\/(navigation-continuity|national-teams|overdue-results)\.spec\.ts/,
+      testMatch: /mocked\/(navigation-continuity|national-teams|overdue-results|parlay-builder)\.spec\.ts/,
       use: { ...devices['Galaxy S8'] },
     },
     {

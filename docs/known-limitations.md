@@ -404,6 +404,14 @@ What they do not do, on purpose:
 - **"Recorded" is the reader's own statement.** The application does not place bets, hold funds,
   initiate payments or confirm that any bet exists. A recorded slip is kept as it was; changing
   it means duplicating it.
+- **A void selection changes what the combination pays on, not what was recorded.** The recorded
+  price stays as history; the *effective* price is the product of the remaining selections' own
+  prices, and the return is quoted from that. When the reader typed one combined price and the
+  remaining selections carry no prices of their own, the adjusted return is withheld rather than
+  shown at the original figure.
+- **No combined chance across a draw-no-bet selection.** Its probability is conditional on there
+  being no draw; multiplying it with the other legs' unconditional probabilities is not the chance
+  of anything, so the figure is withheld and each leg's own probability stands.
 - **Corners, cards, shots, fouls, penalties and player markets are not offered**, because no
   configured source publishes probabilities for them and they are not invented from other
   statistics. The paid options researched are listed for the owner in the capability matrix;

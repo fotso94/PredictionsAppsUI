@@ -182,7 +182,8 @@ export interface ApiSuggestedLeg {
 export interface ApiCombination {
   index: number
   legs: ApiSuggestedLeg[]
-  combined_probability: { value: number; basis: string }
+  /** `value` is null when the figure is withheld (a draw-no-bet leg); `basis` says why either way. */
+  combined_probability: { value: number | null; basis: string }
   combined_odds: { value: number; format: 'decimal'; source: string; note: string } | null
 }
 
@@ -272,11 +273,18 @@ export interface ApiSlip {
   currency: string | null
   /** Decimal text in `currency`, as the reader entered it. */
   stake: string | null
+  /** The ORIGINAL price: as recorded, or the product of every leg's price before recording. */
   price: number | null
   price_source: 'user' | 'provider_snapshot' | 'mixed' | null
   price_missing_legs: number
   price_note: string
+  /** What the combination pays on now: the original, or the remaining legs' product once a leg is void; null when that cannot be computed. */
+  effective_price: number | null
+  effective_price_source: string | null
+  effective_price_note: string | null
+  /** Computed from `effective_price`, never from the original once a leg is void. */
   potential: ApiPotential | null
+  potential_withheld_reason: string | null
   recorded_at: string | null
   recorded_reference: string | null
   recorded_note: string | null

@@ -37,6 +37,8 @@ can be told apart from one saved under the next.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -298,6 +300,30 @@ def _market(market_id: str, line: Optional[float], label: str, values: Dict[str,
 
 
 # ------------------------------------------------------------------------------ the payload
+#: The blocks a selection can be taken from. The digest below is what makes two payloads "the same
+#: evidence": a change in ANY of these, or in the carried prices, is a new forecast snapshot.
+SELECTABLE_BLOCKS = ("match_result", "total_goals", "home_team_goals", "away_team_goals", "both_teams_score",
+                     "first_half_winner", "team_to_score_first", "exact_score")
+
+
+def markets_digest(event: Any) -> Optional[str]:
+    """A stable hash of every selectable block and the carried odds of the latest prediction entry.
+
+    Selecting only the adapter's five stored markets for the snapshot hash let a payload whose
+    first-half block, team totals, 0.5/1.5 lines, first scorer or prices had changed pass as
+    "unchanged": no new snapshot was written, and a leg taken from the new numbers was attributed
+    to a snapshot holding the old ones. Everything a leg can be read from is in here.
+    """
+    if not isinstance(event, dict):
+        return None
+    prediction = latest_prediction(event)
+    if prediction is None:
+        return None
+    body = {"blocks": {name: prediction.get(name) for name in SELECTABLE_BLOCKS},
+            "run_at": prediction.get("run_at"), "odds": event.get("odds")}
+    return hashlib.sha256(json.dumps(body, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+
 def latest_prediction(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """The prediction entry the adapter reads: the most recent ``run_at``."""
     predictions = event.get("predictions") if isinstance(event, dict) else None
