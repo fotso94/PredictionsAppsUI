@@ -137,9 +137,10 @@ class RecoveryOutcome(str, Enum):
     RECOVERED = "recovered"
     #: The fixture was due an ask and NO REQUEST WAS MADE for it: the recovery allowance for the
     #: pass or the day was spent, our own daily ceiling for the provider (or the provider's own
-    #: reported window) refused the request before it left, or every provider was cooling down
-    #: after a failure elsewhere. Neither an answer nor an outage - nothing was asked, so nothing
-    #: was unreachable. Recorded on the row, spends no attempt, and the fixture stays due.
+    #: reported window) refused the request before it left, every provider was cooling down after
+    #: a failure elsewhere, or no provider that could be asked holds an id for its competition.
+    #: Neither an answer nor an outage - nothing was asked, so nothing was unreachable. Recorded
+    #: on the row, spends no attempt, and the fixture stays due.
     DEFERRED = "deferred"
     #: Nothing the pass did asked about this fixture because nothing was due: the retry schedule
     #: does not call for an ask yet, or its day is inside the results lookback and the results task
@@ -250,10 +251,12 @@ def classify_recovery_outcome(meta, *, settled_before: bool, settled_now: bool) 
       set means no provider answered. With `errors` recorded, the chain tried and got nothing, and
       `request_failed` says which way: a request went out and nobody answered it (PROVIDER_ERROR),
       or none ever left - an allowance refused it first, or every provider was cooling down
-      (DEFERRED). With no errors, no call was attempted at all - the day held nothing pending, or
-      the pass declined to ask - and that is NOT_ASKED. None of the three spends an attempt. A meta
-      that does not say whether a request left is read as one that did, which is what every
-      caller before `request_failed` existed meant.
+      (DEFERRED). A provider passed over because it holds no id for the competition is recorded in
+      `declined` rather than `errors`, and is a reason nothing left too (DEFERRED). With neither,
+      no call was attempted at all - the day held nothing pending, or the pass declined to ask -
+      and that is NOT_ASKED. None of the three spends an attempt. A meta that does not say whether
+      a request left is read as one that did, which is what every caller before `request_failed`
+      existed meant.
     * `source` says where an answer came from. "provider" is the only value meaning somebody was
       asked during this pass; "cache" and "stale-cache" mean the day came out of the store (see
       `RecoveryOutcome.CACHED`), and they are reported apart because a stale copy also says the
@@ -282,12 +285,14 @@ def classify_recovery_outcome(meta, *, settled_before: bool, settled_now: bool) 
             return RecoveryOutcome.RECOVERED, f"the {source} copy of the day settled it"
         return RecoveryOutcome.RECOVERED, "settled without this sweep's own call"
     if not asked:
-        errors = getattr(meta, "errors", None) or []
+        errors = list(getattr(meta, "errors", None) or [])
+        # A provider passed over for want of an id is a reason nothing was sent, not an error.
+        reasons = errors + list(getattr(meta, "declined", None) or [])
         if errors and getattr(meta, "request_failed", True):
             return RecoveryOutcome.PROVIDER_ERROR, "; ".join(errors)
-        if errors:
+        if reasons:
             return RecoveryOutcome.DEFERRED, ("no request was made for this fixture: "
-                                              + "; ".join(errors))
+                                              + "; ".join(reasons))
         return RecoveryOutcome.NOT_ASKED, "no call was made for this fixture"
     if source in ("cache", "stale-cache"):
         return RecoveryOutcome.CACHED, f"served from {source}"
@@ -1860,9 +1865,10 @@ class MatchRegistry:
         because nothing happened to the fixture.
 
         A DEFERRED ask records WHY nothing was sent (`deferred_because`, the kinds `SyncMeta.not_sent`
-        names: "our_allowance", "provider_allowance", "cooling_down", "not_configured"), so the
-        reason a reader is given can be the true one - "held back by our own allowance" is not
-        true of an ask skipped while the provider cooled down after a failure.
+        names: "our_allowance", "provider_allowance", "cooling_down", "not_configured",
+        "not_served"), so the reason a reader is given can be the true one - "held back by our own
+        allowance" is not true of an ask skipped while the provider cooled down after a failure,
+        nor of one no provider in the chain could put to its archive at all.
         """
         now = now or datetime.now(timezone.utc)
         if outcome is RecoveryOutcome.FRESH_UNANSWERED:

@@ -79,6 +79,10 @@ class SampleDataProvider(MatchDataProvider):
     def is_configured(self) -> bool:
         return True
 
+    def askable(self, keys: Iterable[str]) -> List[str]:
+        """The competitions it has invented teams for: the six club ones."""
+        return [key for key in keys if key in SAMPLE_TEAMS]
+
     def list_competitions(self, keys: Iterable[str]) -> List[ProviderCompetition]:
         return [_competition(k) for k in keys]
 

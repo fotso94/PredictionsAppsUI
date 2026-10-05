@@ -195,7 +195,7 @@ timestamp and its basis, read by `backend/scripts/sync_once.py` or off the admin
 a person who is looking. An empty week is still a success, because a league between rounds has
 genuinely nothing to give.
 
-## The archive answers late, and for one competition not at all — cause unknown
+## The archive answers late, and three friendlies have never settled from it — cause unknown
 
 Every observation, dated, is in `docs/evidence/livescore-archive-observations.json`, including the
 application's own record per competition and date (`recorded_by_the_application`).
@@ -212,15 +212,27 @@ Gulf Cup (2) — about two and a half days after the matches — and the recover
 stranded fixtures from that answer with no manual step. Later dates came back within hours:
 UEFA Nations League 2026-09-27 the same evening, AFCON Qualifications 2026-09-29 the same evening.
 
-**For National Teams Friendlies on 2026-09-24 it has never answered**: still empty after 16 asks,
-the last on 2026-10-02 08:12 UTC. Three fixtures wait on it (below). Club dates 2026-09-18 to -23
-were not asked again — every club fixture of that round had settled from the live feed — so what
-the archive holds for them is unknown, not empty.
+**For National Teams Friendlies on 2026-09-24 it did answer, without three of the day's
+fixtures.** The application recorded an answer with rows for that date on **2026-10-01 at 07:46
+UTC** (`last_answered_at`; whether an earlier ask had already returned rows is not recorded): five
+of the day's friendlies came back finished, Japan v Uruguay among them. Solomon Islands v Vanuatu,
+Papua New Guinea v New Caledonia and Turkmenistan v New Zealand did not settle from it, and still
+wait (below). The "empty" answers recorded for that date afterwards, at 2026-10-02 08:12
+UTC and from 2026-10-05, were no answers at all: API-Football, which holds no id for the
+competition, was recorded as answering although no request was sent (see *A provider that could
+not be asked was recorded as answering*, below). This page said until 2026-10-05 that the archive
+had never answered for that date, on the strength of the first of those records; that was wrong.
+Club dates 2026-09-18 to -23 were not asked again — every club fixture of that round had settled
+from the live feed — so what the archive holds for them is unknown, not empty.
 
 **What is known and what is not.** A delay exists and is not constant (same day for some dates,
-2½ days for 2026-09-24, more than seven days for 2026-09-18 as of 2026-09-25). Why, and whether
-friendlies are covered at all, is **unresolved**; the questions are in
-`docs/support/livescore-api-questions.md`, prepared and not sent.
+2½ days for three of 2026-09-24's competitions, up to a week for its friendlies, more than seven
+days for 2026-09-18 as of 2026-09-25). Friendlies are in the archive: it returned them for
+2026-09-24, -27, -28, -29 and -30 and 2026-10-01. Why the delay varies, and why those three fixtures
+have not settled, is **unresolved**; the questions are in `docs/support/livescore-api-questions.md`,
+prepared and not sent. One detail may bear on the third: at 09:30 UTC that day the live feed and
+the archive carried Palestine v New Zealand, finished 2-2, where the fixture list had carried
+Turkmenistan v New Zealand.
 
 The captured archive answer for 2026-09-16 is kept at
 `docs/evidence/livescore-history-2026-09-16-la-liga.json` — the response rows only, since the key
@@ -310,7 +322,7 @@ national team:
 | Still in the live feed when the next poll runs | **Yes**, observed | the ordinary live task collects it |
 | Dated on a day the archive holds | **Yes**, observed by hand for 2026-09-16 | the results task can collect it |
 | Dated on a day the archive answers late | **Yes**, observed automatically: 5 of 8 on 2026-09-26 | the retry schedule collected them ~2½ days after kickoff |
-| National Teams Friendlies, 2026-09-24 | **Not yet** | 16 asks to 2026-10-02 answered empty; whether it ever will is unknown |
+| Three National Teams Friendlies, 2026-09-24 | **Not yet** | the archive answered for that date on 2026-10-01 without them; whether it ever will return them is unknown |
 
 **Nothing here says a result cannot exist.** The application keeps asking under a retry *budget*,
 and stopping is a decision about what we are willing to spend, not a finding about the provider. A
@@ -318,7 +330,9 @@ reader of such a fixture is told what happened — no result has arrived, and wh
 never shown a score nobody reported. Of the eight national-team fixtures from 2026-09-24 that were in this state,
 five recovered automatically on 2026-09-26; as of 2026-10-05 three remain — Solomon Islands v
 Vanuatu, Papua New Guinea v New Caledonia, Turkmenistan v New Zealand, all National Teams
-Friendlies — each asked 19 times.
+Friendlies — each recorded as asked 20 times. At least two of those were not asks: at 2026-10-02
+08:12 UTC and 2026-10-05 03:23 UTC API-Football was recorded as answering, without a request, for
+a competition it holds no id for (see below). How many earlier ones were the same is not recorded.
 
 ## A finished match that read as live: repaired, with the identity gap narrowed
 
@@ -403,9 +417,9 @@ have a Live Score one). On 2026-10-05 at 05:10 UTC, 67 fixtures had kicked off w
 result — 26 UEFA Nations League (2–4 Oct), 17 CONCACAF Nations League (2–5 Oct), 24 friendlies
 (24 Sep – 4 Oct) — and no result of any kind had been stored since 2026-10-02 14:53 UTC. A slip
 holding such a fixture stays *pending*; nothing settles until a result source answers. (The
-recovery pass on 2026-10-05 recorded API-Football as having answered two friendly dates with no
-rows; it sent no request for them, having no id to ask with. That record is wrong and is being
-corrected separately.)
+results and recovery passes recorded API-Football as having answered for those competitions, with
+no rows, although it sent no request, having no id to ask with. That is fixed; the records already
+written are not yet corrected — see the next section.)
 
 Forecasts still arrive — GameForecastAPI answers — but only attach to fixtures already stored. On
 2026-10-05 it returned 48 club fixtures for 9–12 October; 3 were in the store and 45 wait,
@@ -418,6 +432,53 @@ because the provider also answers 401 to bursts. After a refusal the provider is
 Stored fixtures and forecasts are still served. Restoring a match-data source — Live Score, or a
 paid plan at one of the fallbacks — is a purchase or support decision for the owner; nothing in
 this repository works around it.
+
+## A provider that could not be asked was recorded as answering: fixed, the stored record not yet corrected
+
+**What happened.** API-Football and TheSportsDB hold an id for the six club competitions and for
+none of the national-team ones. Asked for results across several competitions, each skipped the
+ones it had no id for and returned what it had for the rest — for a national-team competition, an
+empty list, with no request sent — and the call chain took that list as an answer. So whenever
+Live Score was out of the chain (cooling down after a failure, and from 2026-10-05 03:23 UTC
+refusing every request), a national-team results call was recorded as answered, with nothing in
+it: an attempt counted on each fixture it covered, the fixture's next ask pushed back by the retry
+schedule, and an `empty` observation written over whatever the archive had last said for that
+competition and date. The application's own record shows it on **2026-10-02** (API-Football at
+08:12 UTC, TheSportsDB at 08:43 UTC), and on every results and recovery pass from 2026-10-05
+03:23 UTC. Whether it happened earlier is not recorded: an observation keeps only the provider of
+its last answer.
+
+**What changed.** A provider is asked only about the competitions it can name, and its answer
+counts for those alone. One that can name none of them is passed over the way a provider that sent
+nothing is — no cool-down, no failure on its status, nothing charged — and the chain moves on. A
+competition nobody can be asked about is recorded on each fixture as *deferred*, with `not_served`
+among the reasons, and its attempts, its retry schedule and the archive's record are left exactly
+as they were. That is not reported as a fault of the pass: a gap in coverage is not an outage.
+TheSportsDB is also no longer taken to have polled live scores, which its v1 API does not publish.
+
+**What the store still says.** Nothing already written was changed. Measured read-only against
+`soccer_predictions` at 2026-10-05 22:55 UTC, while the backend still ran the earlier code and
+added to it on every pass (the entries are listed in
+`docs/evidence/livescore-archive-observations.json`, `not_answers_recorded_as_answers`):
+
+- **Ten archive observations** name API-Football as the last to answer, with no rows: UEFA Nations
+  League and CONCACAF Nations League on 2 and 3 October; National Teams Friendlies on 24, 28 and 30
+  September and 2 and 3 October; AFCON Qualifications on 25 September. Five of them — both Nations
+  Leagues on 2 and 3 October, friendlies on 3 October — have never been put to a provider that
+  could answer. Friendlies on 30 September went from `answered` (six rows from Live Score, on 2
+  October) to `empty`. There, as for friendlies on 24 and 28 September and AFCON Qualifications on
+  25 September, `last_answered_at` still dates Live Score's last answer with rows.
+- **44 fixtures** carry a last outcome reading "api_football answered for this competition … with 0
+  row(s)", and a reader is served `fresh_unanswered` with that archive state. For 35 of them, all
+  from 2 and 3 October, every attempt recorded is of this kind: their first was at 04:24 UTC on 5
+  October. The other 9 mix real asks with these, in proportions nothing records.
+
+Correcting them means rewriting rows in the live database: removing the attempts and observations
+the false answers added where they can be told apart, and marking counts as unreliable where they
+cannot. That is a decision for the owner, to be rehearsed first on a restored copy. Until then a
+stop the retry budget makes on any of these fixtures would state an attempt count that includes
+asks never made — though from this fix on, only a provider that really answered can make that
+stop.
 
 ## Running it locally: what stopped updates for 2½ days, and how it is run now
 

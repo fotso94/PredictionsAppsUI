@@ -133,7 +133,7 @@ export interface LastCheck {
  * WHOSE LIMIT HELD A CHECK BACK, which is not always ours.
  *
  * A deferred check is one that never left: no request went out, so nothing was unreachable. But
- * the backend defers for four different reasons, recorded per provider tried, and only one of
+ * the backend defers for five different reasons, recorded per provider tried, and only one of
  * them is a limit this installation set. Calling every deferral "our own request allowance" would
  * tell a reader we chose not to ask when the provider had in fact refused us, or when we were
  * waiting out a failure - and the backend's own test for the provider's window insists that row
@@ -141,7 +141,9 @@ export interface LastCheck {
  *
  * Several providers can be tried in one pass, so the list is read with the EXTERNAL cause first:
  * the provider's own reported limit, then a cool-down after a failure, and only then our own
- * allowance. "Ours" is said only when nothing outside us was involved.
+ * allowance. "Ours" is said only when nothing outside us was involved. A provider that holds no id
+ * for the competition (`not_served`) limits nothing, so it is worded as `unknown`: the check was
+ * simply not sent.
  */
 export type DeferralCause = 'provider_allowance' | 'cooling_down' | 'our_allowance' | 'unknown'
 

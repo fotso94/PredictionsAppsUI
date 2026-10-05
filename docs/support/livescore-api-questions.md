@@ -65,7 +65,7 @@ everyone.
 
 ---
 
-## 2. How long does a finished match take to reach the history archive — and are friendlies covered?
+## 2. How long does a finished match take to reach the history archive — and why are three friendlies missing?
 
 The archive clearly works, for club and national-team competitions alike — these all returned
 finished fixtures with full scores:
@@ -86,18 +86,21 @@ finished fixtures with full scores:
 | 2026-09-24 (UEFA Nations League, AFCON Qualifications, Arabian Gulf Cup) | 2026-09-26 at about 23:30 UTC — roughly two and a half days later |
 | 2026-09-27 (UEFA Nations League) | the same evening |
 | 2026-09-29 (AFCON Qualifications) | the same evening |
-| 2026-09-24 (National Teams Friendlies, `competition_id=371`) | never — 16 queries up to 2026-10-02 08:12 UTC returned no rows |
+| 2026-09-24 (National Teams Friendlies, `competition_id=371`) | by 2026-10-01 at about 07:46 UTC (we keep only the latest answer with rows), with five of the day's matches but not the three below |
 
 The three friendlies we are missing from 2026-09-24 are Solomon Islands v Vanuatu (04:00 UTC),
 Papua New Guinea v New Caledonia (07:00) and Turkmenistan v New Zealand (09:30). Our queries were
-single-day: `matches/history.json?competition_id=371&from=2026-09-24&to=2026-09-24`.
+single-day: `matches/history.json?competition_id=371&from=2026-09-24&to=2026-09-24`. For the
+09:30 slot, your live feed and the archive returned Palestine v New Zealand (finished 2-2), while
+`fixtures/list.json` had listed Turkmenistan v New Zealand (fixture id 1899617).
 
 **Questions:**
 
 1. Is there an expected delay before a finished match appears in `matches/history.json`, and what
    determines it? We saw anything from the same evening to more than a week.
-2. Are National Teams Friendlies covered by the history archive, or only some of them? Is there a
-   reason the three fixtures above would never appear?
+2. National Teams Friendlies are in the history archive, but three of 2026-09-24's matches have not
+   appeared in it. Is there a reason they would not? Was fixture 1899617 replaced by the
+   Palestine v New Zealand match?
 3. Is there anything about single-day queries that we should do differently?
 
 We are not asking for a backfill; we would like to know what to expect, so we retry sensibly

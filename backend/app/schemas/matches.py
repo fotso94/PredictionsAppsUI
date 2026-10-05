@@ -262,11 +262,12 @@ def serialize_recovery(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     * A REQUEST WENT OUT AND NOBODY ANSWERED IT. ``last_outcome`` is ``provider_error``;
       ``provider_errors`` counts those calls, and none of them is an attempt.
     * NOTHING WAS ASKED. ``last_outcome`` is ``deferred``: the ask was due and no request was
-      made, because an allowance refused it before it left or the provider was cooling down after
-      a failure elsewhere. ``deferrals`` counts those, and ``last_deferred_because`` says which:
-      ``our_allowance`` is a limit of ours, ``provider_allowance`` the provider's own reported
-      window, ``cooling_down`` a pause after a failed request. It is not an outage and not an
-      answer, and only ``our_allowance`` may be worded as our own limit.
+      made, because an allowance refused it before it left, the provider was cooling down after
+      a failure elsewhere, or no provider that could be asked holds an id for the competition.
+      ``deferrals`` counts those, and ``last_deferred_because`` says which: ``our_allowance`` is a
+      limit of ours, ``provider_allowance`` the provider's own reported window, ``cooling_down`` a
+      pause after a failed request, ``not_served`` a provider with no id to ask with. It is not an
+      outage and not an answer, and only ``our_allowance`` may be worded as our own limit.
 
     ``gave_up_at`` / ``gave_up_reason`` / ``stopped_by`` record that the sweep STOPPED ASKING, at a
     moment. ``stopped_by`` is the policy the row itself records as having made the stop -
@@ -302,7 +303,7 @@ def serialize_recovery(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "last_provider_error_at": _stored_iso(state.get("last_provider_error_at")),
         "deferrals": count("deferrals") or 0,
         # Why the last deferred ask was not sent: any of "our_allowance", "provider_allowance",
-        # "cooling_down", "not_configured". Only the first is a limit of ours.
+        # "cooling_down", "not_configured", "not_served". Only the first is a limit of ours.
         "last_deferred_because": (list(state.get("last_deferred_because"))
                                   if isinstance(state.get("last_deferred_because"), list) else None),
         "next_ask_after": None if state.get("gave_up_at") else _stored_iso(state.get("next_ask_after")),

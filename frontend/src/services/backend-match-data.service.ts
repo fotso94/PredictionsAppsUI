@@ -194,7 +194,8 @@ export interface ApiMatch {
     last_outcome?: string | null;
     last_outcome_at?: string | null;
     /** Why a deferred check never left, one entry per provider tried: our_allowance,
-     *  provider_allowance, cooling_down or not_configured. */
+     *  provider_allowance, cooling_down, not_configured or not_served (the provider holds no id
+     *  for the competition, so no request could name it). */
     last_deferred_because?: string[] | null;
   } | null;
   venue: string | null;

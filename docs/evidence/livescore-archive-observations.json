@@ -220,7 +220,10 @@
         "first_asked_at": "2026-09-25T21:53:51.987276+00:00",
         "last_asked_at": "2026-10-02T08:12:01.530199+00:00",
         "times_asked": 30,
-        "answered_by": "api_football"
+        "answered_by": "api_football",
+        "correction": "NOT AN ANSWER. api_football holds no id for this competition, so no request was sent; the application recorded the empty list it was handed as api_football's answer. Fixed on 2026-10-05: see `not_answers_recorded_as_answers` below.",
+        "last_answered_at": "2026-10-01T07:46:53.389206+00:00",
+        "last_answered_at_note": "Not in the 03:15 capture; read from the same record on 2026-10-05 at 22:55 UTC. The last time the archive returned rows for this competition and date."
       },
       {
         "competition": "Africa Cup of Nations Qualifications",
@@ -340,7 +343,10 @@
         "first_asked_at": "2026-09-25T16:49:04.821200+00:00",
         "last_asked_at": "2026-10-02T08:12:00.958908+00:00",
         "times_asked": 16,
-        "answered_by": "api_football"
+        "answered_by": "api_football",
+        "correction": "NOT AN ANSWER. api_football holds no id for this competition, so no request was sent; the application recorded the empty list it was handed as api_football's answer. Fixed on 2026-10-05: see `not_answers_recorded_as_answers` below.",
+        "last_answered_at": "2026-10-01T07:46:51.829861+00:00",
+        "last_answered_at_note": "Not in the 03:15 capture; read from the same record on 2026-10-05 at 22:55 UTC. The last time the archive returned rows for this competition and date."
       },
       {
         "competition": "National Teams Friendlies",
@@ -370,7 +376,10 @@
         "first_asked_at": "2026-09-28T14:51:13.757069+00:00",
         "last_asked_at": "2026-10-02T08:43:11.020249+00:00",
         "times_asked": 24,
-        "answered_by": "thesportsdb"
+        "answered_by": "thesportsdb",
+        "correction": "NOT AN ANSWER. thesportsdb holds no id for this competition, so no request was sent; the application recorded the empty list it was handed as thesportsdb's answer. Fixed on 2026-10-05: see `not_answers_recorded_as_answers` below.",
+        "last_answered_at": "2026-10-01T07:16:22.276377+00:00",
+        "last_answered_at_note": "Not in the 03:15 capture; read from the same record on 2026-10-05 at 22:55 UTC. The last time the archive returned rows for this competition and date."
       },
       {
         "competition": "National Teams Friendlies",
@@ -462,12 +471,140 @@
         "times_asked": 1,
         "answered_by": "livescore"
       }
-    ]
+    ],
+    "correction_note": "Three entries above name a provider that cannot be asked about the competition (API-Football, TheSportsDB). Each is annotated in place; its recorded values are kept as they were captured."
   },
   "what_changed_after_2026_09_25": [
     "On 2026-09-26 at 23:30 UTC, on the sixth ask, the archive returned the 2026-09-24 rows for UEFA Nations League (8), AFCON Qualifications (8) and the Arabian Gulf Cup (2): about 2.5 days after the matches. The recovery sweep settled five stranded fixtures from that answer without manual help.",
     "Dates after that were answered within hours: e.g. UEFA Nations League 2026-09-27 at 23:00 the same day, AFCON Qualifications 2026-09-29 at 22:47 the same day.",
-    "National Teams Friendlies 2026-09-24 was still empty after 16 asks, the last on 2026-10-02 08:12 UTC.",
+    "National Teams Friendlies 2026-09-24 was answered with rows by 2026-10-01 at 07:46 UTC (five of the day's matches, finished; the record keeps only the latest answer with rows, so an earlier one is possible). Solomon Islands v Vanuatu, Papua New Guinea v New Caledonia and Turkmenistan v New Zealand did not settle from it. An earlier version of this line said the date was still empty after 16 asks, the last at 2026-10-02 08:12 UTC: that last 'ask' was API-Football, which sent no request (see `not_answers_recorded_as_answers`).",
     "Club dates 2026-09-18 to 2026-09-23 were not asked again: every club fixture of that round had settled from the live feed."
-  ]
+  ],
+  "not_answers_recorded_as_answers": {
+    "recorded_on": "2026-10-05",
+    "what_happened": "API-Football and TheSportsDB hold an id for the six club competitions and none of the national-team ones. Asked for results, each skipped a competition it had no id for and returned an empty list for it without sending a request, and the call chain recorded that list as the provider's answer: state 'empty', an attempt on each fixture, the next ask pushed back. It happened whenever Live Score was out of the chain. It is seen first on 2026-10-02 (API-Football 08:12 UTC, TheSportsDB 08:43 UTC) and on every results and recovery pass from 2026-10-05 03:23 UTC, when Live Score began answering HTTP 401. Whether it happened earlier is not recorded: an observation keeps only its last answer.",
+    "fixed": "2026-10-05: a provider is asked only about competitions it can name, and its answer counts for those alone. A competition no provider can be asked about is recorded as deferred ('not_served'); no observation is written and no attempt is counted.",
+    "still_in_the_store": {
+      "read_at": "2026-10-05T22:55:26Z",
+      "note": "Every observation whose last recorded answer came from a provider holding no id for the competition, as it stood while the earlier code was still running. None of these is an answer; 'last_answered_at', where present, dates the archive's last real answer with rows. Not corrected: rewriting them is a separate decision.",
+      "observations": [
+        {
+          "competition": "Africa Cup of Nations Qualifications",
+          "match_date": "2026-09-25",
+          "recorded_state": "empty",
+          "recorded_rows": 0,
+          "recorded_as_answered_by": "api_football",
+          "times_asked": 31,
+          "first_asked_at": "2026-09-25T21:53:51.987276+00:00",
+          "last_asked_at": "2026-10-05T03:23:35.165626+00:00",
+          "last_answered_at": "2026-10-01T07:46:53.389206+00:00"
+        },
+        {
+          "competition": "CONCACAF Nations League",
+          "match_date": "2026-10-02",
+          "recorded_state": "empty",
+          "recorded_rows": 0,
+          "recorded_as_answered_by": "api_football",
+          "times_asked": 3,
+          "first_asked_at": "2026-10-05T04:24:56.533586+00:00",
+          "last_asked_at": "2026-10-05T16:35:46.008746+00:00",
+          "last_answered_at": null,
+          "note": "never put to a provider that could answer: every ask recorded here was a not-answer"
+        },
+        {
+          "competition": "CONCACAF Nations League",
+          "match_date": "2026-10-03",
+          "recorded_state": "empty",
+          "recorded_rows": 0,
+          "recorded_as_answered_by": "api_football",
+          "times_asked": 4,
+          "first_asked_at": "2026-10-05T04:24:56.744227+00:00",
+          "last_asked_at": "2026-10-05T22:54:47.432404+00:00",
+          "last_answered_at": null,
+          "note": "never put to a provider that could answer: every ask recorded here was a not-answer"
+        },
+        {
+          "competition": "National Teams Friendlies",
+          "match_date": "2026-09-24",
+          "recorded_state": "empty",
+          "recorded_rows": 0,
+          "recorded_as_answered_by": "api_football",
+          "times_asked": 17,
+          "first_asked_at": "2026-09-25T16:49:04.821200+00:00",
+          "last_asked_at": "2026-10-05T03:23:35.032467+00:00",
+          "last_answered_at": "2026-10-01T07:46:51.829861+00:00"
+        },
+        {
+          "competition": "National Teams Friendlies",
+          "match_date": "2026-09-28",
+          "recorded_state": "empty",
+          "recorded_rows": 0,
+          "recorded_as_answered_by": "api_football",
+          "times_asked": 25,
+          "first_asked_at": "2026-09-28T14:51:13.757069+00:00",
+          "last_asked_at": "2026-10-05T03:54:23.616092+00:00",
+          "last_answered_at": "2026-10-01T07:16:22.276377+00:00"
+        },
+        {
+          "competition": "National Teams Friendlies",
+          "match_date": "2026-09-30",
+          "recorded_state": "empty",
+          "recorded_rows": 0,
+          "recorded_as_answered_by": "api_football",
+          "times_asked": 31,
+          "first_asked_at": "2026-09-30T06:56:28.798814+00:00",
+          "last_asked_at": "2026-10-05T16:04:55.033008+00:00",
+          "last_answered_at": "2026-10-02T12:16:17.850638+00:00",
+          "note": "was 'answered', 6 rows, by Live Score at the 03:15 capture above; overwritten with 'empty' by two not-answers on 2026-10-05"
+        },
+        {
+          "competition": "National Teams Friendlies",
+          "match_date": "2026-10-02",
+          "recorded_state": "empty",
+          "recorded_rows": 0,
+          "recorded_as_answered_by": "api_football",
+          "times_asked": 8,
+          "first_asked_at": "2026-10-02T12:50:48.816803+00:00",
+          "last_asked_at": "2026-10-05T22:24:42.473598+00:00",
+          "last_answered_at": null
+        },
+        {
+          "competition": "National Teams Friendlies",
+          "match_date": "2026-10-03",
+          "recorded_state": "empty",
+          "recorded_rows": 0,
+          "recorded_as_answered_by": "api_football",
+          "times_asked": 4,
+          "first_asked_at": "2026-10-05T04:24:56.745725+00:00",
+          "last_asked_at": "2026-10-05T22:54:47.434682+00:00",
+          "last_answered_at": null,
+          "note": "never put to a provider that could answer: every ask recorded here was a not-answer"
+        },
+        {
+          "competition": "UEFA Nations League",
+          "match_date": "2026-10-02",
+          "recorded_state": "empty",
+          "recorded_rows": 0,
+          "recorded_as_answered_by": "api_football",
+          "times_asked": 3,
+          "first_asked_at": "2026-10-05T04:24:56.530858+00:00",
+          "last_asked_at": "2026-10-05T16:35:46.004912+00:00",
+          "last_answered_at": null,
+          "note": "never put to a provider that could answer: every ask recorded here was a not-answer"
+        },
+        {
+          "competition": "UEFA Nations League",
+          "match_date": "2026-10-03",
+          "recorded_state": "empty",
+          "recorded_rows": 0,
+          "recorded_as_answered_by": "api_football",
+          "times_asked": 4,
+          "first_asked_at": "2026-10-05T04:24:56.741878+00:00",
+          "last_asked_at": "2026-10-05T22:54:47.428267+00:00",
+          "last_answered_at": null,
+          "note": "never put to a provider that could answer: every ask recorded here was a not-answer"
+        }
+      ]
+    }
+  }
 }

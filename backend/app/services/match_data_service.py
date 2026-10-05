@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -23,9 +23,9 @@ from app.services.match_registry import (
 )
 from app.services.providers import competitions as comps
 from app.services.providers.base import (
-    MatchDataProvider, ProviderError, ProviderFixture, ProviderNotConfiguredError,
-    ProviderQuotaError, ProviderAuthError, ProviderRequestNotSent, ProviderStanding,
-    ProviderUnavailableError, parse_utc,
+    MatchDataProvider, ProviderCannotServe, ProviderError, ProviderFixture,
+    ProviderNotConfiguredError, ProviderQuotaError, ProviderAuthError, ProviderRequestNotSent,
+    ProviderStanding, ProviderUnavailableError, parse_utc,
 )
 from app.services.providers.registry import data_provider_chain
 
@@ -283,9 +283,19 @@ class SyncMeta:
     #: Why each provider passed over WITHOUT a request was passed over, one entry per provider:
     #: "cooling_down" (an earlier failure put it in cool-down), "our_allowance" (a ceiling this
     #: installation configured, or a caller's `skip`), "provider_allowance" (the provider's own
-    #: reported window said it was spent) or "not_configured". A deferral is recorded with these,
-    #: so whoever words it for a reader can say whose limit it was, or that nobody's was.
+    #: reported window said it was spent), "not_configured", or "not_served" (it holds no id for
+    #: what was asked, so no request could name it). A deferral is recorded with these, so whoever
+    #: words it for a reader can say whose limit it was, or that nobody's was.
     not_sent: List[str] = field(default_factory=list)
+    #: The competitions a provider was NOT asked about because it holds no id for them, in its own
+    #: words (`ProviderCannotServe`): one entry per provider passed over for that, and one per
+    #: provider that answered for some competitions of a call and not for others.
+    #:
+    #: Kept apart from `errors` on purpose. A provider that cannot name a competition is not
+    #: failing, the next one in the chain may answer in its place, and a gap in coverage that never
+    #: changes must not read as a fault on every pass - `errors` is what a task's health is judged
+    #: by. When nobody could be asked these are the reason why, and the fixture's record says so.
+    declined: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {"provider": self.provider, "source": self.source, "stale": self.stale, "fetched_at": self.fetched_at,
@@ -297,7 +307,22 @@ class SyncMeta:
                 "forward_source": self.forward_source,
                 "forward_fetched_at": self.forward_fetched_at,
                 "requests": self.requests, "request_failed": self.request_failed,
-                "not_sent": list(self.not_sent)}
+                "not_sent": list(self.not_sent), "declined": list(self.declined)}
+
+
+def not_served_reason(provider: str, keys: List[str]) -> str:
+    """How a provider that was not asked about `keys`, for want of an id, is described everywhere."""
+    them = "it" if len(keys) == 1 else "them"
+    return (f"{provider}: not asked about {', '.join(keys)}: it holds no competition id for {them}, "
+            f"so no request could name {them}")
+
+
+#: Names the shape of a stored results answer inside its cache key: an object holding the fixtures
+#: that came back AND the competitions the provider was asked about, because an answer speaks for
+#: those and for no others. A copy stored in the older shape - a bare list, which cannot say that a
+#: competition it was cached under was never asked about - is simply not found under this name,
+#: so none of those can be read back as an answer.
+RESULTS_SHAPE = "fixtures+asked"
 
 
 #: The score periods a fixture carries besides the running score and half time. They travel
@@ -446,6 +471,10 @@ class MatchDataService:
         self._outcomes: Dict[Any, Tuple[RecoveryOutcome, str]] = {}
         self._written: set = set()
         self._archive_seen: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        #: What each competition-day's results call amounted to - "answered", "cached", "failed" or
+        #: "deferred" - keyed (competition, ISO date). One call can end differently for different
+        #: competitions, and the recovery pass reports them apart.
+        self._competition_calls: Dict[Tuple[str, str], str] = {}
 
     # ------------------------------------------------------------------ helpers
     @property
@@ -521,7 +550,8 @@ class MatchDataService:
         return granted if isinstance(granted, int) and not isinstance(granted, bool) else None
 
     def _call_chain(self, cache_key: str, ttl: int, meta: SyncMeta, fn, skip=None,
-                    cost_hint: int = 1):
+                    cost_hint: Union[int, Callable[[MatchDataProvider], int]] = 1,
+                    providers: Optional[List[MatchDataProvider]] = None):
         """Run `fn(provider)` on the first working provider, with fresh/stale cache around it.
 
         `skip(provider)` lets a caller refuse to spend at one provider without refusing the whole
@@ -535,20 +565,33 @@ class MatchDataService:
         It is not consulted at all when the cache answers, because then nothing is spent.
 
         WHAT WAS SPENT, AND WHETHER ANYONE WAS ASKED, are written on `meta` for every provider
-        tried, answered or not (`SyncMeta.requests`, `SyncMeta.request_failed`). Four ways past a
+        tried, answered or not (`SyncMeta.requests`, `SyncMeta.request_failed`). Five ways past a
         provider send nothing: its cool-down, the caller's `skip`, an allowance that refuses the
-        request before it leaves (`ProviderRequestNotSent`, raised by `RequestBudget`), and a
-        provider that is not configured. None of those is a provider that did not answer. Every
-        other `ProviderError` from `fn` is a request that went out and got no usable answer.
+        request before it leaves (`ProviderRequestNotSent`, raised by `RequestBudget`), a provider
+        that is not configured, and one that holds no id for what was asked
+        (`ProviderCannotServe`). None of those is a provider that did not answer. Every other
+        `ProviderError` from `fn` is a request that went out and got no usable answer.
         `cost_hint` is what one call costs at a provider that keeps no budget to read - one per
-        competition for a results call - and is charged only when the call reached it.
+        competition for a results call - and is charged only when the call reached it. It may be
+        a function of the provider, for a call whose cost depends on what that provider could be
+        asked about.
+
+        A provider that cannot name what was asked is passed over on the way to the next, and its
+        reason goes to `meta.declined` rather than to `meta.errors`: it is not failing, and the
+        next provider may answer in its place. When nobody answers and that was the last reason,
+        what is raised names every provider that declined.
+
+        `providers` limits the call to part of the chain - a caller that has already had an answer
+        from some of it for some of its question, and is asking the rest about the rest. A stale
+        copy is still served only from a provider in the whole chain.
         """
         cached = self.cache.get(cache_key)
         if cached is not None:
             meta.source, meta.provider, meta.fetched_at = "cache", cached.get("provider"), cached.get("fetched_at")
             return cached["data"]
         last_error: Optional[ProviderError] = None
-        for provider in self.providers:
+        declined_from = len(meta.declined)
+        for provider in (self.providers if providers is None else providers):
             cooling = self._cooldown(provider.name)
             if cooling:
                 cause = self._cooldown_cause(provider.name)
@@ -567,6 +610,13 @@ class MatchDataService:
             reached = True
             try:
                 data = fn(provider)
+            except ProviderCannotServe as exc:
+                # Not this provider's question: it holds no id to put it with, so nothing left and
+                # nothing is wrong with it. No cool-down - it still serves what it does hold - no
+                # failure on its status, and no error: the next provider may answer in its place.
+                reached = False
+                meta.not_sent.append("not_served")
+                meta.declined.append(str(exc)); last_error = exc; continue
             except ProviderNotConfiguredError as exc:
                 reached = False
                 meta.not_sent.append("not_configured")
@@ -603,7 +653,8 @@ class MatchDataService:
                 if before is not None and after is not None:
                     meta.requests += max(after - before, 0)
                 elif reached:
-                    meta.requests += max(int(cost_hint), 0)
+                    hint = cost_hint(provider) if callable(cost_hint) else cost_hint
+                    meta.requests += max(int(hint), 0)
             self._record_status(provider.name, True)
             meta.source, meta.provider, meta.fetched_at = "provider", provider.name, self.now.isoformat()
             self.cache.set(cache_key, {"provider": provider.name, "fetched_at": meta.fetched_at, "data": data}, ttl=ttl)
@@ -615,8 +666,35 @@ class MatchDataService:
             meta.source, meta.provider, meta.fetched_at, meta.stale = "stale-cache", stale.get("provider"), stale.get("fetched_at"), True
             return stale["data"]
         if last_error is not None:
+            declined = meta.declined[declined_from:]
+            if isinstance(last_error, ProviderCannotServe) and len(declined) > 1:
+                # Nobody further down the chain could be asked either: one error naming them all.
+                raise ProviderCannotServe("; ".join(declined), provider=last_error.provider)
             raise last_error
         raise ProviderNotConfiguredError("No match-data provider is configured", provider="none")
+
+    @staticmethod
+    def _askable(provider: MatchDataProvider, keys: List[str]) -> List[str]:
+        """The competitions in `keys` that `provider` can be asked about, in order.
+
+        Raises `ProviderCannotServe` when there are none, so the chain passes the provider over
+        and asks the next one instead of taking an empty list nobody asked for as its answer.
+        """
+        can = set(provider.askable(keys))
+        askable = [key for key in keys if key in can]
+        if not askable:
+            raise ProviderCannotServe(not_served_reason(provider.name, keys), provider=provider.name)
+        return askable
+
+    def _ask_only_what_it_names(self, provider: MatchDataProvider, keys: List[str],
+                                meta: SyncMeta) -> List[str]:
+        """`_askable`, noting on `meta` the competitions left out of a call that goes ahead."""
+        askable = self._askable(provider, keys)
+        if len(askable) < len(keys):
+            note = not_served_reason(provider.name, [key for key in keys if key not in askable])
+            if note not in meta.declined:
+                meta.declined.append(note)
+        return askable
 
     # ------------------------------------------------------------------ competitions
     def competitions(self) -> List[League]:
@@ -689,8 +767,12 @@ class MatchDataService:
             return meta
         key = f"matchdata:fixtures:{day.isoformat()}:{','.join(keys)}"
         try:
+            # Each provider is asked only about the competitions it can name. One that can name
+            # none of them is passed over, so a day nobody could be asked about stays unanswered
+            # instead of reading as a day with no fixtures.
             payload = self._call_chain(key, settings.MATCH_CACHE_TTL_FIXTURES, meta,
-                                       lambda p: [_fixture_to_dict(f) for f in p.get_fixtures(day, keys)])
+                                       lambda p: [_fixture_to_dict(f) for f in p.get_fixtures(
+                                           day, self._ask_only_what_it_names(p, keys, meta))])
         except ProviderError as exc:
             meta.errors.append(str(exc))
             meta.source = "database"
@@ -819,24 +901,39 @@ class MatchDataService:
         defaults to whatever `due_result_keys` names, so a caller that passes nothing gets the
         cheapest correct set.
 
+        WHO IS ASKED ABOUT WHAT. A provider is asked only about the competitions it can name
+        (`MatchDataProvider.askable`), and its answer speaks for those and for no others: a
+        competition it holds no id for was not asked about, and the empty list it would have been
+        handed for it is not an answer. Those competitions go on down the chain in a further round,
+        offered only to providers this call has not reached yet - each one already reached
+        answered without them, declined them or failed, and asking it again would cost a request
+        or learn nothing. A competition that reaches the end of the chain unasked is recorded as
+        exactly that. API-Football and TheSportsDB hold no id for any national-team competition,
+        so whenever Live Score is out of the chain a national-team competition ends here.
+
         WHAT IS RECORDED, where the call already happens so knowing it costs nothing extra:
 
         * per COMPETITION and date, what the archive returned (`record_archive_observation`):
-          ANSWERED with the row count, or EMPTY. A call that went out and got no answer changes no
+          ANSWERED with the row count, or EMPTY - only for a competition a provider was asked
+          about and answered for. A request about it that went out and got no answer changes no
           state; it is noted beside it as a failure, because "we could not ask" is not "there is
-          nothing". A call that never went out is not noted there at all.
+          nothing". A competition no request was sent about is not noted there at all.
         * per unsettled FIXTURE the call covered, the outcome (`record_recovery_outcome`):
-          RECOVERED, FRESH_UNANSWERED (the attempt), PROVIDER_ERROR when a request went out and
-          nobody answered it, or DEFERRED when no request went out - our own allowance refused it,
-          or every provider was cooling down after a failure elsewhere. A fresh cache hit is not
-          written, because it teaches nothing and would put a write on every page load; the
+          RECOVERED, FRESH_UNANSWERED (the attempt), PROVIDER_ERROR when a request about its
+          competition went out and nobody answered it, or DEFERRED when none did - our own
+          allowance refused it, every provider that could name it was cooling down after a
+          failure elsewhere, or no provider in the chain can name it at all. A fresh cache hit is
+          not written, because it teaches nothing and would put a write on every page load; the
           recovery pass reports it for its own calls.
 
         What the call was charged goes on `meta.requests`, answered or not (see `_call_chain`).
+        Providers passed over for want of an id go on `meta.declined`, never on `meta.errors`: a
+        gap in coverage is not a fault, and must not make a pass read as failed on every run.
 
         Returns what the call amounted to: "answered", "cached", "failed" (a request went out and
         no provider answered it, including a stale copy served in its place), "deferred" (no
-        request went out) or "skipped" (nothing was due, no call attempted).
+        request went out), "skipped" (nothing was due, no call attempted), or "mixed" when its
+        competitions ended differently. Per competition it is kept in `self._competition_calls`.
 
         A second listing of a played match on `day` is closed first (`retire_relisted`). It is not
         a pending result, and a call made on its behalf would be paid for and learn nothing.
@@ -857,56 +954,142 @@ class MatchDataService:
         #: has not. The answer is credited to them only if it settles them; otherwise their row is
         #: left exactly as it was when we stopped.
         stopped = {mid for mid, (m, _key) in covered.items() if recovery_state_of(m).get("gave_up_at")}
-        cache_key = f"matchdata:results:{day.isoformat()}:{','.join(due)}"
-        call = SyncMeta()
-        try:
-            payload = self._call_chain(cache_key, settings.MATCH_CACHE_TTL_RESULTS, call,
-                                       lambda p: [_fixture_to_dict(f) for f in p.get_results(day, day, due)],
-                                       cost_hint=len(due))
-        except ProviderError as exc:
-            meta.requests += call.requests
-            meta.request_failed = meta.request_failed or call.request_failed
-            meta.not_sent.extend(call.not_sent)
-            meta.errors.extend(call.errors)
-            meta.errors.append(f"results: {exc}")
-            # A deferral is described by the chain's own record of why nothing left (a cool-down,
-            # an allowance), which names the reason; the last error alone would read like a
-            # failure of this call.
-            reason = (f"results: {exc}" if call.request_failed
-                      else "; ".join(call.errors) or f"results: {exc}")
-            outcome = self._note_results_failure(day, due, covered, call, reason, stopped)
-            self.db.commit()
-            return "failed" if outcome is RecoveryOutcome.PROVIDER_ERROR else "deferred"
+        #: Per competition: what its part of the call amounted to, and the error of a request about
+        #: it that went out and got no answer.
+        calls: Dict[str, str] = {}
+        failed: Dict[str, str] = {}
+        #: Why providers were passed over in this call, each reason once and in the order met, and
+        #: the `SyncMeta.not_sent` kinds behind them. A competition nobody answered for is
+        #: recorded with these.
+        noted: List[str] = []
+        declines: List[str] = []
+        kinds: List[str] = []
+        #: Providers this call has reached: asked, declined, failed, or refused before sending.
+        reached: set = set()
+        remaining = list(due)
+        while remaining:
+            asking = remaining
+            chain = [p for p in self.providers if p.name not in reached]
+            if not chain:
+                # Every provider has had its turn in this call and none answered for these.
+                self._note_results_failure(
+                    day, asking, covered, failed,
+                    noted + declines or ["no provider in the chain is left to ask about it"], kinds,
+                    stopped, calls)
+                break
+            call = SyncMeta()
+            asked_by: Dict[str, List[str]] = {}
+            try:
+                payload = self._call_chain(
+                    f"matchdata:results:{RESULTS_SHAPE}:{day.isoformat()}:{','.join(asking)}",
+                    settings.MATCH_CACHE_TTL_RESULTS, call,
+                    self._results_fetch(day, asking, asked_by, reached, failed),
+                    cost_hint=lambda p, asked_by=asked_by, asking=asking: len(asked_by.get(p.name, asking)),
+                    providers=chain)
+            except ProviderError as exc:
+                self._absorb_results_round(meta, call, noted, declines, kinds)
+                if not isinstance(exc, ProviderCannotServe):
+                    meta.errors.append(f"results: {exc}")
+                # A deferral is described by the chain's own record of why nothing left (a
+                # cool-down, an allowance, no provider able to name the competition), which names
+                # the reason; the last error alone would read like a failure of this call.
+                self._note_results_failure(day, asking, covered, failed,
+                                           noted + declines or [f"results: {exc}"], kinds, stopped, calls)
+                break
+            self._absorb_results_round(meta, call, noted, declines, kinds)
+            meta.source, meta.provider, meta.fetched_at, meta.stale = (
+                call.source, call.provider, call.fetched_at, call.stale)
+            meta.results_polled = call.results_polled = True
+            fixtures = [_fixture_from_dict(d) for d in payload.get("fixtures") or []]
+            self._store_fixtures(fixtures, meta)
+            spoke_for = set(payload.get("asked") or [])
+            if call.source == "stale-cache" or not spoke_for & set(asking):
+                # Every provider was passed over and an old copy was served instead. Whatever it
+                # settles is settled; for everything else this is an outage when a request went out
+                # and was not answered, and a deferral when none did.
+                self._note_results_failure(
+                    day, asking, covered, failed,
+                    noted + declines or ["no provider answered; a stored copy was served"], kinds,
+                    stopped, calls, settled_by="the stale-cache copy of the day settled it")
+                break
+            remaining = [key for key in asking if key not in spoke_for]
+            if remaining:
+                # Answered for some and not asked about the rest: those go on down the chain.
+                note = not_served_reason(call.provider or "the provider", remaining)
+                if note not in declines:
+                    declines.append(note)
+                kinds.append("not_served")
+            self._credit_results_answer(day, call, [key for key in asking if key in spoke_for],
+                                        fixtures, covered, stopped, calls)
+        meta.declined.extend(d for d in declines if d not in meta.declined)
+        for key, called in calls.items():
+            self._competition_calls[(key, day.isoformat())] = called
+        self.db.commit()
+        outcomes = set(calls.values())
+        return outcomes.pop() if len(outcomes) == 1 else "mixed"
+
+    def _results_fetch(self, day: date, keys: List[str], asked_by: Dict[str, List[str]],
+                       reached: set, failed: Dict[str, str]):
+        """One round's `fn` for `_call_chain`: ask `provider` about the part of `keys` it can name.
+
+        Notes, for the round's caller, which providers were reached and what each was asked, and
+        which competitions a request that went out and got no answer was about: the ones that
+        provider was asked about, or all of them when it failed before it could say which.
+        """
+        def fetch(provider: MatchDataProvider) -> Dict[str, Any]:
+            reached.add(provider.name)
+            try:
+                asked = self._askable(provider, keys)
+                asked_by[provider.name] = asked
+                fixtures = provider.get_results(day, day, asked)
+            except (ProviderNotConfiguredError, ProviderRequestNotSent):
+                raise  # nothing was sent
+            except ProviderError as exc:
+                for key in asked_by.get(provider.name, keys):
+                    failed[key] = str(exc)
+                raise
+            return {"fixtures": [_fixture_to_dict(f) for f in fixtures], "asked": asked}
+        return fetch
+
+    @staticmethod
+    def _absorb_results_round(meta: SyncMeta, call: SyncMeta, noted: List[str], declines: List[str],
+                              kinds: List[str]) -> None:
+        """Add one round of a results call to the caller's meta: what it spent, whether a request
+        failed, and why providers were passed over - each reason once, however many rounds met it."""
         meta.requests += call.requests
         meta.request_failed = meta.request_failed or call.request_failed
         meta.not_sent.extend(call.not_sent)
-        meta.source, meta.provider, meta.fetched_at, meta.stale = (
-            call.source, call.provider, call.fetched_at, call.stale)
-        meta.errors.extend(call.errors)
-        meta.results_polled = call.results_polled = True
-        fixtures = [_fixture_from_dict(d) for d in payload]
-        self._store_fixtures(fixtures, meta)
-        if call.source == "stale-cache":
-            # Every provider was passed over and an old copy was served instead. Whatever it
-            # settles is settled; for everything else this is an outage when a request went out and
-            # was not answered, and a deferral when none did.
-            reason = "; ".join(call.errors) or "no provider answered; a stored copy was served"
-            outcome = self._note_results_failure(day, due, covered, call, reason, stopped)
-            self.db.commit()
-            return "failed" if outcome is RecoveryOutcome.PROVIDER_ERROR else "deferred"
+        kinds.extend(call.not_sent)
+        for error in call.errors:
+            if error not in noted:
+                noted.append(error)
+                meta.errors.append(error)
+        for decline in call.declined:
+            if decline not in declines:
+                declines.append(decline)
+
+    def _credit_results_answer(self, day: date, call: SyncMeta, keys: List[str],
+                               fixtures: List[ProviderFixture], covered: Dict[Any, Tuple[Match, str]],
+                               stopped: set, calls: Dict[str, str]) -> None:
+        """Write down what an answer said about the competitions it was asked about, and only those."""
         observed: Dict[str, Dict[str, Any]] = {}
         if call.source == "provider":
-            counts = {key: 0 for key in due}
+            counts = {key: 0 for key in keys}
             for fixture in fixtures:
                 comp_key = getattr(fixture.competition, "key", None)
                 if comp_key in counts:
                     counts[comp_key] += 1
-            for key in due:
+            for key in keys:
                 entry = self.registry.record_archive_observation(
                     key, day, counts[key], provider=call.provider, asked_at=self.now)
                 observed[key] = self._archive_summary(entry)
                 self._archive_seen[(key, day.isoformat())] = observed[key]
+        for key in keys:
+            calls[key] = "answered" if call.source == "provider" else "cached"
+        answered_for = set(keys)
         for match, key in covered.values():
+            if key not in answered_for:
+                continue
             settled_now = is_settled(match.status)
             if match.id in stopped and not settled_now:
                 continue
@@ -925,8 +1108,6 @@ class MatchDataService:
                           f"{archive['rows']} row(s), none of them a result for this match")
             self.registry.record_recovery_outcome(match, outcome, detail, self.now, archive=archive)
             self._written.add(match.id)
-        self.db.commit()
-        return "answered" if call.source == "provider" else "cached"
 
     @staticmethod
     def _archive_summary(entry: Dict[str, Any]) -> Dict[str, Any]:
@@ -939,42 +1120,52 @@ class MatchDataService:
                 f"nothing was learned; it stays due")
 
     def _note_results_failure(self, day: date, keys: List[str],
-                              covered: Dict[Any, Tuple[Match, str]], call: SyncMeta, reason: str,
-                              stopped: set) -> RecoveryOutcome:
-        """A results call nobody answered: note it per competition and per fixture, as what it was.
+                              covered: Dict[Any, Tuple[Match, str]], failed: Dict[str, str],
+                              reasons: List[str], kinds: List[str], stopped: set,
+                              calls: Dict[str, str],
+                              settled_by: str = "an answer this call received settled it") -> None:
+        """Competitions of a results call nobody answered for: note each, and each fixture, as what it was.
 
-        Two different things arrive here and they are written down differently:
+        Two different things arrive here and they are written down differently, per competition:
 
-        * PROVIDER_ERROR - a request went out and no provider answered it (`call.request_failed`).
-          That is an outage. It is noted per competition beside the archive's state, and counted
-          on each fixture as a provider error.
-        * DEFERRED - no request went out at all: our own allowance refused it before it left, or
-          every provider was cooling down after a failure elsewhere. Nothing was unreachable, so
-          nothing is noted about the archive, and each fixture's due ask is recorded as deferred.
+        * PROVIDER_ERROR - a request about the competition went out and no provider answered it
+          (`failed`). That is an outage. It is noted beside the archive's state for that
+          competition and date, and counted on each of its fixtures as a provider error.
+        * DEFERRED - no request about it went out at all: our own allowance refused it before it
+          left, every provider that could name it was cooling down after a failure elsewhere, or
+          none in the chain can name it. Nothing was unreachable, so nothing is noted about the
+          archive, and each fixture's due ask is recorded as deferred, with `reasons` and the
+          `kinds` behind them.
 
-        Returns which of the two it was.
+        `settled_by` is what a fixture this call settled anyway - from a stale copy, or from an
+        answer for the rest of the call - is credited to.
         """
-        outcome = RecoveryOutcome.PROVIDER_ERROR if call.request_failed else RecoveryOutcome.DEFERRED
-        detail = reason if outcome is RecoveryOutcome.PROVIDER_ERROR else self._not_sent_detail(reason)
-        because = sorted(set(call.not_sent)) if outcome is RecoveryOutcome.DEFERRED else None
-        if outcome is RecoveryOutcome.PROVIDER_ERROR:
-            for key in keys:
-                self.registry.record_archive_failure(key, day, reason, at=self.now)
-        for match_id, (match, _key) in covered.items():
+        detail = self._not_sent_detail("; ".join(reasons))
+        because = sorted(set(kinds)) or None
+        for key in keys:
+            calls[key] = "failed" if key in failed else "deferred"
+            if key in failed:
+                self.registry.record_archive_failure(key, day, f"results: {failed[key]}", at=self.now)
+        for match_id, (match, key) in covered.items():
+            if key not in keys:
+                continue
             if match_id in stopped and not is_settled(match.status):
                 continue
             if is_settled(match.status):
                 if recovery_state_of(match):
-                    settled = "the stale-cache copy of the day settled it"
-                    self.registry.record_recovery_outcome(match, RecoveryOutcome.RECOVERED, settled, self.now)
+                    self.registry.record_recovery_outcome(match, RecoveryOutcome.RECOVERED, settled_by, self.now)
                     self._written.add(match.id)
-                self._outcomes[match.id] = (RecoveryOutcome.RECOVERED, "the stale-cache copy of the day settled it")
+                self._outcomes[match.id] = (RecoveryOutcome.RECOVERED, settled_by)
                 continue
-            self.registry.record_recovery_outcome(match, outcome, detail, self.now,
-                                                  deferred_because=because)
-            self._outcomes[match.id] = (outcome, detail)
+            if key in failed:
+                outcome, said = RecoveryOutcome.PROVIDER_ERROR, f"results: {failed[key]}"
+                self.registry.record_recovery_outcome(match, outcome, said, self.now)
+            else:
+                outcome, said = RecoveryOutcome.DEFERRED, detail
+                self.registry.record_recovery_outcome(match, outcome, said, self.now,
+                                                      deferred_because=because)
+            self._outcomes[match.id] = (outcome, said)
             self._written.add(match.id)
-        return outcome
 
     def _live_window_open(self) -> bool:
         """Whether any covered match is being played right now, give or take the window.
@@ -1133,9 +1324,9 @@ class MatchDataService:
         - the provider answered for its competition and day without a result for it - is an
         attempt. PROVIDER_ERROR is a request that went out and that nobody answered, and is
         reported as a failure of the pass (`failed_calls`); DEFERRED is a due ask for which no
-        request was made - an allowance could not cover it, or the provider was cooling down after
-        a failure; NOT_ASKED is a fixture nothing was due for. None of those three spends an
-        attempt or retires anything.
+        request was made - an allowance could not cover it, the provider was cooling down after
+        a failure, or no provider in the chain can name its competition; NOT_ASKED is a fixture
+        nothing was due for. None of those three spends an attempt or retires anything.
 
         `days` and `stranded` are for a caller that has already made the selection and wants this
         exact pass over it; left out, the pass selects its own.
@@ -1143,6 +1334,7 @@ class MatchDataService:
         now = self.now
         league_ids = self.league_ids()
         self._outcomes, self._written, self._archive_seen = {}, set(), {}
+        self._competition_calls = {}
         relisted = self.registry.retire_relisted(now, league_ids)
         undone = self.registry.undo_superseded_stops(now, league_ids)
         reopened = self.registry.reopen_retired(now, league_ids)
@@ -1214,14 +1406,18 @@ class MatchDataService:
             spent = meta.requests
             allowance -= spent
             report["results_requests"] += spent
+            # One call can end differently for different competitions - answered for one, nobody
+            # able to name another - so what is reported per competition is what each got.
+            calls = {key: self._competition_calls[(key, day.isoformat())] for key in take
+                     if (key, day.isoformat()) in self._competition_calls}
             report["days"][day.isoformat()] = {**meta.to_dict(), "competitions": len(take),
-                                               "call": called}
+                                               "call": called, "calls": calls}
             report["errors"].extend(meta.errors)
-            if called == "failed":
+            if "failed" in calls.values():
                 report["failed_calls"].append(f"results {day.isoformat()}: "
                                               + ("; ".join(meta.errors) or "no provider answered"))
-            elif called == "deferred":
-                report["deferred"].extend(f"{key}@{day.isoformat()}" for key in take)
+            report["deferred"].extend(f"{key}@{day.isoformat()}" for key, outcome in calls.items()
+                                      if outcome == "deferred")
         note_recovery_requests(self.cache, now, report["results_requests"])
         reopened_ids = {m.id for m in reopened}
         undone_ids = {m.id for m in undone}
@@ -1484,7 +1680,8 @@ class MatchDataService:
         cache_key = f"matchdata:upcoming:{key}:{days_ahead}"
         try:
             payload = self._call_chain(cache_key, settings.MATCH_CACHE_TTL_FIXTURES * 4, meta,
-                                       lambda p: [_fixture_to_dict(f) for f in p.get_upcoming(key, days_ahead)])
+                                       lambda p: [_fixture_to_dict(f) for f in p.get_upcoming(
+                                           self._askable(p, [key])[0], days_ahead)])
         except ProviderError as exc:
             meta.errors.append(str(exc))
             return meta
@@ -1872,7 +2069,7 @@ class MatchDataService:
         cache_key = f"matchdata:standings:{key}"
 
         def serial(p: MatchDataProvider):
-            rows = p.get_standings(key)
+            rows = p.get_standings(self._askable(p, [key])[0])
             return [{"position": r.position, "team": {"provider": r.team.provider, "external_id": r.team.external_id, "name": r.team.name,
                                                        "logo": r.team.logo},
                      "played": r.played, "won": r.won, "drawn": r.drawn, "lost": r.lost, "goals_for": r.goals_for,

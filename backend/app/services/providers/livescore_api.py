@@ -339,6 +339,19 @@ class LiveScoreAPIProvider(MatchDataProvider):
             logger.warning("Live Score API: could not resolve competition ids for %s", unresolved)
         return [self._competition_cache[k] for k in keys if k in self._competition_cache]
 
+    def askable(self, keys: Iterable[str]) -> List[str]:
+        """The competitions this provider can put an id to - from the registry, an override, or
+        its catalogue - by the same resolution its requests use (`list_competitions`).
+
+        Every covered competition carries a registry id, so with the default ids this answers
+        without a request. A competition it cannot name at all is left out here, as the methods
+        below already leave it out of what they ask: they skip it, and an empty list for it would
+        read as an answer about it.
+        """
+        keys = list(keys)
+        resolved = {comp.key for comp in self.list_competitions(keys)}
+        return [key for key in keys if key in resolved]
+
     def _check_competition_name(self, comp: ProviderCompetition, items: List[Dict[str, Any]]) -> None:
         """Warn when a configured/recorded competition id returns fixtures of a different competition."""
         for item in items[:1]:

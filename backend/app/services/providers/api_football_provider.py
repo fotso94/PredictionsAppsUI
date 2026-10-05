@@ -107,6 +107,12 @@ class APIFootballProvider(_APIFootballBase, MatchDataProvider):
     def _league_id(self, key: str) -> Optional[int]:
         return comps.get(key).api_football_id
 
+    def askable(self, keys: Iterable[str]) -> List[str]:
+        """The competitions the registry gives an API-Football league id: the six club ones, and no
+        national-team competition, none of which has a verified id (see `competitions._national`).
+        The methods below skip the others without sending anything."""
+        return [key for key in keys if self._league_id(key)]
+
     def list_competitions(self, keys: Iterable[str]) -> List[ProviderCompetition]:
         result = []
         for key in keys:

@@ -19,8 +19,8 @@ from app.core.config import settings
 from app.services.providers import competitions as comps
 from app.services.providers.base import (
     STATUS_FINISHED, STATUS_LIVE, STATUS_POSTPONED, STATUS_CANCELLED, STATUS_SCHEDULED,
-    MatchDataProvider, ProviderCompetition, ProviderFixture, ProviderNotConfiguredError,
-    ProviderStanding, ProviderTeam, parse_utc,
+    MatchDataProvider, ProviderCannotServe, ProviderCompetition, ProviderFixture,
+    ProviderNotConfiguredError, ProviderStanding, ProviderTeam, parse_utc,
 )
 from app.services.providers.budget import RequestBudget
 from app.services.providers.http import ProviderHttpClient
@@ -61,6 +61,11 @@ class TheSportsDBProvider(MatchDataProvider):
 
     def is_configured(self) -> bool:
         return bool(self.api_key)
+
+    def askable(self, keys: Iterable[str]) -> List[str]:
+        """The competitions the registry gives a TheSportsDB league id: the six club ones, and no
+        national-team competition. `_events` skips the others without sending anything."""
+        return [key for key in keys if comps.get(key).thesportsdb_id]
 
     def _get(self, path: str, reason: str = "fetch", **params: Any) -> Dict[str, Any]:
         if not self.is_configured():
@@ -123,7 +128,10 @@ class TheSportsDBProvider(MatchDataProvider):
         return fixtures
 
     def get_live(self, keys: Iterable[str]) -> List[ProviderFixture]:
-        return []  # v1 has no livescores
+        # v1 has no live scores, so nothing can be asked. An empty list here would be taken as a
+        # poll that found nothing in play, made by a provider that sent no request.
+        raise ProviderCannotServe(f"{self.name}: not asked for live scores: its v1 API publishes none",
+                                  provider=self.name)
 
     def get_results(self, date_from: date, date_to: date, keys: Iterable[str]) -> List[ProviderFixture]:
         results: List[ProviderFixture] = []

@@ -41,6 +41,25 @@ class ProviderNotConfiguredError(ProviderError):
     """Credentials or mandatory settings are missing."""
 
 
+class ProviderCannotServe(ProviderNotConfiguredError):
+    """This provider cannot be asked about any of the competitions in question: it holds no id
+    that names them in a request (`MatchDataProvider.askable`), so nothing was sent and nothing
+    was learned.
+
+    Raised IN PLACE OF an answer. A provider that skips a competition it has no id for and hands
+    back what it has for the rest returns a list that reads as "asked, and nothing there" about a
+    competition nobody asked about. That is what API-Football and TheSportsDB, which hold no id for
+    any national-team competition, were recorded as "answering" for national-team fixtures on
+    2026-10-02 and from 2026-10-05.
+
+    It is a `ProviderNotConfiguredError` - the provider is not set up for this question - so
+    everything that already treats that as "nothing was sent" keeps doing so: the call chain passes
+    over the provider without a cool-down and without recording a failure against it, because it
+    is not broken and still serves what it does hold, and moves on to the next one.
+    `MatchDataService._call_chain` records it under its own kind, "not_served".
+    """
+
+
 class ProviderAuthError(ProviderError):
     """The provider rejected the credentials (expired trial, wrong key...)."""
 
@@ -319,6 +338,20 @@ class MatchDataProvider(ABC):
 
     @abstractmethod
     def is_configured(self) -> bool: ...
+
+    def askable(self, keys: Iterable[str]) -> List[str]:
+        """The competitions in `keys` this provider can be asked about at all, in the order given.
+
+        A competition is askable when the provider holds an id that names it in a request. The
+        per-competition methods below skip one it holds no id for and return what they have for
+        the rest, so a caller that turns an answer into a statement about each competition - "the
+        archive returned nothing for this one on this day" - must ask only about these, and must
+        not read the answer as speaking for the others: nothing was sent about them.
+
+        The default is every key, which is right for a provider that can name any competition it
+        is handed. A provider whose ids come from a fixed list overrides it.
+        """
+        return list(keys)
 
     @abstractmethod
     def list_competitions(self, keys: Iterable[str]) -> List[ProviderCompetition]:

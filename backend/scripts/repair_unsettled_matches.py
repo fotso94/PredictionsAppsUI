@@ -86,7 +86,7 @@ OUTCOME_REPORT = {
     RecoveryOutcome.FRESH_UNANSWERED: ("fresh, no result", "the provider answered without a result for it: ATTEMPT SPENT"),
     RecoveryOutcome.CACHED: ("cached", "the day came from the store; this pass never asked, no attempt"),
     RecoveryOutcome.PROVIDER_ERROR: ("provider error", "a request went out and nobody answered; no attempt"),
-    RecoveryOutcome.DEFERRED: ("deferred", "due, but no request was made (allowance spent, or provider cooling down); still due, no attempt"),
+    RecoveryOutcome.DEFERRED: ("deferred", "due, but no request was made (allowance spent, provider cooling down, or no provider can name the competition); still due, no attempt"),
     RecoveryOutcome.NOT_ASKED: ("not asked", "nothing was due for it this pass; no attempt"),
 }
 
@@ -194,7 +194,7 @@ def report_outcomes(report: Dict[str, object]) -> None:
     if report.get("live_note"):
         print(f"live poll: {report['live_note']}")
     if report["deferred"]:
-        print(f"deferred by the pass's allowance: {', '.join(report['deferred'])}")
+        print(f"deferred, no request made (see each fixture for why): {', '.join(report['deferred'])}")
     if report.get("failed_calls"):
         print(f"REQUESTS NOBODY ANSWERED (an outage, not an empty archive): "
               f"{'; '.join(report['failed_calls'])}")
