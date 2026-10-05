@@ -162,7 +162,9 @@ def test_too_few_candidates_returns_fewer_legs_and_says_why(db):
 
     nothing = suggest(db, now=NOW, legs=2, min_probability=0.95, markets=["match_result"])
     assert nothing["combinations"] == []
-    assert "no fixture in the window" in nothing["shortfall"]
+    assert nothing["shortfall"].startswith("none of the 4 fixtures in the window qualifies")
+    assert "below the 95% minimum" in nothing["shortfall"]
+    assert [r["reason"] for r in nothing["shortfall_reasons"]] == ["below_threshold", "above_ceiling"]
 
 
 def test_started_stale_and_unforecast_fixtures_are_excluded_and_counted(db):
@@ -245,3 +247,26 @@ def test_a_combination_with_a_draw_no_bet_leg_withholds_the_combined_probability
         assert leg["why"]["probability"] is not None, "each leg's own probability is still shown"
     plain = suggest(db, now=NOW, legs=2, min_probability=0.6, markets=["match_result"])
     assert plain["combinations"][0]["combined_probability"]["value"] == pytest.approx(0.60 * 0.70, abs=1e-6)
+
+
+def test_an_empty_result_is_explained_by_what_emptied_it_not_by_the_probability(db):
+    """Reviewer, 2026-10-05: the page said nothing reached the requested probability while the real
+    cause was 21 fixtures without a forecast and 12 with stale ones."""
+    league = _league(db)
+    base = load("bulgaria_luxembourg")
+    for i in range(3):
+        _fixture(db, league, f"Bare{i}", f"X{i}", NOW + timedelta(days=1, hours=i))                      # no forecast
+    for i in range(2):
+        _fixture(db, league, f"Old{i}", f"Y{i}", NOW + timedelta(days=2, hours=i), base,
+                 home_draw_away=(70, 15, 15), fetched_at=NOW - timedelta(hours=100))                   # stale
+    out = suggest(db, now=NOW, legs=2, min_probability=0.6)
+    assert out["combinations"] == []
+    assert out["pool"]["fixtures_in_window"] == 5
+    assert out["shortfall_reasons"] == [{"reason": "no_forecast", "count": 3}, {"reason": "stale", "count": 2}]
+    assert "3 without a stored forecast" in out["shortfall"]
+    assert "2 with only an out-of-date forecast" in out["shortfall"]
+    assert "probability" not in out["shortfall"] and "minimum" not in out["shortfall"]
+
+    empty_window = suggest(db, now=NOW, legs=2, kickoff_from=NOW + timedelta(days=20), kickoff_to=NOW + timedelta(days=21))
+    assert empty_window["shortfall_reasons"] == [{"reason": "no_fixtures", "count": 0}]
+    assert "no scheduled fixture kicks off" in empty_window["shortfall"]

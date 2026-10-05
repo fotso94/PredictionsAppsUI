@@ -11,6 +11,7 @@ import { footballDataService } from '@/services/football-data.service'
 import { marketTitle, outcomeLabel } from '@/utils/marketLabels'
 import type { League } from '@/types'
 import type { ApiCombination, ApiSuggestedLeg, ApiSuggestions, MarketId } from '@/types/markets'
+import type { MessageKey } from '@/i18n'
 
 /**
  * Suggested combinations: the deterministic service's output, with every leg explained and every
@@ -25,6 +26,18 @@ const MARKET_CHOICES: MarketId[] = [
 const DEFAULT_MARKETS: MarketId[] = MARKET_CHOICES.slice(0, 8)
 
 const percent = (value: number): string => formatPercentValue(value * 100, 0)
+
+/** Why a fixture contributed nothing, in the reader's words. A code this build does not know is skipped. */
+const REASON_KEY: Record<string, MessageKey> = {
+  no_forecast: 'selections.suggest.reason.noForecast',
+  stale: 'selections.suggest.reason.stale',
+  kickoff_passed: 'selections.suggest.reason.kickoffPassed',
+  below_threshold: 'selections.suggest.reason.belowThreshold',
+  above_ceiling: 'selections.suggest.reason.aboveCeiling',
+  odds_filter: 'selections.suggest.reason.oddsFilter',
+  no_available_market: 'selections.suggest.reason.noAvailableMarket',
+  no_settleable_market: 'selections.suggest.reason.noSettleableMarket',
+}
 
 const LegCard: React.FC<{ leg: ApiSuggestedLeg; onAdd: (leg: ApiSuggestedLeg, replace: boolean) => Promise<void>; onSlip: boolean }> = ({ leg, onAdd, onSlip }) => {
   const t = useT()
@@ -225,9 +238,29 @@ const SuggestionsPage: React.FC = () => {
             })}</span>
           </p>
           {result.combinations.length === 0 && (
-            <p className="rounded-lg border border-dark-700 bg-dark-800/60 px-3 py-2 text-sm text-secondary-200" role="status" data-testid="suggest-none">
-              {t('selections.suggest.none', { reason: result.shortfall ?? '' })}
-            </p>
+            result.shortfall_reasons && result.shortfall_reasons.length > 0 ? (
+              <div className="rounded-lg border border-dark-700 bg-dark-800/60 px-3 py-2 text-sm text-secondary-200" role="status" data-testid="suggest-none">
+                {result.shortfall_reasons[0].reason === 'no_fixtures' ? (
+                  <p>{t('selections.suggest.reason.noFixtures')}</p>
+                ) : (
+                  <>
+                    <p>{t('selections.suggest.noneTitle', { considered: result.pool.fixtures_in_window })}</p>
+                    <ul className="mt-1 list-disc pl-5" data-testid="suggest-none-reasons">
+                      {result.shortfall_reasons.filter(r => REASON_KEY[r.reason]).map(r => (
+                        <li key={r.reason} data-reason={r.reason}>{t(REASON_KEY[r.reason], { count: r.count })}</li>
+                      ))}
+                    </ul>
+                    {!includeStale && result.shortfall_reasons.some(r => r.reason === 'stale') && (
+                      <p className="mt-1 text-xs text-secondary-400" data-testid="suggest-stale-hint">{t('selections.suggest.staleHint')}</p>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              <p className="rounded-lg border border-dark-700 bg-dark-800/60 px-3 py-2 text-sm text-secondary-200" role="status" data-testid="suggest-none">
+                {t('selections.suggest.none', { reason: result.shortfall ?? '' })}
+              </p>
+            )
           )}
           {result.combinations.length > 0 && result.shortfall && (
             <p className="text-xs text-warning-200" role="status" data-testid="suggest-shortfall">{t('selections.suggest.shortfall', { reason: result.shortfall })}</p>

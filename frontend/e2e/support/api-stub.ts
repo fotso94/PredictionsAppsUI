@@ -873,13 +873,72 @@ const authHandlers = new WeakMap<Page, AuthHandler>();
 export const registerAuthHandler = (page: Page, handler: AuthHandler): void => { authHandlers.set(page, handler); };
 export const authHandlerFor = (page: Page): AuthHandler | undefined => authHandlers.get(page);
 
+/** A one-pixel PNG: a real image response that costs nothing. */
+export const PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+/**
+ * The providers' image hosts. The captured fixtures point club crests at the live score
+ * provider's CDN; API-Football and TheSportsDB serve theirs from these hosts.
+ */
+export const PROVIDER_IMAGE_HOSTS = /^https:\/\/(cdn\.live-score-api\.com|media\.api-sports\.io|(www\.|r2\.)?thesportsdb\.com)\//;
+
+/** The web font index.html links (Google Fonts): its stylesheet, and the files that names. */
+const WEB_FONT_HOSTS = /^https:\/\/fonts\.(googleapis|gstatic)\.com\//;
+const webFonts = new Map<string, { status: number; headers: Record<string, string>; body: Buffer }>();
+let webFontsUnreachableUntil = 0;
+
+/**
+ * Serve the web font for real, so pages render in the font they ship with, but fetched at most
+ * once per worker and never waited on for long. Left to the browser, a stylesheet the network
+ * did not answer held the page's load event - and every `page.goto` - until the test timed out
+ * (five did at 04:35 UTC on 2026-10-05). When it cannot be fetched now, the page gets an empty
+ * stylesheet and renders in its fallback font: nothing waits, and nothing reads as a failure.
+ */
+async function serveWebFont(route: Route): Promise<void> {
+  const url = route.request().url();
+  let found = webFonts.get(url);
+  if (!found && Date.now() >= webFontsUnreachableUntil) {
+    try {
+      const response = await route.fetch({ timeout: 5_000 });
+      if (response.ok()) {
+        // The body comes back decoded, so the encoding and length it travelled with no longer apply.
+        const headers = Object.fromEntries(Object.entries(response.headers())
+          .filter(([name]) => !['content-encoding', 'content-length', 'transfer-encoding'].includes(name.toLowerCase())));
+        found = { status: response.status(), headers, body: await response.body() };
+        webFonts.set(url, found);
+      }
+    } catch {
+      webFontsUnreachableUntil = Date.now() + 60_000;
+    }
+  }
+  if (found) return route.fulfill(found);
+  const stylesheet = url.startsWith('https://fonts.googleapis.com/');
+  return route.fulfill({
+    status: 200, body: '',
+    headers: { 'content-type': stylesheet ? 'text/css' : 'font/woff2', 'access-control-allow-origin': '*' },
+  });
+}
+
 /**
  * Intercept every backend call. Anything not explicitly modelled answers with an empty, valid
  * shape rather than failing, so a test only ever exercises what it set out to exercise.
+ *
+ * Provider crest images are answered locally too. Left to the real CDN, a slow crest kept the
+ * network busy for up to 17 s after the page had rendered, so a test waiting for the network
+ * to go quiet timed out on some runs and passed on others, for reasons outside the application.
+ * The web font is served through `serveWebFont` for the same reason.
  */
 export async function stubBackend(page: Page, options: StubOptions = {}): Promise<void> {
   const json = (route: Route, body: unknown, status = 200) =>
     route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+
+  await page.route(PROVIDER_IMAGE_HOSTS, route =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: PIXEL_PNG }),
+  );
+  await page.route(WEB_FONT_HOSTS, serveWebFont);
 
   await page.route('**/api/v1/**', async (route: Route, request: Request) => {
     const url = new URL(request.url());

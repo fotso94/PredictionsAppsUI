@@ -59,8 +59,21 @@ KICKOFF_PASSED = (NOW - timedelta(hours=3)).replace(tzinfo=None)
 
 
 def load(name: str) -> dict:
+    """A genuine stored payload, its numbers untouched, re-dated so its model ran yesterday.
+
+    This module runs on the real clock (a leg is refused once its fixture kicks off, and that is
+    judged now), so a payload kept at its captured date - 24 September 2026 - would turn "stale"
+    seventy-two hours later and every freshness assertion here would rot with the calendar.
+    """
     with open(os.path.join(FIXTURES, f"gameforecast_event_{name}.json"), encoding="utf-8") as handle:
-        return json.load(handle)
+        payload = json.load(handle)
+    yesterday = (NOW - timedelta(days=1)).date().isoformat()
+    for prediction in payload.get("predictions") or []:
+        prediction["run_at"] = yesterday
+    payload["updated_at"] = yesterday
+    for entry in payload.get("odds") or []:
+        entry["run_at"] = yesterday
+    return payload
 
 
 # ----------------------------------------------------------------------------- fixtures
@@ -212,7 +225,7 @@ def leg_body(match: Match, selection_id: str, odds=None) -> dict:
 
 # ----------------------------------------------------------------------------- building
 def test_a_slip_copies_the_selection_it_was_taken_from_and_reads_it_back(client, db, as_user):
-    user = as_user(_user(db))
+    as_user(_user(db))
     league = _league(db)
     match = _match(db, league, "Bulgaria", "Luxembourg", KICKOFF_AHEAD)
     _forecast(db, match, load("bulgaria_luxembourg"))

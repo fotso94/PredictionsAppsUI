@@ -112,7 +112,7 @@ const SlipDock: React.FC = () => {
   const location = useLocation()
   const { user, isAuthenticated } = useAuth()
   const slips = useSlips(user?.id ?? null, now)
-  const { active, legs, store, signedIn, handoffRefused } = slips
+  const { active, legs, store, signedIn, handoffRefused, handoffPaused } = slips
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -215,6 +215,9 @@ const SlipDock: React.FC = () => {
             <p className="mb-2 text-xs text-warning-200" role="status" data-testid="slip-dock-handoff">
               {t('selections.dock.handoffRefused', { count: handoffRefused.length, reasons: handoffRefused.map(r => r.reason).join('; ') })}
             </p>
+          )}
+          {handoffPaused && (
+            <p className="mb-2 text-xs text-warning-200" role="status" data-testid="slip-dock-handoff-paused">{t('selections.dock.handoffPaused')}</p>
           )}
           {notice && <p className="mb-2 text-xs text-primary-300" role="status" data-testid="slip-dock-notice">{notice}</p>}
           {error && <p className="mb-2 text-xs text-danger-300" role="alert" data-testid="slip-dock-error">{t('selections.dock.error', { reason: error })}</p>}

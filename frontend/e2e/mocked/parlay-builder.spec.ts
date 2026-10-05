@@ -151,6 +151,24 @@ class SlipWorld {
   /** When set, the next leg-creating write waits on it before answering (a slow server). */
   holdNextLegWrite: Promise<void> | null = null;
 
+  /** When set, the held write answers with this status instead of succeeding. */
+  failHeldWith: number | null = null;
+
+  /** The next leg added to an existing slip is refused with this status, and NOT applied. */
+  failNextLegAdd: number | null = null;
+
+  /** The next leg added to an existing slip IS applied, and the answer then fails with this status (a lost answer). */
+  applyThenFailNextLegAdd: number | null = null;
+
+  /** The next slip CREATE is refused with this status, and NOT applied. */
+  failNextCreate: number | null = null;
+
+  /** The next slip CREATE IS applied, and the answer then fails with this status (a lost answer). */
+  applyThenFailNextCreate: number | null = null;
+
+  /** Every slip write the server received: whose credential it carried, and what it held. */
+  writes: Array<{ owner: string; method: string; path: string; matchIds: string[] }> = [];
+
   /** Selection ids the server refuses in a PUT replacement (a forecast that moved between page and click). */
   refuseReplacement = new Set<string>();
 
@@ -215,12 +233,10 @@ const json = (route: Route, body: unknown, status = 200) =>
 /** The markets, suggestions and slips endpoints, on top of stubBackend(). */
 async function stubSelections(page: Page, world: SlipWorld, options: {
   envelopes: Record<string, Json>; matches: ApiMatch[]; suggestions?: Json; staleSuggestions?: Json; clock?: () => Date;
-  /** Who is signed in, for a world with more than one reader; the default world has one. */
-  owner?: () => string | null;
+  /** Whose request this is, for a world with more than one reader; the default world has one. */
+  owner?: (request: Request) => string | null;
 }): Promise<void> {
   const now = () => options.clock?.() ?? START;
-  const ownerNow = () => options.owner?.() ?? 'the-reader';
-  const mine = () => world.slips.filter(s => (s.owner ?? 'the-reader') === ownerNow());
   await stubBackend(page, {
     day: (date) => dayPayload(date, options.matches),
     matchById: (id) => options.matches.find(m => m.id === id) ?? matchDetail(id),
@@ -255,7 +271,13 @@ async function stubSelections(page: Page, world: SlipWorld, options: {
       if (request.method() !== 'GET') world.slipWrites += 1;
       const body = request.postDataJSON?.() as Json | null;
       const parts = path.split('/').filter(Boolean); // me, slips, id?, legs?, legId?
-      const owner = ownerNow();
+      // Whose request this is is decided when it ARRIVES, from what it carries - as on the server.
+      const owner = options.owner?.(request) ?? 'the-reader';
+      const mine = () => world.slips.filter(s => (s.owner ?? 'the-reader') === owner);
+      if (request.method() !== 'GET') {
+        const legInputs = ((body?.legs as Json[] | undefined) ?? (body?.match_id ? [body] : []));
+        world.writes.push({ owner, method: request.method(), path, matchIds: legInputs.map(l => String(l.match_id)) });
+      }
       const slip = parts[2] ? mine().find(s => s.id === parts[2]) : undefined;
       const findMatch = (id: string) => options.matches.find(m => m.id === id);
       const addLeg = (target: StoredSlip, input: Json): Json | null => {
@@ -276,13 +298,18 @@ async function stubSelections(page: Page, world: SlipWorld, options: {
       }
       if (path === '/me/slips' && request.method() === 'POST') {
         // A slow server: the write belongs to whoever sent it, whatever happens on screen meanwhile.
-        if (world.holdNextLegWrite) { const held = world.holdNextLegWrite; world.holdNextLegWrite = null; await held; }
+        if (world.holdNextLegWrite) {
+          const held = world.holdNextLegWrite; world.holdNextLegWrite = null; await held;
+          if (world.failHeldWith) { const status = world.failHeldWith; world.failHeldWith = null; return json(route, { detail: 'Simulated failure' }, status); }
+        }
+        if (world.failNextCreate) { const status = world.failNextCreate; world.failNextCreate = null; return json(route, { detail: 'Simulated failure' }, status); }
         const created: StoredSlip = { owner, id: world.next('slip'), name: (body?.name as string | null) ?? null, status: 'draft', note: null, currency: null, stake: null, price: null, recorded_at: null, recorded_reference: null, legs: [] };
         for (const input of (body?.legs as Json[] | undefined) ?? []) {
           const refused = addLeg(created, input);
           if (refused) return json(route, { detail: refused.detail }, refused.status as number);
         }
         world.slips.unshift(created);
+        if (world.applyThenFailNextCreate) { const status = world.applyThenFailNextCreate; world.applyThenFailNextCreate = null; return json(route, { detail: 'Simulated lost answer' }, status); }
         return json(route, world.serialize(created, now()), 201);
       }
       if (!slip) return json(route, { detail: { message: 'slip not found', code: 'not_found' } }, 404);
@@ -300,9 +327,14 @@ async function stubSelections(page: Page, world: SlipWorld, options: {
         return route.fulfill({ status: 204, body: '' });
       }
       if (parts[3] === 'legs' && parts.length === 4 && request.method() === 'POST') {
-        if (world.holdNextLegWrite) { const held = world.holdNextLegWrite; world.holdNextLegWrite = null; await held; }
+        if (world.holdNextLegWrite) {
+          const held = world.holdNextLegWrite; world.holdNextLegWrite = null; await held;
+          if (world.failHeldWith) { const status = world.failHeldWith; world.failHeldWith = null; return json(route, { detail: 'Simulated failure' }, status); }
+        }
+        if (world.failNextLegAdd) { const status = world.failNextLegAdd; world.failNextLegAdd = null; return json(route, { detail: 'Simulated failure' }, status); }
         const refused = addLeg(slip, body ?? {});
         if (refused) return json(route, { detail: refused.detail }, refused.status as number);
+        if (world.applyThenFailNextLegAdd) { const status = world.applyThenFailNextLegAdd; world.applyThenFailNextLegAdd = null; return json(route, { detail: 'Simulated lost answer' }, status); }
         return json(route, world.serialize(slip, now()), 201);
       }
       if (parts[3] === 'legs' && parts.length === 5) {
@@ -655,6 +687,39 @@ async function twoAccounts(page: Page): Promise<{ current: () => string | null }
   return { current: () => current?.email ?? null };
 }
 
+/**
+ * Two people, each with their own credential, and a server that decides whose request it is by
+ * the token the request carries - as the real one does. Nobody is signed in at the start.
+ */
+async function tokenAccounts(page: Page): Promise<{ ownerOf: (request: Request) => string | null; A: BackendUser; B: BackendUser }> {
+  const A = regularUser({ user_id: '00000000-0000-4000-8000-0000000000aa', email: 'a@predictions-local.dev', full_name: 'Reader A' });
+  const B = regularUser({ user_id: '00000000-0000-4000-8000-0000000000bb', email: 'b@predictions-local.dev', full_name: 'Reader B' });
+  const byToken = new Map<string, BackendUser>([['e2e-token-a', A], ['e2e-token-b', B]]);
+  const ownerOf = (request: Request): string | null => {
+    const header = request.headers()['authorization'] ?? '';
+    return byToken.get(header.replace(/^Bearer\s+/i, ''))?.email ?? null;
+  };
+  const handler = async (route: Route, request: Request) => {
+    const path = new URL(request.url()).pathname.replace(/^\/api\/v1\/auth/, '');
+    if (path === '/me') {
+      const who = byToken.get((request.headers()['authorization'] ?? '').replace(/^Bearer\s+/i, ''));
+      return who ? json(route, who) : json(route, { detail: 'Not authenticated' }, 401);
+    }
+    if (path === '/login') {
+      const body = request.postDataJSON() as { email?: string };
+      const who = body.email === B.email ? B : A;
+      const token = who === A ? 'e2e-token-a' : 'e2e-token-b';
+      return json(route, { access_token: token, refresh_token: `${token}-refresh`, token_type: 'bearer', user: who });
+    }
+    if (path === '/logout') return json(route, { message: 'Logged out successfully' });
+    if (path === '/refresh') return json(route, { detail: 'Invalid refresh token' }, 401);
+    return json(route, { detail: 'Not found' }, 404);
+  };
+  registerAuthHandler(page, handler);
+  await page.route('**/api/v1/auth/**', handler);
+  return { ownerOf, A, B };
+}
+
 async function signOutThroughTheHeader(page: Page): Promise<void> {
   const accountMenu = page.locator('header button[aria-haspopup]').last();
   await accountMenu.click();
@@ -675,7 +740,7 @@ test('mocked: a slip write that lands after the account changed does not reach t
   const match = bulgaria();
   await fixClock(page);
   const accounts = await twoAccounts(page);
-  await stubSelections(page, world, { envelopes: { [match.id]: envelope(match.id) }, matches: [match, armenia()], owner: accounts.current });
+  await stubSelections(page, world, { envelopes: { [match.id]: envelope(match.id) }, matches: [match, armenia()], owner: () => accounts.current() });
   let release: () => void = () => {};
   world.holdNextLegWrite = new Promise<void>(resolve => { release = resolve; });
 
@@ -710,6 +775,155 @@ test('mocked: a slip write that lands after the account changed does not reach t
   await expect(page.getByTestId('slip-dock').getByTestId('slip-leg')).toHaveCount(0);
   await expect(page.locator('main')).not.toContainText('Bulgaria');
 });
+
+/** Build a two-leg browser draft while signed out, then go to the sign-in form. */
+async function draftThenLogin(page: Page, first: ApiMatch, second: ApiMatch): Promise<void> {
+  await page.goto(`/match/${first.id}`);
+  await selectionRow(page, 'match_result:home').getByTestId('selection-add').click();
+  await page.goto(`/match/${second.id}`);
+  await selectionRow(page, 'both_teams_score:no').getByTestId('selection-add').click();
+  await expect(page.getByTestId('slip-dock-count')).toHaveText('2');
+  await page.goto('/login');
+}
+
+const transferKeyFor = (userId: string) => `selections.transfer.v1.${userId}`;
+
+for (const firstAnswer of [503, 201] as const) {
+  test(`mocked: a draft transfer whose first request ${firstAnswer === 503 ? 'fails' : 'succeeds'} while the account changes never sends a selection under the new account`, async ({ page }) => {
+    const world = new SlipWorld();
+    const first = bulgaria();
+    const second = armenia();
+    await fixClock(page);
+    const accounts = await tokenAccounts(page);
+    await stubSelections(page, world, { envelopes: { [first.id]: envelope(first.id), [second.id]: envelope(second.id) },
+      matches: [first, second], owner: accounts.ownerOf });
+
+    await draftThenLogin(page, first, second);
+    let release: () => void = () => {};
+    world.holdNextLegWrite = new Promise<void>(resolve => { release = resolve; });
+    if (firstAnswer === 503) world.failHeldWith = 503;
+
+    // A signs in; the transfer's first request leaves, carrying A's credential, and is held.
+    await signInThroughTheForm(page, accounts.A.email);
+    await expect.poll(() => world.writes.length, 'the first transfer request must be on the wire').toBe(1);
+    expect(world.writes[0].owner).toBe(accounts.A.email);
+
+    // B signs in on the same machine while it is held; then the held request answers.
+    await signOutThroughTheHeader(page);
+    await signInThroughTheForm(page, accounts.B.email);
+    release();
+    await page.waitForTimeout(800);
+
+    expect(world.writes.filter(w => w.owner !== accounts.A.email),
+      'not one write may carry the new account\'s credential').toEqual([]);
+    expect(world.slips.filter(s => s.owner === accounts.B.email), 'B holds nothing').toHaveLength(0);
+    await expect(page.getByTestId('slip-dock-count')).toHaveText('0');
+
+    // What A's transfer did not deliver is kept for A, and only for A.
+    const pending = await page.evaluate(key => JSON.parse(localStorage.getItem(key) ?? '{"legs":[]}').legs.map((l: { match: { id: string } }) => l.match.id),
+      transferKeyFor(accounts.A.user_id));
+    const delivered = world.slips.filter(s => s.owner === accounts.A.email).flatMap(s => s.legs.map(l => l.match.id));
+    expect([...delivered, ...pending].sort(), 'every selection is either with A or kept for A').toEqual([first.id, second.id].sort());
+    expect(firstAnswer === 503 ? pending.length : delivered.length).toBeGreaterThan(0);
+    expect(await page.evaluate(key => localStorage.getItem(key), transferKeyFor(accounts.B.user_id))).toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem('selections.draft.v1')), 'the shared draft was claimed by A').toBeNull();
+
+    // A comes back: the rest of A's transfer goes to A, and B is still untouched.
+    await signOutThroughTheHeader(page);
+    await signInThroughTheForm(page, accounts.A.email);
+    await expect.poll(() => world.slips.filter(s => s.owner === accounts.A.email).flatMap(s => s.legs.map(l => l.match.id)).sort(),
+      'A ends with both selections').toEqual([first.id, second.id].sort());
+    expect(await page.evaluate(key => localStorage.getItem(key), transferKeyFor(accounts.A.user_id)), 'nothing left pending').toBeNull();
+    expect(world.writes.filter(w => w.owner !== accounts.A.email)).toEqual([]);
+    expect(world.slips.filter(s => s.owner === accounts.B.email)).toHaveLength(0);
+  });
+}
+
+for (const failure of ['refused', 'answer lost'] as const) {
+  test(`mocked: a transfer whose second leg fails (${failure}) completes the SAME slip after a reload, with no duplicate`, async ({ page }) => {
+    const world = new SlipWorld();
+    const first = bulgaria();
+    const second = armenia();
+    await fixClock(page);
+    const accounts = await tokenAccounts(page);
+    await stubSelections(page, world, { envelopes: { [first.id]: envelope(first.id), [second.id]: envelope(second.id) },
+      matches: [first, second], owner: accounts.ownerOf });
+    await draftThenLogin(page, first, second);
+    if (failure === 'refused') world.failNextLegAdd = 503;
+    else world.applyThenFailNextLegAdd = 503;
+
+    // A signs in: the first leg creates the slip; the second fails on the wire.
+    await signInThroughTheForm(page, accounts.A.email);
+    await expect.poll(() => world.writes.length, 'two transfer writes').toBe(2);
+    const slipsOfA = () => world.slips.filter(s => s.owner === accounts.A.email);
+    expect(slipsOfA()).toHaveLength(1);
+    const destination = slipsOfA()[0].id;
+    const pending = await page.evaluate(key => JSON.parse(localStorage.getItem(key) ?? 'null'), transferKeyFor(accounts.A.user_id));
+    expect(pending?.slipId, 'the destination is remembered with what is left').toBe(destination);
+    expect(pending?.legs.map((l: { match: { id: string } }) => l.match.id)).toEqual([second.id]);
+    await page.getByTestId('slip-dock-toggle').click();
+    await expect(page.getByTestId('slip-dock-handoff-paused')).toBeVisible();
+
+    // The reader reloads. The transfer resumes into the same slip: one more write, to that slip.
+    await page.reload();
+    await expect.poll(() => world.writes.length, 'the resumed transfer sends its one remaining leg').toBe(3);
+    expect(world.writes[2]).toMatchObject({ owner: accounts.A.email, method: 'POST', path: `/me/slips/${destination}/legs` });
+    await expect.poll(() => page.evaluate(key => localStorage.getItem(key), transferKeyFor(accounts.A.user_id)),
+      'the pending record clears once the leg is known to be on the slip').toBeNull();
+    await expect.poll(() => slipsOfA().flatMap(s => s.legs.map(l => l.match.id)).sort(), 'both selections on A\'s slips')
+      .toEqual([first.id, second.id].sort());
+    expect(slipsOfA(), 'one slip, not a second one for the rest of the draft').toHaveLength(1);
+    expect(slipsOfA()[0].id).toBe(destination);
+    expect(slipsOfA()[0].legs.map(l => l.match.id)).toEqual([first.id, second.id]);
+    expect(await page.evaluate(key => localStorage.getItem(key), transferKeyFor(accounts.A.user_id)), 'nothing left pending').toBeNull();
+    expect(world.writes.filter(w => w.method === 'POST' && w.path === '/me/slips'), 'the slip was created exactly once').toHaveLength(1);
+    await page.getByTestId('slip-dock-toggle').click();
+    await expect(page.getByTestId('slip-dock-handoff'), 'nothing is reported as refused').toHaveCount(0);
+    await expect(page.getByTestId('slip-dock-count')).toHaveText('2');
+  });
+}
+
+for (const failure of ['refused', 'answer lost'] as const) {
+  test(`mocked: a transfer whose FIRST request fails (${failure}) ends in one slip after a reload, never two`, async ({ page }) => {
+    const world = new SlipWorld();
+    const first = bulgaria();
+    const second = armenia();
+    await fixClock(page);
+    const accounts = await tokenAccounts(page);
+    await stubSelections(page, world, { envelopes: { [first.id]: envelope(first.id), [second.id]: envelope(second.id) },
+      matches: [first, second], owner: accounts.ownerOf });
+    await draftThenLogin(page, first, second);
+    if (failure === 'refused') world.failNextCreate = 503;
+    else world.applyThenFailNextCreate = 503;
+
+    // A signs in: the request that creates the slip fails on the wire, before or after the server
+    // applied it. Either way the browser never learns the new slip's id.
+    await signInThroughTheForm(page, accounts.A.email);
+    await expect.poll(() => world.writes.length, 'the creating request was sent').toBe(1);
+    const slipsOfA = () => world.slips.filter(s => s.owner === accounts.A.email);
+    expect(slipsOfA()).toHaveLength(failure === 'refused' ? 0 : 1);
+    await page.getByTestId('slip-dock-toggle').click();
+    await expect(page.getByTestId('slip-dock-handoff-paused')).toBeVisible();
+    const pending = await page.evaluate(key => JSON.parse(localStorage.getItem(key) ?? 'null'), transferKeyFor(accounts.A.user_id));
+    expect(pending?.slipId ?? null, 'no destination is known: its answer never arrived').toBeNull();
+    expect(pending?.legs.map((l: { match: { id: string } }) => l.match.id)).toEqual([first.id, second.id]);
+
+    // The reader reloads. Whichever way the request went, A ends with ONE slip holding both.
+    await page.reload();
+    await expect.poll(() => page.evaluate(key => localStorage.getItem(key), transferKeyFor(accounts.A.user_id)),
+      'the transfer completes').toBeNull();
+    await expect.poll(() => slipsOfA().flatMap(s => s.legs.map(l => l.match.id)), 'both selections, in order, on one slip')
+      .toEqual([first.id, second.id]);
+    expect(slipsOfA(), 'one slip, not a second one for the same draft').toHaveLength(1);
+    // After a lost answer the first request DID create the slip: it is found and filled, never created again.
+    expect(world.writes.filter(w => w.method === 'POST' && w.path === '/me/slips'), 'creating requests sent')
+      .toHaveLength(failure === 'refused' ? 2 : 1);
+    expect(world.writes.filter(w => w.owner !== accounts.A.email)).toEqual([]);
+    await page.getByTestId('slip-dock-toggle').click();
+    await expect(page.getByTestId('slip-dock-handoff'), 'nothing is reported as refused').toHaveCount(0);
+    await expect(page.getByTestId('slip-dock-count')).toHaveText('2');
+  });
+}
 
 test('mocked: a refused replacement leaves the original selection on the slip', async ({ page }) => {
   const world = new SlipWorld();
@@ -805,6 +1019,29 @@ test('mocked: a void selection shows the recorded price and the effective one, a
   await expect(typed.getByTestId('history-potential-withheld')).toContainText('cannot be computed');
   await expect(typed).not.toContainText('6500');
 });
+
+for (const language of ['en', 'fr'] as const) {
+  test(`[${language}] mocked: an empty suggestion result names its real cause, not the probability`, async ({ page }) => {
+    const world = new SlipWorld();
+    await page.addInitScript((lang: string) => { try { localStorage.setItem('sp.language.v1', lang); } catch { /* ignore */ } }, language);
+    await fixClock(page);
+    await stubSelections(page, world, { envelopes: {}, matches: [bulgaria()], suggestions: {
+      generated_at: START.toISOString(), rules: {}, combinations: [],
+      pool: { fixtures_in_window: 33, qualifying: 0, excluded: { no_forecast: 21, stale: 12, kickoff_passed: 0, no_available_market: 0, no_settleable_market: 0, odds_filter: 0, above_ceiling: 0, below_threshold: 0 } },
+      shortfall: 'none of the 33 fixtures in the window qualifies: 21 without a stored forecast; 12 with only an out-of-date forecast (left out unless out-of-date forecasts are included)',
+      shortfall_reasons: [{ reason: 'no_forecast', count: 21 }, { reason: 'stale', count: 12 }],
+    } });
+    await page.goto('/selections/suggestions');
+    const none = page.getByTestId('suggest-none');
+    await expect(none).toContainText(say(language, 'selections.suggest.noneTitle', { considered: 33 }));
+    await expect(none.locator('[data-reason="no_forecast"]')).toHaveText(say(language, 'selections.suggest.reason.noForecast', { count: 21 }));
+    await expect(none.locator('[data-reason="stale"]')).toHaveText(say(language, 'selections.suggest.reason.stale', { count: 12 }));
+    await expect(none.getByTestId('suggest-stale-hint')).toHaveText(say(language, 'selections.suggest.staleHint'));
+    const text = await none.innerText();
+    expect(text, 'the probability is not the reason').not.toMatch(/minimum|minimale|probability at or above/i);
+    expect(text).not.toContain('none of the 33 fixtures');
+  });
+}
 
 test('mocked: a draw-no-bet selection withholds the combined chance and keeps each leg\'s own', async ({ page }) => {
   const world = new SlipWorld();

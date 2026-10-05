@@ -89,9 +89,17 @@ async function finishedFixture(api: APIRequestContext): Promise<JourneyFixture |
  * beyond it is deliberately NOT in the feed. Looking further than the feed reaches would produce
  * a test that fails for the one reason that is not a defect.
  */
+/**
+ * A fixture that has not kicked off. "Scheduled" alone is not enough: a stored status is the last
+ * thing a provider said, and a fixture whose result never arrived keeps saying "scheduled" after its
+ * kickoff (2026-10-05: Costa Rica v Haiti, 00:00 UTC, while the results source refused us). The feed
+ * rightly files that one under "awaiting a result", not "upcoming", so the kickoff must be ahead.
+ */
 async function upcomingFixture(api: APIRequestContext): Promise<JourneyFixture | null> {
+  const soon = Date.now() + 30 * 60 * 1000;
   for (let offset = 0; offset < 7; offset += 1) {
-    const match = (await fixturesOn(api, dayOffsetUtc(offset))).find(entry => entry.status === 'scheduled');
+    const match = (await fixturesOn(api, dayOffsetUtc(offset)))
+      .find(entry => entry.status === 'scheduled' && Date.parse(entry.kickoff_utc) > soon);
     if (match) return match;
   }
   return null;

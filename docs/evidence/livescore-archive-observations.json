@@ -196,5 +196,278 @@
       "finding": "3 rows in total: 2 FINISHED at FT, 1 IN PLAY at minute 79; every row has date null"
     }
   ],
-  "live_feed_caveat": "Two observations of one feed on one evening. They show what it carried at those moments, not how long the provider retains a finished match. The provider's own documentation describes finished matches remaining in the live feed after full time, with inconsistent durations; that is a question for the provider."
+  "live_feed_caveat": "Two observations of one feed on one evening. They show what it carried at those moments, not how long the provider retains a finished match. The provider's own documentation describes finished matches remaining in the live feed after full time, with inconsistent durations; that is a question for the provider.",
+  "recorded_by_the_application": {
+    "captured_at": "2026-10-05T03:15:00Z",
+    "source": "predictions.leagues.league_metadata.archive_observations, as the recovery and results tasks recorded them",
+    "note": "One entry per competition and match date: what the archive answered the LAST time it was asked, how many times it was asked, and which provider in the chain answered. 'empty' is an answer with no rows.",
+    "observations": [
+      {
+        "competition": "Africa Cup of Nations Qualifications",
+        "match_date": "2026-09-24",
+        "state": "answered",
+        "rows": 8,
+        "first_asked_at": "2026-09-25T16:49:04.812772+00:00",
+        "last_asked_at": "2026-09-26T23:30:37.065011+00:00",
+        "times_asked": 6,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "Africa Cup of Nations Qualifications",
+        "match_date": "2026-09-25",
+        "state": "empty",
+        "rows": 0,
+        "first_asked_at": "2026-09-25T21:53:51.987276+00:00",
+        "last_asked_at": "2026-10-02T08:12:01.530199+00:00",
+        "times_asked": 30,
+        "answered_by": "api_football"
+      },
+      {
+        "competition": "Africa Cup of Nations Qualifications",
+        "match_date": "2026-09-28",
+        "state": "answered",
+        "rows": 4,
+        "first_asked_at": "2026-09-28T21:31:42.625814+00:00",
+        "last_asked_at": "2026-10-02T13:47:44.448491+00:00",
+        "times_asked": 24,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "Africa Cup of Nations Qualifications",
+        "match_date": "2026-09-29",
+        "state": "answered",
+        "rows": 12,
+        "first_asked_at": "2026-09-29T15:40:14.876761+00:00",
+        "last_asked_at": "2026-09-29T22:47:13.261065+00:00",
+        "times_asked": 4,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "Africa Cup of Nations Qualifications",
+        "match_date": "2026-10-01",
+        "state": "answered",
+        "rows": 1,
+        "first_asked_at": "2026-10-01T22:07:36.977053+00:00",
+        "last_asked_at": "2026-10-01T22:07:36.977053+00:00",
+        "times_asked": 1,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "Arabian Gulf Cup",
+        "match_date": "2026-09-24",
+        "state": "answered",
+        "rows": 2,
+        "first_asked_at": "2026-09-25T16:49:04.816656+00:00",
+        "last_asked_at": "2026-09-26T23:30:37.069270+00:00",
+        "times_asked": 6,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "Arabian Gulf Cup",
+        "match_date": "2026-09-26",
+        "state": "empty",
+        "rows": 0,
+        "first_asked_at": "2026-09-26T17:38:25.642852+00:00",
+        "last_asked_at": "2026-09-26T17:38:25.642852+00:00",
+        "times_asked": 1,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "Arabian Gulf Cup",
+        "match_date": "2026-09-27",
+        "state": "answered",
+        "rows": 2,
+        "first_asked_at": "2026-09-27T17:58:39.751623+00:00",
+        "last_asked_at": "2026-09-27T21:59:57.899913+00:00",
+        "times_asked": 8,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "Arabian Gulf Cup",
+        "match_date": "2026-09-30",
+        "state": "answered",
+        "rows": 2,
+        "first_asked_at": "2026-09-30T20:08:48.727711+00:00",
+        "last_asked_at": "2026-09-30T22:09:30.031978+00:00",
+        "times_asked": 5,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "CONCACAF Nations League",
+        "match_date": "2026-09-25",
+        "state": "empty",
+        "rows": 0,
+        "first_asked_at": "2026-09-25T23:55:01.420588+00:00",
+        "last_asked_at": "2026-09-25T23:55:01.420588+00:00",
+        "times_asked": 1,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "CONCACAF Nations League",
+        "match_date": "2026-09-26",
+        "state": "answered",
+        "rows": 2,
+        "first_asked_at": "2026-09-26T23:43:41.400628+00:00",
+        "last_asked_at": "2026-09-26T23:43:41.400628+00:00",
+        "times_asked": 1,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "CONCACAF Nations League",
+        "match_date": "2026-09-27",
+        "state": "answered",
+        "rows": 2,
+        "first_asked_at": "2026-09-27T21:59:57.905615+00:00",
+        "last_asked_at": "2026-09-27T23:00:34.070041+00:00",
+        "times_asked": 3,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "CONCACAF Nations League",
+        "match_date": "2026-09-28",
+        "state": "answered",
+        "rows": 1,
+        "first_asked_at": "2026-09-28T21:31:42.630450+00:00",
+        "last_asked_at": "2026-09-28T21:31:42.630450+00:00",
+        "times_asked": 1,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "National Teams Friendlies",
+        "match_date": "2026-09-24",
+        "state": "empty",
+        "rows": 0,
+        "first_asked_at": "2026-09-25T16:49:04.821200+00:00",
+        "last_asked_at": "2026-10-02T08:12:00.958908+00:00",
+        "times_asked": 16,
+        "answered_by": "api_football"
+      },
+      {
+        "competition": "National Teams Friendlies",
+        "match_date": "2026-09-26",
+        "state": "empty",
+        "rows": 0,
+        "first_asked_at": "2026-09-26T23:13:15.439692+00:00",
+        "last_asked_at": "2026-09-26T23:43:41.405612+00:00",
+        "times_asked": 2,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "National Teams Friendlies",
+        "match_date": "2026-09-27",
+        "state": "answered",
+        "rows": 7,
+        "first_asked_at": "2026-09-27T19:29:17.775896+00:00",
+        "last_asked_at": "2026-09-27T23:30:39.785254+00:00",
+        "times_asked": 6,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "National Teams Friendlies",
+        "match_date": "2026-09-28",
+        "state": "empty",
+        "rows": 0,
+        "first_asked_at": "2026-09-28T14:51:13.757069+00:00",
+        "last_asked_at": "2026-10-02T08:43:11.020249+00:00",
+        "times_asked": 24,
+        "answered_by": "thesportsdb"
+      },
+      {
+        "competition": "National Teams Friendlies",
+        "match_date": "2026-09-29",
+        "state": "answered",
+        "rows": 2,
+        "first_asked_at": "2026-09-29T18:46:58.594730+00:00",
+        "last_asked_at": "2026-09-29T22:47:13.263820+00:00",
+        "times_asked": 2,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "National Teams Friendlies",
+        "match_date": "2026-09-30",
+        "state": "answered",
+        "rows": 6,
+        "first_asked_at": "2026-09-30T06:56:28.798814+00:00",
+        "last_asked_at": "2026-10-02T12:16:17.850638+00:00",
+        "times_asked": 29,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "National Teams Friendlies",
+        "match_date": "2026-10-01",
+        "state": "answered",
+        "rows": 4,
+        "first_asked_at": "2026-10-01T14:33:08.236267+00:00",
+        "last_asked_at": "2026-10-01T22:07:36.986182+00:00",
+        "times_asked": 5,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "National Teams Friendlies",
+        "match_date": "2026-10-02",
+        "state": "empty",
+        "rows": 0,
+        "first_asked_at": "2026-10-02T12:50:48.816803+00:00",
+        "last_asked_at": "2026-10-02T14:53:28.031992+00:00",
+        "times_asked": 5,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "UEFA Nations League",
+        "match_date": "2026-09-24",
+        "state": "answered",
+        "rows": 8,
+        "first_asked_at": "2026-09-25T16:49:04.802163+00:00",
+        "last_asked_at": "2026-09-26T23:30:37.059768+00:00",
+        "times_asked": 6,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "UEFA Nations League",
+        "match_date": "2026-09-27",
+        "state": "answered",
+        "rows": 8,
+        "first_asked_at": "2026-09-27T18:30:37.888249+00:00",
+        "last_asked_at": "2026-09-27T23:00:34.067523+00:00",
+        "times_asked": 7,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "UEFA Nations League",
+        "match_date": "2026-09-28",
+        "state": "answered",
+        "rows": 3,
+        "first_asked_at": "2026-09-28T21:31:42.618177+00:00",
+        "last_asked_at": "2026-09-28T21:31:42.618177+00:00",
+        "times_asked": 1,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "UEFA Nations League",
+        "match_date": "2026-09-29",
+        "state": "answered",
+        "rows": 2,
+        "first_asked_at": "2026-09-29T18:46:58.578739+00:00",
+        "last_asked_at": "2026-09-29T22:47:13.257560+00:00",
+        "times_asked": 2,
+        "answered_by": "livescore"
+      },
+      {
+        "competition": "UEFA Nations League",
+        "match_date": "2026-10-01",
+        "state": "answered",
+        "rows": 1,
+        "first_asked_at": "2026-10-01T22:07:36.970613+00:00",
+        "last_asked_at": "2026-10-01T22:07:36.970613+00:00",
+        "times_asked": 1,
+        "answered_by": "livescore"
+      }
+    ]
+  },
+  "what_changed_after_2026_09_25": [
+    "On 2026-09-26 at 23:30 UTC, on the sixth ask, the archive returned the 2026-09-24 rows for UEFA Nations League (8), AFCON Qualifications (8) and the Arabian Gulf Cup (2): about 2.5 days after the matches. The recovery sweep settled five stranded fixtures from that answer without manual help.",
+    "Dates after that were answered within hours: e.g. UEFA Nations League 2026-09-27 at 23:00 the same day, AFCON Qualifications 2026-09-29 at 22:47 the same day.",
+    "National Teams Friendlies 2026-09-24 was still empty after 16 asks, the last on 2026-10-02 08:12 UTC.",
+    "Club dates 2026-09-18 to 2026-09-23 were not asked again: every club fixture of that round had settled from the live feed."
+  ]
 }

@@ -256,3 +256,120 @@ def test_a_reset_that_is_plainly_not_a_duration_is_discarded():
     reading, = sink.readings
     assert reading.remaining == 3, "the count it did give is still usable"
     assert reading.reset_seconds is None and reading.reset_at is None
+
+
+# ----------------------------------------------------------------------- the TLS context
+def test_a_provider_request_does_not_read_the_ca_bundle_from_disk(monkeypatch):
+    """Regression for 2 October 2026: a running backend lost read access to its own virtualenv,
+    and every provider call failed with PermissionError inside httpx's per-Client CA load.
+
+    With any CA load from disk refused, building the per-request client must still succeed: the
+    bundle was read once, at import. The control proves the refusal is real - a default httpx
+    client, which reads the bundle, fails under the same patch.
+    """
+    import ssl
+    import httpx
+    from app.services.providers import http as provider_http
+
+    def refuse(self, *args, **kwargs):
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(ssl.SSLContext, "load_verify_locations", refuse)
+    with pytest.raises(PermissionError):
+        httpx.Client()
+
+    client = provider_http.ProviderHttpClient("livescore", "https://livescore-api.com/api-client")
+    with client._client() as built:
+        assert built is not None
+    assert isinstance(provider_http.TLS_CONTEXT, ssl.SSLContext)
+    assert provider_http.TLS_CONTEXT.verify_mode == ssl.CERT_REQUIRED, "certificates are still verified"
+    assert provider_http.TLS_CONTEXT.check_hostname is True
+
+
+# ----------------------------------------------------------------------- transmitted, not just reserved
+class _OneShotClient:
+    """Stands in for one request's httpx.Client: returns a response, or raises an httpx error."""
+
+    def __init__(self, outcome):
+        self.outcome = outcome
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get(self, url, params=None):
+        if isinstance(self.outcome, Exception):
+            raise self.outcome
+        return self.outcome
+
+
+@pytest.mark.parametrize("outcome,expected", [
+    (httpx.Response(200, json={"ok": True}), ("answered", 200)),
+    (httpx.Response(503, text="busy"), ("answered", 503)),
+    (httpx.ReadTimeout("read timed out"), ("no_answer", None)),
+    (httpx.RemoteProtocolError("server disconnected"), ("no_answer", None)),
+    (httpx.ConnectError("[Errno 8] nodename nor servname provided"), ("not_connected", None)),
+    (httpx.ConnectTimeout("connect timed out"), ("not_connected", None)),
+])
+def test_every_real_request_is_noted_by_what_actually_happened_on_the_network(monkeypatch, outcome, expected):
+    """`used_today` is what was RESERVED; this is what went out. A request that is answered with an
+    error status was still transmitted and answered; one that never connected sent nothing."""
+    from app.services.providers import http as provider_http
+    noted = []
+    client = provider_http.ProviderHttpClient("livescore", "https://livescore-api.com/api-client",
+                                              transmission_sink=lambda provider, what, status=None: noted.append((provider, what, status)),
+                                              rate_limit_sink=lambda reading: None)
+    monkeypatch.setattr(provider_http.ProviderHttpClient, "_client", lambda self: _OneShotClient(outcome))
+    try:
+        client.get_json("matches/live.json")
+    except Exception:
+        pass
+    assert noted == [("livescore", expected[0], expected[1])]
+
+
+def test_a_request_that_fails_before_it_leaves_is_not_counted_as_transmitted(monkeypatch):
+    """The 2 October incident: the client could not even be built. Nothing went out, so nothing is noted."""
+    from app.services.providers import http as provider_http
+    noted = []
+    client = provider_http.ProviderHttpClient("livescore", "https://livescore-api.com/api-client",
+                                              transmission_sink=lambda *a, **k: noted.append(a))
+
+    def refuse(self):
+        raise PermissionError(1, "Operation not permitted")
+    monkeypatch.setattr(provider_http.ProviderHttpClient, "_client", refuse)
+    with pytest.raises(PermissionError):
+        client.get_json("matches/live.json")
+    assert noted == []
+
+
+def test_a_test_transport_sends_nothing_and_notes_nothing():
+    from app.services.providers import http as provider_http
+    noted = []
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={}))
+    client = provider_http.ProviderHttpClient("livescore", "https://example.test", transport=transport,
+                                              transmission_sink=lambda *a, **k: noted.append(a))
+    client.get_json("anything")
+    assert noted == []
+
+
+def test_the_budget_snapshot_shows_transmitted_beside_reserved():
+    from datetime import datetime, timezone
+    from app.services.providers.budget import RequestBudget, record_transmission
+    from tests.providers.support import FakeRedis
+    now = datetime(2026, 10, 5, 6, 1, tzinfo=timezone.utc)
+    store = FakeRedis()
+    budget = RequestBudget("livescore", 1200, client=store, now=now)
+    budget.consume(1)
+    budget.consume(1)   # two reserved...
+    record_transmission("livescore", "answered", 200, now=now, client=store)   # ...one answered
+    snap = budget.snapshot()
+    assert snap["used_today"] == 2
+    assert snap["transmitted_today"]["answered"] == 1
+    assert snap["transmitted_today"]["no_answer"] == 0
+    assert snap["transmitted_today"]["not_connected"] == 0
+    assert snap["transmitted_today"]["last_answered_at"] == now.isoformat()
+    assert snap["transmitted_today"]["last_status"] == 200
+    from app.services.providers.budget import read_transmitted
+    assert read_transmitted("livescore", None) is None, "no store: unknown, not zero"

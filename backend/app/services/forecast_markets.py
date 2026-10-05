@@ -50,7 +50,7 @@ def envelopes_for_matches(db: Session, matches: Iterable[Match], forecasts: Opti
     """One envelope per fixture, keyed by match id, in three queries however many fixtures there are."""
     matches = list(matches)
     now = now or datetime.now(timezone.utc)
-    forecasts = forecasts or ForecastService(db)
+    forecasts = forecasts or ForecastService(db, now=now)
     ids = [m.id for m in matches]
     if not ids:
         return {}

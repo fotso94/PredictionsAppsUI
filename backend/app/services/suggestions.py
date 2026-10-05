@@ -73,6 +73,35 @@ def _iso(dt: Optional[datetime]) -> Optional[str]:
     return _aware(dt).isoformat().replace("+00:00", "Z") if dt else None
 
 
+#: Why a fixture in the window contributed no leg, in the words the shortfall uses. Ordered by how
+#: often each is the answer; the explanation lists only the reasons that actually occurred.
+_REASON_WORDS = {
+    "no_forecast": "{n} without a stored forecast",
+    "stale": "{n} with only an out-of-date forecast (left out unless out-of-date forecasts are included)",
+    "kickoff_passed": "{n} already kicked off",
+    "below_threshold": "{n} whose best selection is below the {lo:.0f}% minimum",
+    "above_ceiling": "{n} whose best selection is above the {hi:.0f}% maximum",
+    "odds_filter": "{n} with no provider price in the requested range",
+    "no_available_market": "{n} with none of the requested markets available",
+    "no_settleable_market": "{n} whose only selections cannot be tracked automatically",
+}
+
+
+def _why_nothing_qualifies(considered: int, excluded: Dict[str, int], lo: float, hi: float) -> Tuple[str, List[Dict[str, Any]]]:
+    """The empty result, explained by what actually emptied it - never by a reason that did not occur.
+
+    Saying "nothing reaches the requested probability" when the fixtures have no forecast at all
+    sends a reader to lower a threshold that is not the problem.
+    """
+    if considered == 0:
+        return "no scheduled fixture kicks off in the requested window", [{"reason": "no_fixtures", "count": 0}]
+    reasons = sorted(((code, n) for code, n in excluded.items() if n), key=lambda item: (-item[1], item[0]))
+    parts = [_REASON_WORDS.get(code, "{n} excluded (" + code + ")").format(n=n, lo=lo * 100, hi=hi * 100)
+             for code, n in reasons]
+    sentence = f"none of the {considered} fixture{'s' if considered != 1 else ''} in the window qualifies: " + "; ".join(parts)
+    return sentence, [{"reason": code, "count": n} for code, n in reasons]
+
+
 def _candidate(envelope: Dict[str, Any], markets: Sequence[str], settleable_only: bool,
                odds_range: Optional[Tuple[Optional[float], Optional[float]]],
                max_probability: float = DEFAULT_MAX_PROBABILITY) -> Tuple[Optional[Dict[str, Any]], Optional[str], bool]:
@@ -143,7 +172,9 @@ def suggest(db: Session, *, now: Optional[datetime] = None, legs: int = DEFAULT_
         query = query.filter(Match.league_id.in_(list(competition_ids)))
     fixtures = query.order_by(Match.match_date.asc(), Match.id.asc()).all()
 
-    forecasts = ForecastService(db)
+    # The same clock throughout: a forecast is fresh or stale as of THIS suggestion's `now`, not
+    # as of whenever the freshness check happened to read the wall clock.
+    forecasts = ForecastService(db, now=now)
     envelopes = envelopes_for_matches(db, fixtures, forecasts, now=now)
     registry = MatchRegistry(db)
     teams = registry.team_names(fixtures)
@@ -210,8 +241,9 @@ def suggest(db: Session, *, now: Optional[datetime] = None, legs: int = DEFAULT_
 
     combinations: List[Dict[str, Any]] = []
     shortfall: Optional[str] = None
+    shortfall_reasons: List[Dict[str, Any]] = []
     if not ranked:
-        shortfall = "no fixture in the window has a selection at or above the requested probability"
+        shortfall, shortfall_reasons = _why_nothing_qualifies(len(fixtures), excluded, min_probability, max_probability)
     else:
         blocks = [ranked[i * legs:(i + 1) * legs] for i in range(max_combinations)]
         full = [b for b in blocks if len(b) == legs]
@@ -246,6 +278,9 @@ def suggest(db: Session, *, now: Optional[datetime] = None, legs: int = DEFAULT_
         "pool": {"fixtures_in_window": len(fixtures), "qualifying": len(ranked), "excluded": excluded},
         "combinations": combinations,
         "shortfall": shortfall,
+        #: Structured form of an empty result's cause: the exclusion reasons that occurred, largest
+        #: first, so a page can say it in the reader's language. Empty when something qualified.
+        "shortfall_reasons": shortfall_reasons,
     }
 
 

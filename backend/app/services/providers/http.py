@@ -22,10 +22,12 @@ request: a malformed header is ignored and the call carries on exactly as it did
 from __future__ import annotations
 
 import logging
+import ssl
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Optional
 
+import certifi
 import httpx
 
 from app.core.redaction import redact_credentials
@@ -34,7 +36,9 @@ from app.services.providers.base import (
     ProviderQuotaError,
     ProviderUnavailableError,
 )
-from app.services.providers.budget import record_rate_limit
+from app.services.providers.budget import (
+    TRANSMITTED_ANSWERED, TRANSMITTED_NO_ANSWER, TRANSMITTED_NOT_CONNECTED, record_rate_limit, record_transmission,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -169,13 +173,32 @@ def parse_rate_limit(provider: str, response: Any, now: Optional[datetime] = Non
     )
 
 
+def _tls_context() -> ssl.SSLContext:
+    """The TLS context every provider request uses: certifi's bundle, read ONCE, at import.
+
+    httpx builds a new context - re-reading the CA bundle from disk - for every Client it creates,
+    and `get_json` creates one per request. On 2 October 2026 a backend that had run for a week
+    lost permission to read files under ~/Documents (where the virtualenv lives) after the desktop
+    app that had launched it restarted. Everything already in memory kept working; every provider
+    request failed with `PermissionError` while loading the bundle, before a byte was sent, for two
+    and a half days. Reading it once removes that per-request dependency on the filesystem (and a
+    per-request parse); a process that cannot read it at all now fails at startup, where it is seen.
+    It is the same bundle httpx would have loaded, so what is trusted does not change.
+    """
+    return ssl.create_default_context(cafile=certifi.where())
+
+
+TLS_CONTEXT = _tls_context()
+
+
 class ProviderHttpClient:
     """GET-only JSON client. Pass `transport=httpx.MockTransport(...)` in tests."""
 
     def __init__(self, provider: str, base_url: str, headers: Optional[Dict[str, str]] = None,
                  transport: Optional[httpx.BaseTransport] = None, timeout: float = DEFAULT_TIMEOUT,
                  rate_limit_sink: Optional[Callable[[RateLimitReading], None]] = None,
-                 now: Optional[Callable[[], datetime]] = None):
+                 now: Optional[Callable[[], datetime]] = None,
+                 transmission_sink: Optional[Callable[..., None]] = None):
         self.provider = provider
         self.base_url = base_url.rstrip("/")
         self.headers = headers or {}
@@ -184,6 +207,9 @@ class ProviderHttpClient:
         #: Where a reading is persisted. Default: the per-provider store in `budget`, which is
         #: what survives the restart this scheduler goes through. Tests pass their own.
         self.rate_limit_sink = rate_limit_sink if rate_limit_sink is not None else record_rate_limit
+        #: Where each real transmission is noted (see `budget.record_transmission`). Only requests
+        #: that go to the network are noted: a client built on a test transport sends nothing.
+        self.transmission_sink = transmission_sink if transmission_sink is not None else record_transmission
         self._now = now
         #: The last reading taken, for a caller that wants it without going to the store.
         #: None until a response carries at least one of the headers.
@@ -231,13 +257,31 @@ class ProviderHttpClient:
         text = redact_credentials(text)
         return f": {text[:160]}"
 
+    def _client(self) -> httpx.Client:
+        """One request's client, on the process-wide TLS context (see `TLS_CONTEXT`)."""
+        return httpx.Client(transport=self.transport, timeout=self.timeout, headers=self.headers, verify=TLS_CONTEXT)
+
+    def _note_transmission(self, outcome: str, status: Optional[int] = None) -> None:
+        if self.transport is not None:
+            return  # a test transport: nothing went out on the network
+        try:
+            self.transmission_sink(self.provider, outcome, status)
+        except Exception as exc:  # pragma: no cover - bookkeeping never fails a request
+            logger.debug("Transmission for %s could not be noted: %s", self.provider, exc)
+
     def get_json(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
         url = f"{self.base_url}/{path.lstrip('/')}"
         try:
-            with httpx.Client(transport=self.transport, timeout=self.timeout, headers=self.headers) as client:
+            with self._client() as client:
                 response = client.get(url, params=params)
-        except httpx.HTTPError as exc:
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            # No connection was made, so nothing was sent (DNS failures land here too).
+            self._note_transmission(TRANSMITTED_NOT_CONNECTED)
             raise ProviderUnavailableError(f"{self.provider}: network error: {exc}", provider=self.provider) from exc
+        except httpx.HTTPError as exc:
+            self._note_transmission(TRANSMITTED_NO_ANSWER)
+            raise ProviderUnavailableError(f"{self.provider}: network error: {exc}", provider=self.provider) from exc
+        self._note_transmission(TRANSMITTED_ANSWERED, response.status_code)
 
         # Before anything can raise: the refusals are exactly the responses whose accounting is
         # worth most, and a 429 that threw before being read is a window we never learn about.

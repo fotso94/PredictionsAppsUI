@@ -121,7 +121,7 @@ class SlipService:
         self.db = db
         self.now = now or datetime.now(timezone.utc)
         self.registry = MatchRegistry(db)
-        self.forecasts = ForecastService(db)
+        self.forecasts = ForecastService(db, now=self.now)
 
     # ----------------------------------------------------------------- reads
     def _query(self, user: User):

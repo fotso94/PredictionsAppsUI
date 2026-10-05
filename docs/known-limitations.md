@@ -195,35 +195,32 @@ timestamp and its basis, read by `backend/scripts/sync_once.py` or off the admin
 a person who is looking. An empty week is still a success, because a league between rounds has
 genuinely nothing to give.
 
-## The archive holds nothing dated 2026-09-18 or later — cause unknown
+## The archive answers late, and for one competition not at all — cause unknown
 
-Measured on 2026-09-22 and again on 2026-09-25. Every observation, dated, is in
-`docs/evidence/livescore-archive-observations.json`.
+Every observation, dated, is in `docs/evidence/livescore-archive-observations.json`, including the
+application's own record per competition and date (`recorded_by_the_application`).
 
 **The archive works, for club and national-team competitions alike.** `matches/history.json`
 returned finished fixtures with full scores for La Liga on 2026-09-16 and -17, and for past
 national-team tournaments: the FIFA World Cup (June–July 2026, 30 rows), the Africa Cup of Nations
-(January–February 2026, 16), Copa America (2024, 30) and the Women's World Cup (2023, 30). A
-single-day query works, so it is not the `from == to` shape, and it is not our competition ids.
+(January–February 2026, 16), Copa America (2024, 30) and the Women's World Cup (2023, 30).
 
-**What it has never returned is anything dated 2026-09-18 or later, for any competition:**
+**It answers late, by a delay that varies.** Asked on 2026-09-22 and again on 2026-09-25, it held
+nothing dated 2026-09-18 or later. Then on **2026-09-26 at 23:30 UTC**, on the sixth ask, it
+returned the 2026-09-24 rows for UEFA Nations League (8), AFCON Qualifications (8) and the Arabian
+Gulf Cup (2) — about two and a half days after the matches — and the recovery sweep settled five
+stranded fixtures from that answer with no manual step. Later dates came back within hours:
+UEFA Nations League 2026-09-27 the same evening, AFCON Qualifications 2026-09-29 the same evening.
 
-| Asked on | Query | Rows |
-| --- | --- | --- |
-| 2026-09-22 | La Liga, 09-15 to 09-22 | 8 — all dated 09-16 or 09-17 |
-| 2026-09-22 | La Liga, 09-18 to 09-20 | 0 |
-| 2026-09-22 | no competition filter, 09-19 | 0 |
-| 2026-09-25 | La Liga, 09-16 to 09-24 | 5 — all dated 09-16 or 09-17 |
-| 2026-09-25 | UEFA Nations League, AFCON Qualifications, National Teams Friendlies, Arabian Gulf Cup — each 09-24 | 0 each |
+**For National Teams Friendlies on 2026-09-24 it has never answered**: still empty after 16 asks,
+the last on 2026-10-02 08:12 UTC. Three fixtures wait on it (below). Club dates 2026-09-18 to -23
+were not asked again — every club fixture of that round had settled from the live feed — so what
+the archive holds for them is unknown, not empty.
 
-Both La Liga answers are below the page size, so they are complete.
-
-**What is known and what is not.** The boundary sat between 09-17 and 09-18 on the 22nd and in
-exactly the same place on the 25th, so a lag of about five days is REFUTED. A longer lag, a
-restriction on our trial and an upstream stall are all still open. **THIS IS UNRESOLVED**, and the
-question is with provider support in `docs/support/livescore-api-questions.md`. Until it is
-answered, a fixture dated in that range has not been recoverable from the archive *so far* — which
-is a statement about what we have been told, not about what will ever exist.
+**What is known and what is not.** A delay exists and is not constant (same day for some dates,
+2½ days for 2026-09-24, more than seven days for 2026-09-18 as of 2026-09-25). Why, and whether
+friendlies are covered at all, is **unresolved**; the questions are in
+`docs/support/livescore-api-questions.md`, prepared and not sent.
 
 The captured archive answer for 2026-09-16 is kept at
 `docs/evidence/livescore-history-2026-09-16-la-liga.json` — the response rows only, since the key
@@ -303,7 +300,7 @@ durations we could not reconcile, and how long they stay is one of the questions
 The 150-minute window this application polls within is our own setting, not the provider's.
 
 **The archive, `matches/history.json`.** It answers for club and national-team competitions alike,
-and has answered for nothing dated 2026-09-18 or later — see the section above.
+late by a delay that varies, and for one competition and date not at all so far — see the section above.
 
 So what we can say about a missed result depends on its date, not on whether it is a club or a
 national team:
@@ -312,13 +309,16 @@ national team:
 | --- | --- | --- |
 | Still in the live feed when the next poll runs | **Yes**, observed | the ordinary live task collects it |
 | Dated on a day the archive holds | **Yes**, observed by hand for 2026-09-16 | the results task can collect it |
-| Dated 2026-09-18 or later | **Not yet** | the archive has returned no rows for these days so far; why, and whether it will, is unknown |
+| Dated on a day the archive answers late | **Yes**, observed automatically: 5 of 8 on 2026-09-26 | the retry schedule collected them ~2½ days after kickoff |
+| National Teams Friendlies, 2026-09-24 | **Not yet** | 16 asks to 2026-10-02 answered empty; whether it ever will is unknown |
 
 **Nothing here says a result cannot exist.** The application keeps asking under a retry *budget*,
 and stopping is a decision about what we are willing to spend, not a finding about the provider. A
 reader of such a fixture is told what happened — no result has arrived, and when we last asked — and
-never shown a score nobody reported. As of 2026-09-25 eight national-team fixtures from 2026-09-24
-are in this state, including UEFA Nations League, Andorra v Malta.
+never shown a score nobody reported. Of the eight national-team fixtures from 2026-09-24 that were in this state,
+five recovered automatically on 2026-09-26; as of 2026-10-05 three remain — Solomon Islands v
+Vanuatu, Papua New Guinea v New Caledonia, Turkmenistan v New Zealand, all National Teams
+Friendlies — each asked 19 times.
 
 ## A finished match that read as live: repaired, with the identity gap narrowed
 
@@ -378,6 +378,59 @@ the feature, and exhausting it would also stop the ordinary fixtures sync until 
 provider would have to fail continuously for hours for this to bite, and it has not happened, but
 nothing in the code prevents it.
 
+## Live Score is refusing our key (since some time between 2026-10-02 and -05)
+
+The primary match-data source answered the first request after the local fault was fixed —
+2026-10-05 03:23 UTC — with **HTTP 401, "This API key and secret do not have access to our data
+enabled"**. The last successful answer was 2026-10-02 14:53 UTC; in between our process could not
+send anything, so when access stopped inside that window is unknown. Nothing changed in how the
+key and secret are sent. The likeliest reading is that the trial ended; that is unconfirmed, and
+the question is first in `docs/support/livescore-api-questions.md` (prepared, not sent).
+
+While it lasts: fixtures, live scores and results fall through to the retained fallbacks
+(API-Football, then TheSportsDB) on their free plans, which answer for far less (on 2026-10-05
+API-Football answered for the stranded fixtures with no rows). Stored fixtures and forecasts are
+still served. Restoring Live Score is a purchase or support decision for the owner; nothing in
+this repository works around it.
+
+## Running it locally: what stopped updates for 2½ days, and how it is run now
+
+From **2026-10-02 14:54 UTC to 2026-10-05 03:09 UTC no fixture, score, result or forecast was
+fetched.** The backend kept serving what it had stored, so the site looked alive while it went
+stale. Every provider call failed with `PermissionError: [Errno 1] Operation not permitted` —
+raised while loading the TLS certificate bundle from the virtualenv, before any request left.
+
+The cause was local, not the providers and not the network: the backend process, started on
+2026-09-25 from an earlier desktop-app session, lost permission to read files under `~/Documents`
+(where the repository lives) partway through its life. macOS also refuses that folder to Apple's
+Command Line Tools Python (`backend/venv`) when the app launches it, so the backend could not even
+start that way.
+
+What changed:
+
+- The certificate bundle is read **once per process** (`TLS_CONTEXT` in
+  `backend/app/services/providers/http.py`), so a running backend no longer touches the disk for
+  each provider request. A process that cannot read it fails at startup, where it is seen.
+- The backend is started from the `backend` entry in `.claude/launch.json`, on the Python 3.11
+  environment (`backend/venv311`, pyenv), which the app can launch. Both environments pass the
+  backend suite. To use `venv` again, grant that Python access to the Documents folder in System
+  Settings → Privacy & Security; this application does not change that setting.
+- **Lifecycle:** servers started from `.claude/launch.json` belong to the desktop app and stop
+  when it quits. Nothing fetches while it is closed; the scheduler picks up where it left off when
+  the backend starts again (its due-times live in Redis). For an always-on backend, start it from
+  your own terminal: `cd backend && ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000`.
+- **Counting during the incident:** each failed pass still counted one request against our own
+  daily allowance (and one against GameForecast's eight) although nothing was sent. Those figures
+  overstate real traffic for 2026-10-02 to -05; the provider's own counters were not affected.
+- **Backoff after a local fault:** a task that fails backs off up to six hours, and that is kept
+  across a restart. Nothing was forced after this incident: the recovery task, which never backs
+  off, ran at 03:23 UTC and reached the providers (that is how Live Score's 401 was learned);
+  fixtures, results, live and forecasts were due again at 06:01 UTC.
+- **Reserved is not sent.** `/api/v1/data-providers/status` now shows, per provider, the allowance
+  reserved today (`used_today`) beside what actually went out on the network
+  (`transmitted_today`: answered / no answer / never connected, with the time of the last answer),
+  recorded by the HTTP client at the moment of transmission.
+
 ## Selections and slips
 
 The markets panel, the slip and the suggested combinations (docs/markets-capability-matrix.md
@@ -401,6 +454,12 @@ What they do not do, on purpose:
   settles "neither"); a tie decided beyond 90 minutes with no 90-minute score stored is withheld.
   Such legs read *unresolved*, with the reason, and are never guessed. There is no manual
   resolution of a leg in this release.
+- **A draft made before signing in moves to the account that signs in, from this browser only.**
+  If the connection fails part-way, what was not delivered waits in this browser for that same
+  account and goes to the same slip on its next sign-in or reload; a slip whose creating request
+  was applied but never answered is found and filled rather than created twice. Another account
+  signing in on the machine never receives it. Clearing the browser's site data before the
+  transfer completes loses what was not yet delivered.
 - **"Recorded" is the reader's own statement.** The application does not place bets, hold funds,
   initiate payments or confirm that any bet exists. A recorded slip is kept as it was; changing
   it means duplicating it.

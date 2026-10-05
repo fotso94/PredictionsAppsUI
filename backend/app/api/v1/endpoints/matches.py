@@ -26,6 +26,7 @@ from app.schemas.matches import (
 )
 from app.services.expert_prediction import ExpertPredictionService
 from app.services.forecast_service import ForecastService
+from app.services.forecast_markets import envelope_for_match
 from app.services.match_brief import build_brief, compact_brief, current_scoring_summary
 from app.services.match_data_service import MatchDataService, SyncMeta
 from app.services.providers.base import ProviderError, parse_utc
@@ -369,7 +370,6 @@ async def match_markets(match_id: str, db: Session = Depends(get_db)):
     match = service.match_by_id(resolved) if resolved else None
     if match is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
-    from app.services.forecast_markets import envelope_for_match
     return envelope_for_match(db, match, ForecastService(db))
 
 

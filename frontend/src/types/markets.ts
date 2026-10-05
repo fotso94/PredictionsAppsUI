@@ -210,6 +210,8 @@ export interface ApiSuggestions {
   pool: { fixtures_in_window: number; qualifying: number; excluded: Record<string, number> }
   combinations: ApiCombination[]
   shortfall: string | null
+  /** An empty result's causes, largest first (absent from older backends). */
+  shortfall_reasons?: Array<{ reason: string; count: number }>
 }
 
 export interface SuggestionQuery {

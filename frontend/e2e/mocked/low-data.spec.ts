@@ -1,5 +1,5 @@
 import { test, expect, Locator, Page, Request } from '@playwright/test';
-import { dayPayload, stubBackend } from '../support/api-stub';
+import { dayPayload, PIXEL_PNG, stubBackend } from '../support/api-stub';
 import { regularUser, signIn } from '../support/auth';
 
 /**
@@ -35,12 +35,6 @@ import { regularUser, signIn } from '../support/auth';
  * too — see CREST_HOSTS — so this file, unlike a plain page load, reaches no third-party host at
  * all while still proving the requests were made.
  */
-
-/** A one-pixel PNG. Enough to be a real image response; small enough to be free. */
-const PIXEL_PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-  'base64',
-);
 
 /**
  * Where club crests and competition badges come from. The captured fixtures point at the live

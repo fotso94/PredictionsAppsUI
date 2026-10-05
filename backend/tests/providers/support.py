@@ -41,6 +41,11 @@ class FakeRedis:
         value = self.store.get(key)
         return dict(value) if isinstance(value, dict) else {}
 
+    def hset(self, key, field, value):
+        bucket = self.store.setdefault(key, {})
+        bucket[field] = value
+        return 1
+
     def expire(self, key, ttl):
         self.ttls[key] = ttl
 

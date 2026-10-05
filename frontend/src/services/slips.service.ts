@@ -21,12 +21,22 @@
  */
 
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
-import apiClient from './api-client'
+import apiClient, { tokenManager } from './api-client'
 import { getErrorMessage } from '@/utils/errors'
 import type { ApiMarketSelection, ApiMatchSummary, ApiSlip, ApiSlipLeg, SlipLegInput, SlipStatus } from '@/types/markets'
 
 const API = '/api/v1/me/slips'
 export const LOCAL_DRAFT_KEY = 'selections.draft.v1'
+/**
+ * Selections a browser draft handed to ONE account that have not reached it yet, per account.
+ *
+ * The anonymous draft belongs to nobody. The moment an account signs in, the draft becomes that
+ * account's pending transfer - synchronously, before any request leaves - and from then on it is
+ * stored under that account's id. If the account changes while the transfer is on the wire, what
+ * has not been sent stays here, for that account, and is resumed the next time it signs in. It is
+ * never offered to whoever signed in next.
+ */
+export const TRANSFER_KEY_PREFIX = 'selections.transfer.v1.'
 
 /** A leg of the browser-only draft: the selection as it was chosen, and enough of the fixture to show it. */
 export interface LocalLeg {
@@ -51,6 +61,8 @@ export interface SlipsState {
   local: LocalDraft
   /** Legs the server refused when a local draft was handed to the account, with its reason each. */
   handoffRefused: Array<{ leg: LocalLeg; reason: string }>
+  /** True when a transfer stopped on a failure that may pass; the unsent legs are kept and retried. */
+  handoffPaused: boolean
   signedIn: boolean
   userId: string | null
 }
@@ -68,6 +80,64 @@ function readLocal(): LocalDraft {
   }
 }
 
+const transferKey = (userId: string): string => `${TRANSFER_KEY_PREFIX}${userId}`
+
+/**
+ * One account's pending transfer: the selections not yet delivered and, once the first one has
+ * been, the slip they are being delivered TO. Without the destination a transfer resumed after a
+ * partial failure or a reload would open a second slip for the rest of the same draft.
+ */
+interface PendingTransfer {
+  slipId: string | null
+  legs: LocalLeg[]
+  /**
+   * Set just before the request that CREATES the destination leaves: the ids of every slip the
+   * account held at that moment. While it is set and no destination is known, that request may
+   * have created a slip whose answer never arrived, so a resumed transfer looks for it - a slip
+   * not in this list, carrying the selection that request carried - before creating another.
+   */
+  creating: { before: string[] } | null
+}
+
+function readTransfer(userId: string): PendingTransfer {
+  try {
+    const raw = localStorage.getItem(transferKey(userId))
+    const parsed = raw ? (JSON.parse(raw) as { legs?: LocalLeg[]; slipId?: unknown; creating?: { before?: unknown } | null }) : null
+    const before = parsed?.creating?.before
+    return {
+      slipId: typeof parsed?.slipId === 'string' && parsed.slipId ? parsed.slipId : null,
+      legs: Array.isArray(parsed?.legs) ? parsed.legs : [],
+      creating: Array.isArray(before) ? { before: before.filter((id): id is string => typeof id === 'string') } : null,
+    }
+  } catch {
+    return { slipId: null, legs: [], creating: null }
+  }
+}
+
+function writeTransfer(userId: string, transfer: PendingTransfer): void {
+  try {
+    if (transfer.legs.length === 0) localStorage.removeItem(transferKey(userId))
+    else localStorage.setItem(transferKey(userId), JSON.stringify(transfer))
+  } catch {
+    // Storage refused: the transfer still runs from memory; an interrupted one is lost on reload.
+  }
+}
+
+const sameLeg = (a: LocalLeg, b: LocalLeg): boolean =>
+  a.match.id === b.match.id && a.selection.selection_id === b.selection.selection_id
+
+/** A refusal the server will give again whatever happens: drop the leg and say why. */
+function permanentlyRefused(error: unknown): boolean {
+  const status = (error as { response?: { status?: number } })?.response?.status
+  return status === 404 || status === 409 || status === 422
+}
+
+/** The remembered destination itself can no longer take legs: deleted, or recorded since. */
+function destinationGone(error: unknown): boolean {
+  const code = slipErrorCode(error)
+  return code === 'not_found' || code === 'recorded_immutable'
+}
+
 function writeLocal(draft: LocalDraft): void {
   try {
     if (draft.legs.length === 0) localStorage.removeItem(LOCAL_DRAFT_KEY)
@@ -80,7 +150,7 @@ function writeLocal(draft: LocalDraft): void {
 class SlipsStore {
   private state: SlipsState = {
     status: 'idle', error: null, slips: [], activeId: null, local: readLocal(), handoffRefused: [],
-    signedIn: false, userId: null,
+    handoffPaused: false, signedIn: false, userId: null,
   }
 
   private listeners = new Set<() => void>()
@@ -112,14 +182,14 @@ class SlipsStore {
     this.session += 1
     const session = this.session
     if (!userId) {
-      this.set({ signedIn: false, userId: null, slips: [], activeId: null, status: 'idle', error: null, handoffRefused: [] })
+      this.set({ signedIn: false, userId: null, slips: [], activeId: null, status: 'idle', error: null, handoffRefused: [], handoffPaused: false })
       return
     }
     // Cleared BEFORE the first await: the previous account's slips must not stay on screen for
     // even one render of the next account's session.
-    this.set({ signedIn: true, userId, slips: [], activeId: null, status: 'loading', error: null, handoffRefused: [] })
+    this.set({ signedIn: true, userId, slips: [], activeId: null, status: 'loading', error: null, handoffRefused: [], handoffPaused: false })
     try {
-      await this.handOffLocalDraft(session)
+      await this.handOffLocalDraft(session, userId)
       if (session !== this.session) return
       await this.load(session)
     } catch (error) {
@@ -128,28 +198,156 @@ class SlipsStore {
     }
   }
 
-  private async handOffLocalDraft(session: number): Promise<void> {
-    const draft = this.state.local
-    if (draft.legs.length === 0) return
-    // Taken off the shelf before the first request goes out: a reload while the hand-off is on
-    // the wire would otherwise hand the same legs over again and leave two slips.
-    writeLocal(EMPTY_LOCAL)
-    this.set({ local: EMPTY_LOCAL })
+  /**
+   * Hand the browser draft, and anything this account's earlier transfer left unsent, to `userId`.
+   *
+   * EVERY REQUEST BELONGS TO `userId`, and is checked to, before it leaves and after it answers:
+   *
+   * - The draft is claimed synchronously: moved into `userId`'s pending transfer and cleared from
+   *   the shared browser draft before the first request, so no later sign-in can claim it too.
+   * - Each request carries the access token captured when this transfer began, explicitly, and is
+   *   marked so the client never refreshes and retries it under whatever token is stored by then.
+   *   A token in storage that is no longer the captured one means the identity may have changed:
+   *   the transfer stops. (A legitimate refresh for the same account stops it too; it resumes on
+   *   the next sign-in or reload, which costs a delay and never a leak.)
+   * - The identity is re-checked after every await. On a change the transfer stops at once: what
+   *   was not sent stays in `userId`'s pending transfer and nothing touches the new session.
+   * - A leg the server accepted leaves the pending list at once, so it is never sent twice. A leg it
+   *   refuses for good (409/422/404) leaves too, with the reason shown. Any other failure - network,
+   *   5xx, 401 - stops the transfer and keeps this leg and the rest pending, to be retried.
+   * - An answer can be lost after the server applied the request. For a leg added to the known
+   *   destination, the server's one-selection-per-fixture refusal on the retry says so, and the slip
+   *   is read to confirm it. For the request that CREATES the destination there is no id to read:
+   *   the account's slips are listed before it leaves, and a resumed transfer adopts a slip that is
+   *   new since then and carries that selection instead of creating a second one.
+   */
+  private async handOffLocalDraft(session: number, userId: string): Promise<void> {
+    const claimed = this.state.local.legs
+    const transfer = readTransfer(userId)
+    for (const leg of claimed) {
+      if (!transfer.legs.some(p => sameLeg(p, leg))) transfer.legs.push(leg)
+    }
+    writeTransfer(userId, transfer)
+    if (claimed.length > 0) {
+      writeLocal(EMPTY_LOCAL)
+      this.set({ local: EMPTY_LOCAL })
+    }
+    if (transfer.legs.length === 0) return
+
+    const token = tokenManager.getAccessToken()
+    const stillThisAccount = (): boolean =>
+      session === this.session && this.state.userId === userId
+      && token !== null && tokenManager.getAccessToken() === token
+    const bound = { headers: { Authorization: `Bearer ${token}` }, _retry: true }
     const refused: Array<{ leg: LocalLeg; reason: string }> = []
-    let created: ApiSlip | null = null
-    for (const leg of draft.legs) {
+    let destination: string | null = transfer.slipId
+    let paused = false
+    const delivered = (leg: LocalLeg): void => {
+      transfer.legs.splice(transfer.legs.findIndex(l => sameLeg(l, leg)), 1)
+      writeTransfer(userId, transfer)
+    }
+
+    for (const leg of [...transfer.legs]) {
+      if (!stillThisAccount()) return
       const body: SlipLegInput = { match_id: leg.match.id, selection_id: leg.selection.selection_id, odds: leg.odds }
       try {
-        const response: { data: ApiSlip } = created
-          ? await apiClient.post<ApiSlip>(`${API}/${created.id}/legs`, body)
-          : await apiClient.post<ApiSlip>(API, { name: null, legs: [body] })
-        created = response.data
+        if (destination) {
+          try {
+            await apiClient.post<ApiSlip>(`${API}/${destination}/legs`, body, bound)
+          } catch (error) {
+            if (!destinationGone(error)) throw error
+            // The slip this transfer was filling is gone or recorded: start a new one below.
+            destination = null
+            transfer.slipId = null
+            writeTransfer(userId, transfer)
+            if (!stillThisAccount()) return
+          }
+        }
+        if (!destination && transfer.creating) {
+          // An earlier attempt sent the request that creates the destination and never learned its
+          // answer. If the server applied it, that slip exists and already carries this leg.
+          const adopted = await this.createdMeanwhile(transfer.creating.before, leg, bound)
+          if (!stillThisAccount()) return
+          if (adopted === undefined) { paused = true; break }
+          transfer.creating = null
+          if (adopted) {
+            destination = adopted
+            transfer.slipId = adopted
+          } else {
+            writeTransfer(userId, transfer)
+          }
+        }
+        if (!destination) {
+          const before = await this.slipIds(bound)
+          if (!stillThisAccount()) return
+          if (before === null) { paused = true; break }
+          // Written down BEFORE the request leaves: if its answer is lost, this is what lets the
+          // resumed transfer recognise the slip it made.
+          transfer.creating = { before }
+          writeTransfer(userId, transfer)
+          const { data } = await apiClient.post<ApiSlip>(API, { name: null, legs: [body] }, bound)
+          destination = data.id
+          // Remembered before anything else can go wrong, so a resumed transfer fills THIS slip.
+          transfer.slipId = destination
+          transfer.creating = null
+        }
+        delivered(leg)
       } catch (error) {
-        refused.push({ leg, reason: describeSlipError(error) })
+        if (slipErrorCode(error) === 'one_per_match' && destination && await this.alreadyOn(destination, leg, bound)) {
+          // A previous attempt reached the server although its answer was lost: it is there already.
+          delivered(leg)
+        } else if (permanentlyRefused(error)) {
+          // Refused for good. A refused CREATE made nothing, so there is nothing to look for later.
+          if (!destination) transfer.creating = null
+          delivered(leg)
+          refused.push({ leg, reason: describeSlipError(error) })
+        } else {
+          paused = true
+        }
       }
+      if (!stillThisAccount()) return
+      if (paused) break
     }
-    if (session !== this.session) return
-    this.set({ handoffRefused: refused, activeId: created?.id ?? this.state.activeId })
+    this.set({ handoffRefused: refused, handoffPaused: paused, activeId: destination ?? this.state.activeId })
+  }
+
+  /** The ids of every slip this account holds, or null when they cannot be read now. */
+  private async slipIds(bound: object): Promise<string[] | null> {
+    try {
+      const { data } = await apiClient.get<{ slips: ApiSlip[] }>(API, bound)
+      return data.slips.map(slip => slip.id)
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * The slip an unanswered create made, if it made one: a slip the account did not hold `before`
+   * that carries exactly this selection and can still take legs; the newest by the server's own
+   * clock when there are several. Null when there is none, undefined when that cannot be read now.
+   */
+  private async createdMeanwhile(before: string[], leg: LocalLeg, bound: object): Promise<string | null | undefined> {
+    try {
+      const { data } = await apiClient.get<{ slips: ApiSlip[] }>(API, bound)
+      const known = new Set(before)
+      const made = data.slips
+        .filter(slip => !known.has(slip.id) && slip.status !== 'recorded'
+          && slip.legs.some(l => l.match.id === leg.match.id && l.selection.selection_id === leg.selection.selection_id))
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+      return made[0]?.id ?? null
+    } catch {
+      return undefined
+    }
+  }
+
+  /** Whether `slipId` already carries exactly this selection on this fixture. */
+  private async alreadyOn(slipId: string, leg: LocalLeg, bound: object): Promise<boolean> {
+    try {
+      const { data } = await apiClient.get<ApiSlip>(`${API}/${slipId}`, bound)
+      return data.legs.some(l => l.match.id === leg.match.id && l.selection.selection_id === leg.selection.selection_id)
+    } catch {
+      return false
+    }
   }
 
   /* ------------------------------------------------------------------ reads */
@@ -328,7 +526,7 @@ class SlipsStore {
   /** Test seam. */
   reset = (): void => {
     this.session += 1
-    this.state = { status: 'idle', error: null, slips: [], activeId: null, local: readLocal(), handoffRefused: [], signedIn: false, userId: null }
+    this.state = { status: 'idle', error: null, slips: [], activeId: null, local: readLocal(), handoffRefused: [], handoffPaused: false, signedIn: false, userId: null }
     this.listeners.forEach(listener => listener())
   }
 }

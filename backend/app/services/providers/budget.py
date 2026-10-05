@@ -98,6 +98,8 @@ REASONS = ("discovery", "fetch", "page", "retry", "calendar")
 
 #: "the caller passed nothing", kept apart from a caller that passed None meaning "unknown".
 _UNSET = object()
+#: "the caller passed no store": use the shared one. Kept apart from an explicit None (no store).
+_UNSET_CLIENT_SENTINEL = object()
 
 
 def _redis():
@@ -122,6 +124,64 @@ def refused_key(provider: str, day: Optional[datetime] = None) -> str:
 
 def by_reason_key(provider: str, day: Optional[datetime] = None) -> str:
     return f"{budget_key(provider, day)}:by_reason"
+
+
+# --------------------------------------------------------------------------- what actually went out
+#: RESERVED IS NOT SENT. `used_today` counts the allowance a request reserved before it was made.
+#: A request can reserve and then never leave the machine: from 2026-10-02 to -05 every scheduled
+#: pass reserved one and failed loading the TLS bundle before connecting, and the counters read as
+#: if the provider had been asked dozens of times. This hash is written by the HTTP client at the
+#: moment of transmission, so the two can be compared:
+#:   answered       a response came back (any HTTP status)
+#:   no_answer      the request went out and no usable response came back (read timeout, a broken
+#:                  connection mid-reply)
+#:   not_connected  no connection was made (DNS failure, refused, connect timeout); nothing was sent
+#: plus the time and status of the last answer. Day-scoped, same TTL as the usage counter.
+TRANSMITTED_ANSWERED = "answered"
+TRANSMITTED_NO_ANSWER = "no_answer"
+TRANSMITTED_NOT_CONNECTED = "not_connected"
+TRANSMISSION_OUTCOMES = (TRANSMITTED_ANSWERED, TRANSMITTED_NO_ANSWER, TRANSMITTED_NOT_CONNECTED)
+
+
+def transmitted_key(provider: str, day: Optional[datetime] = None) -> str:
+    return f"{budget_key(provider, day)}:transmitted"
+
+
+def record_transmission(provider: str, outcome: str, status: Optional[int] = None,
+                        now: Optional[datetime] = None, client: Any = _UNSET_CLIENT_SENTINEL) -> None:
+    """Note one network transmission outcome for `provider`. Best effort: never raises."""
+    if outcome not in TRANSMISSION_OUTCOMES or not provider:
+        return
+    store = _redis() if client is _UNSET_CLIENT_SENTINEL else client
+    if store is None:
+        return
+    now = now or datetime.now(timezone.utc)
+    key = transmitted_key(provider, now)
+    try:
+        store.hincrby(key, outcome, 1)
+        store.hset(key, f"last_{outcome}_at", now.isoformat())
+        if status is not None:
+            store.hset(key, "last_status", int(status))
+        store.expire(key, KEY_TTL_SECONDS)
+    except Exception as exc:  # pragma: no cover - bookkeeping never fails a request
+        logger.debug("Could not record a transmission for %s: %s", provider, exc)
+
+
+def read_transmitted(provider: str, client: Any, day: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
+    """Today's transmission record for `provider`, or None when the store cannot be read."""
+    if client is None:
+        return None
+    try:
+        raw = client.hgetall(transmitted_key(provider, day)) or {}
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Could not read transmissions for %s: %s", provider, exc)
+        return None
+    decoded = {_decode(k): _decode(v) for k, v in raw.items()}
+    record: Dict[str, Any] = {outcome: int(decoded.get(outcome) or 0) for outcome in TRANSMISSION_OUTCOMES}
+    for outcome in TRANSMISSION_OUTCOMES:
+        record[f"last_{outcome}_at"] = decoded.get(f"last_{outcome}_at")
+    record["last_status"] = int(decoded["last_status"]) if decoded.get("last_status", "").isdigit() else None
+    return record
 
 
 # --------------------------------------------------------------------------- the scheduler's ledger
@@ -886,6 +946,12 @@ class RequestBudget:
             #: None when the ledger could not be read: unknown, not zero.
             "scheduler_sent": (None if ledger is None else
                                {"total": sum(ledger.values()), "by_task": ledger}),
+            #: What actually went out on the network today, written by the HTTP client when it
+            #: happened: `answered`, `no_answer`, `not_connected`, and when the last answer came.
+            #: `used_today` above is the allowance RESERVED; a request that fails before it leaves
+            #: the machine reserves and never transmits, so the two are not the same number.
+            #: None when the store cannot be read: unknown, not zero.
+            "transmitted_today": read_transmitted(self.provider, self._client, self.now),
         }
 
     def _counter_and_ledger(self) -> Tuple[int, bool, Optional[Dict[str, int]]]:

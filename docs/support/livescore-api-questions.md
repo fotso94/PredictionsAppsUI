@@ -6,7 +6,24 @@ No credential appears in this document. The `key` and `secret` are request param
 below is written with them omitted, and the responses quoted carry none. Before sending, check that
 nothing has been pasted in since.
 
-Two unrelated questions, both measured against our own account on 2026-09-16 to 2026-09-23.
+Four questions, measured against our own account between 2026-09-16 and 2026-10-05.
+
+---
+
+## 0. Our requests are refused: "This API key and secret do not have access to our data enabled"
+
+This is now the most urgent question, and it changes the others.
+
+Our last successful request was on **2026-10-02 at 14:53 UTC**. Our own server could not send any
+request between then and 2026-10-05 03:09 UTC (a local fault, since fixed). The first request after
+that, on **2026-10-05 at 03:23 UTC**, was answered **HTTP 401** with the message *"This API key and
+secret do not have access to our data enabled"*. Nothing changed in how we send the key and secret.
+
+**Questions:**
+
+1. Has our trial ended, and on what date did data access stop?
+2. What are the options for continuing — and is there a plan that keeps the history archive
+   (`matches/history.json`) and the live feed we use today?
 
 ---
 
@@ -48,11 +65,9 @@ everyone.
 
 ---
 
-## 2. The history archive holds nothing dated 2026-09-18 or later — is that expected?
+## 2. How long does a finished match take to reach the history archive — and are friendlies covered?
 
-This is the one we would most like explained, and we have been careful not to assume the answer.
-
-**The archive clearly works, for club and national-team competitions alike.** These all returned
+The archive clearly works, for club and national-team competitions alike — these all returned
 finished fixtures with full scores:
 
 | Query | Rows |
@@ -63,44 +78,30 @@ finished fixtures with full scores:
 | `matches/history.json?competition_id=271&from=2024-06-15&to=2024-07-20` (Copa America) | 30 |
 | `matches/history.json?competition_id=490&from=2023-07-15&to=2023-08-25` (Women's World Cup) | 30 |
 
-**But nothing dated 2026-09-18 or later has ever come back, for any competition.** Asked on two
-different days, several days apart:
+**What we see is a delay that varies, and one gap that has not filled.**
 
-| Asked on | Query | Rows |
-| --- | --- | --- |
-| 2026-09-22 | `competition_id=3&from=2026-09-15&to=2026-09-22` (La Liga) | 8 — every one dated 09-16 or 09-17 |
-| 2026-09-22 | `competition_id=3&from=2026-09-18&to=2026-09-20` | 0 |
-| 2026-09-22 | `from=2026-09-19&to=2026-09-19` (no competition filter) | 0 |
-| 2026-09-25 | `competition_id=3&from=2026-09-16&to=2026-09-24` (La Liga) | 5 — every one dated 09-16 or 09-17 |
-| 2026-09-25 | `competition_id=350&from=2026-09-24&to=2026-09-24` (UEFA Nations League) | 0 |
-| 2026-09-25 | `competition_id=228&from=2026-09-24&to=2026-09-24` (AFCON Qualifications) | 0 |
-| 2026-09-25 | `competition_id=371&from=2026-09-24&to=2026-09-24` (National Teams Friendlies) | 0 |
-| 2026-09-25 | `competition_id=412&from=2026-09-24&to=2026-09-24` (Arabian Gulf Cup) | 0 |
+| Matches played | When the archive first returned them |
+| --- | --- |
+| 2026-09-18 (La Liga) | not by 2026-09-25 — seven days later it still returned only 09-16 and 09-17 |
+| 2026-09-24 (UEFA Nations League, AFCON Qualifications, Arabian Gulf Cup) | 2026-09-26 at about 23:30 UTC — roughly two and a half days later |
+| 2026-09-27 (UEFA Nations League) | the same evening |
+| 2026-09-29 (AFCON Qualifications) | the same evening |
+| 2026-09-24 (National Teams Friendlies, `competition_id=371`) | never — 16 queries up to 2026-10-02 08:12 UTC returned no rows |
 
-Both La Liga answers are below the 30-row page size, so they are complete: the later days are
-absent, not on a later page. A single-day query works (09-16 answers), so it is not the `from == to`
-shape. It is not our competition ids, and it is not a club/national difference.
-
-**What we have ruled out, and what we have not.** We wondered whether the archive simply lags by a
-few days. The boundary sat between 09-17 and 09-18 when we asked on the 22nd, and it sat in exactly
-the same place when we asked on the 25th — so it is not a lag of about five days. We have not ruled
-out a longer lag, a restriction on our trial, or something upstream.
-
-**Why it matters to us.** Our database holds finished fixtures from those dates whose scores reached
-us through `matches/live.json` while they were being played. When a fixture is missed while live —
-because our own connection dropped, say — the archive is the only way we know to recover it
-afterwards. Several are waiting on it now, including UEFA Nations League, Andorra v Malta on
-2026-09-24.
+The three friendlies we are missing from 2026-09-24 are Solomon Islands v Vanuatu (04:00 UTC),
+Papua New Guinea v New Caledonia (07:00) and Turkmenistan v New Zealand (09:30). Our queries were
+single-day: `matches/history.json?competition_id=371&from=2026-09-24&to=2026-09-24`.
 
 **Questions:**
 
-1. Is there a known gap in the history archive from 2026-09-18 onward, or a delay before recent
-   matches appear in it? If there is a delay, roughly how long?
-2. Does our trial plan limit how recent the history data can be?
-3. Is there anything about how we are querying `matches/history.json` that we have not spotted?
+1. Is there an expected delay before a finished match appears in `matches/history.json`, and what
+   determines it? We saw anything from the same evening to more than a week.
+2. Are National Teams Friendlies covered by the history archive, or only some of them? Is there a
+   reason the three fixtures above would never appear?
+3. Is there anything about single-day queries that we should do differently?
 
-We are not asking for a backfill; we would mainly like to know what to expect, so we retry sensibly
-rather than either giving up too early or asking every half hour for data that will not come.
+We are not asking for a backfill; we would like to know what to expect, so we retry sensibly
+rather than either giving up too early or asking repeatedly for data that will not come.
 
 ---
 
