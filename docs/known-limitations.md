@@ -378,19 +378,45 @@ the feature, and exhausting it would also stop the ordinary fixtures sync until 
 provider would have to fail continuously for hours for this to bite, and it has not happened, but
 nothing in the code prevents it.
 
-## Live Score is refusing our key (since some time between 2026-10-02 and -05)
+## No match-data source is answering: Live Score refuses our key, and the fallbacks cannot stand in
 
 The primary match-data source answered the first request after the local fault was fixed —
 2026-10-05 03:23 UTC — with **HTTP 401, "This API key and secret do not have access to our data
-enabled"**. The last successful answer was 2026-10-02 14:53 UTC; in between our process could not
-send anything, so when access stopped inside that window is unknown. Nothing changed in how the
-key and secret are sent. The likeliest reading is that the trial ended; that is unconfirmed, and
-the question is first in `docs/support/livescore-api-questions.md` (prepared, not sent).
+enabled"**, and has answered every attempt since the same way. The last successful answer was
+2026-10-02 14:53 UTC; in between our process could not send anything, so when access stopped
+inside that window is unknown. Nothing changed in how the key and secret are sent. The likeliest
+reading is that the trial ended; that is unconfirmed, and the question is first in
+`docs/support/livescore-api-questions.md` (prepared, not sent).
 
-While it lasts: fixtures, live scores and results fall through to the retained fallbacks
-(API-Football, then TheSportsDB) on their free plans, which answer for far less (on 2026-10-05
-API-Football answered for the stranded fixtures with no rows). Stored fixtures and forecasts are
-still served. Restoring Live Score is a purchase or support decision for the owner; nothing in
+**The retained fallbacks cannot stand in for it.** What each source answered on 2026-10-05:
+
+| Source | Its answer |
+|---|---|
+| Live Score | HTTP 401 as above, at every attempt from 03:23 UTC (skipped for 30 minutes after each) |
+| API-Football (free plan) | At the 06:01 UTC fixtures pass: "Free plans do not have access to this season, try from 2022 to 2024." |
+| TheSportsDB | At the same pass: HTTP 400, "Invalid Premium API key" |
+
+So no configured source can currently add or update a fixture, a live score or a result, for any
+competition. For national-team football there would be nothing to fall back to even if they
+answered: none of the 34 national-team competitions has an API-Football or TheSportsDB id (all 34
+have a Live Score one). On 2026-10-05 at 05:10 UTC, 67 fixtures had kicked off with no stored
+result — 26 UEFA Nations League (2–4 Oct), 17 CONCACAF Nations League (2–5 Oct), 24 friendlies
+(24 Sep – 4 Oct) — and no result of any kind had been stored since 2026-10-02 14:53 UTC. A slip
+holding such a fixture stays *pending*; nothing settles until a result source answers. (The
+recovery pass on 2026-10-05 recorded API-Football as having answered two friendly dates with no
+rows; it sent no request for them, having no id to ask with. That record is wrong and is being
+corrected separately.)
+
+Forecasts still arrive — GameForecastAPI answers — but only attach to fixtures already stored. On
+2026-10-05 it returned 48 club fixtures for 9–12 October; 3 were in the store and 45 wait,
+unattached and free to attach later, until a fixture source can list them.
+
+Each attempt at Live Score while it refuses costs two requests: the adapter retries a 401 once,
+because the provider also answers 401 to bursts. After a refusal the provider is skipped for
+30 minutes, so the refused traffic stays at most about four requests an hour.
+
+Stored fixtures and forecasts are still served. Restoring a match-data source — Live Score, or a
+paid plan at one of the fallbacks — is a purchase or support decision for the owner; nothing in
 this repository works around it.
 
 ## Running it locally: what stopped updates for 2½ days, and how it is run now
@@ -423,13 +449,26 @@ What changed:
   daily allowance (and one against GameForecast's eight) although nothing was sent. Those figures
   overstate real traffic for 2026-10-02 to -05; the provider's own counters were not affected.
 - **Backoff after a local fault:** a task that fails backs off up to six hours, and that is kept
-  across a restart. Nothing was forced after this incident: the recovery task, which never backs
-  off, ran at 03:23 UTC and reached the providers (that is how Live Score's 401 was learned);
-  fixtures, results, live and forecasts were due again at 06:01 UTC.
+  across a restart. Nothing was forced after this incident. The recovery task, which never backs
+  off, has run every 30 minutes since 03:23 UTC (that is how Live Score's 401 was learned). The
+  other tasks came due at 06:01 UTC and ran: *live* succeeded (nothing was in play, so it sent
+  nothing); *forecasts* fetched 7 of its 8 competitions and stored 16 fresh forecasts for the
+  coming week, then stopped at the day's ceiling before the eighth; *fixtures* and *results*
+  failed because every match-data source refused (previous section). The scheduler records the
+  forecasts run as failed too, because it stopped short; all three are next due around 12:01 UTC.
 - **Reserved is not sent.** `/api/v1/data-providers/status` now shows, per provider, the allowance
   reserved today (`used_today`) beside what actually went out on the network
-  (`transmitted_today`: answered / no answer / never connected, with the time of the last answer),
-  recorded by the HTTP client at the moment of transmission.
+  (`transmitted_today`: answered with a status / sent without an answer / never connected),
+  recorded by the HTTP client at the moment of transmission. Across the 06:01 pass every new
+  reservation matched a transmission with its status: GameForecast 7 answered 200, API-Football 1
+  (200 carrying the plan refusal), TheSportsDB 1 (400), Live Score none (cooling down). Today's
+  totals still differ — GameForecast 8 reserved and 7 answered; Live Score 21 reserved, 8 answered
+  and 1 that never connected — because passes before 03:27 UTC reserved requests that never left
+  the machine or ran before the counter existed, and at 05:25 UTC one request could not connect at
+  all. GameForecast's unsent reservation, made by the failing 00:01 pass, cost CONCACAF Nations
+  League its turn today: its 12 fixtures in the coming week have no forecast.
+  Where a provider reports its own count, it agrees with ours: API-Football's rate-limit header
+  said 6 of 100 used at 05:55 UTC, when we had reserved 6.
 
 ## Selections and slips
 
@@ -475,9 +514,13 @@ What they do not do, on purpose:
   configured source publishes probabilities for them and they are not invented from other
   statistics. The paid options researched are listed for the owner in the capability matrix;
   none was taken.
-- **Coverage is what the stored forecasts cover.** On 2026-09-25 that is the five domestic
-  leagues and the UEFA Nations League; CONCACAF Nations League fixtures are stored without
-  forecasts and the Champions League has neither stored fixtures nor forecasts.
+- **Coverage is what the stored forecasts cover.** On 2026-10-05 after the 06:01 UTC pass, 16 of
+  the 33 stored fixtures in the next seven days carry a current forecast: 13 of 18 UEFA Nations
+  League fixtures and the 3 club fixtures stored for 9 October. The 12 CONCACAF Nations League
+  fixtures have none (their turn was deferred to the next day's allowance), and 5 Nations League
+  fixtures were not in the provider's answer. Club fixtures from 10 October on are not stored at
+  all while no match-data source answers (see above). That day the suggestions page drew three
+  combinations from those 16 fixtures.
 
 ## Expert convictions
 
