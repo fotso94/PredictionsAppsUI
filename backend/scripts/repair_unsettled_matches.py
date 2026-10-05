@@ -233,6 +233,9 @@ def main() -> int:
 
     plan = service.recovery_plan(max_days=args.max_days)
     stranded, days = plan["stranded"], plan["days"]
+    if plan.get("relisted"):
+        print(f"second listings of a played match, which a pass closes before asking anything (no "
+              f"request; see scripts/repair_relisted_fixtures.py): {[str(m.id) for m in plan['relisted']]}")
     if not stranded:
         print("no stranded fixture; nothing to sweep")
         print(f"budget {provider} after:  {budget_now(provider)}")

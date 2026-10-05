@@ -43,6 +43,13 @@ REGRESSIVE_STATUSES = (MatchStatus.SCHEDULED, MatchStatus.LIVE)
 #: How close two kickoffs must be for `_shared_slot_candidates` to call them the same moment.
 #: The tightest window there is; a club that appears twice an hour apart is playing twice.
 SHARED_SLOT_WINDOW = match_matching.EXACT_WINDOW
+#: How close two kickoffs of one pairing must be for `MatchRegistry.relisting_of` to call them one
+#: day's football. No club plays twice inside a day and the two legs of a tie are days apart. A
+#: duration rather than a calendar date, because "the same day" is a different date in Dakar, in
+#: Maputo and in UTC.
+RELISTING_WINDOW = timedelta(hours=24)
+#: Where a fixture listed twice names the row that was played (`MatchRegistry.retire_relisted`).
+RELISTED_KEY = "relisted_as"
 
 #: How long after kickoff a fixture is left alone before anything calls it unsettled. This is THIS
 #: APPLICATION'S polling window: the live task stops considering a match 150 minutes after kickoff
@@ -410,8 +417,11 @@ def due_once_stop_is_undone(match, now: datetime) -> bool:
 
 
 class MatchRegistry:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, now: Optional[datetime] = None):
         self.db = db
+        #: The moment a store is judged at when nobody passes one: the clock of the service that
+        #: owns this registry, or the wall clock. Read by `_reconcile_relisting`.
+        self._now = now
         # Fixtures that could not be attributed with certainty; callers count/report them (never guess).
         self.refusals: List[dict] = []
         self._teams_cache: Optional[List[Team]] = None
@@ -910,6 +920,9 @@ class MatchRegistry:
         under `match_metadata.shared_slot_conflict` for a person to resolve. Declining to merge two
         clubs is a judgement about identity; declining to store is throwing a real fixture away,
         and a stored row that vetoes a kickoff vetoes it on every later sync too.
+
+        Every row stored here is also checked for the one shape in which a provider's own other
+        fixture IS this match: listed again the other way round and played. See `relisting_of`.
         """
         league = self.upsert_league(fixture.competition)
         home = self.upsert_team(fixture.home, fixture.competition.country, fixture.competition.key)
@@ -982,6 +995,7 @@ class MatchRegistry:
         self._apply_fixture(match, fixture, home, away, league)
         if clash:
             self._record_slot_conflict(match, fixture, clash)
+        self._reconcile_relisting(match)
         # The ref records how this link was really made: an invented "exact/provider_id" would erase
         # the fact that the match was found by name, by a legacy id, or with a lower confidence.
         self.set_ref("match", match.id, fixture.provider, fixture.external_id, confidence=confidence, matched_by=matched_by,
@@ -1013,6 +1027,174 @@ class MatchRegistry:
                        "be reconciled; stored as match %s and reported for review.",
                        fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name,
                        candidates, match.id)
+
+    # ------------------------------------------------------- one match, listed twice
+    def _has_result(self, match_id: uuid.UUID) -> bool:
+        return self.db.query(MatchResult.id).filter(MatchResult.match_id == match_id).first() is not None
+
+    def relisting_of(self, match: Match, now: Optional[datetime] = None) -> Optional[Match]:
+        """
+        The played row this fixture turned out to be a second listing of, or None. Read-only.
+
+        All of it is required. This row is SCHEDULED with no result, `UNSETTLED_GRACE` after its
+        kickoff, so the live poll's whole window passed without anyone reporting it started. And
+        exactly one other row in the same competition holds the same two clubs THE OTHER WAY
+        ROUND, kicked off within `RELISTING_WINDOW` of it, and is FINISHED with a stored score. No
+        club plays twice in a day, so the two rows are one match, and the one reported played is
+        the one that happened.
+
+        Live Score did this on 2026-09-25: its AFCON qualifier Senegal v Mozambique, 19:00 UTC in
+        Dakar (fixture 1899816), was listed again as Mozambique v Senegal, 13:01 UTC in Maputo
+        (1902057), which finished 1-1. The old id was never listed again. `upsert_fixture` stored
+        both, because a provider's own other fixture is never a candidate for a new id, and by
+        2026-10-05 the recovery sweep had asked a results provider about the old one 31 times.
+
+        Only the other way round. The same clubs the same way round at one kickoff are one fixture
+        stored twice, and `scripts/repair_duplicate_matches.py` folds them, predictions included,
+        because both rows say the same thing. Swapped, they do not: a prediction made for Senegal
+        at home is not one about Mozambique at home, so nothing can be carried across, and the
+        stale listing is closed where it stands (`retire_relisted`).
+
+        Clubs are compared by row id, as in `_shared_slot_candidates`, so a club stored twice under
+        two spellings is not seen here; that split belongs to the repair script. Two played rows
+        that could each be the match are left for a person, and give None.
+        """
+        if match.status != MatchStatus.SCHEDULED or match.match_date is None:
+            return None
+        now = _aware_utc(now or datetime.now(timezone.utc))
+        kickoff = _aware_utc(match.match_date)
+        if kickoff + UNSETTLED_GRACE > now or self._has_result(match.id):
+            return None
+        rows = self.db.query(Match).filter(
+            Match.id != match.id,
+            Match.league_id == match.league_id,
+            Match.home_team_id == match.away_team_id,
+            Match.away_team_id == match.home_team_id,
+            Match.status == MatchStatus.FINISHED,
+            Match.match_date > _naive_utc(kickoff - RELISTING_WINDOW),
+            Match.match_date < _naive_utc(kickoff + RELISTING_WINDOW),
+        ).all()
+        played = [m for m in rows if self._has_result(m.id)]
+        if len(played) > 1:
+            logger.warning("Match %s has %s played rows of its pairing within a day (%s); not closed as a "
+                           "second listing", match.id, len(played), [str(m.id) for m in played])
+            return None
+        return played[0] if played else None
+
+    def relisted_fixtures(self, now: Optional[datetime] = None,
+                          league_ids: Optional[Iterable[uuid.UUID]] = None,
+                          day: Optional[date] = None) -> List[Tuple[Match, Match]]:
+        """Every (stale listing, played row) pair `relisting_of` finds, oldest first. Read-only.
+
+        `day` narrows the stale listings to one UTC calendar day, the unit a results call asks for.
+        """
+        now = _aware_utc(now or datetime.now(timezone.utc))
+        rows = self.db.query(Match).filter(Match.status == MatchStatus.SCHEDULED,
+                                           Match.match_date <= _naive_utc(now - UNSETTLED_GRACE))
+        if league_ids is not None:
+            rows = rows.filter(Match.league_id.in_(list(league_ids)))
+        if day is not None:
+            start = datetime.combine(day, datetime.min.time())
+            rows = rows.filter(Match.match_date >= start, Match.match_date < start + timedelta(days=1))
+        pairs = []
+        for stale in rows.order_by(Match.match_date.asc()).all():
+            played = self.relisting_of(stale, now)
+            if played is not None:
+                pairs.append((stale, played))
+        return pairs
+
+    def retire_relisted(self, now: Optional[datetime] = None,
+                        league_ids: Optional[Iterable[uuid.UUID]] = None,
+                        day: Optional[date] = None) -> List[Match]:
+        """Close every stale listing `relisted_fixtures` finds. Makes no request; returns the rows closed."""
+        now = _aware_utc(now or datetime.now(timezone.utc))
+        closed = []
+        for stale, played in self.relisted_fixtures(now, league_ids, day):
+            self._retire_relisted(stale, played, now)
+            closed.append(stale)
+        return closed
+
+    def _retire_relisted(self, stale: Match, played: Match, now: datetime) -> None:
+        """
+        Close a stale listing: POSTPONED, with `match_metadata.relisted_as` naming the played row.
+
+        POSTPONED because the listing was not played as listed, which is what that status says to
+        settlement (void) and to the sweep (settled, so never asked about again). It is not
+        terminal, so the provider can still bring the listing back: `_reconcile_relisting` re-decides
+        on every store, and lifts the note if it is re-dated or reported started. CANCELLED would
+        lock the row against that, and FINISHED would need a result nobody reported for it.
+
+        Nothing is moved. Predictions, forecasts, slip legs and saved matches stay on the fixture
+        they were made for, and so does the provider ref: it names this listing, the clubs in this
+        order, and on the played row it would read as one provider giving one match two ids.
+        """
+        teams = self.team_names([played])
+        home, away = teams.get(played.home_team_id), teams.get(played.away_team_id)
+        result = self.db.query(MatchResult).filter(MatchResult.match_id == played.id).first()
+        scoreline = scoreline_label(result.home_score, result.away_score,
+                                    result.home_score_pens, result.away_score_pens) if result else None
+        played_meta = played.match_metadata or {}
+        provider = played_meta.get("provider") or played.external_api_source or "the provider"
+        minutes = int(abs(_aware_utc(stale.match_date) - _aware_utc(played.match_date)).total_seconds() // 60)
+        apart = f"{minutes} min" if minutes < 60 else f"{minutes // 60} h {minutes % 60:02d} min"
+        meta = dict(stale.match_metadata or {})
+        meta[RELISTED_KEY] = {
+            "match_id": str(played.id),
+            "home": home.name if home else None,
+            "away": away.name if away else None,
+            "kickoff_utc": _aware_utc(played.match_date).isoformat(),
+            "scoreline": scoreline,
+            "provider_ids": {r.provider: r.external_id for r in self.refs_for("match", played.id)},
+            "this_listing_ids": {r.provider: r.external_id for r in self.refs_for("match", stale.id)},
+            "this_listing_last_synced_at": meta.get("last_synced_at"),
+            "status_before": stale.status.value,
+            "detected_at": now.isoformat(),
+            "reason": (
+                f"{provider} reported {home.name if home else '?'} v {away.name if away else '?'} "
+                f"({_utc_label(played.match_date)}) finished {scoreline}: the same two teams in the "
+                f"same competition, the other way round, {apart} from this listing's kickoff. No "
+                f"team plays twice in a day and nobody reported this listing started, so it is the "
+                f"same match listed twice and was not played as listed here. Nothing recorded "
+                f"against this row was moved: a prediction stays on the fixture it was made for."),
+        }
+        # Nothing will ask about this row again, so no next ask is advertised. The asks already
+        # made stay on the row as the record of what was spent on it.
+        state = meta.get("recovery")
+        if isinstance(state, dict) and "next_ask_after" in state:
+            meta["recovery"] = {k: v for k, v in state.items() if k != "next_ask_after"}
+        stale.match_metadata = meta
+        stale.status = MatchStatus.POSTPONED
+        self.db.flush()
+        logger.warning("Match %s (%s) is a second listing of match %s, which was played (%s); closed as "
+                       "postponed, nothing moved", stale.id, stale.match_date, played.id, scoreline)
+
+    def _reconcile_relisting(self, match: Match, now: Optional[datetime] = None) -> None:
+        """
+        Re-decide, each time a provider speaks about this row, whether it is a second listing.
+
+        A stale listing the provider sends again unchanged is closed again at once, so a re-send
+        never puts it back on the calendar. A row carrying the note that comes back in any other
+        shape - re-dated, reported live, reported played - is no longer what the note says, so the
+        note is lifted onto `relisting_lifted` and the row stands as the provider now has it. One
+        the provider itself calls postponed or cancelled keeps its note: that agrees with it.
+        """
+        now = _aware_utc(now or self._now or datetime.now(timezone.utc))
+        played = self.relisting_of(match, now)
+        if played is not None:
+            self._retire_relisted(match, played, now)
+            return
+        meta = dict(match.match_metadata or {})
+        if RELISTED_KEY not in meta or match.status in (MatchStatus.POSTPONED, MatchStatus.CANCELLED):
+            return
+        lifted = dict(meta.pop(RELISTED_KEY) or {})
+        lifted["lifted_at"] = now.isoformat()
+        lifted["lifted_because"] = (f"{meta.get('provider') or 'a provider'} listed this fixture again as "
+                                    f"{match.status.value}, kickoff {_utc_label(match.match_date)}")
+        meta["relisting_lifted"] = lifted
+        match.match_metadata = meta
+        self.db.flush()
+        logger.warning("Match %s was closed as a second listing of %s and is listed again (%s); note lifted",
+                       match.id, lifted.get("match_id"), lifted["lifted_because"])
 
     def _owns_match(self, match: Match, provider: str) -> bool:
         """The provider whose record created this match row owns its kickoff; nobody else moves it."""
@@ -1229,7 +1411,8 @@ class MatchRegistry:
 
     def stale_unsettled_days(self, now: datetime, lookback_days: int,
                              league_ids: Optional[Iterable[uuid.UUID]] = None,
-                             max_days: int = STALE_SWEEP_MAX_DAYS, **limits) -> List[date]:
+                             max_days: int = STALE_SWEEP_MAX_DAYS,
+                             skip: frozenset = frozenset(), **limits) -> List[date]:
         """
         The days OLDER than the results lookback holding a fixture the retry schedule says is due.
 
@@ -1241,6 +1424,9 @@ class MatchRegistry:
         today through `lookback_days`, so the sweep starts the instant before the earliest of those
         days: paying twice for one day would spend the recovery allowance on a day that was going
         to be asked about anyway.
+
+        `skip` names fixtures a pass will close before it asks anything (`retire_relisted`), so a
+        plan priced without writing reaches the same days the pass does.
         """
         covered_from = now.date() - timedelta(days=max(int(lookback_days), 0))
         cutoff = min(now - UNSETTLED_GRACE,
@@ -1248,7 +1434,7 @@ class MatchRegistry:
                                       tzinfo=timezone.utc) - timedelta(microseconds=1))
         days: List[date] = []
         for m in self.unsettled_before(cutoff, league_ids, now=now, **limits):
-            if not retry_due(m, now):
+            if m.id in skip or not retry_due(m, now):
                 continue
             day = m.match_date.date()
             if day not in days:

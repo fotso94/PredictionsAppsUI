@@ -55,6 +55,7 @@ from app.models.provider_data import ProviderForecastResult, ProviderForecastSna
 from app.models.users import User
 from app.services.expert_prediction import REVISION_ACTION
 from app.services.forecast_service import choose_snapshots
+from app.services.match_registry import RELISTED_KEY
 from app.services.providers.base import marks_beyond_regulation
 
 logger = logging.getLogger(__name__)
@@ -480,6 +481,11 @@ _MARKER_KEYS = ("period", "period_marker", "status", "time_status", "stage")
 
 VOID_STATUSES = {MatchStatus.POSTPONED: "the fixture was postponed",
                  MatchStatus.CANCELLED: "the fixture was cancelled or abandoned"}
+#: The void reason for a postponed row that is really a second listing of a played match
+#: (:meth:`MatchRegistry.relisting_of`). It is voided where it stands rather than scored against
+#: the played row, because a prediction is about the fixture it was made for and home and away
+#: are the other way round there. ``void_reason`` holds 120 characters.
+RELISTED_VOID_REASON = "the provider re-listed this match the other way round; this listing was not played"
 TERMINAL_STATUSES = (MatchStatus.FINISHED, MatchStatus.POSTPONED, MatchStatus.CANCELLED)
 
 
@@ -998,6 +1004,8 @@ class SettlementService:
         """Score everything attached to one match. Idempotent: a second call writes nothing."""
         report = report if report is not None else _empty_report()
         void_reason = VOID_STATUSES.get(match.status)
+        if void_reason and RELISTED_KEY in (match.match_metadata or {}):
+            void_reason = RELISTED_VOID_REASON
         score: Optional[RegulationScore] = None
         if void_reason is None:
             if match.status != MatchStatus.FINISHED:

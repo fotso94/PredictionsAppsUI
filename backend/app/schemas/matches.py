@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, Optional
 
 from app.models.predictions import League, Match, MatchStatus, Prediction, Team
 from app.models.provider_data import ProviderEntityRef, ProviderForecastRecord
-from app.services.match_registry import UNSETTLED_GRACE
+from app.services.match_registry import RELISTED_KEY, UNSETTLED_GRACE
 from app.services.providers import competitions as comps
 from app.services.providers.base import ProviderStanding
 
@@ -315,6 +315,27 @@ def serialize_recovery(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
+def serialize_relisting(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Where a fixture closed as a second listing was really played, or None for every other row.
+
+    Written by :meth:`MatchRegistry.retire_relisted`. Such a row reads ``postponed``, which is the
+    nearest status and is how settlement and the sweep treat it, but it is not a match that will
+    be played later: the provider listed it a second time, the other way round, and that listing
+    was played. Without this a reader is told "postponed" and never where the match went.
+    """
+    entry = (meta or {}).get(RELISTED_KEY)
+    if not isinstance(entry, dict) or not entry.get("match_id"):
+        return None
+    return {
+        "match_id": str(entry["match_id"]),
+        "home": entry.get("home"), "away": entry.get("away"),
+        "kickoff_utc": _stored_iso(entry.get("kickoff_utc")),
+        "scoreline": entry.get("scoreline"),
+        "detected_at": _stored_iso(entry.get("detected_at")),
+        "reason": entry.get("reason"),
+    }
+
+
 def result_expected_by(match: Match) -> Optional[datetime]:
     """The instant by which this fixture should have had a result, or None with no kickoff.
 
@@ -364,6 +385,7 @@ def serialize_match(match: Match, teams: Dict, leagues: Dict, forecast: Optional
         # a result and neither implies one.
         "result_expected_by": _iso(result_expected_by(match)),
         "recovery": serialize_recovery(meta),
+        "relisted_as": serialize_relisting(meta),
         "score": score, "venue": match.venue, "round": match.round, "season": match.season,
         "expert_prediction": expert_prediction, "forecast": forecast, "forecast_state": forecast_state,
         "last_synced_at": meta.get("last_synced_at"),

@@ -17,7 +17,7 @@ from app.core.config import settings
 from app.models.predictions import League, Match, MatchStatus
 from app.services.match_cache import MatchCache
 from app.services.match_registry import (
-    STALE_SWEEP_MAX_DAYS, UNSETTLED_GRACE, MatchRegistry, RecoveryOutcome,
+    RELISTED_KEY, STALE_SWEEP_MAX_DAYS, UNSETTLED_GRACE, MatchRegistry, RecoveryOutcome,
     classify_recovery_outcome, due_once_stop_is_undone, is_settled, next_ask_after,
     recovery_state_of, retry_due,
 )
@@ -430,7 +430,7 @@ class MatchDataService:
     def __init__(self, db: Session, providers: Optional[List[MatchDataProvider]] = None, cache: Optional[MatchCache] = None,
                  now: Optional[datetime] = None, keys: Optional[List[str]] = None):
         self.db = db
-        self.registry = MatchRegistry(db)
+        self.registry = MatchRegistry(db, now=now)
         self.cache = cache or MatchCache()
         self._providers = providers
         self._now = now
@@ -749,8 +749,11 @@ class MatchDataService:
             self._league_keys = mapping
         return self._league_keys
 
-    def _pending_groups(self, day: date) -> Dict[str, List[Match]]:
+    def _pending_groups(self, day: date, skip: frozenset = frozenset()) -> Dict[str, List[Match]]:
         """Covered competition -> its matches on `day` that kicked off and are still unsettled.
+
+        `skip` leaves out fixtures a recovery pass closes before asking anything; only the plan
+        that prices such a pass without running it passes one (`recovery_plan`).
 
         A match whose league row carries no canonical key cannot name a competition. Those rows
         predate the canonical registry, and everything that predates it is one of the club six -
@@ -767,7 +770,7 @@ class MatchDataService:
         groups: Dict[str, List[Match]] = {}
         unattributed: List[Match] = []
         for m in self.registry.matches_for_day(day, self.league_ids()):
-            if m.status not in (MatchStatus.SCHEDULED, MatchStatus.LIVE) or m.match_date > cutoff:
+            if m.status not in (MatchStatus.SCHEDULED, MatchStatus.LIVE) or m.match_date > cutoff or m.id in skip:
                 continue
             key = by_league.get(getattr(m, "league_id", None))
             if key is None:
@@ -834,7 +837,12 @@ class MatchDataService:
         Returns what the call amounted to: "answered", "cached", "failed" (a request went out and
         no provider answered it, including a stale copy served in its place), "deferred" (no
         request went out) or "skipped" (nothing was due, no call attempted).
+
+        A second listing of a played match on `day` is closed first (`retire_relisted`). It is not
+        a pending result, and a call made on its behalf would be paid for and learn nothing.
         """
+        if self.registry.retire_relisted(self.now, self.league_ids(), day=day):
+            self.db.commit()
         groups = self._pending_groups(day)
         due = self.due_result_keys(day, groups)
         if keys is not None:
@@ -1036,14 +1044,19 @@ class MatchDataService:
         first page; a day whose answer paginates costs more, and the pass charges what it actually
         spent. `live_requests` is the poll the pass would make: 0 when nothing is due or when the
         day's live ceiling would refuse it.
+
+        RELISTED are the second listings of a played match (`MatchRegistry.relisting_of`). The pass
+        closes them before anything else, for nothing, so here they are none of the above.
         """
         league_ids = self.league_ids()
         now = self.now
-        superseded = self.registry.superseded_stops(league_ids)
+        relisted = [stale for stale, _played in self.registry.relisted_fixtures(now, league_ids)]
+        closing = frozenset(m.id for m in relisted)
+        superseded = [m for m in self.registry.superseded_stops(league_ids) if m.id not in closing]
         known_superseded = {m.id for m in superseded}
         reopenable = [m for m, _ in self.registry.reopen_candidates(league_ids)
-                      if m.id not in known_superseded]
-        stranded = self.registry.recoverable_unsettled(now, league_ids)
+                      if m.id not in known_superseded and m.id not in closing]
+        stranded = [m for m in self.registry.recoverable_unsettled(now, league_ids) if m.id not in closing]
         known = {m.id for m in stranded}
         put_back = superseded + reopenable
         stranded = stranded + [m for m in put_back if m.id not in known]
@@ -1055,8 +1068,10 @@ class MatchDataService:
                or (m.id not in known_superseded and (retry_due(m, now)
                                                      or m.id in {r.id for r in reopenable}))]
         days = self.registry.stale_unsettled_days(
-            now, settings.SYNC_RESULTS_LOOKBACK_DAYS, league_ids=league_ids, max_days=max_days)
-        wanted = {day: set(self.due_result_keys(day)) for day in days}
+            now, settings.SYNC_RESULTS_LOOKBACK_DAYS, league_ids=league_ids, max_days=max_days,
+            skip=closing)
+        wanted = {day: set(self.due_result_keys(day, self._pending_groups(day, skip=closing)))
+                  for day in days}
         # The same for the competition-days they put in play: behind the results lookback, within
         # the pass's cap on days, one request per competition not already priced.
         lookback_from = now.date() - timedelta(days=max(int(settings.SYNC_RESULTS_LOOKBACK_DAYS), 0))
@@ -1075,7 +1090,7 @@ class MatchDataService:
         results_requests = sum(len(keys) for keys in wanted.values())
         will_poll = bool(due) and self._live_poll_within_daily_ceiling()
         return {"stranded": stranded, "due": due, "reopenable": reopenable,
-                "superseded": superseded, "days": days,
+                "superseded": superseded, "relisted": relisted, "days": days,
                 "results_requests": results_requests, "live_requests": 1 if will_poll else 0}
 
     def recover_stranded(self, *, max_days: int = STALE_SWEEP_MAX_DAYS,
@@ -1092,6 +1107,9 @@ class MatchDataService:
         about on the same retry schedule (`RETRY_SCHEDULE`), which thins out with age and is a
         budget policy only. The pass:
 
+        0. closes every second listing of a played match (`MatchRegistry.retire_relisted`). Such a
+           fixture is not stranded: it was never going to be played as listed, so every ask made
+           about it was a request spent on nothing. Costs nothing;
         1. undoes any stop made by a rule this installation no longer applies
            (`undo_superseded_stops`) - a stop no current policy made is taken off the row, not
            renamed - and reopens any given-up fixture the archive has since been seen to move past
@@ -1125,12 +1143,19 @@ class MatchDataService:
         now = self.now
         league_ids = self.league_ids()
         self._outcomes, self._written, self._archive_seen = {}, set(), {}
+        relisted = self.registry.retire_relisted(now, league_ids)
         undone = self.registry.undo_superseded_stops(now, league_ids)
         reopened = self.registry.reopen_retired(now, league_ids)
         if stranded is None:
             stranded = self.registry.recoverable_unsettled(now, league_ids)
+        else:
+            closed = {m.id for m in relisted}
+            stranded = [m for m in stranded if m.id not in closed]
         report: Dict[str, Any] = {
             "stranded": len(stranded), "due": 0,
+            "relisted": [{"match_id": str(m.id),
+                          "relisted_as": ((m.match_metadata or {}).get(RELISTED_KEY) or {}).get("match_id")}
+                         for m in relisted],
             "reopened": [str(m.id) for m in reopened],
             "stops_undone": [str(m.id) for m in undone],
             "outcomes": {outcome.value: 0 for outcome in RecoveryOutcome},
