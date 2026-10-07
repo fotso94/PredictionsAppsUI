@@ -1,0 +1,40 @@
+
+
+  1) [live] › e2e/live/journey-proof.spec.ts:602:3 › LIVE: Back restores the previous list, its filters and its position at 1440px 
+
+    Error: the whole day must be taller than a 1440px window for this to mean anything
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 200
+    Received:   0
+
+      649 |     const left = await scrollY(page);
+      650 |     expect(left, `the whole day must be taller than a ${size.label}px window for this to mean anything`)
+    > 651 |       .toBeGreaterThan(200);
+          |        ^
+      652 |
+      653 |     await lastFixture.click();
+      654 |     await page.waitForURL('**/match/**');
+        at <repo>/frontend/e2e/live/journey-proof.spec.ts:651:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../.test-runs/2026-10-07T0301Z-7be42cc/artifacts-live/live-journey-proof-LIVE-Ba-21996--and-its-position-at-1440px-live/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../.test-runs/2026-10-07T0301Z-7be42cc/artifacts-live/live-journey-proof-LIVE-Ba-21996--and-its-position-at-1440px-live/error-context.md
+
+    Error Context: ../.test-runs/2026-10-07T0301Z-7be42cc/artifacts-live/live-journey-proof-LIVE-Ba-21996--and-its-position-at-1440px-live/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../.test-runs/2026-10-07T0301Z-7be42cc/artifacts-live/live-journey-proof-LIVE-Ba-21996--and-its-position-at-1440px-live/trace.zip
+    Usage:
+
+        npx playwright show-trace ../.test-runs/2026-10-07T0301Z-7be42cc/artifacts-live/live-journey-proof-LIVE-Ba-21996--and-its-position-at-1440px-live/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [live] › e2e/live/journey-proof.spec.ts:602:3 › LIVE: Back restores the previous list, its filters and its position at 1440px 
+  6 skipped
+  51 passed (2.5m)

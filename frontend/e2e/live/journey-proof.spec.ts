@@ -162,6 +162,28 @@ async function fixturesOn(api: APIRequestContext, day: string): Promise<Fixture[
 }
 
 /**
+ * The day holding the most stored fixtures within a week either side of today: the list the
+ * position claim is measured on.
+ *
+ * Measured on the filter's day instead, the claim depended on how many fixtures happened to be
+ * stored for it. On 2026-10-07, with no match-data source answering, the only coming day with
+ * more than one competition held three fixtures, and at 1440x900 its last row ended 10px above
+ * the fold: nothing could scroll, so nothing about restoring a position could be measured. A
+ * restore does not care whether the fixtures on the list are still to be played.
+ */
+async function busiestDay(api: APIRequestContext): Promise<string | null> {
+  let best: { day: string; count: number } | null = null;
+  for (let offset = 0; offset <= 7; offset += 1) {
+    for (const signed of offset === 0 ? [0] : [-offset, offset]) {
+      const day = dayOffsetUtc(signed);
+      const count = (await fixturesOn(api, day)).length;
+      if (count > (best?.count ?? 0)) best = { day, count };
+    }
+  }
+  return best?.day ?? null;
+}
+
+/**
  * A scheduled fixture on a day that also holds more than one competition, and the competition it
  * belongs to.
  *
@@ -637,7 +659,9 @@ for (const size of WIDTHS) {
       'and the same narrowed set of fixtures').toBe(narrowed);
 
     /* ------------------------------------------- the position comes back */
-    await page.goto(`/matches?date=${day}`);
+    // On the busiest stored day, which need not be the filter's day (see busiestDay).
+    const tallDay = (await busiestDay(api)) ?? day;
+    await page.goto(`/matches?date=${tallDay}`);
     await page.waitForLoadState('networkidle');
     await expect(page.getByTestId('fixture-list')).toBeVisible();
 
@@ -647,7 +671,7 @@ for (const size of WIDTHS) {
     await lastFixture.scrollIntoViewIfNeeded();
     await expect(lastFixture).toBeInViewport();
     const left = await scrollY(page);
-    expect(left, `the whole day must be taller than a ${size.label}px window for this to mean anything`)
+    expect(left, `the whole of ${tallDay} must be taller than a ${size.label}px window for this to mean anything`)
       .toBeGreaterThan(200);
 
     await lastFixture.click();
