@@ -41,3 +41,8 @@ frontend/e2e/screenshots/
 frontend/e2e/.artifacts/
 frontend/e2e/.report/
 frontend/test-results/
+
+# Raw output of scripts/test_evidence.py: full Playwright JSON, traces (which hold the QA password
+# and bearer tokens), screenshots and full console logs. Only the scrubbed copies it publishes under
+# docs/evidence/test-reports/ are committed.
+.test-runs/

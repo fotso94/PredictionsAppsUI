@@ -28,6 +28,8 @@ import { providerLabel, betLabels } from '@/utils/predictionLabels'
 import { isMatchLive, isMatchFinished, getMatchStatusText, getMatchStatusBadgeClasses } from '@/utils/matchFilters'
 import { resultDelay } from '@/utils/resultDelay'
 import { ResultDelayLabel, ResultDelayNotice } from '@/components/ui/ResultDelayNotice'
+import { isMatchDataBlocked } from '@/components/ui/matchDataState'
+import { useT } from '@/i18n/react'
 import MarketsPanel from '@/components/markets/MarketsPanel'
 
 const DAY_LABEL = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -245,6 +247,28 @@ const MatchActions: React.FC<{ match: Match }> = ({ match }) => {
 }
 
 /**
+ * What this fixture's card can no longer promise while fixture and result updates are blocked.
+ *
+ * One quiet line under the header, in the same voice as the freshness block and never louder than
+ * the result-delay notice it stands in for: the site banner has already said that updates are
+ * unavailable, and this says what that means for THIS fixture — its kick-off time is the last one
+ * we stored, or the score in its live window cannot move.
+ */
+const MatchDataCaveat: React.FC<{ kind: 'kickoff' | 'live'; className?: string }> = ({ kind, className }) => {
+  const t = useT()
+  return (
+    <p
+      role="status"
+      data-testid="match-data-caveat"
+      data-caveat={kind}
+      className={`rounded-lg border border-warning-500/40 bg-warning-500/10 px-3 py-2 text-xs text-warning-200 ${className ?? ''}`}
+    >
+      {t(kind === 'kickoff' ? 'matchData.match.kickoff' : 'matchData.match.live')}
+    </p>
+  )
+}
+
+/**
  * One match, led by the evidence behind it.
  *
  * The page answers, in this order: what is known about the fixture, what is missing and why, how
@@ -419,6 +443,18 @@ const MatchDetailPage: React.FC = () => {
   const live = isMatchLive(match) && !delay
   const showScore = (live || isMatchFinished(match)) && match.result
   const forecastAvail = forecastAvailability(providerStatus)
+  /*
+   * Fixture and result updates blocked across the installation (`match_data`). The forecasts and
+   * markets below are untouched — they come from another provider and say what they always said —
+   * but what this card shows about the fixture itself can no longer change, and is said to be so:
+   * a kick-off time that cannot be re-checked, a live score that cannot move, a result that cannot
+   * arrive. Nothing is added on any other state, or on a backend that sends no block.
+   */
+  const blocked = isMatchDataBlocked(providerStatus?.match_data)
+  const kickoffAt = match.kickoffUtc ? Date.parse(match.kickoffUtc) : NaN
+  const kickedOff = !Number.isNaN(kickoffAt) && kickoffAt <= Date.now()
+  const upcomingCaveat = blocked && !delay && match.status === 'scheduled' && !kickedOff
+  const liveCaveat = blocked && !delay && (isMatchLive(match) || (match.status === 'scheduled' && kickedOff))
 
   /**
    * Whether each source stated a confidence of its own. GameForecastAPI publishes none, so its
@@ -546,7 +582,10 @@ const MatchDetailPage: React.FC = () => {
             match is not in play and that no score is being claimed — which is the one thing that
             changes how everything below should be read.
           */}
-          {delay && <ResultDelayNotice delay={delay} className="mb-4 sm:mb-6" />}
+          {delay && <ResultDelayNotice delay={delay} blocked={blocked} className="mb-4 sm:mb-6" />}
+          {(upcomingCaveat || liveCaveat) && (
+            <MatchDataCaveat kind={upcomingCaveat ? 'kickoff' : 'live'} className="mb-4 sm:mb-6" />
+          )}
 
           {/*
             How current the page is, directly under the scoreline — the place the question is

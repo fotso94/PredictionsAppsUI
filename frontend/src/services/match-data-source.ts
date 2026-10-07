@@ -218,6 +218,54 @@ export interface SchedulerStatus {
   tasks: Record<string, SyncTaskState>;
 }
 
+/**
+ * One match-data source as the backend reads it for `MatchDataState`.
+ *
+ * `answer` is what its LATEST record says; `kind` is the kind of its last recorded failure, kept
+ * even after a later success (an answer to a live poll that brought nothing is still a success).
+ */
+export interface MatchDataSourceState {
+  name: string;
+  role: 'primary' | 'fallback';
+  configured: boolean;
+  answer: 'ok' | 'refused' | 'allowance' | 'failing' | 'never_answered';
+  kind: 'plan' | 'access' | 'quota' | 'unavailable' | null;
+  last_success_at: string | null;
+  last_error_at: string | null;
+}
+
+/**
+ * Whether fixture and result updates can reach this installation at all — `match_data` on
+ * `GET /data-providers/status`, and the whole body of `GET /data-providers/match-data`.
+ *
+ * Derived by the backend from what it has recorded (backend/app/services/match_data_health.py):
+ * each source's last answer and the KIND of its last refusal, the fixtures and results passes'
+ * failure streaks, and `since` — when a provider's answer last wrote a match row, which no
+ * recover or settle pass, no bookkeeping update and no copy stored again from the backend's cache
+ * can move (such a copy counts only as the answer it came from). `blocked` means no new fixtures,
+ * kick-off changes, live scores, results or automatic settlement until access is restored; stored
+ * fixtures and their forecasts are still there. Absent on an older backend.
+ */
+export interface MatchDataState {
+  state: 'ok' | 'degraded' | 'blocked' | 'unknown';
+  /** The newest provider write. Null when no row carries one. */
+  since: string | null;
+  /**
+   * 'last_provider_write' — a row a provider's answer wrote; 'last_provider_answer' — the
+   * newest row was a cached copy stored again, so `since` is the last answer of its provider.
+   */
+  since_basis: string | null;
+  sources: MatchDataSourceState[];
+  affects: string[];
+  still_available: string[];
+  upcoming_stored: number | null;
+  overdue_results: number | null;
+  /** Forecasts already retrieved that were waiting for a fixture we do not hold, at the last forecast pass. */
+  forecasts_waiting_for_fixtures: number | null;
+  next_check_at: string | null;
+  checked_at: string;
+}
+
 export interface ProviderStatus {
   active_provider: string;
   configured_fallbacks: string[];
@@ -234,6 +282,8 @@ export interface ProviderStatus {
   };
   /** Scheduled refresh state. Absent on a backend that runs no scheduler. */
   scheduler?: SchedulerStatus | null;
+  /** Whether fixture and result updates are arriving. Absent on a backend older than it. */
+  match_data?: MatchDataState | null;
   checked_at: string;
 }
 

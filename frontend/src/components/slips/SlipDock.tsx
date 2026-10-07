@@ -8,6 +8,8 @@ import { describeSlipError, useSlips, type DockLeg } from '@/services/slips.serv
 import { selectionSentence, stateLabel } from '@/utils/marketLabels'
 import { combinedPrice, combinedProbability, combinedProbabilityWithheld, slipText } from '@/utils/slipText'
 import type { SignInHandoff } from '@/components/favourites/useMatchSaving'
+import { isMatchDataBlocked } from '@/components/ui/matchDataState'
+import { useMatchDataState } from '@/hooks/useMatchDataState'
 
 /**
  * The persistent selection panel: a docked button on every page with the leg count, and the slip
@@ -40,7 +42,9 @@ const LegRow: React.FC<{
   editable: boolean
   onRemove: () => Promise<void>
   onOdds: (odds: number | null) => Promise<void>
-}> = ({ leg, editable, onRemove, onOdds }) => {
+  /** Result updates are blocked across the installation (`match_data.state`). */
+  resultsBlocked?: boolean
+}> = ({ leg, editable, onRemove, onOdds, resultsBlocked = false }) => {
   const t = useT()
   const [odds, setOdds] = useState(leg.odds ? String(leg.odds.value) : '')
   useEffect(() => { setOdds(leg.odds ? String(leg.odds.value) : '') }, [leg.odds])
@@ -76,6 +80,13 @@ const LegRow: React.FC<{
       </div>
       {leg.started && (
         <p className="mt-1 text-[11px] text-warning-200" role="status" data-testid="slip-leg-started">{t('selections.dock.started')}</p>
+      )}
+      {/*
+        A selection waiting for its result while result updates are blocked cannot settle, and the
+        slip says so rather than leaving "pending" to read as "any minute now".
+      */}
+      {resultsBlocked && leg.started && leg.state === 'pending' && (
+        <p className="mt-1 text-[11px] text-warning-200" role="status" data-testid="slip-leg-result-blocked">{t('selections.dock.resultBlocked')}</p>
       )}
       {leg.forecastChanged && leg.currentAvailable && (
         <p className="mt-1 text-[11px] text-secondary-400" data-testid="slip-leg-changed">
@@ -113,6 +124,13 @@ const SlipDock: React.FC = () => {
   const { user, isAuthenticated } = useAuth()
   const slips = useSlips(user?.id ?? null, now)
   const { active, legs, store, signedIn, handoffRefused, handoffPaused } = slips
+  /*
+   * Asked only once a selection has kicked off and is waiting for a result — the one case the answer
+   * changes what the slip says — so a reader building a slip for next weekend costs no request.
+   */
+  const awaitingResult = legs.some(leg => leg.started && leg.state === 'pending')
+  const matchData = useMatchDataState(awaitingResult)
+  const resultsBlocked = isMatchDataBlocked(matchData)
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -233,6 +251,7 @@ const SlipDock: React.FC = () => {
                   editable={editable}
                   onRemove={() => run(() => store.removeLeg(leg.matchId))}
                   onOdds={odds => run(() => store.setLegOdds(leg.matchId, odds))}
+                  resultsBlocked={resultsBlocked}
                 />
               ))}
             </ul>

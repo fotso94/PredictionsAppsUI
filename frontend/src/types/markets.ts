@@ -250,6 +250,11 @@ export interface ApiSlipLeg {
   odds: SelectionOdds | null
   kickoff_utc: string | null
   started: boolean
+  /**
+   * The backend's own deadline for this fixture's result (kickoff plus its grace), as the match
+   * pages are served it. Absent from a backend older than it; null with no fixture row to read.
+   */
+  result_expected_by?: string | null
   /** The same selection read from the CURRENT forecast, for comparison only. */
   current: { probability: number | null; available: boolean; forecast_changed: boolean; state: string | null }
   state: SettlementState

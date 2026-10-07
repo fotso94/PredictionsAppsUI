@@ -167,6 +167,7 @@ const DataFreshness: React.FC<DataFreshnessProps> = ({ status, variant = 'line',
       className={clsx('rounded-lg border border-dark-700 bg-dark-800/40', className)}
       data-testid="data-freshness"
       data-tone={tone}
+      data-match-data={status?.match_data?.state ?? undefined}
       aria-label={t('freshness.panel.label')}
     >
       <div className="px-3 py-2">
@@ -260,11 +261,19 @@ const DataFreshness: React.FC<DataFreshnessProps> = ({ status, variant = 'line',
                     // summary of it instead, without the vendor's name, plan tier or upgrade link.
                     const verbatim = [task.failureReason, task.pauseReason]
                       .filter((line): line is string => Boolean(line))
+                    /*
+                     * A task folded into the blocked line keeps its next attempt here, because the
+                     * note above no longer states it; only the failure sentence goes, since the
+                     * provider's own words follow on this same row.
+                     */
                     const lines = report.noteTasks.includes(task.name)
                       ? task.detail.filter(line =>
                         line !== task.resume
                         && !alreadySaid.some(said => line.replace(/[.\s]+$/, '') === said))
-                      : task.detail
+                      : report.collapsedTasks.includes(task.name)
+                        ? task.detail.filter(line =>
+                          !alreadySaid.some(said => line.replace(/[.\s]+$/, '') === said))
+                        : task.detail
                     const all = [
                       ...lines,
                       ...verbatim.map(line => t('freshness.task.providerSaid', { reason: line })),

@@ -12,6 +12,8 @@ import { marketTitle, outcomeLabel } from '@/utils/marketLabels'
 import type { League } from '@/types'
 import type { ApiCombination, ApiSuggestedLeg, ApiSuggestions, MarketId } from '@/types/markets'
 import type { MessageKey } from '@/i18n'
+import { matchDataNotice } from '@/components/ui/matchDataState'
+import { useMatchDataState } from '@/hooks/useMatchDataState'
 
 /**
  * Suggested combinations: the deterministic service's output, with every leg explained and every
@@ -114,6 +116,13 @@ const SuggestionsPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   /** The most recent request's number: an older answer landing after a newer one is ignored. */
   const latest = useRef(0)
+  /*
+   * Suggestions are built from stored fixtures and stored forecasts, so they keep working while
+   * fixture updates are blocked — but only from what is held, and the page says so, with the count
+   * of forecasts already retrieved that have no fixture to attach to yet.
+   */
+  const matchData = useMatchDataState()
+  const blocked = matchDataNotice(matchData)
 
   useEffect(() => {
     footballDataService.getTopLeagues().then(setLeagues).catch(() => setLeagues([]))
@@ -164,6 +173,15 @@ const SuggestionsPage: React.FC = () => {
       <h1 className="text-2xl font-bold text-white">{t('selections.suggest.title')}</h1>
       <p className="mt-2 text-sm text-secondary-300">{t('selections.suggest.intro')}</p>
       <p className="mt-1 text-xs"><Link to="/selections" className="focus-ring text-primary-300 underline">{t('selections.history.title')}</Link></p>
+
+      {blocked && (
+        <div className="mt-3 rounded-lg border border-warning-500/40 bg-warning-500/10 px-3 py-2 text-xs text-warning-200" role="status" data-testid="suggest-blocked">
+          <p data-testid="suggest-blocked-note">{t('selections.suggest.blockedNote')}</p>
+          {blocked.forecastsWaiting > 0 && (
+            <p className="mt-1" data-testid="suggest-forecasts-waiting">{t('selections.suggest.forecastsWaiting', { count: blocked.forecastsWaiting })}</p>
+          )}
+        </div>
+      )}
 
       <Card className="mt-4">
         <Card.Body>
@@ -241,7 +259,9 @@ const SuggestionsPage: React.FC = () => {
             result.shortfall_reasons && result.shortfall_reasons.length > 0 ? (
               <div className="rounded-lg border border-dark-700 bg-dark-800/60 px-3 py-2 text-sm text-secondary-200" role="status" data-testid="suggest-none">
                 {result.shortfall_reasons[0].reason === 'no_fixtures' ? (
-                  <p>{t('selections.suggest.reason.noFixtures')}</p>
+                  <p data-testid="suggest-no-fixtures">
+                    {t(blocked ? 'selections.suggest.reason.noFixturesBlocked' : 'selections.suggest.reason.noFixtures')}
+                  </p>
                 ) : (
                   <>
                     <p>{t('selections.suggest.noneTitle', { considered: result.pool.fixtures_in_window })}</p>

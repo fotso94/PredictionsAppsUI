@@ -381,6 +381,9 @@ const reader = {
   'selections.dock.handoffRefused': '{count, plural, one {One selection from this browser could not be added to your account: {reasons}} other {# selections from this browser could not be added to your account: {reasons}}}',
   'selections.dock.handoffPaused': 'Some selections from this browser have not reached your account yet. They are kept, and will be added the next time you sign in or reload.',
   'selections.dock.started': 'Kicked off — no longer a prematch selection; remove it before saving.',
+  // A selection that has kicked off and is waiting for its result while result updates are blocked
+  // (`match_data.state`). It says the result cannot arrive for now, never when it will.
+  'selections.dock.resultBlocked': 'Waiting for the result: result updates are unavailable at the moment, so this selection can only be settled once they resume.',
   'selections.dock.forecastChanged': 'The forecast has changed since you chose this ({current} now); your selection is unchanged.',
   'selections.dock.unavailableNow': 'This selection is no longer offered by the current forecast; your selection is unchanged.',
   'selections.dock.oneOnly': 'One selection per fixture. This fixture already has one on your slip.',
@@ -425,6 +428,7 @@ const reader = {
   'selections.history.settlementReason': '{reason}',
   'selections.history.actual': 'Result {actual}',
   'selections.history.awaiting': 'Awaiting a result',
+  'selections.history.awaitingBlocked': 'Awaiting a result — result updates are unavailable at the moment; this selection can only be settled once they resume.',
   'selections.history.unresolvedNote': 'Not settled automatically: the data this market needs is not held. Nothing is guessed.',
   'selections.history.voidNote': 'Void selections drop out of the combination and its price.',
   'selections.suggest.title': 'Suggested combinations',
@@ -453,6 +457,12 @@ const reader = {
   'selections.suggest.reason.noAvailableMarket': 'None of the chosen markets published: {count}',
   'selections.suggest.reason.noSettleableMarket': 'Only selections that cannot be tracked automatically: {count}',
   'selections.suggest.reason.noFixtures': 'No scheduled fixture kicks off in this window.',
+  // While fixture updates are blocked: suggestions still work, from what is stored, and the
+  // forecasts already paid for that have no fixture to attach to are counted rather than hidden.
+  // The count is the last forecast pass's, so it is worded in the past tense.
+  'selections.suggest.reason.noFixturesBlocked': 'No stored fixture kicks off in this window, and new fixtures are not reaching us at the moment.',
+  'selections.suggest.blockedNote': 'New fixtures are not reaching us at the moment, so suggestions are built only from fixtures we already hold.',
+  'selections.suggest.forecastsWaiting': '{count, plural, one {At the last forecast update, # forecast already retrieved was waiting for a fixture we do not hold yet; it can only be used once fixture updates resume.} other {At the last forecast update, # forecasts already retrieved were waiting for fixtures we do not hold yet; they can only be used once fixture updates resume.}}',
   'selections.suggest.staleHint': 'Out-of-date forecasts are left out by default. Tick “Include out-of-date forecasts” to consider them, or wait for the next scheduled forecast update.',
   'selections.suggest.shortfall': '{reason}',
   'selections.suggest.combination': 'Combination {index}',

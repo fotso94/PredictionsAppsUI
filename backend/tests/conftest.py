@@ -3,6 +3,8 @@ Pytest Configuration
 Fixtures and test configuration
 """
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -13,8 +15,11 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.core.config import settings
 
-# Test database URL
-TEST_DATABASE_URL = "postgresql://postgres:postgres123@localhost:5432/soccer_predictions_test"
+# Test database URL. The session fixture drops every table when it ends, so two runs sharing one
+# database wipe each other: a run beside another one points TEST_DATABASE_URL at its own database,
+# as the database-backed test modules already allow.
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL", "postgresql://postgres:postgres123@localhost:5432/soccer_predictions_test")
 
 # Create test engine
 engine = create_engine(TEST_DATABASE_URL)

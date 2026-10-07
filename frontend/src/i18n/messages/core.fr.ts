@@ -185,6 +185,7 @@ const core: Area<'core'> = {
   'matchday.retry': 'Réessayer',
   'matchday.emptyTitle': 'Aucun match enregistré pour cette date.',
   'matchday.emptyDescription': 'Cette installation ne contient aucun match pour le {date}. Les matchs apparaissent ici une fois récupérés et enregistrés\u00a0: c’est donc ce que nous détenons, et non une affirmation qu’il ne se joue rien.',
+  'matchday.emptyBlocked': 'Cette installation ne contient aucun match pour le {date}. Les mises à jour des matchs sont indisponibles pour le moment\u00a0: un jour que nous n’avons pas encore enregistré reste vide jusqu’à leur reprise.',
   /*
    * Ce qu’une journée vide peut dire de plus : quand le football reprend.
    *
@@ -336,9 +337,11 @@ const core: Area<'core'> = {
   // Seul `heldBackShort` parle de « notre » quota. Les autres nomment la cause reçue du backend.
   'fixture.result.heldBackProviderShort': 'Un résultat était attendu {due}\u00a0; notre dernière vérification n’a pas été envoyée, le fournisseur ayant signalé sa limite de requêtes atteinte.',
   'fixture.result.heldBackCoolingShort': 'Un résultat était attendu {due}\u00a0; notre dernière vérification a été différée après l’échec d’une tentative précédente.',
+  'fixture.result.blockedShort': 'Un résultat était attendu {due}\u00a0; les mises à jour des résultats sont indisponibles pour le moment.',
   'fixture.result.heldBackOtherShort': 'Un résultat était attendu {due}\u00a0; notre dernière vérification n’a pas été envoyée au fournisseur.',
   'fixture.result.givenUpShort': 'Aucun résultat n’est arrivé\u00a0; nous avons cessé de demander {when}.',
   'fixture.result.overdueDetail': 'Un résultat était attendu {due} et aucun ne nous est parvenu. Ce match n’est pas présenté comme en cours et aucun score n’est avancé.',
+  'fixture.result.blockedDetail': 'Un résultat était attendu {due}. Les mises à jour des résultats sont indisponibles pour le moment, il ne peut donc pas encore nous parvenir. Ce match n’est pas présenté comme en cours et aucun score n’est avancé.',
   'fixture.result.givenUpDetail': 'Aucun résultat ne nous est jamais parvenu et nous avons cessé de demander {when}. Aucun score n’est avancé pour ce match.',
   'fixture.result.stillAsking': 'Nous continuons à demander ce résultat.',
   'fixture.result.lastCheckUnreachable': 'Notre dernière vérification, {when}, n’a pas pu joindre le fournisseur.',
@@ -454,6 +457,7 @@ const core: Area<'core'> = {
   'sync.task.live': 'Scores en direct',
   'sync.task.results': 'Résultats finaux',
   'sync.task.recover': 'Résultats en retard',
+  'sync.task.settle': 'Évaluation des matchs terminés',
   'sync.task.forecasts': 'Prévisions du modèle',
 
   'freshness.stored': 'Données stockées',
@@ -465,6 +469,8 @@ const core: Area<'core'> = {
   'freshness.summary.refreshed': 'Données stockées · dernière actualisation des matchs et des scores {age}',
   'freshness.summary.neverRun': 'Données stockées · aucune actualisation programmée n’a encore été exécutée',
   'freshness.summary.neverSucceeded': 'Données stockées · aucune actualisation programmée n’a encore réussi',
+  'freshness.summary.blocked': 'Données stockées · aucun nouveau match ni score depuis le {since}',
+  'freshness.summary.blockedNoSince': 'Données stockées · aucun nouveau match ni score ne nous parvient',
 
   'freshness.note.noStatus': 'Le service d’état n’a pas pu être joint\u00a0; la date de la dernière actualisation est donc inconnue.',
   'freshness.note.noSchedule': 'Cette installation ne signale aucune actualisation programmée\u00a0: les données stockées ne changent que lorsqu’une page demande de nouvelles données au fournisseur.',
@@ -496,11 +502,15 @@ const core: Area<'core'> = {
   'freshness.line.paused': '{task}\u00a0: en pause — {reason}',
   'freshness.line.behind': '{task}\u00a0: plus d’un intervalle complet de retard\u00a0; ce qui est stocké peut donc être plus ancien que ne le prévoit la planification.',
   'freshness.line.mechanics': '{task}\u00a0: {detail}',
+  'freshness.line.blocked': 'Matchs, scores en direct et résultats\u00a0: les mises à jour sont indisponibles pour le moment\u00a0; ce qui est affiché est notre dernière copie enregistrée.',
   'freshness.reason.unstated': 'le serveur n’a pas dit pourquoi',
   'freshness.reason.quota': 'le fournisseur a refusé la requête car notre quota quotidien auprès de lui est épuisé',
   'freshness.reason.budget': 'notre propre quota quotidien de requêtes pour ce fournisseur est épuisé',
   'freshness.reason.credentials': 'le fournisseur a rejeté nos identifiants',
   'freshness.reason.timeout': 'le délai d’attente a expiré avant toute réponse',
+  'freshness.reason.plan': 'notre abonnement auprès de ce fournisseur ne couvre pas la saison en cours',
+  'freshness.reason.accessNotEnabled': 'le fournisseur n’a pas activé l’accès aux données pour notre compte',
+  'freshness.reason.unavailable': 'il n’a pas donné de réponse exploitable',
 
   'freshness.nextAttempt.ahead': 'La prochaine tentative est prévue {when}.',
   'freshness.nextAttempt.dueNow': 'La prochaine tentative est attendue maintenant.',
@@ -555,6 +565,14 @@ const core: Area<'core'> = {
   'banner.dismiss': 'Masquer',
   'banner.oneMoreDetail': 'Un détail de fournisseur supplémentaire',
   'banner.moreDetails': '{count, plural, one {# détail de fournisseur supplémentaire} other {# détails de fournisseur supplémentaires}}',
+  'banner.matchData.blocked': 'Les mises à jour des matchs et des résultats sont indisponibles pour le moment — rien de nouveau ne nous est parvenu depuis le {since}. Les prévisions des matchs déjà enregistrés restent affichées.',
+  'banner.matchData.blockedNoSince': 'Les mises à jour des matchs et des résultats sont indisponibles pour le moment. Les prévisions des matchs déjà enregistrés restent affichées.',
+  'banner.matchData.blockedOnly': 'Les mises à jour des matchs et des résultats sont indisponibles pour le moment — rien de nouveau ne nous est parvenu depuis le {since}.',
+  'banner.matchData.blockedOnlyNoSince': 'Les mises à jour des matchs et des résultats sont indisponibles pour le moment.',
+  'banner.matchData.source': '{source}\u00a0: {reason}.',
+  'banner.matchData.answeredWithoutData': 'sa dernière réponse n’a apporté aucun nouveau match ni résultat',
+  'matchData.match.kickoff': 'Cet horaire de coup d’envoi est le dernier que nous avons enregistré\u00a0; un changement ne peut pas nous parvenir pour le moment.',
+  'matchData.match.live': 'Les mises à jour des scores sont indisponibles pour le moment\u00a0: l’état affiché pour ce match est le dernier que nous avons enregistré.',
 
   // ─── états vides et états en échec ──────────────────────────────────────────────────────
   'emptyState.couldNotLoad': 'Chargement impossible. ',

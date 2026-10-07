@@ -4,6 +4,7 @@ import type { DeferralCause, ResultDelay } from '@/utils/resultDelay'
 import type { MessageKey } from '@/i18n'
 import { useT } from '@/i18n/react'
 import { absoluteTime, relativeTime } from './freshness'
+import { useMatchDataState } from '@/hooks/useMatchDataState'
 
 /**
  * What a fixture says where its score would be, once its result is past due and has not arrived.
@@ -67,6 +68,16 @@ export interface ResultDelayProps {
   className?: string
 }
 
+export interface ResultDelayNoticeProps extends ResultDelayProps {
+  /**
+   * True while result updates are blocked across the installation (`match_data.state`). An overdue
+   * result is then not merely late: it cannot reach us until access is restored, and the notice
+   * says so instead of reading as though it might turn up on the next pass. A fixture given up on
+   * keeps its own sentence — that it was given up on is still the truest thing about it.
+   */
+  blocked?: boolean
+}
+
 /** The two words, one per state. */
 function label(delay: ResultDelay, t: ReturnType<typeof useT>): string {
   return t(delay.state === 'given_up' ? 'fixture.result.givenUp' : 'fixture.result.overdue')
@@ -125,6 +136,14 @@ export const ResultDelayLine: React.FC<ResultDelayProps> = ({ delay, className }
   const due = relativeTime(delay.expectedBy)
   const when = relativeTime(delay.gaveUpAt)
   /*
+   * While result updates are blocked across the installation, an overdue result cannot reach us at
+   * all, and the row says that rather than which pass last postponed a check - the same sentence the
+   * match page gives in full. Only rows still waiting ask (one shared, memoised request), and a
+   * fixture given up on keeps its own sentence.
+   */
+  const matchData = useMatchDataState(delay.state !== 'given_up')
+  const blockedNow = delay.state !== 'given_up' && matchData?.state === 'blocked'
+  /*
    * Stopping outranks everything else on the row: "we stopped asking" will still be true tomorrow,
    * and a last check belongs to one pass. On an overdue row, a check that learned nothing is the
    * news, because it is why nothing new is known — so it takes the sentence's second half. There
@@ -134,7 +153,9 @@ export const ResultDelayLine: React.FC<ResultDelayProps> = ({ delay, className }
    */
   const text = delay.state === 'given_up' && when
     ? t('fixture.result.givenUpShort', { when })
-    : delay.lastCheck?.kind === 'unreachable'
+    : blockedNow
+      ? t('fixture.result.blockedShort', { due: due ?? '' })
+      : delay.lastCheck?.kind === 'unreachable'
       ? t('fixture.result.unreachableShort', { due: due ?? '' })
       : delay.lastCheck?.kind === 'held_back'
         ? t(HELD_BACK_SHORT[delay.lastCheck.heldBackBy ?? 'unknown'], { due: due ?? '' })
@@ -145,6 +166,7 @@ export const ResultDelayLine: React.FC<ResultDelayProps> = ({ delay, className }
       data-testid="result-delay-line"
       data-result-delay={delay.state}
       data-last-check={delay.lastCheck?.kind}
+      data-blocked={blockedNow ? 'true' : undefined}
       title={absoluteTime(delay.gaveUpAt ?? delay.expectedBy) ?? undefined}
     >
       {text}
@@ -181,9 +203,10 @@ function lastCheckSentence(delay: ResultDelay, t: ReturnType<typeof useT>): stri
  * above zero — a fixture retired by age can have no answered attempt at all, and "answered 0
  * times" would describe a chase that did not happen.
  */
-export const ResultDelayNotice: React.FC<ResultDelayProps> = ({ delay, className }) => {
+export const ResultDelayNotice: React.FC<ResultDelayNoticeProps> = ({ delay, className, blocked = false }) => {
   const t = useT()
   const givenUp = delay.state === 'given_up'
+  const blockedNow = blocked && !givenUp
   // The deadline, not the kickoff — see ResultDelayLine above for why the two must not be swapped.
   const due = relativeTime(delay.expectedBy)
   const when = relativeTime(delay.gaveUpAt)
@@ -193,6 +216,7 @@ export const ResultDelayNotice: React.FC<ResultDelayProps> = ({ delay, className
       role="status"
       data-testid="result-delay-notice"
       data-result-delay={delay.state}
+      data-blocked={blockedNow ? 'true' : undefined}
       className={clsx(
         'rounded-lg border px-3 py-2 text-left',
         givenUp ? 'border-dark-700 bg-dark-800/60' : 'border-warning-500/40 bg-warning-500/10',
@@ -211,7 +235,7 @@ export const ResultDelayNotice: React.FC<ResultDelayProps> = ({ delay, className
       >
         {givenUp && when
           ? t('fixture.result.givenUpDetail', { when })
-          : t('fixture.result.overdueDetail', { due: due ?? '' })}
+          : t(blockedNow ? 'fixture.result.blockedDetail' : 'fixture.result.overdueDetail', { due: due ?? '' })}
       </p>
       {/*
         The other half of the difference between the two states, said as plainly as "we stopped

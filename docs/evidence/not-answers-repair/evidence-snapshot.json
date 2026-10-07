@@ -1,0 +1,410 @@
+{
+ "what_this_is": "The facts the not-answers repair rests on that live outside the repository and decay: copied here, without any credential, so the repair can be judged after they are gone. Read-only reads; nothing was written to the live database or Redis.",
+ "rehearsal": "run 6, 2026-10-07T02:53:44Z to 02:54:00Z, by backend/scripts/repair_not_answers.py sha256 prefix 609a153ad52b93de (the prefix every row of plan.jsonl records)",
+ "livescore_last_success": {
+  "source": "Redis db 4 key provider:status:livescore, written by MatchDataService._record_status",
+  "read_at": "2026-10-07T02:56:04Z",
+  "last_success_at": "2026-10-02T14:53:28.028159+00:00",
+  "last_error_at": "2026-10-07T02:35:10.228629+00:00",
+  "last_error": "livescore: authentication rejected (HTTP 401): This API key and secret do not have access to our data enabled",
+  "decays": "the key lives 7 days after its last write, and every Live Score error rewrites it; the first success after access returns overwrites last_success_at. From then on the repair refuses: --apply takes the cut only from --livescore-last-success (2026-10-02T14:53:28.028159Z), and refuses when Redis records any other last success, because the outage the plan was made for has ended and the plan has to be made again by a person",
+  "corroboration": "the National Teams Friendlies 2026-10-02 observation's own Live Score asked_at is 2026-10-02T14:53:28.031992Z, 4 ms later; no observation names livescore after it (re-measured below)"
+ },
+ "live_counts": {
+  "source": "soccer_predictions, read-only psql session (default_transaction_read_only=on), measure.sql in rehearsal.md",
+  "measured_at": "2026-10-07T02:53:44Z",
+  "national observations": 34,
+  "false observations (by rule)": 13,
+  "  of which name api_football": 13,
+  "  of which name thesportsdb": 0,
+  "livescore observations after the cut": 0,
+  "national fixtures with recovery": 147,
+  "affected fixtures (last_attempt_at or archive.asked_at after the cut)": 66,
+  "  of which first_attempt_at after the cut": 57,
+  "fixtures given up": 0,
+  "max observation asked_at": "2026-10-06T00:25:19.841592+00:00",
+  "max fixture last_attempt_at": "2026-10-06T00:25:19.886134+00:00",
+  "max fixture last_outcome_at": "2026-10-07T02:35:11.212775+00:00",
+  "note": "the same counts as at 01:08-01:18 (survey), 01:56 (run 3) and 02:34:48 (run 5); between 02:34:48 and 02:53:44 only the deferral bookkeeping of the current code moved (deferrals, last_deferred_at, last_outcome_at, next_ask_after on 65 of the 66 fixtures, all but the closed relisting 9dbb3854, written by the 02:35:06-02:35:11 recovery pass), and no observation and no corrected field"
+ },
+ "backend_guard": {
+  "read_at": "2026-10-07T02:56:04Z",
+  "what_it_shows": "Why the --apply guard cannot rest on pg_stat_activity. In development the backend's engine uses NullPool (app/db/session.py), so it holds no database connection between passes. At this read the backend (pid 38897, started 2026-10-07T02:51:55Z by another session) was listening on 127.0.0.1:8000 and its scheduler had written settle 8 s earlier, yet pg_stat_activity listed 0 other clients on soccer_predictions. The script now refuses the backend's database without --i-stopped-the-backend whatever pg_stat_activity shows, and checks the claim: the address, the sync locks, the last two ticks, and again just before COMMIT.",
+  "pg_stat_activity_other_clients_on_soccer_predictions": 0,
+  "backend_address_127.0.0.1:8000": "accepts connections (a TCP connection opened and closed; no request sent)",
+  "sync_locks_held": [],
+  "scheduler_records_last_run_at": {
+   "fixtures": "2026-10-07T01:04:46.116357+00:00",
+   "live": "2026-10-07T01:04:46.299217+00:00",
+   "results": "2026-10-07T01:04:46.639394+00:00",
+   "recover": "2026-10-07T02:35:11.357193+00:00",
+   "forecasts": "2026-10-07T01:04:55.692572+00:00",
+   "settle": "2026-10-07T02:55:56.614024+00:00"
+  },
+  "refusals_the_script_gives_on_this_state": [
+   "with --owner-approved and without --i-stopped-the-backend: refusing to write to soccer_predictions, the database the backend uses, without --i-stopped-the-backend ... An empty pg_stat_activity proves nothing",
+   "with --owner-approved and --i-stopped-the-backend: refusing to write to soccer_predictions while the backend looks alive, whatever --i-stopped-the-backend says: 127.0.0.1:8000 accepts connections; the scheduler recorded sync:task:settle 8 s ago (less than two ticks)"
+  ],
+  "source": "backend/scripts/repair_not_answers.py backend_signs() and refusal(), called read-only; the pg_stat_activity count read through a read-only psql session. Nothing was applied to the live database."
+ },
+ "synced_row_method": {
+  "rule": "rows a Live Score answer returned = match rows of that competition and date whose match_metadata.provider is livescore and whose match_metadata.last_synced_at lies within 3 s before the observation stamp",
+  "checked_on_genuine_answers_at_rehearsal": {
+   "agree": 18,
+   "checked": 18,
+   "disagree": []
+  },
+  "read_at": "2026-10-07T02:56:17Z",
+  "first_read_at": "2026-10-07T01:52:39Z; the 29 rows' last_synced_at read again at 02:56:17Z are unchanged",
+  "source": "soccer_predictions, read-only psql session",
+  "decays": "a row re-synced after Live Score access returns moves its last_synced_at, and the count can no longer be read",
+  "evidence": [
+   {
+    "competition": "Africa Cup of Nations Qualifications",
+    "match_date": "2026-09-25",
+    "observation_stamp": "2026-10-01T07:46:53.389206+00:00",
+    "rows_synced_within_3s_before": 14,
+    "used_for": "reconstruction (class 3 and its group-C fixtures)",
+    "rows": [
+     {
+      "match_id": "a80e19ab-401e-4a71-b630-c6d031350cf8",
+      "last_synced_at": "2026-10-01T07:46:53.062921+00:00"
+     },
+     {
+      "match_id": "3ff934c8-09c6-44d1-8417-e562c02c3aff",
+      "last_synced_at": "2026-10-01T07:46:53.093337+00:00"
+     },
+     {
+      "match_id": "9baa7042-98d3-41bc-ab62-080481bfdfb3",
+      "last_synced_at": "2026-10-01T07:46:53.122292+00:00"
+     },
+     {
+      "match_id": "69f3f1bd-64d3-4482-8075-141c13e87b52",
+      "last_synced_at": "2026-10-01T07:46:53.144975+00:00"
+     },
+     {
+      "match_id": "85afce75-cdc6-4907-94fb-63b0409024ac",
+      "last_synced_at": "2026-10-01T07:46:53.161305+00:00"
+     },
+     {
+      "match_id": "e95ae601-7d5e-45b8-a2c5-33a46126939c",
+      "last_synced_at": "2026-10-01T07:46:53.179511+00:00"
+     },
+     {
+      "match_id": "b3811101-674a-40a3-897f-2a4fb7bc413c",
+      "last_synced_at": "2026-10-01T07:46:53.207084+00:00"
+     },
+     {
+      "match_id": "c2c252ba-2586-4927-bb1e-6b573773a9d3",
+      "last_synced_at": "2026-10-01T07:46:53.228116+00:00"
+     },
+     {
+      "match_id": "b68eda12-3add-483d-a114-451d52850c09",
+      "last_synced_at": "2026-10-01T07:46:53.250520+00:00"
+     },
+     {
+      "match_id": "025ba803-6f46-4dc4-8077-52b65a7b7abd",
+      "last_synced_at": "2026-10-01T07:46:53.274264+00:00"
+     },
+     {
+      "match_id": "0a2fa638-c048-42a0-a8fc-68c6776f73d8",
+      "last_synced_at": "2026-10-01T07:46:53.298634+00:00"
+     },
+     {
+      "match_id": "70e21f22-ac4d-4f4a-9557-ef17065b3275",
+      "last_synced_at": "2026-10-01T07:46:53.321322+00:00"
+     },
+     {
+      "match_id": "c1cb5b09-c6a0-4f90-9b18-00e555806e6d",
+      "last_synced_at": "2026-10-01T07:46:53.344409+00:00"
+     },
+     {
+      "match_id": "112190d3-4bf7-4cd7-b2d5-818d7e16d57a",
+      "last_synced_at": "2026-10-01T07:46:53.377822+00:00"
+     }
+    ]
+   },
+   {
+    "competition": "National Teams Friendlies",
+    "match_date": "2026-09-24",
+    "observation_stamp": "2026-10-01T07:46:51.829861+00:00",
+    "rows_synced_within_3s_before": 5,
+    "used_for": "reconstruction (class 3 and its group-C fixtures)",
+    "rows": [
+     {
+      "match_id": "9d34b7a9-d7fe-4346-bb7b-2f91ea5f35a7",
+      "last_synced_at": "2026-10-01T07:46:51.717750+00:00"
+     },
+     {
+      "match_id": "ad6ae357-fec0-411c-b203-ce90320120a1",
+      "last_synced_at": "2026-10-01T07:46:51.745386+00:00"
+     },
+     {
+      "match_id": "ab319e08-a01f-460e-9768-659ad4d6ee17",
+      "last_synced_at": "2026-10-01T07:46:51.771544+00:00"
+     },
+     {
+      "match_id": "8c1669db-06f0-4d6f-8da9-394977976d5b",
+      "last_synced_at": "2026-10-01T07:46:51.794310+00:00"
+     },
+     {
+      "match_id": "58ddfd3a-73ef-4d88-a1e5-85e7f333a28f",
+      "last_synced_at": "2026-10-01T07:46:51.821415+00:00"
+     }
+    ]
+   },
+   {
+    "competition": "National Teams Friendlies",
+    "match_date": "2026-09-28",
+    "observation_stamp": "2026-10-01T07:16:22.276377+00:00",
+    "rows_synced_within_3s_before": 4,
+    "used_for": "reconstruction (class 3 and its group-C fixtures)",
+    "rows": [
+     {
+      "match_id": "b7af8ee6-c4f8-422e-8cec-25b56e748430",
+      "last_synced_at": "2026-10-01T07:16:22.171650+00:00"
+     },
+     {
+      "match_id": "76b7890e-7a7f-447f-b2e8-ebd3404a4274",
+      "last_synced_at": "2026-10-01T07:16:22.202286+00:00"
+     },
+     {
+      "match_id": "73d3f838-f59d-4374-adfa-5ff0545d9f9e",
+      "last_synced_at": "2026-10-01T07:16:22.231258+00:00"
+     },
+     {
+      "match_id": "42b3b6c9-88cf-4ccf-95b9-12692c5194b0",
+      "last_synced_at": "2026-10-01T07:16:22.261562+00:00"
+     }
+    ]
+   },
+   {
+    "competition": "National Teams Friendlies",
+    "match_date": "2026-09-30",
+    "observation_stamp": "2026-10-02T12:16:17.850638+00:00",
+    "rows_synced_within_3s_before": 6,
+    "used_for": "cross-check only: class 2, restored from the dump, which says 6",
+    "rows": [
+     {
+      "match_id": "2fd40360-d240-4a70-bbb3-4a8d5bfde57d",
+      "last_synced_at": "2026-10-02T12:16:17.713817+00:00"
+     },
+     {
+      "match_id": "ac421403-af17-4521-bb74-33d693469c76",
+      "last_synced_at": "2026-10-02T12:16:17.743284+00:00"
+     },
+     {
+      "match_id": "10700e4f-4d14-478c-b39a-da522377454b",
+      "last_synced_at": "2026-10-02T12:16:17.764002+00:00"
+     },
+     {
+      "match_id": "fc8b9a17-d190-4bb8-9fe9-30ebe4dd564c",
+      "last_synced_at": "2026-10-02T12:16:17.788494+00:00"
+     },
+     {
+      "match_id": "c91b21f4-932a-4345-9a86-d119a000c14f",
+      "last_synced_at": "2026-10-02T12:16:17.814727+00:00"
+     },
+     {
+      "match_id": "890b4db1-7ef1-49f0-b76a-f28525fa79f4",
+      "last_synced_at": "2026-10-02T12:16:17.843003+00:00"
+     }
+    ]
+   }
+  ],
+  "rehearsal_run": "2026-10-07T02:53:45Z (run 6)"
+ },
+ "provider_budget_redis": {
+  "source": "Redis db 5 keys provider:budget:<provider>:<yyyymmdd>[:by_reason|:transmitted]; counts and stamps only",
+  "read_at": "2026-10-07T01:57:05Z",
+  "decays": "each key expires at its TTL (seconds at read)",
+  "what_it_shows": "Live Score on 2026-10-05: 59 requests sent and answered, the last at 23:54:56 with HTTP 401, and 3 refused before sending ('not_connected'), the last at 21:39:12. On 2026-10-06: 2 sent and answered, the last at 00:55:24 with HTTP 401, and 1 refused before sending at 00:25:18.557, one second before the false writes stamped 2026-10-06T00:25:19. These keys count requests that were granted or sent; a not-answer sent nothing, so no count here includes one.",
+  "transmitted_and_by_reason": {
+   "provider:budget:api_football:20261005:by_reason": {
+    "type": "hash",
+    "ttl_seconds_at_read": 79071,
+    "value": {
+     "fetch": "41"
+    }
+   },
+   "provider:budget:api_football:20261005:transmitted": {
+    "type": "hash",
+    "ttl_seconds_at_read": 79071,
+    "value": {
+     "answered": "38",
+     "last_answered_at": "2026-10-05T23:54:56.643907+00:00",
+     "last_status": "200",
+     "no_answer": "1",
+     "last_no_answer_at": "2026-10-05T17:49:51.994213+00:00",
+     "not_connected": "1",
+     "last_not_connected_at": "2026-10-05T21:39:12.433368+00:00"
+    }
+   },
+   "provider:budget:api_football:20261006:by_reason": {
+    "type": "hash",
+    "ttl_seconds_at_read": 82698,
+    "value": {
+     "fetch": "3"
+    }
+   },
+   "provider:budget:api_football:20261006:transmitted": {
+    "type": "hash",
+    "ttl_seconds_at_read": 82698,
+    "value": {
+     "answered": "3",
+     "last_answered_at": "2026-10-06T00:55:24.217644+00:00",
+     "last_status": "200"
+    }
+   },
+   "provider:budget:gameforecast:20261005:by_reason": {
+    "type": "hash",
+    "ttl_seconds_at_read": 14700,
+    "value": {
+     "fetch": "8"
+    }
+   },
+   "provider:budget:gameforecast:20261005:transmitted": {
+    "type": "hash",
+    "ttl_seconds_at_read": 14701,
+    "value": {
+     "answered": "7",
+     "last_answered_at": "2026-10-05T06:02:06.919092+00:00",
+     "last_status": "200"
+    }
+   },
+   "provider:budget:gameforecast:20261006:by_reason": {
+    "type": "hash",
+    "ttl_seconds_at_read": 79492,
+    "value": {
+     "fetch": "1"
+    }
+   },
+   "provider:budget:gameforecast:20261006:transmitted": {
+    "type": "hash",
+    "ttl_seconds_at_read": 79494,
+    "value": {
+     "answered": "1",
+     "last_answered_at": "2026-10-06T00:02:01.302444+00:00",
+     "last_status": "200"
+    }
+   },
+   "provider:budget:livescore:20261005:by_reason": {
+    "type": "hash",
+    "ttl_seconds_at_read": 79069,
+    "value": {
+     "calendar": "1",
+     "fetch": "42",
+     "retry": "31"
+    }
+   },
+   "provider:budget:livescore:20261005:transmitted": {
+    "type": "hash",
+    "ttl_seconds_at_read": 79069,
+    "value": {
+     "answered": "59",
+     "last_answered_at": "2026-10-05T23:54:56.466558+00:00",
+     "last_status": "401",
+     "not_connected": "3",
+     "last_not_connected_at": "2026-10-05T21:39:12.426628+00:00"
+    }
+   },
+   "provider:budget:livescore:20261006:by_reason": {
+    "type": "hash",
+    "ttl_seconds_at_read": 82696,
+    "value": {
+     "fetch": "2",
+     "retry": "1"
+    }
+   },
+   "provider:budget:livescore:20261006:transmitted": {
+    "type": "hash",
+    "ttl_seconds_at_read": 82697,
+    "value": {
+     "not_connected": "1",
+     "last_not_connected_at": "2026-10-06T00:25:18.557426+00:00",
+     "answered": "2",
+     "last_answered_at": "2026-10-06T00:55:24.056198+00:00",
+     "last_status": "401"
+    }
+   },
+   "provider:budget:thesportsdb:20261005:by_reason": {
+    "type": "hash",
+    "ttl_seconds_at_read": 57199,
+    "value": {
+     "fetch": "3"
+    }
+   },
+   "provider:budget:thesportsdb:20261005:transmitted": {
+    "type": "hash",
+    "ttl_seconds_at_read": 57199,
+    "value": {
+     "answered": "3",
+     "last_answered_at": "2026-10-05T18:21:25.395097+00:00",
+     "last_status": "400"
+    }
+   },
+   "provider:budget:thesportsdb:20261006:by_reason": {
+    "type": "hash",
+    "ttl_seconds_at_read": 79489,
+    "value": {
+     "fetch": "1"
+    }
+   },
+   "provider:budget:thesportsdb:20261006:transmitted": {
+    "type": "hash",
+    "ttl_seconds_at_read": 79489,
+    "value": {
+     "answered": "1",
+     "last_answered_at": "2026-10-06T00:01:57.846207+00:00",
+     "last_status": "400"
+    }
+   }
+  },
+  "daily_totals": {
+   "provider:budget:api_football:20261005": {
+    "type": "string",
+    "ttl_seconds_at_read": 5189,
+    "value": "41"
+   },
+   "provider:budget:api_football:20261006": {
+    "type": "string",
+    "ttl_seconds_at_read": 79492,
+    "value": "3"
+   },
+   "provider:budget:gameforecast:20261006": {
+    "type": "string",
+    "ttl_seconds_at_read": 79492,
+    "value": "1"
+   },
+   "provider:budget:livescore:20261006": {
+    "type": "string",
+    "ttl_seconds_at_read": 80876,
+    "value": "3"
+   },
+   "provider:budget:thesportsdb:20261005": {
+    "type": "string",
+    "ttl_seconds_at_read": 14690,
+    "value": "3"
+   },
+   "provider:budget:thesportsdb:20261006": {
+    "type": "string",
+    "ttl_seconds_at_read": 79490,
+    "value": "1"
+   }
+  }
+ },
+ "redis_holds_no_results_payload": "matchdata:results:* keys in db 4: 0 at 2026-10-07T02:56:04Z (also 0 at 01:57:05Z); nothing cached can replay a false answer",
+ "prior_records": {
+  "dump": "backups/soccer_predictions-before-relisting-repair-20261005T034608Z.sql.gz (plain pg_dump, 2026-10-05 03:46 UTC, gitignored, local only)",
+  "capture": "docs/evidence/livescore-archive-observations.json, recorded_by_the_application (captured 2026-10-05T03:15:00Z)",
+  "fresh_backups_taken_for_the_rehearsal": [
+   "backups/soccer_predictions-before-not-answer-repair-20261007T014917Z.sql.gz (run 1, earlier script version)",
+   "backups/soccer_predictions-before-not-answer-repair-20261007T015512Z.sql.gz (run 2, earlier script version)",
+   "backups/soccer_predictions-before-not-answer-repair-20261007T015611Z.sql.gz (run 3, earlier script version)",
+   "backups/soccer_predictions-before-not-answer-repair-20261007T023324Z.sql.gz (run 4, this version before two docstring edits)",
+   "backups/soccer_predictions-before-not-answer-repair-20261007T023448Z.sql.gz (run 5, this version before its last change: the closed relisting 9dbb3854 was still planned with a next_ask_after), with backups/not-answers-before-repair-20261007T023448Z.jsonl",
+   "backups/soccer_predictions-before-not-answer-repair-20261007T025344Z.sql.gz (run 6, the final version, the rehearsal reported in rehearsal.md), with backups/not-answers-before-repair-20261007T025344Z.jsonl"
+  ]
+ },
+ "scratch_copies": "The survey's earlier scratch captures from before the machine restarted at 2026-10-06T01:09:42Z (status-0410.json, status-0603.json, sched-watch3-*) were erased with /private/tmp by that restart. The copies the survey made on 2026-10-07 between 01:05 and 01:23 UTC are in the session scratch directory, which is not durable either; this file is the durable copy of what the repair needs from them."
+}

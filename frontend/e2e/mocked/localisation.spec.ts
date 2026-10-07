@@ -822,6 +822,21 @@ const COUNT_CASES: CountCase[] = [
     ],
   },
   {
+    /*
+     * The forecasts already paid for that are waiting for a fixture we do not hold, shown on the
+     * suggestions page while fixture updates are blocked. Rendered only above zero; the form at 0
+     * is the `one` form French selects there.
+     */
+    key: 'selections.suggest.forecastsWaiting',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      'Lors de la dernière mise à jour des prévisions, 0 prévision déjà récupérée attendait un match que nous n’avons pas encore\u00a0; elle ne pourra servir qu’à la reprise des mises à jour des matchs.',
+      'Lors de la dernière mise à jour des prévisions, 1 prévision déjà récupérée attendait un match que nous n’avons pas encore\u00a0; elle ne pourra servir qu’à la reprise des mises à jour des matchs.',
+      'Lors de la dernière mise à jour des prévisions, 2 prévisions déjà récupérées attendaient des matchs que nous n’avons pas encore\u00a0; elles ne pourront servir qu’à la reprise des mises à jour des matchs.',
+      'Lors de la dernière mise à jour des prévisions, 11 prévisions déjà récupérées attendaient des matchs que nous n’avons pas encore\u00a0; elles ne pourront servir qu’à la reprise des mises à jour des matchs.',
+    ],
+  },
+  {
     key: 'duration.minutes',
     params: (n: number) => ({ count: n }),
     fr: [
@@ -1374,6 +1389,17 @@ const COUNT_CASES: CountCase[] = [
  * table that only checks French would not have noticed either way.
  */
 const ENGLISH_COUNT_CASES: Array<{ key: keyof typeof en; params: (n: number) => Record<string, string | number>; en: [string, string, string, string] }> = [
+  {
+    // English puts zero with the plural, French with the singular: both are pinned for this one.
+    key: 'selections.suggest.forecastsWaiting',
+    params: (n: number) => ({ count: n }),
+    en: [
+      'At the last forecast update, 0 forecasts already retrieved were waiting for fixtures we do not hold yet; they can only be used once fixture updates resume.',
+      'At the last forecast update, 1 forecast already retrieved was waiting for a fixture we do not hold yet; it can only be used once fixture updates resume.',
+      'At the last forecast update, 2 forecasts already retrieved were waiting for fixtures we do not hold yet; they can only be used once fixture updates resume.',
+      'At the last forecast update, 11 forecasts already retrieved were waiting for fixtures we do not hold yet; they can only be used once fixture updates resume.',
+    ],
+  },
   {
     // The international-break note. Its `=0` branch is unreachable on screen — the note renders
     // only where at least one national-team fixture was listed — and is written out here because

@@ -15,6 +15,7 @@ from app.models.provider_data import ProviderForecastRecord, ProviderForecastSna
 from app.models.users import User
 from app.services import settlement as settlement_service
 from app.services.forecast_service import ForecastService
+from app.services.match_data_health import match_data_state
 from app.services.match_data_service import MatchDataService
 from app.services.providers import competitions as comps
 from app.services.sync_scheduler import scheduler_status
@@ -62,12 +63,35 @@ async def provider_status(db: Session = Depends(get_db)):
     the change in `scheduler_sent.total` is exactly what everything else - page loads, admin syncs -
     spent. The same ledger is published per task as `scheduler.tasks.<task>.requests_sent_total`,
     beside `last_requests_sent` for the task's most recent pass.
+
+    WHETHER FIXTURE AND RESULT UPDATES CAN ARRIVE AT ALL is the `match_data` block: one state for the
+    whole chain - ok, degraded, blocked or unknown - with when a provider last wrote a match row, why
+    each source is not answering, and what still works. It is derived from the blocks beside it plus
+    one stored-match aggregate cached for a minute (`app.services.match_data_health`), and it sends
+    no provider request either. `GET /data-providers/match-data` serves that block on its own.
     """
     data = MatchDataService(db).provider_status()
     data["forecasts"] = ForecastService(db).status()
     data["scheduler"] = scheduler_status()
-    data["checked_at"] = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    data["match_data"] = match_data_state(db, chain=data["chain"], active_provider=data["active_provider"],
+                                          scheduler=data["scheduler"], forecasts=data["forecasts"], now=now)
+    data["checked_at"] = now.isoformat()
     return data
+
+
+@router.get("/match-data", summary="Whether fixture and result updates are arriving (no provider request)")
+async def match_data(db: Session = Depends(get_db)):
+    """The `match_data` block of /status on its own: about a kilobyte instead of about seventy.
+
+    For the pages that only need to know whether fixture and result updates are blocked - the slip,
+    the selection history, the suggestions - and should not download every budget and scheduler
+    detail to find out. Reads Redis and one cached aggregate; sends no provider request and spends
+    no allowance.
+    """
+    status = MatchDataService(db).provider_status()
+    return match_data_state(db, chain=status["chain"], active_provider=status["active_provider"],
+                            scheduler=scheduler_status(), forecasts=ForecastService(db).status())
 
 
 def _accuracy_state(db: Session, now: datetime) -> Dict[str, Any]:

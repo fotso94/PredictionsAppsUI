@@ -221,15 +221,23 @@ bare `pytest` always runs coverage and writes an HTML report. Override it with `
 plain run — that is the canonical command:
 
 ```bash
-# canonical: plain, quiet run
-./venv/bin/python -m pytest -o addopts="" -q
+# canonical: plain, quiet run (Python 3.11, the environment the desktop app can launch)
+./venv311/bin/python -m pytest -o addopts="" -q
 
 # a single file
-./venv/bin/python -m pytest -o addopts="" tests/test_health.py
+./venv311/bin/python -m pytest -o addopts="" tests/test_health.py
 
 # with coverage (the pyproject default)
-./venv/bin/python -m pytest
+./venv311/bin/python -m pytest
+
+# beside another run: the suite drops every table it created when it ends, so give each
+# concurrent run its own database
+TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test_mine \
+  ./venv311/bin/python -m pytest -o addopts="" -q
 ```
+
+`venv` (Apple's Command Line Tools Python 3.9) passes the same suite where macOS lets it read the
+repository folder; see docs/known-limitations.md, "Running it locally".
 
 The suite is green (re-run 2026-09-18). **No pass count is quoted here on purpose** — tests are
 still being added, so a number written into a README goes stale; run the command and read what it
@@ -249,7 +257,7 @@ small and a test that spends one is a defect.
 Lint baseline:
 
 ```bash
-./venv/bin/python -m pyflakes app/ scripts/
+./venv311/bin/python -m pyflakes app/ scripts/
 ```
 
 Do not disable a rule or raise a threshold to make a gate pass.
@@ -303,7 +311,7 @@ the browser will block every request — for example, running the UI on 3100:
 
 ```bash
 BACKEND_CORS_ORIGINS="http://localhost:3100,http://127.0.0.1:3100,http://localhost:3000" \
-  ./venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+  ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 ### Security Headers

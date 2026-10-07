@@ -55,6 +55,7 @@ const SYNC_TASK_KEY: Record<string, MessageKey> = {
   live: 'sync.task.live',
   results: 'sync.task.results',
   recover: 'sync.task.recover',
+  settle: 'sync.task.settle',
   forecasts: 'sync.task.forecasts',
 };
 
@@ -65,7 +66,7 @@ export function syncTaskLabel(name: string): string {
 }
 
 /** The order the tasks read best in: what is on, then what is happening, then how it ended. */
-const TASK_ORDER = ['fixtures', 'live', 'results', 'recover', 'forecasts'];
+const TASK_ORDER = ['fixtures', 'live', 'results', 'recover', 'settle', 'forecasts'];
 
 /**
  * Which tasks belong to the forecast clock.
@@ -75,6 +76,34 @@ const TASK_ORDER = ['fixtures', 'live', 'results', 'recover', 'forecasts'];
  * disappear from the interface entirely.
  */
 const FORECAST_TASKS = ['forecasts'];
+
+/**
+ * Tasks that run on the fixture side and FETCH NOTHING, so their success is no evidence that any
+ * fixture or score is current.
+ *
+ * `recover` asks again about results that are past due — and while every provider refuses, it
+ * defers every one of those asks and records a success with nothing sent. `settle` scores stored
+ * forecasts against stored results and never calls a provider at all. On 2026-10-07 both had
+ * succeeded minutes earlier, and the fixture clock, taking the newest success of every fixture-side
+ * task, told readers "fixtures and scores last refreshed 4 minutes ago" over a table no provider had
+ * written to in four days. They stay in the detail rows, where what they did is reported as theirs;
+ * they no longer set the age of the fixtures.
+ */
+const NOT_A_FIXTURE_REFRESH = ['recover', 'settle'];
+
+/**
+ * Whether a task's last success may set the age of what it refreshes.
+ *
+ * A live pass whose own report says it polled nothing (`live_polled: false` — no covered match in
+ * its live window, or the day's poll ceiling reached) succeeded without asking anyone for a score,
+ * so it is no more a refresh than a recover pass is. A live pass that does not say is taken at its
+ * word, as it always was.
+ */
+function successRefreshed(name: string, task: SyncTaskState | undefined): boolean {
+  if (NOT_A_FIXTURE_REFRESH.includes(name)) return false;
+  if (name === 'live' && task?.last_result?.live_polled === false) return false;
+  return true;
+}
 
 /**
  * How each fixture provider is named on screen.
@@ -585,6 +614,14 @@ export interface FreshnessSummary {
    * few pixels below.
    */
   noteTasks: string[];
+  /**
+   * Tasks whose own note was folded into one line because fixture and result updates are blocked.
+   *
+   * Their detail rows drop the failure sentence the note no longer repeats — the provider's own
+   * words follow on the same row — and keep everything else, the next attempt included, because
+   * the note above them no longer says it.
+   */
+  collapsedTasks?: string[];
   /** True when the backend reported a scheduler at all. */
   scheduled: boolean;
 }
@@ -648,7 +685,9 @@ function clockState(scheduler: SchedulerStatus, names: string[], now: number): C
     };
   }
 
+  // Only a success that could have brought data sets the age (see NOT_A_FIXTURE_REFRESH).
   const successes = active
+    .filter(task => successRefreshed(task.name, scheduler.tasks[task.name]))
     .map(task => Date.parse(scheduler.tasks[task.name]?.last_success_at ?? ''))
     .filter(value => !Number.isNaN(value));
 
@@ -781,6 +820,43 @@ function clockState(scheduler: SchedulerStatus, names: string[], now: number): C
 }
 
 /**
+ * The fixture line while fixture and result updates are BLOCKED (`status.match_data`).
+ *
+ * Two things change and nothing else does. The age is the last time a provider WROTE a match row,
+ * which no recover or settle pass and no bookkeeping update can move — "no new fixtures or scores
+ * since 2 Oct" rather than any task's success. And the failure notes collapse: on 2026-10-07 the
+ * fixtures, live and results tasks each printed their own "last attempt failed — the provider
+ * rejected our credentials" with its own next attempt, three near-identical lines that together
+ * still never said the one thing that mattered, that none of it can arrive until access returns.
+ * One line says that. Each task's row in the disclosure still carries its failure in the
+ * provider's own words, its next attempt and its cadence, and the mechanics stay beside them.
+ *
+ * The forecast clock is not touched: forecasts arrive from a different provider, and while that
+ * provider answers they are as current as their own line says.
+ */
+function blockedSummary(status: ProviderStatus, now: number): FreshnessSummary {
+  const since = formatDateTime(status.match_data?.since);
+  const scheduler = status.scheduler;
+  const readable = scheduler && scheduler.enabled && scheduler.state_store_available;
+  const state = readable
+    ? clockState(scheduler, Object.keys(scheduler.tasks ?? {}).filter(name => !FORECAST_TASKS.includes(name)), now)
+    : null;
+  const line = t('freshness.line.blocked');
+  return {
+    text: since ? t('freshness.summary.blocked', { since }) : t('freshness.summary.blockedNoSince'),
+    tone: 'problem',
+    note: line,
+    notes: [line],
+    mechanics: state?.mechanics ?? [],
+    resume: null,
+    noteTask: null,
+    noteTasks: [],
+    collapsedTasks: state?.noteTasks ?? [],
+    scheduled: Boolean(scheduler),
+  };
+}
+
+/**
  * How current the FIXTURE side of this page is, in one line: what is on, when it kicks off, the
  * live score and the final result.
  *
@@ -825,6 +901,8 @@ export function freshnessSummary(
       scheduled: false,
     };
   }
+
+  if (status.match_data?.state === 'blocked') return blockedSummary(status, now);
 
   const scheduler = status.scheduler;
   if (!scheduler) {
@@ -986,6 +1064,8 @@ export interface FreshnessReport {
   noteTask: string | null;
   /** Every task `note` speaks for, across both clocks. */
   noteTasks: string[];
+  /** The fixture tasks whose notes were folded into the blocked line; see FreshnessSummary. */
+  collapsedTasks: string[];
   scheduled: boolean;
 }
 
@@ -1022,6 +1102,7 @@ export function freshnessReport(
     resume: resumes.length > 0 ? resumes.join(' ') : null,
     noteTask: fixtures.noteTask ?? forecasts?.noteTask ?? null,
     noteTasks: [...new Set([...fixtures.noteTasks, ...(forecasts?.noteTasks ?? [])])],
+    collapsedTasks: fixtures.collapsedTasks ?? [],
     scheduled: fixtures.scheduled,
   };
 }

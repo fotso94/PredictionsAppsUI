@@ -9,6 +9,7 @@ import DataSourceNotice from '@/components/ui/DataSourceNotice'
 import DataFreshness from '@/components/ui/DataFreshness'
 import ForecastSyncNotice from '@/components/ui/ForecastSyncNotice'
 import { forecastAvailability } from '@/components/ui/forecastStatus'
+import { isMatchDataBlocked } from '@/components/ui/matchDataState'
 import { footballDataService } from '@/services/football-data.service'
 import { describeError } from '@/services/backend-match-data.service'
 import { DataSourceMeta, ProviderStatus, STORED_ONLY, localDateString } from '@/services/match-data-source'
@@ -509,7 +510,17 @@ const MatchdayWorkspace: React.FC<MatchdayWorkspaceProps> = ({
           title={t('matchday.emptyTitle')}
           description={
             <>
-              <span className="block">{t('matchday.emptyDescription', { date: formatDay(date) })}</span>
+              {/*
+                While fixture updates are blocked the gap cannot fill itself, and the second
+                sentence says so — without a date it will end. NextFixturesNote is unchanged.
+              */}
+              {isMatchDataBlocked(status?.match_data) ? (
+                <span className="block" data-testid="matchday-empty-blocked">
+                  {t('matchday.emptyBlocked', { date: formatDay(date) })}
+                </span>
+              ) : (
+                <span className="block">{t('matchday.emptyDescription', { date: formatDay(date) })}</span>
+              )}
               <NextFixturesNote />
             </>
           }

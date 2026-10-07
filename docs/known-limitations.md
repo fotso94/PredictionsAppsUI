@@ -396,11 +396,20 @@ nothing in the code prevents it.
 
 The primary match-data source answered the first request after the local fault was fixed —
 2026-10-05 03:23 UTC — with **HTTP 401, "This API key and secret do not have access to our data
-enabled"**, and has answered every attempt since the same way. The last successful answer was
-2026-10-02 14:53 UTC; in between our process could not send anything, so when access stopped
-inside that window is unknown. Nothing changed in how the key and secret are sent. The likeliest
-reading is that the trial ended; that is unconfirmed, and the question is first in
-`docs/support/livescore-api-questions.md` (prepared, not sent).
+enabled"**, and has answered every attempt since the same way, the latest checked on 2026-10-07.
+The last successful answer was 2026-10-02 14:53 UTC; in between our process could not send
+anything, so when access stopped inside that window is unknown. Nothing changed in how the key
+and secret are sent.
+
+**What the 401 does and does not show.** It shows an access problem. It does not by itself show
+that a purchase is needed: Live Score's own Standard Errors page documents HTTP 402 for a missing
+or expired subscription and HTTP 401 for an invalid key and secret, and what we receive is a 401
+with a message that page does not list. The same text also answered request bursts on 2026-09-17,
+while the trial was active. An ended trial is plausible and unconfirmed.
+`docs/support/livescore-api-questions.md` now holds the ready-to-send account question, the exact
+entitlement our existing coverage needs (endpoints, the 6 club and 29 national-team competitions
+with their ids, history depth, request volume) and a checklist for the owner. It is prepared, not
+sent, and nothing has been purchased.
 
 **The retained fallbacks cannot stand in for it.** What each source answered on 2026-10-05:
 
@@ -413,17 +422,20 @@ reading is that the trial ended; that is unconfirmed, and the question is first 
 So no configured source can currently add or update a fixture, a live score or a result, for any
 competition. For national-team football there would be nothing to fall back to even if they
 answered: none of the 34 national-team competitions has an API-Football or TheSportsDB id (all 34
-have a Live Score one). On 2026-10-05 at 05:10 UTC, 67 fixtures had kicked off with no stored
-result — 26 UEFA Nations League (2–4 Oct), 17 CONCACAF Nations League (2–5 Oct), 24 friendlies
-(24 Sep – 4 Oct) — and no result of any kind had been stored since 2026-10-02 14:53 UTC. A slip
-holding such a fixture stays *pending*; nothing settles until a result source answers. (The
+have a Live Score one). On 2026-10-07 at 01:30 UTC, 96 fixtures had kicked off with no stored
+result — 44 UEFA Nations League (2–6 Oct), 28 CONCACAF Nations League (2–6 Oct), 24 friendlies
+(24 Sep – 4 Oct) — no result of any kind had been stored since 2026-10-02 13:36 UTC and no new
+fixture since 14:46 UTC, and only 4 future fixtures were held. (On 2026-10-05 at 05:10 UTC the
+count was 67.) A slip holding such a fixture stays *pending*; nothing settles until a result
+source answers. (The
 results and recovery passes recorded API-Football as having answered for those competitions, with
 no rows, although it sent no request, having no id to ask with. That is fixed; the records already
 written are not yet corrected — see the next section.)
 
-Forecasts still arrive — GameForecastAPI answers — but only attach to fixtures already stored. On
-2026-10-05 it returned 48 club fixtures for 9–12 October; 3 were in the store and 45 wait,
-unattached and free to attach later, until a fixture source can list them.
+Forecasts still arrive — GameForecastAPI answers (8 of 8 requests with HTTP 200 on the 2026-10-07
+01:04 UTC pass) — but only attach to fixtures already stored. It returned 48 club fixtures for
+9–12 October; 3 were in the store and 45 wait, unattached and free to attach later (they are kept
+48 hours), until a fixture source can list them.
 
 Each attempt at Live Score while it refuses costs two requests: the adapter retries a 401 once,
 because the provider also answers 401 to bursts. After a refusal the provider is skipped for
@@ -433,7 +445,54 @@ Stored fixtures and forecasts are still served. Restoring a match-data source �
 paid plan at one of the fallbacks — is a purchase or support decision for the owner; nothing in
 this repository works around it.
 
-## A provider that could not be asked was recorded as answering: fixed, the stored record not yet corrected
+## While no match-data source answers, the pages say so — once, plainly, with the forecasts kept
+
+The backend publishes one `match_data` block, on `GET /api/v1/data-providers/status` and on its own
+at `GET /api/v1/data-providers/match-data` (about 1 KB). It is derived from what is already recorded
+and sends no provider request (`backend/app/services/match_data_health.py`). Its states are `ok`,
+`degraded`, `blocked` and `unknown`. It reads **blocked** when no configured source is delivering
+fixtures or results and either every source refused (access or plan) or ran out of allowance, or the
+fixtures/results passes have failed three times running with nothing a provider's answer wrote for
+six hours. A fallback that "answers" during such a stretch without writing anything (API-Football's
+free plan answers a live poll) does not lift it. Since 2026-10-07 02:52 UTC the running backend
+serves it, and it reads `blocked`, nothing new since 2026-10-02 14:52 UTC.
+
+**What a reader sees while blocked.**
+
+- The site banner leads with one sentence: fixture and result updates are unavailable at the
+  moment, nothing new has reached us since {date}, forecasts for matches we already hold are still
+  shown. If the forecast source has a fault of its own, that clause is replaced by the fault. Each
+  source's reason, and the provider's own English words marked `lang="en"`, sit behind the
+  disclosure; the visible line names no vendor, HTTP code or link, and nothing states when it ends.
+- The freshness block reads "no new fixtures or scores since {date}" and its three failure notes
+  become one line. It used to say "fixtures and scores last refreshed 4 minutes ago" in this state,
+  because the recover and settle passes, which fetch nothing, counted as refreshes; they, and a
+  live pass that polled nothing, no longer set that age in any state.
+- An overdue result reads "result updates are unavailable at the moment" on the day list and on the
+  match page; an upcoming kick-off is said to be the last one stored; forecasts and markets render
+  unchanged. An empty day, the slip and the slip history say that fixtures or results cannot arrive
+  for now. Suggestions say they are built only from stored fixtures and count the retrieved
+  forecasts waiting for a fixture.
+- `degraded`, `unknown` and a backend without the block show nothing new: the banner keeps its
+  older rules for a failing primary.
+
+**Known limits.**
+
+- A refusal's kind is recorded from the exception at the moment of failure; older records are
+  classified from their text, so a vendor that rewords a refusal may be read as `unavailable` and
+  reach `blocked` only through the three-failure, six-hour rule.
+- Each source is judged by its latest record. A source that refused its last call but still
+  delivers on others would read as refused. Since a provider is asked only about competitions it
+  holds an id for, such a refusal means its plan does not cover a competition or season we need.
+- "Nothing new since" is bounded by each provider's own record, because the registry stamps
+  `last_synced_at` when it stores a row, and it also stores again copies served from the match cache
+  (the 24-hour stale copy once every provider has failed). A stamp its provider's record cannot
+  account for counts only as that provider's last answer. The exact fix is for the registry to stamp
+  the time the provider produced the data; it is not made yet.
+- Cool-downs are unchanged: API-Football's plan refusal and TheSportsDB's invalid-key refusal still
+  cool down for two minutes.
+
+## A provider that could not be asked was recorded as answering: fixed; the repair rehearsed, not yet applied
 
 **What happened.** API-Football and TheSportsDB hold an id for the six club competitions and for
 none of the national-team ones. Asked for results across several competitions, each skipped the
@@ -456,29 +515,44 @@ among the reasons, and its attempts, its retry schedule and the archive's record
 as they were. That is not reported as a fault of the pass: a gap in coverage is not an outage.
 TheSportsDB is also no longer taken to have polled live scores, which its v1 API does not publish.
 
-**What the store still says.** Nothing already written was changed. Measured read-only against
-`soccer_predictions` at 2026-10-05 22:55 UTC, while the backend still ran the earlier code and
-added to it on every pass (the entries are listed in
-`docs/evidence/livescore-archive-observations.json`, `not_answers_recorded_as_answers`):
+**What the store still says.** Nothing already written has been changed. Measured read-only on
+2026-10-07: **13 archive observations and 66 fixtures**. The 10 and 44 counted at 2026-10-05 22:55
+UTC grew because the earlier code kept running until the machine restarted; its last pass, at
+2026-10-06 00:25 UTC, added 3 observations and 22 fixtures, all dated 4 October. A reader is still
+served those attempts with an `empty` archive. The current code's passes have since replaced the
+"api_football answered …" sentence on 65 of the 66 with a genuine `deferred` outcome, so that text
+no longer finds them; their stamps do. After Live Score's last success (2026-10-02 14:53:28 UTC)
+exactly 29 observation asks and 161 fixture attempts are not-answers; one more on 3 observations and
+6 fixtures, on 2 October before that, is proven by a capture; earlier ones are possible and
+unrecorded.
 
-- **Ten archive observations** name API-Football as the last to answer, with no rows: UEFA Nations
-  League and CONCACAF Nations League on 2 and 3 October; National Teams Friendlies on 24, 28 and 30
-  September and 2 and 3 October; AFCON Qualifications on 25 September. Five of them — both Nations
-  Leagues on 2 and 3 October, friendlies on 3 October — have never been put to a provider that
-  could answer. Friendlies on 30 September went from `answered` (six rows from Live Score, on 2
-  October) to `empty`. There, as for friendlies on 24 and 28 September and AFCON Qualifications on
-  25 September, `last_answered_at` still dates Live Score's last answer with rows.
-- **44 fixtures** carry a last outcome reading "api_football answered for this competition … with 0
-  row(s)", and a reader is served `fresh_unanswered` with that archive state. For 35 of them, all
-  from 2 and 3 October, every attempt recorded is of this kind: their first was at 04:24 UTC on 5
-  October. The other 9 mix real asks with these, in proportions nothing records.
+**The repair, rehearsed and waiting for the owner.** `backend/scripts/repair_not_answers.py` takes
+these writes back by rule, never from a list of ids: a national-team competition has no API-Football
+or TheSportsDB id, so anything recorded for one after Live Score's last success is false. On a
+restored copy (`soccer_predictions_rehearsal_notanswers`, kept for inspection) it removed the 8
+observations no provider that could answer was ever asked about, restored 2 from the backup taken
+before the outage (marked `unverified`), and set 3 whose earlier entry was itself a not-answer to
+Live Score's last real answer, read from the match rows that answer synced (marked `upper_bound` and
+`reconstructed`). It cleared every attempt from 57 fixtures, restored 3 from the backup
+(`unverified`) and reduced 6 to an upper bound. Every other row stayed byte-identical, no table's
+row count changed, and a second run changed nothing. The plan, the invariants and the decisions the
+owner has to make are in `docs/evidence/not-answers-repair/rehearsal.md`.
 
-Correcting them means rewriting rows in the live database: removing the attempts and observations
-the false answers added where they can be told apart, and marking counts as unreliable where they
-cannot. That is a decision for the owner, to be rehearsed first on a restored copy. Until then a
-stop the retry budget makes on any of these fixtures would state an attempt count that includes
-asks never made — though from this fix on, only a provider that really answered can make that
-stop.
+`attempts_quality` is now served beside `attempts`, the archive says when its row count was
+`reconstructed`, and a stop on a marked row states its count as "at most N". The site's own wording
+does not read `attempts_quality` yet.
+
+**Not yet done.** The live database is unchanged. Applying the repair needs the owner's choices
+(reconstruct or not; subtract the proven 2 October not-answer or not; correct the closed second
+listing of Senegal v Mozambique or not) and the backend stopped until the repair commits, because
+the scheduler rewrites these rows whole on every pass. The script refuses to write to the live
+database without `--owner-approved` and `--i-stopped-the-backend`, and checks the second claim: it
+refuses while the backend's address accepts connections, while a sync pass holds its lock or while
+the scheduler recorded a task in the last two minutes, and looks again just before committing.
+**It must be applied before Live Score answers again**: after that, real asks mix into these
+counters and the script refuses, so the plan would have to be made again by a person. Until then a
+stop the retry budget makes on one of these fixtures would quote a count that includes asks never
+made.
 
 ## Running it locally: what stopped updates for 2½ days, and how it is run now
 
@@ -530,6 +604,65 @@ What changed:
   League its turn today: its 12 fixtures in the coming week have no forecast.
   Where a provider reports its own count, it agrees with ours: API-Football's rate-limit header
   said 6 of 100 used at 05:55 UTC, when we had reserved 6.
+- **A reboot stops everything.** The machine restarted at 2026-10-06 01:09 UTC; Docker Desktop and
+  both servers stayed down until 2026-10-07 01:02 UTC, so nothing was fetched or scheduled for a
+  day, and the reboot also erased every scratch capture and test log of the previous round. To
+  restore: open Docker Desktop, wait until `soccer_predictions_postgres` and
+  `soccer_predictions_redis` report healthy, then start the `backend` and `frontend` entries of
+  `.claude/launch.json`. The scheduler resumes from its due-times in Redis. Evidence now goes into
+  `docs/evidence/` when it is produced.
+- **Which code is running.** No endpoint reports the commit. It is established from the process
+  start time (`ps -o lstart -p $(lsof -iTCP:8000 -sTCP:LISTEN -t)`) against the newest change under
+  `backend/app` and the git state of the process's working directory; the test-evidence runner and
+  the journey proof record exactly that.
+
+## Test totals are kept as evidence, recomputable by anyone
+
+The totals reported in earlier rounds (966 mocked browser tests, 57 live, 1,415 backend) cannot be
+checked: no raw output survived. Playwright empties its output directory at the start of every run,
+and the logs lived in a scratch folder the 2026-10-06 reboot erased.
+
+`scripts/test_evidence.py run` runs the backend suite and each Playwright project once
+(mocked-desktop, mocked-mobile, mocked-mobile-360, live), takes every exit code from the child
+process itself, refuses to start on a dirty tree or beside another test run, and watches for a
+server restart, a foreign run or a change of commit during the run. It keeps the raw output in the
+gitignored `.test-runs/` and publishes scrubbed JUnit files, console tails, `summary.md`,
+`summary.json` and `SHA256SUMS` to `docs/evidence/test-reports/<run-id>/`.
+`python3 scripts/test_evidence.py verify <dir>` recomputes every total and every check from the
+committed files; a changed exit code, a dropped suite or a filtered run relabelled as complete fails
+it. `docs/evidence/test-reports/README.md` has the layout and the scrub policy.
+
+Limits: `verify` cannot see what only the run saw (a deleted record of contamination), and the
+published files are scrubbed copies — only whoever holds the run's `.test-runs/` can show they came
+from the raw ones, through the SHA-256 that `summary.json` records. Live totals depend on the day's
+data and the providers, so they are comparable only together with their skip reasons. Backend totals
+grew this round with the new tests, and `npm run e2e:mocked` now includes the mocked-mobile-360
+project, so neither is comparable with earlier figures.
+
+## The journey from fixture to settlement is proven only as far as the stored result
+
+`backend/scripts/prove_journey.py` follows each fixture through five stages, read-only: fixture
+stored, forecast before kickoff, suggestion, stored result, settlement. It reads the database in a
+read-only transaction, Redis through a read-only wrapper, and the API through an allowlist of
+GET requests on this machine only; each run checks that it spent nothing, and is kept under
+`docs/evidence/journey-proof/`.
+
+The runs of 2026-10-07 find match-data access **blocked**. Of the fixtures that kicked off from
+2 October, 89 stop at the stored-result stage; the 5 stored results all date from 2 October. The
+journey slip recorded on 2026-10-05 is pending with both legs held there. Fixtures still to kick off
+pass the fixture, forecast and suggestion stages — French Guiana v Belize (kickoff 2026-10-07 02:00
+UTC) did, before kickoff — and then wait for a result no source can deliver.
+
+The verdict `returned` needs three signals together: the primary provider answering, a fixtures or
+results pass that asked it and was answered, and newly stored rows. It ignores what only looks like
+recovery: a fallback's HTTP 200 carrying a plan error, a recovery or settlement "success" that sent
+nothing, and `matches.updated_at`, which recovery bookkeeping moves.
+
+**What it cannot show yet.** No slip leg has ever settled against a stored result. A slip settles
+when its owner reads it (`GET /api/v1/me/slips` settles and commits); the scheduler's settle task
+scores forecasts and never touches slips. So after results return, a leg reads `pending: owner read`
+until one such read, which is a write and needs the owner's go-ahead. The suggestion stage can only
+be observed before kickoff. The re-run procedure is in `docs/evidence/journey-proof/README.md`.
 
 ## Selections and slips
 
@@ -560,6 +693,10 @@ What they do not do, on purpose:
   was applied but never answered is found and filled rather than created twice. Another account
   signing in on the machine never receives it. Clearing the browser's site data before the
   transfer completes loses what was not yet delivered.
+- **A slip settles when its owner reads it.** The legs are brought up to date with stored results
+  each time the slip list or a slip is opened; the scheduler does not settle slips on its own. Each
+  leg carries `result_expected_by`, the backend's deadline for its result (kickoff plus the
+  150-minute grace), so a leg that has merely started is told apart from one whose result is late.
 - **"Recorded" is the reader's own statement.** The application does not place bets, hold funds,
   initiate payments or confirm that any bet exists. A recorded slip is kept as it was; changing
   it means duplicating it.

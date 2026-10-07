@@ -43,7 +43,7 @@ from app.models.slips import SelectionSlip
 from app.models.users import AccountStatus, User, UserType
 from app.services.forecast_service import content_hash
 from app.services.match_cache import MatchCache
-from app.services.match_registry import MatchRegistry
+from app.services.match_registry import UNSETTLED_GRACE, MatchRegistry
 from app.services.providers.gameforecast import parse_event
 from app.services.providers.http import ProviderHttpClient
 from app.services.providers.sample import SampleDataProvider, SampleForecastProvider
@@ -294,6 +294,27 @@ def test_a_fixture_that_has_kicked_off_and_a_selection_the_forecast_lacks_are_re
     none = client.post("/api/v1/me/slips", json={"legs": [leg_body(no_forecast, "match_result:home")]})
     assert none.status_code == 422 and none.json()["detail"]["code"] == "selection_unknown"
     assert db.query(SelectionSlip).count() == 0, "a refused leg creates no slip"
+
+
+def test_each_leg_carries_the_backends_own_deadline_for_its_result(client, db, as_user):
+    # "Started" cannot tell a result that is not due yet from one that is late; the deadline can, and
+    # it is the same instant the match pages are served (`result_expected_by`: kickoff + the grace).
+    as_user(_user(db))
+    match = _match(db, _league(db), "Bulgaria", "Luxembourg", KICKOFF_AHEAD)
+    _forecast(db, match, load("bulgaria_luxembourg"))
+    slip = client.post("/api/v1/me/slips", json={"legs": [leg_body(match, "total_goals:under@2.5")]}).json()
+    (leg,) = slip["legs"]
+    assert leg["started"] is False
+    assert leg["result_expected_by"] == (KICKOFF_AHEAD + UNSETTLED_GRACE).isoformat() + "Z"
+
+    # The fixture kicked off three hours ago and no result has reached it: started, pending, overdue.
+    match.match_date = KICKOFF_PASSED
+    match.status = MatchStatus.LIVE
+    db.flush()
+    (leg,) = client.get(f"/api/v1/me/slips/{slip['id']}").json()["legs"]
+    assert leg["state"] == "pending" and leg["started"] is True
+    assert leg["result_expected_by"] == (KICKOFF_PASSED + UNSETTLED_GRACE).isoformat() + "Z"
+    assert datetime.fromisoformat(leg["result_expected_by"].replace("Z", "+00:00")) < NOW
 
 
 def test_a_revised_forecast_changes_the_current_figure_beside_the_leg_never_the_stored_one(client, db, as_user):

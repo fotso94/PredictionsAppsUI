@@ -328,6 +328,36 @@ def _utc_label(value) -> str:
     return instant.strftime("%Y-%m-%d %H:%M UTC") if instant else "an unrecorded time"
 
 
+#: What `attempts_quality` says on a row whose count is exactly the asks the provider answered.
+ATTEMPTS_EXACT = "exact"
+
+
+def _bounded_attempts(state: Dict[str, object], attempts: int) -> Optional[str]:
+    """The count a stop states, for a row whose count a repair could only bound; None when it is exact.
+
+    Until 201442e a provider that holds no id for a competition was recorded as answering for it
+    without being asked, and each such not-answer counted an attempt. `scripts/repair_not_answers.py`
+    takes them back where they can be told apart and marks the rest: `attempts_quality`
+    "upper_bound" or "unverified", `attempts_at_correction` (how many of the attempts that covers)
+    and `attempts_quality_as_of`. Every attempt after that is a real answer, so the sentence states
+    the total as "at most", says which part is bounded, and counts the asks since exactly. A row
+    with no mark, or marked "exact", is not touched by this.
+    """
+    quality = state.get("attempts_quality")
+    if not quality or quality == ATTEMPTS_EXACT:
+        return None
+    before = min(attempts, max(0, int(state.get("attempts_at_correction") or 0)))
+    since = attempts - before
+    text = (f"We asked the results provider at most {attempts} time{'' if attempts == 1 else 's'}, most "
+            f"recently {_utc_label(state.get('last_attempt_at'))}, and each answer it gave held no "
+            f"result for this match. The {before} counted before "
+            f"{_utc_label(state.get('attempts_quality_as_of'))} may include asks recorded as answered "
+            f"when no request was sent, so that part is an upper bound")
+    if since:
+        return text + f"; the {since} since {'is' if since == 1 else 'are'} exact."
+    return text + "."
+
+
 def recovery_state_of(match) -> Dict[str, object]:
     """What the sweep has recorded for this fixture. Tolerates rows with no metadata at all."""
     return dict((getattr(match, "match_metadata", None) or {}).get("recovery") or {})
@@ -1762,12 +1792,15 @@ class MatchRegistry:
         stopping was a budget decision, and what - exactly - could still make us ask again. It
         claims nothing about whether a result exists, and it promises nothing the code does not
         do: nothing asks about the match once it is stopped, and the one thing that reopens it is
-        an answer to a results call made for another fixture (`reopen_retired`)."""
+        an answer to a results call made for another fixture (`reopen_retired`).
+
+        Nor does it state a count as exact that a repair could only bound: see `_bounded_attempts`."""
         attempts = int(state.get("attempts") or 0)
         errors = int(state.get("provider_errors") or 0)
-        text = (f"We asked the results provider {attempts} time{'' if attempts == 1 else 's'}, most "
-                f"recently {_utc_label(state.get('last_attempt_at'))}, and each answer it gave held "
-                f"no result for this match.")
+        text = _bounded_attempts(state, attempts) or (
+            f"We asked the results provider {attempts} time{'' if attempts == 1 else 's'}, most "
+            f"recently {_utc_label(state.get('last_attempt_at'))}, and each answer it gave held "
+            f"no result for this match.")
         if errors:
             text += (f" {errors} other request{'' if errors == 1 else 's'} went out and got no "
                      f"answer, and {'is' if errors == 1 else 'are'} not counted.")

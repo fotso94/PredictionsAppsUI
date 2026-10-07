@@ -33,7 +33,7 @@ from app.models.slips import (
     SelectionSlip, SelectionSlipLeg,
 )
 from app.models.users import User
-from app.schemas.matches import serialize_league, serialize_score, serialize_team, status_label
+from app.schemas.matches import result_expected_by, serialize_league, serialize_score, serialize_team, status_label
 from app.services.forecast_markets import envelopes_for_matches
 from app.services.forecast_service import ForecastService
 from app.services.markets import find_selection, parse_selection_key
@@ -457,6 +457,10 @@ class SlipService:
             "odds": ({"value": float(leg.odds_value), "format": "decimal", "source": leg.odds_source,
                       "captured_at": _iso(leg.odds_captured_at)} if leg.odds_value is not None else None),
             "kickoff_utc": _iso(kickoff), "started": bool(kickoff and kickoff <= self.now),
+            # The backend's own deadline for this fixture's result, the same instant the match pages
+            # are served. "Started" alone cannot tell a leg whose result is simply not due yet from
+            # one whose result is late; this can. None without the fixture row to read it from.
+            "result_expected_by": _iso(result_expected_by(match)) if match else None,
             "current": {
                 "probability": live_probability, "available": bool(live and live.get("available")),
                 "forecast_changed": bool(changed),

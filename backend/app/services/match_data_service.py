@@ -6,16 +6,18 @@ live polling, stale-data degradation, and persistence through the MatchRegistry.
 from __future__ import annotations
 
 import logging
+import sys
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from sqlalchemy import func
+from sqlalchemy import DateTime, case, cast, func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.predictions import League, Match, MatchStatus
 from app.services.match_cache import MatchCache
+from app.services.match_data_health import classify_provider_error
 from app.services.match_registry import (
     RELISTED_KEY, STALE_SWEEP_MAX_DAYS, UNSETTLED_GRACE, MatchRegistry, RecoveryOutcome,
     classify_recovery_outcome, due_once_stop_is_undone, is_settled, next_ask_after,
@@ -451,6 +453,45 @@ def recovery_requests_left_today(cache, now: datetime) -> Optional[int]:
     return max(cap - recovery_requests_today(cache, now), 0)
 
 
+#: The shape `MatchRegistry` writes `last_synced_at` in (`datetime.isoformat()`). A value of any
+#: other shape is left out of the aggregate rather than cast: one malformed stamp would otherwise
+#: fail the whole query, and with it the transaction of the request that asked.
+_LAST_SYNCED_SHAPE = r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}"
+
+
+def last_provider_writes(db: Session) -> Dict[Optional[str], datetime]:
+    """The newest `match_metadata.last_synced_at` per provider named on the row.
+
+    WHAT THE STAMP IS. `MatchRegistry._apply_fixture` sets it to the wall-clock time of the STORE,
+    on every upsert - including the upsert of a copy `_call_chain` served from the match cache: the
+    30-minute fresh copy, and the 24-hour stale copy it falls back to once every provider has
+    failed, which `sync_day`, the results pass and the recovery pass all store again. So a stamp is
+    an upper bound on when its provider's data arrived, not that time. On the first day of an
+    outage it reads "minutes ago" while nothing has answered for hours.
+
+    That is why the stamps are returned per provider and not as one maximum: a stamp is only taken
+    as a write once it has been checked against its own provider's status record, which says when
+    that provider last answered and last failed (`match_data_health.newest_provider_write`). Whose
+    data a row holds is the `provider` the registry writes beside the stamp; a cached copy keeps the
+    name of the provider that produced it.
+
+    `matches.updated_at` is not consulted, and must not be: the recovery pass rewrites its
+    bookkeeping on every row it considers, so on 2026-10-07 that column read "4 minutes ago" over a
+    table no provider had written to since 2 October.
+
+    One grouped aggregate over the table, no provider request. Rows without a stamp of the expected
+    shape are left out; a provider with none is absent from the result.
+    """
+    provider = Match.match_metadata["provider"].astext
+    stamp = Match.match_metadata["last_synced_at"].astext
+    newest = func.max(case((stamp.op("~")(_LAST_SYNCED_SHAPE), cast(stamp, DateTime(timezone=True))), else_=None))
+    writes: Dict[Optional[str], datetime] = {}
+    for name, value in db.query(provider, newest).group_by(provider).all():
+        if value is not None:
+            writes[name] = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return writes
+
+
 class MatchDataService:
     def __init__(self, db: Session, providers: Optional[List[MatchDataProvider]] = None, cache: Optional[MatchCache] = None,
                  now: Optional[datetime] = None, keys: Optional[List[str]] = None):
@@ -491,13 +532,31 @@ class MatchDataService:
     def primary_name(self) -> Optional[str]:
         return self.providers[0].name if self.providers else None
 
-    def _record_status(self, name: str, ok: bool, error: Optional[str] = None) -> None:
+    def _record_status(self, name: str, ok: bool, error: Optional[str] = None,
+                       exc: Optional[BaseException] = None) -> None:
+        """Note what a provider last did: when it last answered, and when and how it last failed.
+
+        A failure also records `last_error_kind` - plan, access, quota or unavailable - because the
+        kind is what says whether data can still arrive (`match_data_health`), and the cool-down
+        cannot: API-Football's plan refusal and TheSportsDB's invalid-key refusal both cool down for
+        two minutes, exactly like a network blip. The kind is classified from the exception's CLASS
+        first and its message second. Every failure call site sits inside the `except` clause that
+        caught the error, so when `exc` is not passed the exception being handled is that error.
+
+        A later success clears the message, as it always has, but keeps the kind beside
+        `last_error_at`, which it also keeps: both describe the last failure. A fallback that refuses
+        every fixtures call on its plan and then answers a live poll with nothing has not started
+        delivering fixtures, and the kind is what still says why.
+        """
         payload = self.cache.get(STATUS_KEY.format(name=name)) or {}
         stamp = self.now.isoformat()
         if ok:
             payload.update({"last_success_at": stamp, "last_error": None})
         else:
-            payload.update({"last_error_at": stamp, "last_error": error})
+            if exc is None:
+                exc = sys.exc_info()[1]
+            payload.update({"last_error_at": stamp, "last_error": error,
+                            "last_error_kind": classify_provider_error(error, exc)})
         self.cache.set(STATUS_KEY.format(name=name), payload, ttl=7 * 24 * 3600, stale_ttl=7 * 24 * 3600)
 
     def _cooldown(self, name: str) -> Optional[str]:

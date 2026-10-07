@@ -605,6 +605,13 @@
           "note": "never put to a provider that could answer: every ask recorded here was a not-answer"
         }
       ]
+    },
+    "still_in_the_store_2026_10_07": {
+      "read_at": "2026-10-07T01:56:11Z",
+      "observations": 13,
+      "fixtures": 66,
+      "note": "The 10 observations and 44 fixtures above, plus what the earlier code's last pass added at 2026-10-06T00:25:19Z before the machine restarted: CONCACAF Nations League, UEFA Nations League and National Teams Friendlies on 2026-10-04 (times_asked 1 each) and 22 fixtures. Selected by rule, not by the 'api_football answered' text, which later genuine deferrals have overwritten on 65 of the 66.",
+      "repair": "Rehearsed on an isolated copy, not applied to the live database: see docs/evidence/not-answers-repair/ and docs/known-limitations.md, section 'A provider that could not be asked was recorded as answering'."
     }
   }
 }

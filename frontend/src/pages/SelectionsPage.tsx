@@ -10,6 +10,8 @@ import { describeSlipError, useSlips } from '@/services/slips.service'
 import { selectionSentence, stateLabel } from '@/utils/marketLabels'
 import type { ApiSlip, ApiSlipLeg, SlipStatus } from '@/types/markets'
 import type { SignInHandoff } from '@/components/favourites/useMatchSaving'
+import { isMatchDataBlocked } from '@/components/ui/matchDataState'
+import { useMatchDataState } from '@/hooks/useMatchDataState'
 
 /**
  * The reader's slips: drafts, saved combinations and bets recorded as placed elsewhere, each leg
@@ -22,7 +24,7 @@ import type { SignInHandoff } from '@/components/favourites/useMatchSaving'
 
 type Filter = 'all' | SlipStatus
 
-const LegLine: React.FC<{ leg: ApiSlipLeg }> = ({ leg }) => {
+const LegLine: React.FC<{ leg: ApiSlipLeg; resultsBlocked: boolean }> = ({ leg, resultsBlocked }) => {
   const t = useT()
   const home = leg.match.home?.name ?? ''
   const away = leg.match.away?.name ?? ''
@@ -49,7 +51,10 @@ const LegLine: React.FC<{ leg: ApiSlipLeg }> = ({ leg }) => {
           {stateLabel(t, leg.state)}
         </span>
       </div>
-      {leg.state === 'pending' && leg.started && <p className="mt-1 text-[11px] text-secondary-400">{t('selections.history.awaiting')}</p>}
+      {/* While result updates are blocked, "awaiting" says why the wait cannot end for now. */}
+      {leg.state === 'pending' && leg.started && (resultsBlocked
+        ? <p className="mt-1 text-[11px] text-warning-200" data-testid="history-leg-result-blocked">{t('selections.history.awaitingBlocked')}</p>
+        : <p className="mt-1 text-[11px] text-secondary-400">{t('selections.history.awaiting')}</p>)}
       {actual && <p className="mt-1 text-[11px] text-secondary-400">{t('selections.history.actual', { actual })}</p>}
       {rule && leg.state !== 'pending' && <p className="text-[11px] text-secondary-500">{t('selections.history.settlementRule', { rule })}</p>}
       {leg.state === 'unresolved' && (
@@ -59,7 +64,7 @@ const LegLine: React.FC<{ leg: ApiSlipLeg }> = ({ leg }) => {
   )
 }
 
-const SlipCard: React.FC<{ slip: ApiSlip }> = ({ slip }) => {
+const SlipCard: React.FC<{ slip: ApiSlip; resultsBlocked: boolean }> = ({ slip, resultsBlocked }) => {
   const t = useT()
   const { user } = useAuth()
   const { store, activeId } = useSlips(user?.id ?? null)
@@ -87,7 +92,7 @@ const SlipCard: React.FC<{ slip: ApiSlip }> = ({ slip }) => {
         </p>
       </Card.Header>
       <Card.Body>
-        <ul className="space-y-2">{slip.legs.map(leg => <LegLine key={leg.id} leg={leg} />)}</ul>
+        <ul className="space-y-2">{slip.legs.map(leg => <LegLine key={leg.id} leg={leg} resultsBlocked={resultsBlocked} />)}</ul>
         <div className="mt-3 space-y-1 text-xs text-secondary-300">
           {slip.price !== null ? (
             <p data-testid="history-price">
@@ -131,6 +136,10 @@ const SelectionsPage: React.FC = () => {
   const slips = useSlips(user?.id ?? null)
   const [filter, setFilter] = useState<Filter>('all')
   const visible = slips.slips.filter(slip => filter === 'all' || slip.status === filter)
+  // Asked only when a selection is waiting for its result — the one case the answer changes a line.
+  const awaitingResult = slips.slips.some(slip => slip.legs.some(leg => leg.state === 'pending' && leg.started))
+  const matchData = useMatchDataState(awaitingResult)
+  const resultsBlocked = isMatchDataBlocked(matchData)
   const handoff: SignInHandoff = { from: location, at: Date.now() }
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
@@ -161,7 +170,7 @@ const SelectionsPage: React.FC = () => {
           {visible.length === 0 ? (
             <p className="mt-4 text-sm text-secondary-400" data-testid="history-empty">{t('selections.history.empty')}</p>
           ) : (
-            <div className="mt-4 space-y-4">{visible.map(slip => <SlipCard key={slip.id} slip={slip} />)}</div>
+            <div className="mt-4 space-y-4">{visible.map(slip => <SlipCard key={slip.id} slip={slip} resultsBlocked={resultsBlocked} />)}</div>
           )}
         </>
       )}

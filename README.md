@@ -221,7 +221,7 @@ was last recorded green on 2026-09-18 and was not re-run here. **No test count i
 purpose** — tests are still being added, so any number written down goes stale; run the command and
 read the number it prints.
 
-- Backend: `cd backend && ./venv/bin/python -m pytest -o addopts="" -q` — `-o addopts=""` drops the
+- Backend: `cd backend && ./venv311/bin/python -m pytest -o addopts="" -q` — `-o addopts=""` drops the
   coverage flags that `pyproject.toml` sets by default. Most tests are pure unit
   tests; `tests/test_cache_services.py` needs Redis and the database-backed tests need PostgreSQL
   (`TEST_DATABASE_URL`, default `soccer_predictions_test`). No test makes a real provider request:

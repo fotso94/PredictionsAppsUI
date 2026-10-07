@@ -151,6 +151,38 @@ export interface ProviderStatusPayload extends Json {
     cooling_down: string | null;
   } & Json;
   scheduler?: SchedulerPayload | null;
+  /**
+   * Whether fixture and result updates are arriving (`app/services/match_data_health.py`). Absent
+   * from `baseStatus()` on purpose: the capture predates it, and every existing spec therefore
+   * keeps measuring the page an older backend gets. The builders under "match-data state" add it.
+   */
+  match_data?: MatchDataPayload | null;
+}
+
+/** One source in the match-data block, as `derive_match_data_state` reads it. */
+export interface MatchDataSourcePayload extends Json {
+  name: string;
+  role: 'primary' | 'fallback';
+  configured: boolean;
+  answer: 'ok' | 'refused' | 'allowance' | 'failing' | 'never_answered';
+  kind: 'plan' | 'access' | 'quota' | 'unavailable' | null;
+  last_success_at: string | null;
+  last_error_at: string | null;
+}
+
+/** `GET /data-providers/match-data`, and `match_data` on the status payload. */
+export interface MatchDataPayload extends Json {
+  state: 'ok' | 'degraded' | 'blocked' | 'unknown';
+  since: string | null;
+  since_basis: string | null;
+  sources: MatchDataSourcePayload[];
+  affects: string[];
+  still_available: string[];
+  upcoming_stored: number | null;
+  overdue_results: number | null;
+  forecasts_waiting_for_fixtures: number | null;
+  next_check_at: string | null;
+  checked_at: string;
 }
 
 export interface LeaguesPayload extends Json {
@@ -842,6 +874,161 @@ export function expiredTrialStatus(): ProviderStatusPayload {
   return status;
 }
 
+// ------------------------------------------------------------------- match-data state (blocked)
+/**
+ * THE THREE REFUSALS OF 2026-10-07, word for word as the backend's status records held them.
+ *
+ * Every match-data source refused at once while the forecast provider answered: Live Score's access
+ * was disabled, API-Football's free plan excluded the season (an HTTP 200 with the refusal in its
+ * body), TheSportsDB rejected its key. They are the provider's words, so they are English on every
+ * page and appear only inside the banner's disclosure.
+ */
+export const LIVESCORE_REFUSAL =
+  'livescore: authentication rejected (HTTP 401): This API key and secret do not have access to our data enabled';
+export const API_FOOTBALL_REFUSAL =
+  "API-Football errors: {'plan': 'Free plans do not have access to this season, try from 2022 to 2024.'}";
+export const THESPORTSDB_REFUSAL =
+  'thesportsdb: request rejected (HTTP 400): {"Message":"Invalid Premium API key: Signup here: https:\\/\\/www.thesportsdb.com\\/pricing"}';
+
+/** When a provider last wrote a match row on that night: a fixed instant, as the backend states it. */
+export const LAST_PROVIDER_WRITE = '2026-10-02T14:52:26+00:00';
+
+/** The forecasts already paid for that had no fixture to attach to: 10 + 9 + 10 + 8 + 8. */
+export const FORECASTS_WAITING = 45;
+
+/** A match-data block in the backend's shape. */
+export function matchDataBlock(state: MatchDataPayload['state'], overrides: Partial<MatchDataPayload> = {}): MatchDataPayload {
+  return {
+    state,
+    since: LAST_PROVIDER_WRITE,
+    since_basis: 'last_provider_write',
+    sources: [],
+    affects: state === 'blocked' || state === 'degraded'
+      ? ['new_fixtures', 'kickoff_changes', 'live_scores', 'results', 'automatic_settlement'] : [],
+    still_available: ['stored_fixtures', 'stored_forecasts', 'suggestions_from_stored_fixtures', 'slips'],
+    upcoming_stored: 4,
+    overdue_results: state === 'blocked' ? 95 : 0,
+    forecasts_waiting_for_fixtures: state === 'blocked' ? FORECASTS_WAITING : 0,
+    next_check_at: ahead(24),
+    checked_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+/**
+ * The scheduler on that night: the three fetching tasks failing for days, while recover and settle
+ * — which fetch nothing — had "succeeded" minutes earlier. The pair the old freshness line took its
+ * "4 minutes ago" from, and the pair the stub schedulers above never had, which is why no test
+ * caught it.
+ */
+export function blockedScheduler(): SchedulerPayload {
+  const failing = (intervalSeconds: number, daysAgo: number, failures: number, minutesAhead: number,
+    error: string, overrides: Partial<SyncTaskPayload> = {}): SyncTaskPayload => healthyTask(
+    intervalSeconds, daysAgo * 24 * 60, minutesAhead, {
+      last_run_at: ago(36), last_error_at: ago(36), last_error: error,
+      failures, consecutive_failures: failures, backoff_seconds: 21_600, ...overrides,
+    });
+  return healthyScheduler({
+    enabled_tasks: ['fixtures', 'live', 'results', 'recover', 'settle', 'forecasts'],
+    tasks: {
+      fixtures: failing(21_600, 4, 15, 324, LIVESCORE_REFUSAL),
+      live: failing(120, 1, 7, 283, LIVESCORE_REFUSAL, {
+        last_result: { live_window_open: false, live_polled: false, note: 'no covered match is in its live window; no provider request made' },
+      }),
+      results: failing(1800, 4, 19, 324, LIVESCORE_REFUSAL),
+      recover: healthyTask(1800, 4, 26, {
+        last_result: { overdue: 95, outcomes: { deferred: 78, not_asked: 17 }, requests: 0 },
+      }),
+      settle: healthyTask(7200, 3, 117, { last_result: { matches_considered: 0 } }),
+      forecasts: healthyTask(21_600, 4, 356),
+    },
+  });
+}
+
+/** The chain on that night: every source's latest record a refusal, with its own words. */
+function refusingChain(status: ProviderStatusPayload): void {
+  const refusals: Record<string, string> = {
+    livescore: LIVESCORE_REFUSAL, api_football: API_FOOTBALL_REFUSAL, thesportsdb: THESPORTSDB_REFUSAL,
+  };
+  for (const entry of status.chain || []) {
+    entry.last_success_at = '2026-10-02T14:53:28+00:00';
+    entry.last_error_at = ago(36);
+    entry.last_error = refusals[entry.name] ?? null;
+    // Only the 401 earns the 30-minute cool-down; the other two cool down for two minutes.
+    entry.cooling_down = entry.name === 'livescore' ? LIVESCORE_REFUSAL : null;
+  }
+}
+
+/**
+ * Every match-data source refusing, as the status endpoint serves it — WITHOUT the match-data block.
+ *
+ * This is what a backend older than the block serves in that state, and the banner on it must read
+ * exactly as it always did. `matchDataBlockedStatus()` is the same payload with the block.
+ */
+export function refusingStatusWithoutBlock(): ProviderStatusPayload {
+  const status = baseStatus();
+  refusingChain(status);
+  status.scheduler = blockedScheduler();
+  return status;
+}
+
+/** Fixture and result updates blocked: the state of 2026-10-07, with the backend's block. */
+export function matchDataBlockedStatus(): ProviderStatusPayload {
+  const status = refusingStatusWithoutBlock();
+  status.match_data = matchDataBlock('blocked', {
+    sources: [
+      { name: 'livescore', role: 'primary', configured: true, answer: 'refused', kind: 'access', last_success_at: '2026-10-02T14:53:28+00:00', last_error_at: ago(36) },
+      { name: 'api_football', role: 'fallback', configured: true, answer: 'refused', kind: 'plan', last_success_at: '2026-10-02T14:53:28+00:00', last_error_at: ago(36) },
+      { name: 'thesportsdb', role: 'fallback', configured: true, answer: 'refused', kind: 'access', last_success_at: '2026-10-02T14:53:28+00:00', last_error_at: ago(36) },
+    ],
+  });
+  return status;
+}
+
+/**
+ * Degraded: the primary refuses, a fallback answers and writes. Data still arrives, so nothing new
+ * is said anywhere; the banner keeps the rules it has always had for a failing primary.
+ */
+export function matchDataDegradedStatus(): ProviderStatusPayload {
+  const status = baseStatus();
+  const [primary, fallback] = status.chain;
+  primary.last_error = LIVESCORE_REFUSAL;
+  primary.last_error_at = ago(10);
+  primary.cooling_down = LIVESCORE_REFUSAL;
+  if (fallback) fallback.last_success_at = ago(5);
+  status.match_data = matchDataBlock('degraded', {
+    since: ago(5),
+    sources: [
+      { name: 'livescore', role: 'primary', configured: true, answer: 'refused', kind: 'access', last_success_at: ago(600), last_error_at: ago(10) },
+      { name: 'api_football', role: 'fallback', configured: true, answer: 'ok', kind: null, last_success_at: ago(5), last_error_at: null },
+    ],
+  });
+  return status;
+}
+
+/**
+ * Healthy, on a backend that publishes the block — and runs recover and settle, so a fixture clock
+ * that took its age from either of them would be caught here: they succeeded a minute ago, and the
+ * youngest fetch that counts (results) was eight minutes ago.
+ */
+export function matchDataHealthyStatus(): ProviderStatusPayload {
+  const status = baseStatus();
+  status.scheduler!.enabled_tasks = ['fixtures', 'live', 'results', 'recover', 'settle', 'forecasts'];
+  status.scheduler!.tasks.recover = healthyTask(1800, 1, 29, {
+    last_result: { overdue: 0, outcomes: {}, requests: 0 },
+  });
+  status.scheduler!.tasks.settle = healthyTask(7200, 1, 119, { last_result: { matches_considered: 0 } });
+  status.match_data = matchDataBlock('ok', {
+    since: ago(8),
+    sources: (status.chain || []).map((entry, index) => ({
+      name: entry.name, role: index === 0 ? 'primary' : 'fallback', configured: true,
+      answer: index === 0 ? 'ok' : 'never_answered', kind: null,
+      last_success_at: index === 0 ? ago(12) : null, last_error_at: null,
+    })),
+  });
+  return status;
+}
+
 export interface StubOptions {
   /**
    * Answer `GET /matches`. The second argument is the whole query string, so a test that cares
@@ -958,6 +1145,12 @@ export async function stubBackend(page: Page, options: StubOptions = {}): Promis
 
     if (path === '/data-providers/status') {
       return json(route, options.status ?? baseStatus());
+    }
+    if (path === '/data-providers/match-data') {
+      // The block on its own, from the same status a test configured. A status without one is a
+      // backend older than the route, answered the way every unmodelled path is: an empty object,
+      // which the client reads as "no block".
+      return json(route, (options.status ?? baseStatus()).match_data ?? {});
     }
     if (path === '/data-providers/coverage') {
       return json(route, options.coverage ?? baseCoverage());

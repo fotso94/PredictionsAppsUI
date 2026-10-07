@@ -281,6 +281,13 @@ def serialize_recovery(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     ``gave_up_reason`` is the sweep's own sentence, not a provider's: it carries no vendor name, no
     HTTP status and no link, and it travels verbatim. It is English; the structured fields beside
     it carry the same facts for a reader that renders its own words.
+
+    ``attempts_quality`` says how far ``attempts`` can be trusted, and is null on every row no
+    repair touched. A repair that took back asks a provider was recorded as answering without
+    being asked (``scripts/repair_not_answers.py``) could not always tell how many of a row's
+    earlier attempts were real; it marks those ``upper_bound`` or ``unverified``, and the count
+    must then be worded as "at most". ``attempts_at_correction`` of them were counted before that
+    repair; every attempt since is a real one, counted exactly.
     """
     state = (meta or {}).get("recovery")
     if not isinstance(state, dict) or not state:
@@ -293,6 +300,9 @@ def serialize_recovery(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     archive = state.get("archive") if isinstance(state.get("archive"), dict) else None
     return {
         "attempts": count("attempts"),
+        # "exact", "upper_bound" or "unverified"; null where no repair marked the count.
+        "attempts_quality": state.get("attempts_quality") or None,
+        "attempts_at_correction": count("attempts_at_correction"),
         "last_attempt_at": _stored_iso(state.get("last_attempt_at")),
         "gave_up_at": _stored_iso(state.get("gave_up_at")),
         "gave_up_reason": state.get("gave_up_reason") or None,
@@ -312,6 +322,10 @@ def serialize_recovery(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "state": archive.get("state"),
             "rows": archive.get("rows") if isinstance(archive.get("rows"), int) else None,
             "asked_at": _stored_iso(archive.get("asked_at")),
+            # True where a repair rebuilt this answer from the match rows it synced rather than
+            # from a stored record of it (scripts/repair_not_answers.py): the row count is then
+            # evidence-based, not recorded.
+            "reconstructed": archive.get("reconstructed") is True,
         },
     }
 

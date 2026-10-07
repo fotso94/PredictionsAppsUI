@@ -136,6 +136,9 @@ const core = {
   'matchday.retry': 'Retry',
   'matchday.emptyTitle': 'No matches stored for this date.',
   'matchday.emptyDescription': 'This installation holds no fixtures for {date}. Fixtures appear here once they have been fetched and stored, so this is what we hold rather than a statement that nothing is being played.',
+  // The empty day while fixture updates are blocked (`match_data.state`). The same first sentence as
+  // above; the second says why the gap cannot fill itself for now, without promising when it will.
+  'matchday.emptyBlocked': 'This installation holds no fixtures for {date}. Fixture updates are unavailable at the moment, so a day we have not stored yet stays empty until they resume.',
   /*
    * When an empty day can say when football comes back.
    *
@@ -373,9 +376,13 @@ const core = {
   'fixture.result.heldBackShort': 'A result was due {due}; our last check was held back by our own request allowance.',
   'fixture.result.heldBackProviderShort': 'A result was due {due}; our last check was not sent, because the provider had reported its request limit reached.',
   'fixture.result.heldBackCoolingShort': 'A result was due {due}; our last check was postponed after an earlier attempt failed.',
+  'fixture.result.blockedShort': 'A result was due {due}; result updates are unavailable at the moment.',
   'fixture.result.heldBackOtherShort': 'A result was due {due}; our last check was not sent to the provider.',
   'fixture.result.givenUpShort': 'No result arrived; we stopped asking {when}.',
   'fixture.result.overdueDetail': 'A result was due {due} and none has reached us. This match is not being shown as in play, and no score is claimed for it.',
+  // The same notice while result updates are blocked: the result is not merely late, it cannot
+  // reach us until access is restored. "At the moment", and no time is promised.
+  'fixture.result.blockedDetail': 'A result was due {due}. Result updates are unavailable at the moment, so it cannot reach us yet. This match is not being shown as in play, and no score is claimed for it.',
   'fixture.result.givenUpDetail': 'No result ever reached us, and we stopped asking {when}. No score is claimed for this match.',
   // The other side of "we stopped asking", said only where the row's own record shows the backend
   // is still asking (a recovery record and no give-up — resultDelay's `stillAsking`). A fixture
@@ -528,6 +535,9 @@ const core = {
   // with the same word the fixture itself uses ("Result overdue"), so a failure on this line and
   // the notice on the match page are recognisably about the same thing.
   'sync.task.recover': 'Overdue results',
+  // The scheduler's `settle` task: it scores stored forecasts against stored results and asks no
+  // provider for anything. It used to reach the disclosure as the raw word "settle".
+  'sync.task.settle': 'Scoring of finished matches',
   'sync.task.forecasts': 'Model forecasts',
 
   'freshness.stored': 'Stored data',
@@ -539,6 +549,10 @@ const core = {
   'freshness.summary.refreshed': 'Stored data · fixtures and scores last refreshed {age}',
   'freshness.summary.neverRun': 'Stored data · no scheduled refresh has run yet',
   'freshness.summary.neverSucceeded': 'Stored data · no scheduled refresh has succeeded yet',
+  // While fixture and result updates are blocked: the time is the last provider WRITE, never a
+  // task's success (recover and settle succeed every half hour while fetching nothing).
+  'freshness.summary.blocked': 'Stored data · no new fixtures or scores since {since}',
+  'freshness.summary.blockedNoSince': 'Stored data · no new fixtures or scores are reaching us',
 
   'freshness.note.noStatus': 'The status service could not be reached, so when this was last refreshed is unknown.',
   'freshness.note.noSchedule': 'This installation reports no refresh schedule, so stored data changes only when a page asks the provider for new data.',
@@ -569,11 +583,18 @@ const core = {
   'freshness.line.paused': '{task}: paused — {reason}',
   'freshness.line.behind': '{task}: more than a full interval past due, so what is stored may be older than the schedule intends.',
   'freshness.line.mechanics': '{task}: {detail}',
+  // The one line that replaces a failure note per fixture task while updates are blocked. The
+  // per-task rows, with each provider's own words, stay in the disclosure.
+  'freshness.line.blocked': 'Fixtures, live scores and results: updates are unavailable at the moment; what is shown is our last stored copy.',
   'freshness.reason.unstated': 'the backend did not say why',
   'freshness.reason.quota': 'the provider refused the request because our daily allowance with it is spent',
   'freshness.reason.budget': 'our own daily request allowance for this provider is spent',
   'freshness.reason.credentials': 'the provider rejected our credentials',
   'freshness.reason.timeout': 'it timed out before answering',
+  // Our summaries of a match-data source's refusal, by the kind the backend recorded for it.
+  'freshness.reason.plan': 'our plan with this provider does not cover the current season',
+  'freshness.reason.accessNotEnabled': 'the provider has not enabled data access for our account',
+  'freshness.reason.unavailable': 'it did not give a usable answer',
 
   'freshness.nextAttempt.ahead': 'The next attempt is {when}.',
   'freshness.nextAttempt.dueNow': 'The next attempt is due now.',
@@ -632,6 +653,19 @@ const core = {
   'banner.dismiss': 'Dismiss',
   'banner.oneMoreDetail': 'One more provider detail',
   'banner.moreDetails': '{count} more provider details',
+  // Fixture and result updates blocked (`match_data.state`): the one visible line. No provider
+  // name, plan, HTTP code or link — those are per source, inside the disclosure — and no promise
+  // of when it ends. `{since}` is the last provider write, in the reader's zone.
+  'banner.matchData.blocked': 'Fixture and result updates are unavailable at the moment — nothing new has reached us since {since}. Forecasts for matches we already hold are still shown.',
+  'banner.matchData.blockedNoSince': 'Fixture and result updates are unavailable at the moment. Forecasts for matches we already hold are still shown.',
+  'banner.matchData.blockedOnly': 'Fixture and result updates are unavailable at the moment — nothing new has reached us since {since}.',
+  'banner.matchData.blockedOnlyNoSince': 'Fixture and result updates are unavailable at the moment.',
+  'banner.matchData.source': '{source}: {reason}.',
+  'banner.matchData.answeredWithoutData': 'its latest answer brought no new fixtures or results',
+  // The match page while blocked. A kick-off time that cannot be re-checked, and a score in its
+  // live window that cannot move; the forecasts below are unaffected and say nothing different.
+  'matchData.match.kickoff': 'This kick-off time is the one we last stored; a change to it cannot reach us at the moment.',
+  'matchData.match.live': 'Score updates are unavailable at the moment, so the state shown for this match is the last one we stored.',
 
   // ─── empty and failed states ─────────────────────────────────────────────────────────────
   'emptyState.couldNotLoad': 'Could not load. ',
