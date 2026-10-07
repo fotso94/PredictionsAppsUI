@@ -1021,7 +1021,18 @@ def test_the_repo_state_names_every_changed_application_file(monkeypatch):
 
 
 def test_a_backend_started_before_head_arrived_does_not_serve_it():
-    assert pj.running_code(REPO, dict(PROCESS, started_at="2026-10-05T22:00:00Z"))["includes_head"] is False
+    """A commit that changed the application after the start moved those files' modification times."""
+    process = dict(PROCESS, started_at="2026-10-05T22:00:00Z",
+                   app_files_modified_after_start=["backend/app/services/match_data_service.py"])
+    assert pj.running_code(REPO, process)["includes_head"] is False
+
+
+def test_a_commit_of_files_already_loaded_still_serves_head():
+    """2026-10-07: the backend restarted at 02:51:55 on edits made by 02:48; they were committed at
+    02:59 and later. HEAD arrived after the start, yet nothing under backend/app changed since it."""
+    verdict = pj.running_code(dict(REPO, head_moved_at="2026-10-07T04:07:30Z"),
+                              dict(PROCESS, started_at="2026-10-07T02:51:55Z"))
+    assert verdict["includes_head"] is True and "after the process started" in verdict["detail"]
 
 
 # ===================================================================== golden: today's state

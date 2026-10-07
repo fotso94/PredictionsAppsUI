@@ -1491,6 +1491,16 @@ def running_code(repo: Dict[str, Any], process: Dict[str, Any]) -> Dict[str, Any
         return {"includes_head": None, "basis": "unknown",
                 "detail": "the process start, the moment HEAD arrived or the tree's state could not be read"}
     if started <= moved:
+        if not changed and not later:
+            # HEAD arrived later, but no application file has changed since the start and the tree
+            # matches HEAD: the commit recorded files already on disk when the process loaded them
+            # (a checkout or merge that changed one would have moved its modification time).
+            return {"includes_head": True, "basis": "inferred",
+                    "detail": (f"HEAD reached this tree at {_iso(moved)}, after the process started at "
+                               f"{_iso(started)}, but no application file has changed since the start and the "
+                               "application tree matches HEAD, so what it loaded is HEAD's code (a file deleted "
+                               "since, or an edit made and undone before the start, cannot be seen from "
+                               "modification times)")}
         return {"includes_head": False, "basis": "inferred",
                 "detail": f"the process started at {_iso(started)}, before HEAD reached this tree at {_iso(moved)}"}
     if not changed:

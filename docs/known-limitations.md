@@ -632,6 +632,21 @@ gitignored `.test-runs/` and publishes scrubbed JUnit files, console tails, `sum
 committed files; a changed exit code, a dropped suite or a filtered run relabelled as complete fails
 it. `docs/evidence/test-reports/README.md` has the layout and the scrub policy.
 
+**The runs of 2026-10-07**, each in its own folder under `docs/evidence/test-reports/`:
+
+| Run | Commit | Backend | mocked-desktop | mocked-mobile | mocked-mobile-360 | live |
+|---|---|---|---|---|---|---|
+| `2026-10-07T0301Z-7be42cc` | 7be42cc | 1644 passed | 449 passed, 2 skipped | 451 passed | 138 passed | 51 passed, 6 skipped, **1 failed** |
+| `2026-10-07T0332Z-b753202` | b753202 | 1644 passed | 449 passed, 2 skipped | 451 passed | 138 passed | 51 passed, 6 skipped, **1 failed** |
+| `2026-10-07T0408Z-12753b6` | 12753b6 | 1644 passed | 449 passed, 2 skipped | 451 passed | 138 passed | 52 passed, 6 skipped — **PASS** |
+
+The first failure was a precondition: a live scroll-restoration check measured on a day whose three
+stored fixtures fitted in a 1440x900 window (fixed in b753202). The second was a club crest from
+Live Score's CDN unanswered for 45 s, which held a page waiting to go quiet (fixed in 12753b6: live
+tests now fetch crests and the web font under a deadline, as the mocked tests do). The two mocked
+skips are menu tests that apply only on narrow screens; the six live skips all come from the outage
+(nothing in play, no finished fixture with a result inside the feed window).
+
 Limits: `verify` cannot see what only the run saw (a deleted record of contamination), and the
 published files are scrubbed copies — only whoever holds the run's `.test-runs/` can show they came
 from the raw ones, through the SHA-256 that `summary.json` records. Live totals depend on the day's
@@ -662,7 +677,14 @@ nothing, and `matches.updated_at`, which recovery bookkeeping moves.
 when its owner reads it (`GET /api/v1/me/slips` settles and commits); the scheduler's settle task
 scores forecasts and never touches slips. So after results return, a leg reads `pending: owner read`
 until one such read, which is a write and needs the owner's go-ahead. The suggestion stage can only
-be observed before kickoff. The re-run procedure is in `docs/evidence/journey-proof/README.md`.
+be observed before kickoff. The re-run procedure is in `docs/evidence/journey-proof/README.md`; the
+latest run is `2026-10-07T0437Z.json`.
+
+**The live suite records a slip each time it runs.** `e2e/live/parlay-journey.spec.ts` saves and
+records a combination for the QA account on whatever backend it is pointed at — by default the main
+one on :8000 — and a recorded slip cannot be deleted through the API. On 2026-10-07 the QA account
+held five such slips, four from that day's runs. They are test data on the QA account only; whether
+the spec should move to the isolated pair, or tag its slips, is an open decision.
 
 ## Selections and slips
 
