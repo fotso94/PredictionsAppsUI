@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
-import { test, expect, APIRequestContext, Download, Page } from '@playwright/test';
+import { APIRequestContext, Download, Page } from '@playwright/test';
+import { test, expect } from '../support/live-test';
 import { apiContext, ensureQaExpertToken, QA_EXPERT } from '../support/qa-account';
 import { expectNothingSpentBesidesTheScheduler, providerSpend } from '../support/provider-spend';
 

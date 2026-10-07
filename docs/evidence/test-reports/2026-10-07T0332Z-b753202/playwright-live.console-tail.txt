@@ -1,0 +1,40 @@
+  ✓  54 [live] › e2e/live/save-journey.spec.ts:446:1 › a "back to results" the fixture URL asks for must be a results list on this application (6.9s)
+  ✓  55 [live] › e2e/live/save-journey.spec.ts:482:1 › a return destination that leaves this application is refused (4.2s)
+  ✓  56 [live] › e2e/live/save-journey.spec.ts:531:1 › a save intent left over from hours ago is not acted on (1.4s)
+  ✓  57 [live] › e2e/live/save-journey.spec.ts:562:1 › the return-to-results action goes back to the filtered list the reader came from (2.0s)
+  ✓  58 [live] › e2e/live/save-journey.spec.ts:577:1 › a saved fixture that has been played shows its result (3.3s)
+
+
+  1) [live] › e2e/live/save-journey.spec.ts:276:1 › the match-page control saves and unsaves, and says which it is 
+
+    Test timeout of 45000ms exceeded.
+
+    Error: page.waitForLoadState: Test timeout of 45000ms exceeded.
+
+      281 |   await signInThroughTheForm(page);
+      282 |   await page.goto(`/match/${fixture.id}`);
+    > 283 |   await page.waitForLoadState('networkidle');
+          |              ^
+      284 |
+      285 |   const control = page.locator('[data-testid="save-match-button"]');
+      286 |   // The state is in the accessible name and in aria-pressed, not only in the fill of an icon or
+        at <repo>/frontend/e2e/live/save-journey.spec.ts:283:14
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../.test-runs/2026-10-07T0332Z-b753202/artifacts-live/live-save-journey-the-matc-e77d5-nsaves-and-says-which-it-is-live/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../.test-runs/2026-10-07T0332Z-b753202/artifacts-live/live-save-journey-the-matc-e77d5-nsaves-and-says-which-it-is-live/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../.test-runs/2026-10-07T0332Z-b753202/artifacts-live/live-save-journey-the-matc-e77d5-nsaves-and-says-which-it-is-live/trace.zip
+    Usage:
+
+        npx playwright show-trace ../.test-runs/2026-10-07T0332Z-b753202/artifacts-live/live-save-journey-the-matc-e77d5-nsaves-and-says-which-it-is-live/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [live] › e2e/live/save-journey.spec.ts:276:1 › the match-page control saves and unsaves, and says which it is 
+  6 skipped
+  51 passed (4.0m)

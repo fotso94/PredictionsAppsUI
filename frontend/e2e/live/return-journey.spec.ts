@@ -1,4 +1,5 @@
-import { test, expect, APIRequestContext, Page } from '@playwright/test';
+import { APIRequestContext, Page } from '@playwright/test';
+import { test, expect } from '../support/live-test';
 import { apiContext, ensureQaExpertToken, QA_EXPERT } from '../support/qa-account';
 import { expectNothingSpentBesidesTheScheduler, providerSpend } from '../support/provider-spend';
 

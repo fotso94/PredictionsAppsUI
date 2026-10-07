@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/live-test';
 import { apiContext } from '../support/qa-account';
 import { expectNothingSpentBesidesTheScheduler, providerSpend } from '../support/provider-spend';
 import { ApiMatch } from '../support/api-stub';

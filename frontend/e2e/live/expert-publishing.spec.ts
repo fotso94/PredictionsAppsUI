@@ -1,4 +1,5 @@
-import { test, expect, APIRequestContext } from '@playwright/test';
+import { APIRequestContext } from '@playwright/test';
+import { test, expect } from '../support/live-test';
 import { ApiMatch } from '../support/api-stub';
 import {
   apiContext, ensureQaExpertToken, cleanupQaPredictions, anyUpcomingMatch, publishQaPrediction,

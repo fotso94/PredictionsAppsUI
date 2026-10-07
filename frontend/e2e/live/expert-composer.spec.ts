@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../support/live-test';
 import {
   apiContext, ensureQaExpertToken, cleanupQaPredictions, classifyQaPrediction,
   QA_EXPERT, QA_REASONING_MARKER, QaPredictionRow,
