@@ -80,6 +80,7 @@ RUN
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -1476,14 +1477,133 @@ def backend_process(port: int, root: str) -> Dict[str, Any]:
             "app_files_modified_after_start": sorted(changed_after)}
 
 
-def running_code(repo: Dict[str, Any], process: Dict[str, Any]) -> Dict[str, Any]:
-    """Whether the process serves HEAD. Inferred, and said to be: no endpoint names its commit.
+def app_tree_digest(app_dir: Optional[str]) -> Tuple[Optional[str], int]:
+    """(hex sha256, files digested) over the application source under `app_dir`: the digest
+    app/core/source_identity.py documents, reimplemented here with the standard library so that
+    this tool measures the checkout independently of the code it is measuring. Walk the tree,
+    skip every __pycache__, take every *.py, sort the paths relative to `app_dir` as POSIX strings,
+    and feed sha256 with each path, NUL, the file's bytes, NUL. (None, 0) when the tree is missing
+    or could not be read whole: a digest over part of it would look like one over all of it."""
+    if not app_dir or not os.path.isdir(app_dir):
+        return None, 0
+    relative: List[str] = []
+    for folder, folders, files in os.walk(app_dir):
+        folders[:] = [f for f in folders if f != "__pycache__"]
+        relative.extend(os.path.relpath(os.path.join(folder, name), app_dir).replace(os.sep, "/")
+                        for name in files if name.endswith(".py"))
+    digest = hashlib.sha256()
+    try:
+        for path in sorted(relative):
+            with open(os.path.join(app_dir, path), "rb") as handle:
+                digest.update(path.encode("utf-8") + b"\0" + handle.read() + b"\0")
+    except OSError:  # removed while being read; other sessions share this tree
+        return None, 0
+    return digest.hexdigest(), len(relative)
 
-    The backend runs without --reload, so it serves the tree as it stood when it started. Other
-    sessions edit this tree while it runs; an application file that differs from HEAD only because
-    it was changed AFTER the start was not what the process loaded. Modification times cannot show
-    an earlier edit to a file that was changed again later, and the answer says so.
+
+def _short(sha: Any) -> str:
+    return str(sha)[:12] if sha else "unknown"
+
+
+def _measured_running_code(repo: Dict[str, Any], source: Dict[str, Any], app_dir: Optional[str]) -> Dict[str, Any]:
+    """`running_code` when the backend published what it loaded. The decision table is the
+    docstring there; this is it, row by row, with the measurements beside every answer."""
+    served, commit = source.get("app_tree_sha256"), source.get("commit")
+    dirty_at_start = source.get("commit_dirty_app_files")
+    tree_now, files_now = app_tree_digest(app_dir)
+    head, changes = repo.get("head"), repo.get("app_tree_changes")
+    tree_matches = tree_now is not None and served == tree_now
+    commit_matches = bool(commit and head and commit == head)
+    measured = {"commit_served": commit, "commit_head": head, "tree_served": served, "tree_now": tree_now,
+                "tree_matches": tree_matches, "commit_matches": commit_matches,
+                "dirty_app_files_at_start": dirty_at_start,
+                "app_files_served": source.get("app_files"), "app_files_now": files_now}
+
+    def answer(includes_head: Optional[bool], detail: str, basis: str = "measured") -> Dict[str, Any]:
+        return {"includes_head": includes_head, "basis": basis, "detail": detail, "measured": measured}
+
+    if tree_now is None:
+        return answer(None, f"the process loaded application tree {_short(served)} on commit {_short(commit)}, but "
+                            f"the checkout's application tree could not be digested ({app_dir or 'no path given'}) "
+                            "to compare", basis="unknown")
+    clean_now = changes == []          # git sees no change under backend/app: the tree on disk IS HEAD's
+    clean_at_start = dirty_at_start == []
+    differing = (f"{len(changes)} uncommitted application file(s): {', '.join(changes[:5])}" if changes
+                 else "uncommitted application files")
+    if tree_matches:
+        loaded = f"the process loaded the application tree on disk now (sha256 {_short(served)})"
+        if commit_matches:
+            if clean_now or clean_at_start:
+                return answer(True, f"{loaded}, which is HEAD {_short(head)}'s: no application file differs from it")
+            if changes:
+                return answer(None, f"{loaded}, which differs from HEAD {_short(head)} in {differing}")
+            return answer(None, f"{loaded} and started on HEAD {_short(head)}, but git could not say whether any "
+                                "application file differs from HEAD")
+        if clean_now:
+            return answer(True, f"{loaded}, which matches HEAD {_short(head)}, though it started on commit "
+                                f"{_short(commit)}: the commit(s) since recorded files already loaded, or changed "
+                                "nothing under backend/app")
+        if changes:
+            return answer(None, f"{loaded}, which differs from HEAD {_short(head)} in {differing}, and it started "
+                                f"on commit {_short(commit)}")
+        return answer(None, f"{loaded} and started on commit {_short(commit)}, not HEAD {_short(head)}; git could "
+                            "not say whether the tree on disk is HEAD's")
+    changed = (f"the application tree has changed since the process started (sha256 {_short(served)} then, "
+               f"{_short(tree_now)} now)")
+    if clean_now:
+        return answer(False, f"the application tree on disk (sha256 {_short(tree_now)}) matches HEAD {_short(head)} "
+                             f"and is not what the process loaded (sha256 {_short(served)}): it started on commit "
+                             f"{_short(commit)}"
+                             + (f" with {len(dirty_at_start)} uncommitted application file(s)" if dirty_at_start else ""))
+    if commit_matches and clean_at_start:
+        return answer(True, f"{changed}, but it started clean on commit {_short(commit)}, which is still HEAD: what "
+                            "it loaded is HEAD's application code, and the "
+                            + (f"{differing} were changed after the start and not loaded" if changes
+                               else "files changed since, which git could not list, were not loaded"))
+    if commit_matches:
+        if dirty_at_start:
+            return answer(None, f"{changed}, and it started on HEAD {_short(head)} having loaded "
+                                f"{len(dirty_at_start)} uncommitted application file(s): {', '.join(dirty_at_start[:5])}")
+        return answer(None, f"{changed}, and it started on HEAD {_short(head)} without git being able to say "
+                            "whether any application file differed from it")
+    return answer(None, f"{changed}, and it started on commit {_short(commit)}, not HEAD {_short(head)}: whether that "
+                        "commit's application code is HEAD's cannot be told from here")
+
+
+def running_code(repo: Dict[str, Any], process: Dict[str, Any], health: Optional[Dict[str, Any]] = None,
+                 app_dir: Optional[str] = None) -> Dict[str, Any]:
+    """Whether the process serves HEAD: measured when the backend says what it loaded, inferred
+    from timestamps when it does not, and said to be either (`basis`).
+
+    MEASURED. A backend with app.core.source_identity publishes in GET /health (`source`) the
+    digest of the application tree it loaded, the commit it stood on and the application files
+    that differed from that commit when it started. The same digest is taken over the checkout's
+    backend/app now (`app_dir`) and compared, as are that commit and HEAD. `includes_head` is True
+    when the process loaded HEAD's application tree exactly: the tree it loaded is the one on disk
+    and git reports that one clean at HEAD, or - the tree having changed since the start - it
+    started clean on the commit that is still HEAD, so the changes came after and were not loaded.
+    The commit alone decides nothing: HEAD moves on a docs-only commit, and a process that started
+    before it still serves its application code, which the tree shows. Uncommitted application
+    files the process loaded leave the answer None, as the inference does: what runs is neither
+    HEAD nor any other commit, and the files are named. False only when the tree on disk is HEAD's
+    and is not what the process loaded.
+
+    INFERRED. The backend runs without --reload, so it serves the tree as it stood when it started.
+    Other sessions edit this tree while it runs; an application file that differs from HEAD only
+    because it was changed AFTER the start was not what the process loaded. Modification times
+    cannot show an earlier edit to a file that was changed again later, and the answer says so.
     """
+    source = health.get("source") if isinstance(health, dict) else None
+    if isinstance(source, dict) and source.get("app_tree_sha256"):
+        return _measured_running_code(repo, source, app_dir)
+    verdict = _inferred_running_code(repo, process)
+    verdict["detail"] += (" (inferred from timestamps: the backend published no source identity)"
+                          if health is not None else " (inferred from timestamps: the backend was not read)")
+    verdict["measured"] = None
+    return verdict
+
+
+def _inferred_running_code(repo: Dict[str, Any], process: Dict[str, Any]) -> Dict[str, Any]:
     started, moved = _instant(process.get("started_at")), _instant(repo.get("head_moved_at"))
     changed = repo.get("app_tree_changes")
     later = set(process.get("app_files_modified_after_start") or [])
@@ -1616,6 +1736,7 @@ def run(session_factory: Callable[[], Session], *, api: Optional[GuardedClient],
     previous_names, previous_hits = load_previous(previous_paths)
 
     health = api.get("/health") if api is not None else None
+    health_body = health.get("body") if health and health.get("ok") and isinstance(health.get("body"), dict) else None
     status_before = api.get("/api/v1/data-providers/status") if api is not None else None
     status_body = status_before.get("body") if status_before and status_before.get("ok") else None
     fallbacks = [n.strip() for n in (settings.DATA_PROVIDER_FALLBACKS or "").split(",") if n.strip()]
@@ -1659,6 +1780,8 @@ def run(session_factory: Callable[[], Session], *, api: Optional[GuardedClient],
     if process_check and api is not None:
         port = urlsplit(api.base_url).port or 80
         process = backend_process(port, repo_root or os.getcwd())
+    # The tree the backend's own source identity is measured against: this checkout's, now.
+    app_dir = os.path.join(repo_root, "backend", "app") if repo_root else None
     result = {
         "schema_version": SCHEMA_VERSION,
         "tool": TOOL,
@@ -1673,7 +1796,8 @@ def run(session_factory: Callable[[], Session], *, api: Optional[GuardedClient],
         "backend": {"api": api.base_url if api is not None else None,
                     "health": (health.get("body") if health and health.get("ok") else _detail_view(health)),
                     "process": process,
-                    "running_code": running_code(repo or {}, process or {}) if repo and process else None},
+                    "running_code": (running_code(repo or {}, process or {}, health_body, app_dir)
+                                     if repo and (process or health_body) else None)},
         "database": database,
         "guards": {"http": api.summary() if api is not None else None,
                    "redis_refused": (store.refused if store is not None else []) +
@@ -1705,10 +1829,12 @@ def render(result: Dict[str, Any]) -> str:
         out.append(f"  {name:<13} spent besides the scheduler {entry['spent_besides_scheduler']}, "
                    f"scheduler {entry['scheduler_sent_in_run']}")
     backend = result["backend"]
-    if backend.get("process"):
-        out.append(f"backend: pid {backend['process'].get('pid')} started {backend['process'].get('started_at')}; "
+    running = backend.get("running_code") or {}
+    if backend.get("process") or running:
+        process = backend.get("process") or {}
+        out.append(f"backend: pid {process.get('pid')} started {process.get('started_at')}; "
                    f"repo HEAD {((result.get('repo') or {}).get('head') or '?')[:7]}; "
-                   f"running code includes HEAD: {(backend.get('running_code') or {}).get('includes_head')}")
+                   f"running code includes HEAD: {running.get('includes_head')} ({running.get('basis') or 'unknown'})")
     out.append("")
     out.append(f"{len(result['fixtures'])} fixture(s)")
     for fixture in result["fixtures"]:

@@ -628,6 +628,32 @@ const UNKNOWN_OUTCOME = fixture({
   recovery: askingRecord({ last_outcome: 'some_outcome_this_build_never_heard_of' }),
 });
 
+/**
+ * THE SAME STOP, ON A ROW WHOSE COUNT WAS CORRECTED.
+ *
+ * A repair of records the backend had written without sending any request
+ * (backend/scripts/repair_not_answers.py) marks the rows it could not fully separate:
+ * `attempts_quality: "upper_bound"`, with `attempts_at_correction` saying how many of the attempts
+ * predate the correction. The backend's own stop sentence then says "at most", and the page must
+ * too: a bare number here would present as exact a count the backend has said is a bound.
+ */
+const BUDGET_STOPPED_BOUNDED = fixture({
+  id: 'budget-stopped-bounded-fixture',
+  home: 'Solomon Islands',
+  away: 'Vanuatu',
+  kickoffMs: -(15 * 24 * HOUR),
+  status: 'scheduled',
+  recovery: {
+    ...(BUDGET_STOPPED.recovery as Json),
+    attempts: 18,
+    attempts_quality: 'upper_bound',
+    attempts_at_correction: 18,
+    gave_up_reason: 'We asked the results provider at most 18 times, most recently 2026-10-01 07:46 UTC, '
+      + 'and each answer it gave held no result for this match. The 18 counted before 2026-10-07 may '
+      + 'include asks recorded as answered when no request was sent, so that part is an upper bound.',
+  },
+});
+
 const ALL = [GIVEN_UP, OVERDUE, IN_PLAY];
 
 /* ------------------------------------------------------------------ what the catalogue says */
@@ -1259,6 +1285,24 @@ for (const language of ['en', 'fr'] as const) {
     await expect(page.locator('body')).not.toContainText('14-day results horizon');
     expect(await page.getByTestId('match-scoreline').innerText(), 'the 2-2 at half time is not a result')
       .not.toMatch(/\d/);
+  });
+
+  test(`[${language}] a stop on a corrected count says "at most", exactly as the backend does`, async ({ page }) => {
+    await stubDay(page, language, [BUDGET_STOPPED_BOUNDED]);
+    await page.goto(`/match/${BUDGET_STOPPED_BOUNDED.id}`);
+
+    const notice = page.getByTestId('result-delay-notice');
+    await expect(notice).toHaveAttribute('data-result-delay', 'given_up');
+    const attempts = notice.getByTestId('result-delay-attempts');
+    await expect(attempts).toHaveAttribute('data-attempts-quality', 'upper_bound');
+    await expect(attempts).toHaveText(
+      `${say(language, 'fixture.result.attemptsAtMost', { count: 18 })} `
+      + say(language, 'fixture.result.attemptsCorrected', { count: 18 }));
+    // The exact sentence is nowhere: "answered 18 times" is the claim the mark exists to prevent.
+    await expect(notice).not.toContainText(say(language, 'fixture.result.attempts', { count: 18 }));
+    const text = await notice.innerText();
+    expect(text).not.toMatch(OPERATOR_PROSE);
+    expect(text).not.toMatch(OVERCLAIM);
   });
 
   test(`[${language}] a check that read our own stored copy says so, and claims no call`, async ({ page }) => {

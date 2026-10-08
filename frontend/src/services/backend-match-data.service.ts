@@ -176,6 +176,14 @@ export interface ApiMatch {
    */
   recovery?: {
     attempts: number | null;
+    /**
+     * How far `attempts` can be trusted: `exact`, `upper_bound` or `unverified`, written by a repair
+     * that took back asks the backend had recorded without sending (scripts/repair_not_answers.py);
+     * null or absent on a row no repair touched, which is read as exact. `attempts_at_correction`
+     * is how many of them were counted before that repair; every attempt since is exact.
+     */
+    attempts_quality?: 'exact' | 'upper_bound' | 'unverified' | null;
+    attempts_at_correction?: number | null;
     last_attempt_at: string | null;
     gave_up_at: string | null;
     gave_up_reason: string | null;
@@ -515,6 +523,10 @@ export function mapApiMatch(match: ApiMatch): Match {
     recovery: match.recovery
       ? {
         attempts: match.recovery.attempts,
+        // The mark travels with the count it qualifies. Dropping it here is how a count the backend
+        // itself calls "at most" would be shown as exact two components later.
+        attemptsQuality: match.recovery.attempts_quality ?? null,
+        attemptsAtCorrection: match.recovery.attempts_at_correction ?? null,
         lastAttemptAt: match.recovery.last_attempt_at,
         gaveUpAt: match.recovery.gave_up_at,
         stoppedBy: match.recovery.stopped_by ?? null,

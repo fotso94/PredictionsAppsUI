@@ -17,7 +17,13 @@
  *      already were when we got them.
  *   3. WHEN THE SCHEDULED REFRESH LAST SUCCEEDED. A fact about our own process. A task can
  *      succeed having made no provider call at all — the results task with nothing unsettled does
- *      exactly that — so this is not a retrieval either.
+ *      exactly that — so this is not a retrieval either. The line calls it "last checked".
+ *   4. WHEN NEW FIXTURES OR SCORES LAST ARRIVED. A fact about the data: the newest row a
+ *      provider's answer wrote, which the backend publishes as `match_data.since` after checking
+ *      the stamp against the provider's own record (a copy stored again from our cache does not
+ *      count). The line calls it "last arrived", and it is the only one of the four that says the
+ *      data is current. A reviewer found the line claiming "last refreshed 4 minutes ago" from a
+ *      pass that had sent nothing; "last checked" is what such a pass can honestly claim.
  *
  * AND THE FOURTH SEPARATION, ADDED AFTER A REVIEWER WAS MISLED BY ITS ABSENCE. Fixtures and model
  * forecasts refresh on different schedules, from different providers, under different allowances —
@@ -98,11 +104,27 @@ const NOT_A_FIXTURE_REFRESH = ['recover', 'settle'];
  * its live window, or the day's poll ceiling reached) succeeded without asking anyone for a score,
  * so it is no more a refresh than a recover pass is. A live pass that does not say is taken at its
  * word, as it always was.
+ *
+ * What survives this filter is still only a CHECK. A fixtures or results pass can succeed with
+ * nothing sent (nothing due) or with a copy from our own cache, and this cannot tell; that is why
+ * the summary line says "last checked" for it, and takes "last arrived" from the backend's
+ * `match_data.since` instead, which is measured on the rows themselves.
  */
 function successRefreshed(name: string, task: SyncTaskState | undefined): boolean {
   if (NOT_A_FIXTURE_REFRESH.includes(name)) return false;
   if (name === 'live' && task?.last_result?.live_polled === false) return false;
   return true;
+}
+
+/**
+ * True when the task's own record says its last pass sent no request to any provider.
+ *
+ * `last_requests_sent` is what the pass was granted, per provider; an empty object is a pass that
+ * asked nobody. A backend from before the field was kept says nothing, and nothing is claimed.
+ */
+function lastPassSentNothing(task: SyncTaskState): boolean {
+  const sent = task.last_requests_sent;
+  return sent !== null && sent !== undefined && typeof sent === 'object' && Object.keys(sent).length === 0;
 }
 
 /**
@@ -500,6 +522,13 @@ export function describeTask(name: string, task: SyncTaskState, now: number = Da
   if (paused) add(sentence(t('freshness.task.pausedDetail', { reason: pauseReason })));
   if (failing) add(sentence(t('freshness.task.failedDetail', { reason: failureReason })));
   if (behind && !paused && !failing) add(t('freshness.task.behindDetail'));
+  /*
+   * A pass that asked nobody is said to have asked nobody. Settle never calls a provider, so for
+   * it the sentence would be true of every pass and tell the reader nothing.
+   */
+  if (!failing && name !== 'settle' && task.last_success_at && lastPassSentNothing(task)) {
+    add(t('freshness.task.sentNothing'));
+  }
   add(resume);
   add(cadenceNote(task));
 
@@ -960,9 +989,17 @@ export function freshnessSummary(
     };
   }
 
+  /*
+   * "Last arrived" is the backend's own measurement of the data (`match_data.since`), and only a
+   * backend that publishes it gets the two-clock line. Without it the line claims the one thing
+   * the scheduler's state supports, that a pass last completed: "last checked", never "refreshed".
+   */
+  const arrived = relativeTime(status.match_data?.since, now);
   return {
     text: state.age
-      ? t('freshness.summary.refreshed', { age: state.age })
+      ? (arrived
+        ? t('freshness.summary.retrieved', { retrieved: arrived, checked: state.age })
+        : t('freshness.summary.refreshed', { age: state.age }))
       : t(state.neverRan ? 'freshness.summary.neverRun' : 'freshness.summary.neverSucceeded'),
     tone: state.tone,
     note: state.note ?? (state.age ? null : t('freshness.note.noPassYet')),

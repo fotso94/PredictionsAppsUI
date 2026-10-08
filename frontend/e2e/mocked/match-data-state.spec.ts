@@ -351,11 +351,16 @@ for (const language of ['en', 'fr'] as const) {
       await page.waitForLoadState('networkidle');
       await expect(page.getByTestId('provider-status-banner')).toHaveCount(0);
       // Recover and settle succeeded a minute ago and the idle live pass polled nothing; results,
-      // eight minutes ago, is the youngest pass that fetched anything.
+      // eight minutes ago, is the youngest pass that fetched anything - "last checked". The newest
+      // row a provider's answer wrote is eight minutes old too - "last arrived" - and the line keeps
+      // the two apart: a check that brought nothing could never move the first clock.
       const minutes = (count: number) => say(language, 'time.ago', { duration: say(language, 'duration.minutes', { count }) });
       const summary = page.getByTestId('freshness-summary');
       const text = normalise(await summary.textContent());
-      expect([8, 9].map(count => say(language, 'freshness.summary.refreshed', { age: minutes(count) }))).toContain(text);
+      const either = [8, 9];
+      expect(either.flatMap(arrived => either.map(checked =>
+        say(language, 'freshness.summary.retrieved', { retrieved: minutes(arrived), checked: minutes(checked) })))).toContain(text);
+      expect(text).not.toContain(say(language, 'freshness.summary.refreshed', { age: '' }).trim());
 
       for (const route of ['/matches', `/match/${UPCOMING}`, `/match/${OVERDUE}`, '/selections', '/selections/suggestions']) {
         await page.goto(route);

@@ -1,18 +1,23 @@
 import { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from '../support/live-test';
-import { API, QA_EXPERT, apiContext, ensureQaExpertToken } from '../support/qa-account';
+import { QA_EXPERT, ensureQaExpertToken } from '../support/qa-account';
+import { ISOLATED_API as API, isolatedApiContext as apiContext } from '../support/isolated';
 
 /**
- * LIVE: one real journey from an available fixture to a saved, recorded combination, on the local
- * backend and its stored data. Nothing here asks a provider for anything, and the spend counters
- * are read before and after to prove it.
+ * LIVE, ISOLATED: one real journey from an available fixture to a saved, recorded combination,
+ * on a real backend and its stored data. Nothing here asks a provider for anything, and the spend
+ * counters are read before and after to prove it.
  *
- * Runs against whatever E2E_BASE_URL / E2E_API_URL point at. During the parlay build it was run
- * against the isolated pair (frontend 3101 → backend 8001 on the `soccer_predictions_dev` clone,
- * scheduler off, no provider credentials), never against the backend under observation on 8000.
+ * It runs ONLY against the isolated pair (frontend :3101 → backend :8001 on a clone of the live
+ * database, scheduler off, no provider credentials; see docs/isolated-dev-environment.md), and the
+ * `live-isolated` project is the only one that collects it. It writes: it deletes the QA account's
+ * unrecorded slips before it starts, and the slip it records cannot be deleted afterwards. Run
+ * against the :8000 backend it did both to the live database, once per run; `isolatedApiContext`
+ * now refuses any backend that serves that database.
  *
- * What it needs from the database: at least one scheduled fixture with a stored GameForecast
- * forecast in the next seven days. It skips, saying so, when there is none.
+ * What it needs from the clone: at least one scheduled fixture with a stored GameForecast forecast
+ * in the next seven days. It skips, saying so, when there is none; `scripts/local-servers.sh
+ * reset-e2e-db` refreshes the clone from the live database.
  */
 
 interface Fixture { id: string; home: { name: string }; away: { name: string }; kickoff_utc: string; forecast_state: string; status: string }

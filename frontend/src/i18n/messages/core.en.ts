@@ -405,6 +405,8 @@ const core = {
   'fixture.result.lastCheckHeldBackOther': 'Our last check, {when}, was not sent to the provider.',
   'fixture.result.lastCheckStoredCopy': 'Our last check, {when}, read results we had already stored rather than asking the provider; they held no result for this match.',
   'fixture.result.attempts': '{count, plural, one {The provider answered once without a result for this match.} other {The provider answered # times without a result for this match.}}',
+  'fixture.result.attemptsAtMost': '{count, plural, one {The provider answered at most once without a result for this match.} other {The provider answered at most # times without a result for this match.}}',
+  'fixture.result.attemptsCorrected': '{count, plural, one {# of those was counted before a correction and is not verified; every answer since is counted exactly.} other {# of those were counted before a correction and are not verified; every answer since is counted exactly.}}',
   // Why we stopped, in our own reviewed words and in the reader's language. The backend's
   // `gave_up_reason` is not shown to readers: it is English prose written for whoever runs the
   // sweep, and nothing reviews what it says about the provider. This one is shown only where the
@@ -546,7 +548,8 @@ const core = {
   'freshness.summary.switchedOff': 'Stored data · scheduled refresh is switched off',
   'freshness.summary.noStateStore': 'Stored data · when it last refreshed is unknown',
   'freshness.summary.noFixtureTask': 'Stored data · nothing here refreshes fixtures or scores',
-  'freshness.summary.refreshed': 'Stored data · fixtures and scores last refreshed {age}',
+  'freshness.summary.refreshed': 'Stored data · fixtures and scores last checked {age}',
+  'freshness.summary.retrieved': 'Stored data · new fixtures or scores last arrived {retrieved} · last checked {checked}',
   'freshness.summary.neverRun': 'Stored data · no scheduled refresh has run yet',
   'freshness.summary.neverSucceeded': 'Stored data · no scheduled refresh has succeeded yet',
   // While fixture and result updates are blocked: the time is the last provider WRITE, never a
@@ -572,7 +575,8 @@ const core = {
   'freshness.task.neverRun': 'has never run',
   'freshness.task.neverSucceeded': 'has not succeeded yet',
   'freshness.task.pausedSuffix': '{state} — paused',
-  'freshness.task.updated': 'updated {when}',
+  'freshness.task.updated': 'last succeeded {when}',
+  'freshness.task.sentNothing': 'Its last pass sent no request to any provider.',
   'freshness.task.noFailureReason': 'The backend did not report why the last attempt failed.',
   'freshness.task.pausedDetail': 'Paused: {reason}',
   'freshness.task.failedDetail': 'Last attempt failed: {reason}',

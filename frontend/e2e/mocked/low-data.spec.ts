@@ -364,7 +364,7 @@ test('a chunk that never arrives says so, and blames the download rather than th
   // It does not diagnose the reader's page as broken when the download is what failed, and it
   // says nothing at all about the data, because none arrived.
   await expect(failure).not.toContainText(/could not be shown/i);
-  await expect(failure).not.toContainText(/stored data|last refreshed|up to date/i);
+  await expect(failure).not.toContainText(/stored data|last refreshed|last checked|last arrived|up to date/i);
 
   // The navigation is still there to leave by.
   await expect(page.getByRole('link', { name: /soccer predictions, home/i })).toBeVisible();

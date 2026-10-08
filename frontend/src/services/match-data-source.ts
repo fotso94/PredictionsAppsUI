@@ -181,6 +181,11 @@ export interface SyncTaskState {
   last_duration_ms: number | null;
   /** The task's own report of what it did. Shape differs per task; read defensively. */
   last_result: Record<string, unknown> | null;
+  /**
+   * Per provider, the requests the last pass was granted. An empty object is a pass that sent
+   * nothing - which a pass can do and still succeed. Absent on a backend from before it was kept.
+   */
+  last_requests_sent?: Record<string, number> | null;
   last_skipped_at: string | null;
   /** Why the task deliberately did nothing, in the backend's words. */
   last_skip_reason: string | null;

@@ -14,6 +14,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -724,7 +725,7 @@ def test_verify_recomputes_the_exit_code_check_instead_of_trusting_it(tmp_path):
 
 
 def test_verify_rejects_a_full_run_with_a_suite_dropped(tmp_path):
-    green = ("backend", "mocked-mobile", "mocked-mobile-360", "live")
+    green = ("backend", "mocked-mobile", "mocked-mobile-360", "live", "live-isolated")
     public, out = publish_synthetic(tmp_path, passing=green)
     assert public["verdict"] == "FAIL"
     assert te.verify_dir(out, emit=lambda line: None) is True
@@ -830,15 +831,15 @@ def test_verify_rejects_buckets_that_are_not_the_reporters_own(tmp_path):
 
 def test_a_passing_full_run_publishes_as_pass_and_verifies(tmp_path):
     public, out = publish_synthetic(tmp_path, passing=te.ALL_SUITES)
-    assert public["verdict"] == "PASS" and [s["verdict"] for s in public["suites"]] == ["PASS"] * 5
+    assert public["verdict"] == "PASS" and [s["verdict"] for s in public["suites"]] == ["PASS"] * len(te.ALL_SUITES)
     lines = []
     assert te.verify_dir(out, emit=lines.append) is True, failed_lines(lines)
 
 
 def test_an_interrupted_run_publishes_and_verifies(tmp_path):
-    public, out = publish_synthetic(tmp_path, not_run=("mocked-mobile-360", "live"))
+    public, out = publish_synthetic(tmp_path, not_run=("mocked-mobile-360", "live", "live-isolated"))
     assert public["verdict"] == "NOT EVIDENCE"
-    assert [s["verdict"] for s in public["suites"]][-2:] == ["NOT RUN", "NOT RUN"]
+    assert [s["verdict"] for s in public["suites"]][-3:] == ["NOT RUN", "NOT RUN", "NOT RUN"]
     lines = []
     assert te.verify_dir(out, emit=lines.append) is True, failed_lines(lines)
 
@@ -848,7 +849,7 @@ def test_an_interrupted_run_publishes_and_verifies(tmp_path):
     ok, lines = tamper(out, never_stopped)
     assert ok is False
     assert ("FAIL  a suite that was interrupted or never started means the run was interrupted "
-            "(mocked-mobile-360, live)") in lines
+            "(mocked-mobile-360, live, live-isolated)") in lines
 
 
 def test_verify_rejects_a_suite_listed_twice_or_under_the_wrong_kind(tmp_path):
@@ -1078,6 +1079,146 @@ def test_a_backend_started_before_its_code_changed_is_refused_for_live():
     assert "serves" in te.server_refusals("backend", server, {"head": "def"}, False)[0]
 
 
+def app_tree(root: Path, files: dict) -> Path:
+    """<root>/backend/app holding `files`: the checkout a backend serves."""
+    app = root / "backend" / "app"
+    for relative, content in files.items():
+        (app / relative).parent.mkdir(parents=True, exist_ok=True)
+        (app / relative).write_bytes(content)
+    return app
+
+
+def source_identity(tree, commit=HEAD, dirty=()):
+    """GET /health's `source`, as backend/app/core/source_identity.py records it at start-up."""
+    return {"commit": commit, "commit_dirty_app_files": list(dirty), "app_tree_sha256": tree, "app_files": 1,
+            "started_at": "2026-10-07T22:53:40Z"}
+
+
+def test_the_app_tree_digest_is_the_documented_algorithm(tmp_path):
+    """backend/app/core/source_identity.py's algorithm as one byte string: path, NUL, bytes, NUL,
+    in POSIX path order, over *.py outside __pycache__ and nothing else."""
+    app = app_tree(tmp_path, {"main.py": b"app = 1\n", "services/slips.py": b"",
+                              "__pycache__/main.cpython-311.pyc": b"\x00", "services/__pycache__/stale.py": b"x",
+                              "notes.txt": b"not source"})
+    expected = hashlib.sha256(b"main.py\0app = 1\n\0services/slips.py\0\0").hexdigest()
+    assert te.app_tree_digest(app) == (expected, 2)
+    assert te.app_tree_digest(tmp_path / "missing") == (None, 0)
+
+
+def test_health_snapshot_keeps_the_source_identity_as_scalars(monkeypatch):
+    body = {"status": "healthy", "environment": "development", "version": "0.1.0",
+            "started_at": "2026-10-07T22:53:40Z", "database": "soccer_predictions",
+            "source": dict(source_identity("a" * 64, dirty=["backend/app/x.py"]), unexpected={"nested": True})}
+    monkeypatch.setattr(te, "http_get_json", lambda url, timeout=5.0: (200, body))
+    record = te.health_snapshot("http://127.0.0.1:8000")
+    assert record["http_status"] == 200 and record["database"] == "soccer_predictions"
+    assert record["source"] == {"commit": HEAD, "app_tree_sha256": "a" * 64, "app_files": 1,
+                                "started_at": "2026-10-07T22:53:40Z", "commit_dirty_app_files": ["backend/app/x.py"]}
+    monkeypatch.setattr(te, "http_get_json", lambda url, timeout=5.0: (200, {"status": "healthy", "version": "0.1.0"}))
+    older = te.health_snapshot("http://127.0.0.1:8000")
+    assert "source" not in older and "started_at" not in older and older["status"] == "healthy"
+
+
+def test_running_code_is_measured_from_the_backends_own_account(tmp_path):
+    app = app_tree(tmp_path, {"main.py": b"app = 1\n"})
+    tree, _ = te.app_tree_digest(app)
+    health = {"http_status": 200, "source": source_identity(tree)}
+    record = te.running_code_record(health, HEAD, app)
+    assert record["basis"] == "measured" and record["tree_matches"] is True and record["commit_matches"] is True
+    assert (record["commit_served"], record["commit_head"], record["tree_served"]) == (HEAD, HEAD, tree)
+    (app / "main.py").write_bytes(b"app = 2\n")
+    changed = te.running_code_record(health, "f" * 40, app)
+    assert changed["tree_matches"] is False and changed["commit_matches"] is False and changed["tree_now"] != tree
+    assert te.running_code_record({"http_status": 200, "status": "healthy"}, HEAD, app) is None
+
+
+def test_a_backend_without_a_source_identity_is_inferred_from_timestamps_and_labelled(tmp_path):
+    app = app_tree(tmp_path, {"main.py": b"app = 1\n"})
+    changed = datetime(2026, 10, 7, 22, 0, 0, tzinfo=timezone.utc).timestamp()
+    os.utime(app / "main.py", (changed, changed))
+    server = {"cwd": str(tmp_path / "backend"), "started_at": "2026-10-07T22:53:40Z",
+              "health": {"http_status": 200, "status": "healthy"},
+              "checkout": {"toplevel": str(tmp_path), "head": HEAD, "dirty_paths": []}}
+    assert te.running_code_of(server) == {"basis": "inferred", "newest_source_change": "2026-10-07T22:00:00Z",
+                                          "process_newer_than_code": True}
+    server["health"]["source"] = source_identity(te.app_tree_digest(app)[0])
+    assert te.running_code_of(server)["basis"] == "measured"
+
+
+def test_a_backend_whose_loaded_tree_is_not_the_checkouts_is_refused_for_live():
+    """The measured rule replaces the timestamp rule: a digest that differs refuses, a digest that
+    matches is not second-guessed by a timestamp, and a commit that moved on without touching the
+    application tree is recorded, not refused."""
+    measured = {"basis": "measured", "tree_served": "a" * 64, "tree_now": "b" * 64, "tree_matches": False,
+                "commit_served": "abc", "commit_head": "abc", "commit_matches": True}
+    server = {"url": "http://127.0.0.1:8000", "listening": True, "pid": 7, "started_at": "2026-10-07T22:53:40Z",
+              "health": {"http_status": 200}, "running_code": measured,
+              "checkout": {"toplevel": str(te.REPO), "head": "abc", "dirty_paths": []}}
+    reasons = te.server_refusals("backend", server, {"head": "abc"}, False)
+    assert len(reasons) == 1 and "is not running the application tree on disk" in reasons[0]
+    assert "aaaaaaaaaaaa" in reasons[0] and "bbbbbbbbbbbb" in reasons[0]
+    measured.update(tree_now="a" * 64, tree_matches=True)
+    server["process_newer_than_code"] = False
+    assert te.server_refusals("backend", server, {"head": "abc"}, False) == []
+    measured.update(commit_served="old", commit_matches=False)
+    assert te.server_refusals("backend", server, {"head": "abc"}, False) == []
+    measured.update(tree_now=None, tree_matches=False)
+    assert "nothing readable" in te.server_refusals("backend", server, {"head": "abc"}, False)[0]
+
+
+def test_the_inferred_rule_still_refuses_a_backend_labelled_inferred():
+    server = {"url": "http://127.0.0.1:8000", "listening": True, "pid": 7, "started_at": "2026-10-05T22:00:00Z",
+              "health": {"http_status": 200},
+              "running_code": {"basis": "inferred", "newest_source_change": "2026-10-05T23:00:19Z",
+                               "process_newer_than_code": False},
+              "checkout": {"toplevel": str(te.REPO), "head": "abc", "dirty_paths": []}}
+    reasons = te.server_refusals("backend", server, {"head": "abc"}, False)
+    assert len(reasons) == 1 and "did not start after the newest change" in reasons[0]
+    assert "2026-10-05T23:00:19Z" in reasons[0]
+    assert te.running_code_brief(server) == "inferred, process newer than code: False"
+
+
+def test_summary_md_shows_the_running_code_and_renders_older_records_unchanged():
+    base = {"url": "http://127.0.0.1:8000", "listening": True, "pid": 7, "started_at": "2026-10-07T22:53:40Z",
+            "command": "uvicorn app.main:app", "cwd": "<repo>/backend",
+            "checkout": {"toplevel": "<repo>", "head": HEAD, "dirty_paths": []},
+            "health": {"http_status": 200, "status": "healthy", "database": "soccer_predictions",
+                       "source": {"commit": HEAD, "app_tree_sha256": "a" * 64}},
+            "unchanged_at_end": True}
+
+    def lines(server):
+        return te._render_environment({"repository": {}, "servers": {"backend": server}}, [])
+
+    measured = dict(base, running_code={"basis": "measured", "tree_served": "a" * 64, "tree_now": "a" * 64,
+                                        "tree_matches": True, "commit_served": HEAD, "commit_head": HEAD,
+                                        "commit_matches": True, "dirty_app_files_at_start": []})
+    rendered = lines(measured)
+    (line,) = [l for l in rendered if l.startswith("- Running code")]
+    assert "measured" in line and f"`{'a' * 64}`" in line and "match" in line and "DIFFERENT" not in line
+    assert f"`{HEAD}`" in line and "when it started: 0" in line
+    (health_line,) = [l for l in rendered if l.startswith("- /health")]
+    assert "source" not in health_line and "soccer_predictions" in health_line
+
+    differing = dict(measured, running_code=dict(measured["running_code"], tree_now="b" * 64, tree_matches=False,
+                                                 dirty_app_files_at_start=None))
+    (line,) = [l for l in lines(differing) if l.startswith("- Running code")]
+    assert "DIFFERENT" in line and "when it started: unknown" in line
+
+    inferred = dict(base, running_code={"basis": "inferred", "newest_source_change": "2026-10-07T02:48:04Z",
+                                        "process_newer_than_code": True})
+    (line,) = [l for l in lines(inferred) if l.startswith("- Running code")]
+    assert "inferred from modification times" in line and "2026-10-07T02:48:04Z" in line and "yes" in line
+
+    # A record made before the backend published a source identity, as the published folders hold it.
+    older = dict(base, newest_source_change="2026-10-07T02:48:04Z", process_newer_than_code=True,
+                 health={"http_status": 200, "status": "healthy", "environment": "development", "version": "0.1.0"})
+    rendered = lines(older)
+    assert "- Newest app/**/*.py change 2026-10-07T02:48:04Z; process newer than the code: yes" in rendered
+    assert not [l for l in rendered if l.startswith("- Running code")]
+    assert ("- /health: {'http_status': 200, 'status': 'healthy', 'environment': 'development', 'version': '0.1.0'}"
+            in rendered)
+
+
 def test_provider_snapshot_keeps_kinds_not_text():
     status = {"checked_at": "2026-10-07T01:10:52Z", "chain": [
         {"name": "livescore", "integration_status": "live", "configured": True, "last_success_at": None,
@@ -1143,6 +1284,48 @@ def test_a_subset_of_suites_is_partial_and_runs_in_the_canonical_order():
     assert opts.partial_reasons == ["only backend, live requested"]
     assert options(suites=",".join(te.ALL_SUITES)).partial_reasons == []
     assert options(suites=",".join(te.ALL_SUITES), grep="parlay").partial_reasons == ["tests filtered with --grep"]
+
+
+def test_the_isolated_suite_belongs_to_a_complete_run():
+    """live-isolated drives the isolated pair; a run without it is partial, as any dropped suite is."""
+    assert te.ALL_SUITES[-1] == "live-isolated" and "live-isolated" not in te.MAIN_PAIR_PROJECTS
+    assert te.partial_reasons_for(list(te.LEGACY_SUITES), False) == [
+        "only backend, mocked-desktop, mocked-mobile, mocked-mobile-360, live requested"]
+    # Against the set a runner had before the suite existed, the same five are complete.
+    assert te.partial_reasons_for(list(te.LEGACY_SUITES), False, te.LEGACY_SUITES) == []
+    opts = options(suites=",".join(te.ALL_SUITES), isolated_base_url=None, isolated_api_url=None)
+    assert opts.partial_reasons == [] and opts.isolated_api_url == te.DEFAULT_ISOLATED_API_URL
+    env = te.playwright_env("live-isolated", Path("/r"), "http://localhost:3100", "http://127.0.0.1:8000",
+                            "http://localhost:3101", "http://127.0.0.1:8001")
+    assert env["E2E_ISOLATED_API_URL"] == "http://127.0.0.1:8001" and env["E2E_API_URL"] == "http://127.0.0.1:8000"
+    assert "E2E_ISOLATED_API_URL" not in te.playwright_env("live", Path("/r"), "http://localhost:3100", "http://127.0.0.1:8000")
+
+
+def test_a_published_run_is_judged_complete_against_the_suite_set_its_runner_had():
+    """A summary from before suites_available existed ran the legacy five; a later one must record
+    its set, so leaving the field out cannot pass a dropped suite off as a complete run."""
+    assert te.available_suites({"started_at": "2026-10-07T03:01:09Z"}) == list(te.LEGACY_SUITES)
+    assert te.available_suites({"started_at": "2026-10-08T05:00:00Z",
+                                "suites_available": ["backend", "live"]}) == ["backend", "live"]
+    assert te.available_suites({"started_at": "2026-10-08T05:00:00Z"}) is None
+    assert te.available_suites({}) is None
+
+
+def test_live_isolated_is_refused_unless_its_backend_is_really_isolated():
+    def servers(database, main="soccer_predictions", listening=True):
+        health = {"database": database} if database is not None else {}
+        return {"backend": {"listening": True, "health": {"database": main}},
+                "backend-isolated": {"listening": listening, "health": health}}
+
+    opts = options(suites="live-isolated")
+    assert te.isolation_refusals(servers("soccer_predictions_e2e"), opts) == []
+    assert any("live database" in r for r in te.isolation_refusals(servers("soccer_predictions"), opts))
+    assert any("same database" in r for r in te.isolation_refusals(servers("copy", main="copy"), opts))
+    assert any("does not say" in r for r in te.isolation_refusals(servers(None), opts))
+    # Not listening is the listener's own refusal; nothing is claimed about its database.
+    assert te.isolation_refusals(servers(None, listening=False), opts) == []
+    same = options(suites="live-isolated", isolated_api_url="http://localhost:8000")
+    assert any("is the main backend" in r for r in te.isolation_refusals(servers("soccer_predictions_e2e"), same))
 
 
 def test_suite_commands():

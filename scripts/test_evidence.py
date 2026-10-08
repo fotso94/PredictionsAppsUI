@@ -19,16 +19,21 @@ WHAT `run` DOES
          QA account, the backend test database and Redis;
        - another evidence run holds the lock;
        - a server under test is missing or serves another commit. For the live project, the
-         backend is also refused when its process started before the newest change to its
-         app/**/*.py, because it is then running older code;
+         backend is also refused when the application tree it says it loaded (the source identity
+         GET /health publishes, measured by digest against the checkout's backend/app) is not the
+         one on disk; a backend that publishes no source identity is refused when its process
+         started before the newest change to its app/**/*.py, which can only infer that it is
+         running older code;
        - for the backend suite, the test database or Redis does not answer. The database-backed
          modules would then skip, and the run would still exit green.
     2. A watcher samples every 15 seconds. Another test runner, a server restart, a new HEAD or a
        change to the working tree marks the whole run CONTAMINATED.
     3. The suites run one after another, each with its own exit code taken from the child process.
        The backend suite (pytest) runs first. Then the Playwright projects mocked-desktop,
-       mocked-mobile, mocked-mobile-360 and live run in that order, one invocation each. Raw output
-       goes to .test-runs/<run-id>/, which is gitignored.
+       mocked-mobile, mocked-mobile-360, live and live-isolated run in that order, one invocation
+       each. live-isolated drives the isolated pair (:3101 and :8001 on a clone of the live
+       database), and the preflight refuses it unless that backend says it serves a database other
+       than the live one. Raw output goes to .test-runs/<run-id>/, which is gitignored.
     4. Post-checks. The reporter's own human summary, the JSON report and the JUnit report must
        agree bucket by bucket, and every requested project must be present. A backend skip that
        says "not reachable" disqualifies the run.
@@ -98,10 +103,23 @@ PUBLISH_ROOT = REPO / "docs" / "evidence" / "test-reports"
 EVIDENCE_PREFIX = "docs/evidence/test-reports/"
 
 FORMAT = "predictionsappsui-test-evidence/1"
-PLAYWRIGHT_PROJECTS = ("mocked-desktop", "mocked-mobile", "mocked-mobile-360", "live")
+PLAYWRIGHT_PROJECTS = ("mocked-desktop", "mocked-mobile", "mocked-mobile-360", "live", "live-isolated")
 ALL_SUITES = ("backend",) + PLAYWRIGHT_PROJECTS
+#: The projects that drive the MAIN pair (:3100 and, for live, :8000). live-isolated drives the
+#: isolated pair instead: the browser tests that write something they cannot remove run only against
+#: a backend serving a clone of the live database (docs/isolated-dev-environment.md).
+MAIN_PAIR_PROJECTS = ("mocked-desktop", "mocked-mobile", "mocked-mobile-360", "live")
 DEFAULT_BASE_URL = "http://localhost:3100"
 DEFAULT_API_URL = "http://127.0.0.1:8000"
+DEFAULT_ISOLATED_BASE_URL = "http://localhost:3101"
+DEFAULT_ISOLATED_API_URL = "http://127.0.0.1:8001"
+#: The database the main backend serves. A backend the isolated suite is pointed at must not.
+LIVE_DATABASE = "soccer_predictions"
+#: The suite set before live-isolated existed, and the moment summaries began to record their own
+#: set (`suites_available`). A summary from before that moment is judged complete against this set;
+#: a later one must say which set it ran, so dropping a suite cannot read as a complete run.
+LEGACY_SUITES = ("backend", "mocked-desktop", "mocked-mobile", "mocked-mobile-360", "live")
+SUITE_SET_RECORDED_SINCE = "2026-10-08T03:00:00Z"
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 POSTGRES_CONTAINER = "soccer_predictions_postgres"
 REDIS_CONTAINER = "soccer_predictions_redis"
@@ -283,15 +301,33 @@ def make_run_id(now: datetime, head: Optional[str], dirty: bool, partial: bool) 
 PARTIAL_RUN_ID = re.compile(r"-partial(?:-\d+)?$")
 
 
-def partial_reasons_for(suites: Sequence[str], filtered: bool) -> List[str]:
+def partial_reasons_for(suites: Sequence[str], filtered: bool,
+                        available: Sequence[str] = ALL_SUITES) -> List[str]:
     """Why a run is PARTIAL - NOT EVIDENCE. `run` states it from its options, and `verify` works it
-    out again from the suites a summary lists and the commands they ran."""
+    out again from the suites a summary lists and the commands they ran, against the suite set that
+    runner had (`available`)."""
     reasons = []
-    if list(suites) != list(ALL_SUITES):
+    if list(suites) != list(available):
         reasons.append(f"only {', '.join(suites)} requested")
     if filtered:
         reasons.append("tests filtered with --grep")
     return reasons
+
+
+def available_suites(summary: Dict[str, Any]) -> Optional[List[str]]:
+    """The suite set a published run is complete against, or None when the summary cannot say.
+
+    A summary records its runner's set as `suites_available`. One from before that field existed
+    (started before SUITE_SET_RECORDED_SINCE) ran the legacy set; a later summary that lacks the
+    field is not trusted to be complete, because leaving the field out is exactly how a dropped
+    suite would hide."""
+    recorded = summary.get("suites_available")
+    if isinstance(recorded, list) and all(isinstance(name, str) for name in recorded):
+        return list(recorded)
+    started = str(summary.get("started_at") or "")
+    if started and started < SUITE_SET_RECORDED_SINCE:
+        return list(LEGACY_SUITES)
+    return None
 
 
 # ----------------------------------------------------------------------------- processes and servers
@@ -454,6 +490,63 @@ def started_after(started_at: Optional[str], changed: Optional[datetime]) -> Opt
     return started.timestamp() > int(changed.timestamp())
 
 
+def app_tree_digest(app_dir: Path) -> Tuple[Optional[str], int]:
+    """(hex sha256, files digested) over the application source under `app_dir`: the digest the
+    backend records of its own tree (backend/app/core/source_identity.py), reimplemented from its
+    documented algorithm so this script measures the checkout without importing the code it is
+    measuring. Walk the tree, skip every __pycache__, take every *.py, sort the paths relative to
+    `app_dir` as POSIX strings, and feed sha256 with each path, NUL, the file's bytes, NUL.
+    (None, 0) when the tree is missing or could not be read whole: a digest over part of it would
+    look exactly like one over all of it."""
+    if not app_dir.is_dir():
+        return None, 0
+    relative: List[str] = []
+    for root, dirs, files in os.walk(app_dir):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        relative.extend(Path(root, name).relative_to(app_dir).as_posix() for name in files if name.endswith(".py"))
+    digest = hashlib.sha256()
+    try:
+        for path in sorted(relative):
+            digest.update(path.encode("utf-8") + b"\0" + (app_dir / path).read_bytes() + b"\0")
+    except OSError:
+        return None, 0
+    return digest.hexdigest(), len(relative)
+
+
+def running_code_record(health: Dict[str, Any], checkout_head: Optional[str], app_dir: Path) -> Optional[Dict[str, Any]]:
+    """What the backend says it loaded, measured against the checkout now: its digest of the
+    application tree beside the same digest over `app_dir`, and its commit beside the checkout's
+    HEAD. None when it publishes no source identity - a build from before
+    backend/app/core/source_identity.py - which leaves only the inference from timestamps."""
+    source = health.get("source") if isinstance(health, dict) else None
+    if not isinstance(source, dict) or not source.get("app_tree_sha256"):
+        return None
+    served, commit = str(source["app_tree_sha256"]), source.get("commit")
+    now, files = app_tree_digest(app_dir)
+    return {"basis": "measured",
+            "tree_served": served, "tree_now": now, "tree_matches": now is not None and served == now,
+            "app_files_served": source.get("app_files"), "app_files_now": files,
+            "commit_served": commit, "commit_head": checkout_head,
+            "commit_matches": bool(commit and checkout_head and commit == checkout_head),
+            "dirty_app_files_at_start": source.get("commit_dirty_app_files")}
+
+
+def running_code_of(server: Dict[str, Any]) -> Dict[str, Any]:
+    """Whether the backend runs the code on disk: measured from its own source identity when it
+    publishes one, otherwise inferred from modification times and labelled so. The backend has no
+    --reload, so it serves the tree as it was when it started; a process older than its newest
+    source file MAY be running older code, which is all a timestamp can say. The digest says."""
+    checkout = server.get("checkout") or {}
+    app_dir = (Path(checkout["toplevel"]) / "backend" / "app" if checkout.get("toplevel")
+               else Path(server["cwd"]) / "app")
+    measured = running_code_record(server.get("health") or {}, checkout.get("head"), app_dir)
+    if measured:
+        return measured
+    changed = newest_source_change(app_dir)
+    return {"basis": "inferred", "newest_source_change": iso(changed),
+            "process_newer_than_code": started_after(server.get("started_at"), changed)}
+
+
 def url_port(url: str) -> Tuple[Optional[str], Optional[int]]:
     parts = urllib.parse.urlsplit(url)
     port = parts.port or (443 if parts.scheme == "https" else 80)
@@ -540,11 +633,25 @@ def provider_snapshot(status: Any) -> Optional[Dict[str, Any]]:
     return {"checked_at": _scalar(status.get("checked_at")), "providers": providers, "scheduler_tasks": tasks}
 
 
+#: The fields of the source identity GET /health publishes (backend/app/core/source_identity.py).
+SOURCE_FIELDS = ("commit", "app_tree_sha256", "app_files", "started_at")
+
+
 def health_snapshot(api_url: str) -> Dict[str, Any]:
+    """GET /health reduced to scalars, with the source identity a backend publishes - its commit,
+    the digest of the application tree it loaded and the files that differed from the commit when
+    it started - which `running_code_of` measures the checkout against."""
     code, body = http_get_json(api_url.rstrip("/") + "/health")
     record: Dict[str, Any] = {"http_status": code}
     if isinstance(body, dict):
         record.update({key: _scalar(body.get(key)) for key in ("status", "environment", "version")})
+        record.update({key: _scalar(body[key]) for key in ("started_at", "database") if key in body})
+        source = body.get("source")
+        if isinstance(source, dict):
+            dirty = source.get("commit_dirty_app_files")
+            record["source"] = {key: _scalar(source.get(key)) for key in SOURCE_FIELDS}
+            record["source"]["commit_dirty_app_files"] = ([_scalar(p) for p in dirty] if isinstance(dirty, list)
+                                                          else None)
     return record
 
 
@@ -921,10 +1028,15 @@ def recorded_filter(name: str, argv: Sequence[str]) -> Tuple[bool, Optional[str]
     return command_shape(argv) == command_shape(expected), grep
 
 
-def playwright_env(project: str, raw: Path, base_url: str, api_url: str) -> Dict[str, str]:
+def playwright_env(project: str, raw: Path, base_url: str, api_url: str,
+                   isolated_base_url: Optional[str] = None, isolated_api_url: Optional[str] = None) -> Dict[str, str]:
     # Both output files must be set: a JSON or JUnit reporter without one prints its whole report
-    # into the console log.
+    # into the console log. The isolated pair's URLs are passed whenever known: only live-isolated
+    # reads them, and a project that does not cannot be misled by them.
+    isolated = {name: value for name, value in (("E2E_ISOLATED_BASE_URL", isolated_base_url),
+                                                ("E2E_ISOLATED_API_URL", isolated_api_url)) if value}
     return {
+        **isolated,
         "PLAYWRIGHT_JSON_OUTPUT_FILE": str(raw / f"playwright-{project}.json"),
         "PLAYWRIGHT_JUNIT_OUTPUT_FILE": str(raw / f"playwright-{project}.junit.xml"),
         "PLAYWRIGHT_JUNIT_SUITE_NAME": f"playwright-{project}",
@@ -1776,6 +1888,20 @@ def _render_tests(suites: List[Dict[str, Any]]) -> List[str]:
     return out + [""]
 
 
+def _render_running_code(running: Dict[str, Any]) -> str:
+    if running.get("basis") == "measured":
+        dirty = running.get("dirty_app_files_at_start")
+        return (f"- Running code, measured from the backend's own source identity: app tree sha256 served "
+                f"`{running.get('tree_served')}`, on disk now `{running.get('tree_now')}`: "
+                f"{'match' if running.get('tree_matches') else 'DIFFERENT'}; commit served "
+                f"`{running.get('commit_served')}`, checkout HEAD `{running.get('commit_head')}`: "
+                f"{'match' if running.get('commit_matches') else 'DIFFERENT'}; uncommitted application files "
+                f"when it started: {'unknown' if dirty is None else len(dirty)}")
+    newer = {True: "yes", False: "NO", None: "unknown"}[running.get("process_newer_than_code")]
+    return (f"- Running code, inferred from modification times (the backend published no source identity): "
+            f"newest app/**/*.py change {running.get('newest_source_change')}; process newer than the code: {newer}")
+
+
 def _render_environment(summary: Dict[str, Any], suites: List[Dict[str, Any]]) -> List[str]:
     repo = summary.get("repository") or {}
     out = ["## Repository", "",
@@ -1805,11 +1931,17 @@ def _render_environment(summary: Dict[str, Any], suites: List[Dict[str, Any]]) -
         out.append(f"- Checkout `{checkout.get('toplevel')}` at `{checkout.get('head')}`, "
                    f"{len(checkout.get('dirty_paths') or [])} uncommitted path(s) under its directory")
         if "newest_source_change" in server:
+            # Runs made before the backend published a source identity recorded the inference here.
             newer = {True: "yes", False: "NO", None: "unknown"}[server.get("process_newer_than_code")]
             out.append(f"- Newest app/**/*.py change {server.get('newest_source_change')}; "
                        f"process newer than the code: {newer}")
+        if server.get("running_code"):
+            out.append(_render_running_code(server["running_code"]))
         if "health" in server:
-            out.append(f"- /health: {server.get('health')}")
+            health = server.get("health")
+            # The source identity is read in the running-code line; the rest of /health as it came.
+            shown = {k: v for k, v in health.items() if k != "source"} if isinstance(health, dict) else health
+            out.append(f"- /health: {shown}")
         out.append(f"- Same process at the end: {'yes' if server.get('unchanged_at_end') else 'NO'}")
         snapshot = server.get("provider_status")
         if snapshot:
@@ -2053,7 +2185,13 @@ def _verify_run_shape(summary: Dict[str, Any], suites: List[Dict[str, Any]], exp
     """Whether the run was partial, worked out again from the suites listed, the commands they ran
     and the run id, and checked against what summary.json says. Returns the worked-out answer."""
     names = [suite.get("name") for suite in suites]
-    canonical = [name for name in ALL_SUITES if name in names]
+    available = available_suites(summary)
+    expect(available is not None, "the summary says which suite set its runner had (suites_available), "
+           "or predates that field", str(summary.get("started_at")))
+    available = available or list(ALL_SUITES)
+    expect(all(name in ALL_SUITES for name in available), "every suite in the recorded set is one this runner knows",
+           ", ".join(available))
+    canonical = [name for name in available if name in names]
     expect(names == canonical, "the suites are known, listed once each, in the order they run",
            ", ".join(str(name) for name in names))
     filtered = []
@@ -2069,7 +2207,7 @@ def _verify_run_shape(summary: Dict[str, Any], suites: List[Dict[str, Any]], exp
             filtered.append(name)
         if suite.get("status") != "ran" or suite.get("interrupted"):
             stopped.append(name)
-    reasons = partial_reasons_for(canonical, bool(filtered))
+    reasons = partial_reasons_for(canonical, bool(filtered), available)
     partial = bool(reasons) or names != canonical
     expect(summary.get("partial") is partial and (summary.get("partial_reasons") or []) == reasons,
            f"the run is {'partial' if partial else 'not partial'}, as recorded",
@@ -2177,6 +2315,10 @@ class Options:
         self.allow_dirty = args.allow_dirty
         self.base_url = args.base_url or os.environ.get("E2E_BASE_URL") or DEFAULT_BASE_URL
         self.api_url = args.api_url or os.environ.get("E2E_API_URL") or DEFAULT_API_URL
+        self.isolated_base_url = (getattr(args, "isolated_base_url", None) or os.environ.get("E2E_ISOLATED_BASE_URL")
+                                  or DEFAULT_ISOLATED_BASE_URL)
+        self.isolated_api_url = (getattr(args, "isolated_api_url", None) or os.environ.get("E2E_ISOLATED_API_URL")
+                                 or DEFAULT_ISOLATED_API_URL)
         self.grep = args.grep
         self.test_database_url = args.test_database_url
         self.dry_run = args.dry_run
@@ -2206,9 +2348,13 @@ def preflight(opts: Options) -> Tuple[Dict[str, Any], List[str], Optional[str]]:
     refusals += guard_refusals(runners)
 
     playwright_selected = [s for s in opts.suites if s in PLAYWRIGHT_PROJECTS]
+    main_pair = any(s in MAIN_PAIR_PROJECTS for s in playwright_selected)
+    isolated = "live-isolated" in opts.suites
     servers: Dict[str, Dict[str, Any]] = {}
-    for role, url, needed in (("frontend", opts.base_url, bool(playwright_selected)),
-                              ("backend", opts.api_url, "live" in opts.suites)):
+    for role, url, needed in (("frontend", opts.base_url, main_pair),
+                              ("backend", opts.api_url, "live" in opts.suites),
+                              ("frontend-isolated", opts.isolated_base_url, isolated),
+                              ("backend-isolated", opts.isolated_api_url, isolated)):
         host, port = url_port(url)
         server: Dict[str, Any] = {"url": url}
         if host not in LOCAL_HOSTS or port is None:
@@ -2219,17 +2365,17 @@ def preflight(opts: Options) -> Tuple[Dict[str, Any], List[str], Optional[str]]:
             servers[role] = server
             continue
         server.update(listener(port))
-        if role == "backend" and server.get("cwd"):
-            changed = newest_source_change(Path(server["cwd"]) / "app")
-            server["newest_source_change"] = iso(changed)
-            server["process_newer_than_code"] = started_after(server.get("started_at"), changed)
-        if role == "backend" and server.get("listening"):
+        if is_backend(role) and server.get("listening"):
             server["health"] = health_snapshot(url)
             _, status = http_get_json(url.rstrip("/") + "/api/v1/data-providers/status")
             server["provider_status"] = provider_snapshot(status)
+        if is_backend(role) and server.get("cwd"):
+            server["running_code"] = running_code_of(server)
         servers[role] = server
         if needed:
             refusals += server_refusals(role, server, repo, opts.allow_dirty)
+    if isolated:
+        refusals += isolation_refusals(servers, opts)
     record["servers"] = servers
 
     database_url = None
@@ -2271,6 +2417,76 @@ def database_refusals(url: Optional[str], conftest_default: Optional[str], conft
     return []
 
 
+def is_backend(role: str) -> bool:
+    return role.startswith("backend")
+
+
+def same_local_origin(a: str, b: str) -> bool:
+    """Whether two URLs name one server: localhost, 127.0.0.1 and ::1 are one machine, so only the
+    port tells two local backends apart."""
+    host_a, port_a = url_port(a)
+    host_b, port_b = url_port(b)
+    local = lambda host: "local" if host in LOCAL_HOSTS else host  # noqa: E731 - one-line normaliser
+    return local(host_a) == local(host_b) and port_a == port_b
+
+
+def isolation_refusals(servers: Dict[str, Dict[str, Any]], opts: "Options") -> List[str]:
+    """The isolated suite writes what it cannot remove, so the backend it drives must really be the
+    isolated one: a different origin from the main backend, saying (GET /health, `database`) that it
+    serves a database that is neither the live one nor the main backend's. A backend too old to say
+    is refused too."""
+    refusals: List[str] = []
+    if same_local_origin(opts.isolated_api_url, opts.api_url):
+        refusals.append(f"the isolated backend {opts.isolated_api_url} is the main backend {opts.api_url}; "
+                        "live-isolated writes recorded slips and runs only against the isolated pair")
+    server = servers.get("backend-isolated") or {}
+    if not server.get("listening"):
+        return refusals
+    database = (server.get("health") or {}).get("database")
+    main_database = ((servers.get("backend") or {}).get("health") or {}).get("database")
+    if not isinstance(database, str):
+        refusals.append(f"the isolated backend {opts.isolated_api_url} does not say which database it serves "
+                        "(no `database` in GET /health); it predates that field - restart it on the current code")
+    elif database == LIVE_DATABASE:
+        refusals.append(f"the isolated backend {opts.isolated_api_url} serves the live database {LIVE_DATABASE}; "
+                        "refusing to run live-isolated against it")
+    elif main_database and database == main_database:
+        refusals.append(f"the isolated backend {opts.isolated_api_url} serves the same database as the main "
+                        f"backend ({database}); refusing to run live-isolated against it")
+    return refusals
+
+
+def running_code_refusals(server: Dict[str, Any]) -> List[str]:
+    """The live project drives the backend, so the backend must be running the code under test.
+    Measured, the application tree it loaded must be the one on disk; inferred, its process must
+    have started after the newest change to its app/**/*.py. Its commit is recorded, not judged:
+    HEAD moves on a docs-only commit, and the tree says whether the application code is the same."""
+    running = server.get("running_code") or {}
+    process = f"the backend process (pid {server.get('pid')}, started {server.get('started_at')})"
+    if running.get("basis") == "measured":
+        if running.get("tree_matches") is True:
+            return []
+        now = running.get("tree_now")
+        return [f"{process} is not running the application tree on disk: it loaded a tree with sha256 "
+                f"{str(running.get('tree_served'))[:12]}, and the checkout's backend/app digests to "
+                f"{str(now)[:12] if now else 'nothing readable'} now; it has no --reload, so restart it first."]
+    newer = running.get("process_newer_than_code", server.get("process_newer_than_code"))
+    changed = running.get("newest_source_change", server.get("newest_source_change"))
+    if newer is not True:
+        return [f"{process} did not start after the newest change to its app/**/*.py ({changed}); it has no "
+                "--reload, so it may be running older code. Restart it first."]
+    return []
+
+
+def running_code_brief(server: Dict[str, Any]) -> str:
+    running = server.get("running_code") or {}
+    if running.get("basis") == "measured":
+        return (f"measured, tree {'matches' if running.get('tree_matches') else 'DIFFERS'}, "
+                f"commit {'matches' if running.get('commit_matches') else 'differs'}")
+    newer = running.get("process_newer_than_code", server.get("process_newer_than_code"))
+    return f"inferred, process newer than code: {newer}"
+
+
 def server_refusals(role: str, server: Dict[str, Any], repo: Dict[str, Any], allow_dirty: bool) -> List[str]:
     if not server.get("listening"):
         return [f"nothing is listening for the {role} at {server['url']}"]
@@ -2286,12 +2502,8 @@ def server_refusals(role: str, server: Dict[str, Any], repo: Dict[str, Any], all
     if not same_checkout and checkout.get("dirty_paths") and not allow_dirty:
         refusals.append(f"the {role} serves another checkout with {len(checkout['dirty_paths'])} uncommitted path(s) "
                         "under its directory; rerun with --allow-dirty to record them")
-    if role == "backend":
-        if server.get("process_newer_than_code") is not True:
-            refusals.append(f"the backend process (pid {server.get('pid')}, started {server.get('started_at')}) "
-                            "did not start after the newest change to its app/**/*.py "
-                            f"({server.get('newest_source_change')}); it has no --reload, so it may be running "
-                            "older code. Restart it first.")
+    if is_backend(role):
+        refusals += running_code_refusals(server)
         status = (server.get("health") or {}).get("http_status")
         if status != 200:
             refusals.append(f"GET {server['url'].rstrip('/')}/health did not answer 200 ({status})")
@@ -2305,11 +2517,13 @@ def print_preflight(record: Dict[str, Any], refusals: Sequence[str], opts: Optio
     for role, server in record["servers"].items():
         if server.get("listening"):
             checkout = server.get("checkout") or {}
-            say(f"{role:<11} {server['url']}: pid {server.get('pid')} started {server.get('started_at')}, "
+            say(f"{role:<17} {server['url']}: pid {server.get('pid')} started {server.get('started_at')}, "
                 f"checkout at {(checkout.get('head') or '?')[:12]}"
-                + (f", process newer than code: {server.get('process_newer_than_code')}" if role == "backend" else ""))
+                + (f", running code: {running_code_brief(server)}" if is_backend(role) else "")
+                + (f", database {(server.get('health') or {}).get('database')}"
+                   if is_backend(role) and (server.get('health') or {}).get('database') else ""))
         else:
-            say(f"{role:<11} {server['url']}: not listening")
+            say(f"{role:<17} {server['url']}: not listening")
     database = record.get("test_database")
     if database:
         say(f"test db     {database.get('host')}:{database.get('port')}/{database.get('database')} "
@@ -2390,6 +2604,9 @@ def assemble_summary(*, run_id: str, partial_reasons: Sequence[str], interrupted
             "unchanged_at_end": tree_fingerprint(end) == tree_fingerprint(repo),
         },
         "servers": record["servers"],
+        # The suite set this runner has, so `verify` judges completeness against it and not against
+        # whatever set a later runner happens to have.
+        "suites_available": list(ALL_SUITES),
         "test_database": record.get("test_database"),
         "tools": record["tools"],
         "suites": suites,
@@ -2429,10 +2646,13 @@ def cmd_run(opts: Options) -> int:
         raw.mkdir(parents=True)
         (raw / "preflight.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
         watched = {}
-        if any(s in PLAYWRIGHT_PROJECTS for s in opts.suites):
+        if any(s in MAIN_PAIR_PROJECTS for s in opts.suites):
             watched["frontend"] = record["servers"]["frontend"]
         if "live" in opts.suites:
             watched["backend"] = record["servers"]["backend"]
+        if "live-isolated" in opts.suites:
+            watched["frontend-isolated"] = record["servers"]["frontend-isolated"]
+            watched["backend-isolated"] = record["servers"]["backend-isolated"]
         watcher = Watcher(repo, watched)
         watcher.start()
         suites: List[Dict[str, Any]] = []
@@ -2446,7 +2666,8 @@ def cmd_run(opts: Options) -> int:
                 console = raw / "backend.console.log"
             else:
                 argv, cwd = playwright_command(name, raw, opts.grep), FRONTEND
-                extra = playwright_env(name, raw, opts.base_url, opts.api_url)
+                extra = playwright_env(name, raw, opts.base_url, opts.api_url,
+                                       opts.isolated_base_url, opts.isolated_api_url)
                 console = raw / f"playwright-{name}.console.log"
             entry["command"] = {"cwd": str(cwd), "argv": argv, "env": sorted(extra)}
             if _STOP_REQUESTED.is_set():
@@ -2523,6 +2744,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     run.add_argument("--allow-dirty", action="store_true", help="run on a dirty working tree and record it")
     run.add_argument("--base-url", help=f"frontend under test (default $E2E_BASE_URL or {DEFAULT_BASE_URL})")
     run.add_argument("--api-url", help=f"backend under test (default $E2E_API_URL or {DEFAULT_API_URL})")
+    run.add_argument("--isolated-base-url", help="the isolated frontend live-isolated drives "
+                     f"(default $E2E_ISOLATED_BASE_URL or {DEFAULT_ISOLATED_BASE_URL})")
+    run.add_argument("--isolated-api-url", help="the isolated backend live-isolated drives "
+                     f"(default $E2E_ISOLATED_API_URL or {DEFAULT_ISOLATED_API_URL})")
     run.add_argument("--grep", help="filter tests (pytest -k / playwright --grep); "
                                     "marks the run PARTIAL - NOT EVIDENCE")
     run.add_argument("--test-database-url",

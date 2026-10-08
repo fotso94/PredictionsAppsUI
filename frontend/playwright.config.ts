@@ -7,13 +7,19 @@ import { defineConfig, devices } from '@playwright/test';
  *                Deterministic, spends no provider allowance, and is where the edge cases live
  *                (missing markets, 1% probabilities, exhausted quota, provider errors, empty days).
  *  - `live`    — runs against the local backend and the data already in the local database. It
- *                reads, and it publishes only its own clearly-marked QA records. It never triggers
- *                a provider refresh, so it also spends no trial allowance.
+ *                reads, and it publishes only its own clearly-marked QA records, which it removes
+ *                again. It never triggers a provider refresh, so it also spends no trial allowance.
+ *  - `live-isolated` — the live tests that WRITE something they cannot remove (a recorded slip).
+ *                They run only against the isolated pair, a clone of the live database behind a
+ *                backend with the scheduler off and no provider credentials
+ *                (docs/isolated-dev-environment.md; e2e/support/isolated.ts refuses anything else).
  *
- * Both assume the local stack is already running:
+ * They assume the local stack is already running (scripts/local-servers.sh start all):
  *   backend  http://127.0.0.1:8000   frontend  http://localhost:3100
+ *   isolated backend  http://127.0.0.1:8001   isolated frontend  http://localhost:3101
  */
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3100';
+const ISOLATED_BASE_URL = process.env.E2E_ISOLATED_BASE_URL || 'http://localhost:3101';
 
 export default defineConfig({
   testDir: './e2e',
@@ -86,6 +92,11 @@ export default defineConfig({
       name: 'live',
       testMatch: /live\/.*\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'live-isolated',
+      testMatch: /live-isolated\/.*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, baseURL: ISOLATED_BASE_URL },
     },
   ],
 });

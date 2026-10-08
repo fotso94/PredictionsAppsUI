@@ -159,6 +159,14 @@ export interface Match {
 export interface MatchRecovery {
   /** Passes in which the provider answered without a final result for this fixture. */
   attempts: number | null;
+  /**
+   * Whether `attempts` is exact. A repair that took back asks recorded without a request marks a
+   * row it could not fully separate `upper_bound` or `unverified`, and the page must then say "at
+   * most". Null or undefined (no repair, or an older backend) reads as exact.
+   */
+  attemptsQuality?: 'exact' | 'upper_bound' | 'unverified' | null;
+  /** How many of `attempts` were counted before that repair; every one since is exact. */
+  attemptsAtCorrection?: number | null;
   lastAttemptAt: string | null;
   /** When the backend stopped asking. Null while it is still asking. */
   gaveUpAt: string | null;

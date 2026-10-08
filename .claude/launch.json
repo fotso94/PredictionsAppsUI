@@ -30,6 +30,37 @@
       "autoPort": false
     },
     {
+      "name": "backend-isolated",
+      "runtimeExecutable": "./venv311/bin/uvicorn",
+      "runtimeArgs": [
+        "app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8001"
+      ],
+      "cwd": "backend",
+      "port": 8001,
+      "autoPort": false,
+      "env": {
+        "POSTGRES_DB": "soccer_predictions_e2e",
+        "SYNC_SCHEDULER_ENABLED": "false",
+        "LIVESCORE_API_KEY": "",
+        "LIVESCORE_API_SECRET": "",
+        "GAMEFORECAST_API_KEY": "",
+        "API_FOOTBALL_KEY": "",
+        "THESPORTSDB_KEY": "",
+        "REDIS_DB_SESSIONS": "10",
+        "REDIS_DB_PREDICTIONS": "11",
+        "REDIS_DB_EXPERT_TOOLS": "12",
+        "REDIS_DB_ML_MODELS": "13",
+        "REDIS_DB_MATCH_DATA": "14",
+        "REDIS_DB_RATE_LIMIT": "15",
+        "BACKEND_CORS_ORIGINS": "[\"http://localhost:3101\",\"http://127.0.0.1:3101\"]"
+      },
+      "_note": "The isolated backend for the write-producing browser tests (Playwright project live-isolated): the e2e clone of the live database, scheduler off, every provider door closed, its own Redis databases. scripts/local-servers.sh starts the same thing detached from the app."
+    },
+    {
       "name": "frontend-isolated",
       "runtimeExecutable": "npx",
       "runtimeArgs": [
@@ -43,7 +74,7 @@
       "cwd": "frontend",
       "port": 3101,
       "autoPort": false,
-      "_note": "Reads frontend/.env.dev8001.local (gitignored): VITE_API_BASE_URL=http://localhost:8001, a backend started without provider credentials and with SYNC_SCHEDULER_ENABLED=false against soccer_predictions_dev."
+      "_note": "Reads frontend/.env.dev8001.local (gitignored): VITE_API_BASE_URL=http://localhost:8001, the backend-isolated entry above."
     }
   ]
 }

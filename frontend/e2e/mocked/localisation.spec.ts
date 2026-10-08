@@ -1378,6 +1378,29 @@ const COUNT_CASES: CountCase[] = [
       'Le fournisseur a répondu 11 fois sans résultat pour ce match.',
     ],
   },
+  {
+    // The same count once a repair has marked it an upper bound: "at most", in both languages.
+    key: 'fixture.result.attemptsAtMost',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      'Le fournisseur a répondu au plus une fois sans résultat pour ce match.',
+      'Le fournisseur a répondu au plus une fois sans résultat pour ce match.',
+      'Le fournisseur a répondu au plus 2 fois sans résultat pour ce match.',
+      'Le fournisseur a répondu au plus 11 fois sans résultat pour ce match.',
+    ],
+  },
+  {
+    // How many of them predate the correction. Zero never reaches the page (the clause is only
+    // added above zero); it is rendered here for the same reason as the case above.
+    key: 'fixture.result.attemptsCorrected',
+    params: (n: number) => ({ count: n }),
+    fr: [
+      '0 de ces réponses a été comptée avant une correction et n’est pas vérifiée\u00a0; chaque réponse depuis est comptée exactement.',
+      '1 de ces réponses a été comptée avant une correction et n’est pas vérifiée\u00a0; chaque réponse depuis est comptée exactement.',
+      '2 de ces réponses ont été comptées avant une correction et ne sont pas vérifiées\u00a0; chaque réponse depuis est comptée exactement.',
+      '11 de ces réponses ont été comptées avant une correction et ne sont pas vérifiées\u00a0; chaque réponse depuis est comptée exactement.',
+    ],
+  },
 ];
 
 /**
@@ -1389,6 +1412,26 @@ const COUNT_CASES: CountCase[] = [
  * table that only checks French would not have noticed either way.
  */
 const ENGLISH_COUNT_CASES: Array<{ key: keyof typeof en; params: (n: number) => Record<string, string | number>; en: [string, string, string, string] }> = [
+  {
+    key: 'fixture.result.attemptsAtMost',
+    params: (n: number) => ({ count: n }),
+    en: [
+      'The provider answered at most 0 times without a result for this match.',
+      'The provider answered at most once without a result for this match.',
+      'The provider answered at most 2 times without a result for this match.',
+      'The provider answered at most 11 times without a result for this match.',
+    ],
+  },
+  {
+    key: 'fixture.result.attemptsCorrected',
+    params: (n: number) => ({ count: n }),
+    en: [
+      '0 of those were counted before a correction and are not verified; every answer since is counted exactly.',
+      '1 of those was counted before a correction and is not verified; every answer since is counted exactly.',
+      '2 of those were counted before a correction and are not verified; every answer since is counted exactly.',
+      '11 of those were counted before a correction and are not verified; every answer since is counted exactly.',
+    ],
+  },
   {
     // English puts zero with the plural, French with the singular: both are pinned for this one.
     key: 'selections.suggest.forecastsWaiting',

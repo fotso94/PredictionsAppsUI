@@ -1,6 +1,6 @@
 import React from 'react'
 import clsx from 'clsx'
-import type { DeferralCause, ResultDelay } from '@/utils/resultDelay'
+import { attemptsAreBounded, type DeferralCause, type ResultDelay } from '@/utils/resultDelay'
 import type { MessageKey } from '@/i18n'
 import { useT } from '@/i18n/react'
 import { absoluteTime, relativeTime } from './freshness'
@@ -258,9 +258,26 @@ export const ResultDelayNotice: React.FC<ResultDelayNoticeProps> = ({ delay, cla
           {lastCheck}
         </p>
       )}
+      {/*
+        A count the backend itself calls "at most" is said as "at most". A repair of records the
+        backend had written without sending a request marks the rows it could not fully separate
+        (`attempts_quality`), and the sentence follows the mark rather than the bare number: the
+        number alone would present as exact a count the backend has said is an upper bound.
+      */}
       {givenUp && typeof delay.attempts === 'number' && delay.attempts > 0 && (
-        <p className="mt-1 text-xs text-secondary-400" data-testid="result-delay-attempts">
-          {t('fixture.result.attempts', { count: delay.attempts })}
+        <p
+          className="mt-1 text-xs text-secondary-400"
+          data-testid="result-delay-attempts"
+          data-attempts-quality={delay.attemptsQuality ?? undefined}
+        >
+          {attemptsAreBounded(delay)
+            ? [
+              t('fixture.result.attemptsAtMost', { count: delay.attempts }),
+              typeof delay.attemptsAtCorrection === 'number' && delay.attemptsAtCorrection > 0
+                ? t('fixture.result.attemptsCorrected', { count: delay.attemptsAtCorrection })
+                : null,
+            ].filter(Boolean).join(' ')
+            : t('fixture.result.attempts', { count: delay.attempts })}
         </p>
       )}
       {givenUp && (

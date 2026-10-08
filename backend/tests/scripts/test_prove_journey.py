@@ -38,6 +38,7 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from app.core import source_identity
 from app.core.config import settings
 from app.db.base import Base
 from app.models.predictions import League, Match, MatchResult, MatchStatus, PredictionOutcome, Team
@@ -1035,6 +1036,118 @@ def test_a_commit_of_files_already_loaded_still_serves_head():
     assert verdict["includes_head"] is True and "after the process started" in verdict["detail"]
 
 
+# ------------------------------------------------------- measured against the backend's own account
+TREE = {"main.py": b"app = 1\n", "services/slips.py": b"def settle(): ...\n"}
+HEAD_SHA = "e05cf10ceac38f5e7351d3b0bb4132c0c575d076"
+OLDER_SHA = "201442e" + "0" * 33
+
+
+def app_tree(root, files: dict) -> str:
+    """<root>/backend/app holding `files`: a checkout's application tree."""
+    app = os.path.join(str(root), "backend", "app")
+    for relative, content in files.items():
+        path = os.path.join(app, relative)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as handle:
+            handle.write(content)
+    return app
+
+
+def health_with(tree: str, commit: str = HEAD_SHA, dirty=()) -> dict:
+    """GET /health from a backend that recorded its source identity when it started."""
+    return {"status": "healthy", "environment": "development", "version": "0.1.0",
+            "started_at": "2026-10-07T22:53:40Z", "database": "soccer_predictions",
+            "source": {"commit": commit, "commit_dirty_app_files": list(dirty), "app_tree_sha256": tree,
+                       "app_files": len(TREE), "started_at": "2026-10-07T22:53:40Z"}}
+
+
+def test_the_tools_digest_is_the_backends_own(tmp_path):
+    """Reimplemented from the documented algorithm, so it must agree with the backend's over the
+    same tree, skip what the backend skips, and read nothing into a tree that is not there."""
+    app = app_tree(tmp_path, dict(TREE, **{"__pycache__/main.cpython-311.pyc": b"\x00", "notes.txt": b"n",
+                                           "services/__pycache__/stale.py": b"skipped"}))
+    assert pj.app_tree_digest(app) == source_identity.app_tree_digest(app)
+    assert pj.app_tree_digest(app)[1] == 2
+    assert pj.app_tree_digest(os.path.join(str(tmp_path), "missing")) == (None, 0)
+    assert pj.app_tree_digest(None) == (None, 0)
+
+
+def test_a_backend_that_loaded_the_tree_on_disk_at_head_is_measured_to_serve_head(tmp_path):
+    app = app_tree(tmp_path, TREE)
+    tree, _ = pj.app_tree_digest(app)
+    verdict = pj.running_code(dict(REPO, head=HEAD_SHA), {}, health_with(tree), app)
+    assert verdict["includes_head"] is True and verdict["basis"] == "measured"
+    measured = verdict["measured"]
+    assert measured["tree_matches"] is True and measured["commit_matches"] is True
+    assert (measured["commit_served"], measured["commit_head"], measured["tree_now"]) == (HEAD_SHA, HEAD_SHA, tree)
+    assert measured["dirty_app_files_at_start"] == [] and measured["app_files_now"] == 2
+
+
+def test_a_tree_that_changed_since_the_start_of_a_clean_checkout_is_not_what_runs(tmp_path):
+    """The checkout is clean, so the tree on disk is HEAD's; the process loaded another one."""
+    app = app_tree(tmp_path, TREE)
+    verdict = pj.running_code(dict(REPO, head=HEAD_SHA), PROCESS, health_with("0" * 64), app)
+    assert verdict["includes_head"] is False and verdict["basis"] == "measured"
+    assert verdict["measured"]["tree_matches"] is False and "not what the process loaded" in verdict["detail"]
+
+
+def test_edits_made_after_a_clean_start_on_head_were_not_loaded(tmp_path):
+    """The inference's "changed after the start" reasoning, now on the backend's own account: it
+    started clean on the commit that is still HEAD, so the tree it loaded was HEAD's whatever has
+    been edited since."""
+    app = app_tree(tmp_path, TREE)
+    tree, _ = pj.app_tree_digest(app)
+    with open(os.path.join(app, "services", "slips.py"), "wb") as handle:
+        handle.write(b"def settle(): return 1\n")
+    repo = dict(REPO, head=HEAD_SHA, app_tree_changes=["backend/app/services/slips.py"])
+    verdict = pj.running_code(repo, {}, health_with(tree), app)
+    assert verdict["includes_head"] is True and verdict["measured"]["tree_matches"] is False
+    assert "changed after the start and not loaded" in verdict["detail"]
+
+
+def test_a_commit_of_files_already_loaded_is_measured_not_inferred(tmp_path):
+    """HEAD moved after the start - a docs-only commit, or one recording files already loaded: the
+    tree shows the process serves HEAD's application code, and the commit alone does not decide."""
+    app = app_tree(tmp_path, TREE)
+    tree, _ = pj.app_tree_digest(app)
+    verdict = pj.running_code(dict(REPO, head=HEAD_SHA), {}, health_with(tree, commit=OLDER_SHA), app)
+    assert verdict["includes_head"] is True and verdict["measured"]["commit_matches"] is False
+    assert "already loaded" in verdict["detail"]
+
+
+def test_uncommitted_files_the_process_loaded_leave_the_question_open_and_are_named(tmp_path):
+    app = app_tree(tmp_path, TREE)
+    tree, _ = pj.app_tree_digest(app)
+    repo = dict(REPO, head=HEAD_SHA, app_tree_changes=["backend/app/services/slips.py"])
+    dirty = ["backend/app/services/slips.py"]
+    on_disk = pj.running_code(repo, {}, health_with(tree, dirty=dirty), app)
+    assert on_disk["includes_head"] is None and "slips.py" in on_disk["detail"]
+    since_changed = pj.running_code(repo, {}, health_with("0" * 64, dirty=dirty), app)
+    assert since_changed["includes_head"] is None and "slips.py" in since_changed["detail"]
+
+
+def test_a_commit_that_is_not_head_with_the_tree_changed_since_cannot_be_judged(tmp_path):
+    app = app_tree(tmp_path, TREE)
+    repo = dict(REPO, head=HEAD_SHA, app_tree_changes=["backend/app/main.py"])
+    verdict = pj.running_code(repo, {}, health_with("0" * 64, commit=OLDER_SHA), app)
+    assert verdict["includes_head"] is None and "cannot be told" in verdict["detail"]
+
+
+def test_a_backend_without_a_source_identity_is_inferred_and_says_so():
+    verdict = pj.running_code(REPO, PROCESS, {"status": "healthy"}, "/nowhere")
+    assert verdict["basis"] == "inferred" and verdict["includes_head"] is True
+    assert "published no source identity" in verdict["detail"] and verdict["measured"] is None
+    unread = pj.running_code(REPO, PROCESS)
+    assert unread["basis"] == "inferred" and "was not read" in unread["detail"]
+
+
+def test_a_checkout_that_cannot_be_digested_leaves_the_measurement_unknown(tmp_path):
+    verdict = pj.running_code(dict(REPO, head=HEAD_SHA), PROCESS, health_with("0" * 64),
+                              os.path.join(str(tmp_path), "missing"))
+    assert verdict["includes_head"] is None and verdict["basis"] == "unknown"
+    assert verdict["measured"]["tree_now"] is None and "could not be digested" in verdict["detail"]
+
+
 # ===================================================================== golden: today's state
 def todays_journey():
     """Slip "Journey 2026-10-05T06:08" and its two fixtures as stored at 2026-10-07 01:06 UTC."""
@@ -1217,15 +1330,16 @@ def world(engine):
         session.close()
 
 
-def backend_double(world):
-    """The backend's allowlisted answers, from the measured status, recording every request."""
+def backend_double(world, health=None):
+    """The backend's allowlisted answers, from the measured status, recording every request.
+    `health` is what GET /health answers: by default an older backend's, with no source identity."""
     calls = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request)
         path = request.url.path
         if path == "/health":
-            return httpx.Response(200, json={"status": "healthy"})
+            return httpx.Response(200, json=health or {"status": "healthy"})
         if path == "/api/v1/data-providers/status":
             return httpx.Response(200, json=measured_status())
         if path == "/api/v1/suggestions":
@@ -1295,6 +1409,25 @@ def test_the_tool_proves_a_built_world_without_writing_anything(engine, world):
     for private in (QA_EMAIL, OTHER_EMAIL, "private note", "BET-REF-1", *(str(u) for u in world.users)):
         assert private not in rendered
     assert pj.render(result)
+
+
+def test_the_run_measures_the_running_code_against_the_backends_own_account(engine, world, tmp_path, monkeypatch):
+    """GET /health's source identity reaches the proof, measured against the checkout given as
+    repo_root, with no process to inspect (process_check=False)."""
+    app = app_tree(tmp_path, TREE)
+    tree, _ = pj.app_tree_digest(app)
+    api, _ = backend_double(world, health=health_with(tree))
+    monkeypatch.setattr(pj, "repo_state", lambda root: dict(REPO, head=HEAD_SHA))
+    factory = sessionmaker(bind=pj.read_only_engine(TEST_DATABASE_URL))
+    result = pj.run(factory, api=api, store=pj.ReadOnlyRedis(FakeRedis()), budget_store=pj.ReadOnlyRedis(FakeRedis()),
+                    selection={"matches": [str(world.upcoming)], "slips": [], "window": None, "recorded_slips": False},
+                    since=world.since, qa_email=QA_EMAIL, clock=lambda: world.now, process_check=False,
+                    repo_root=str(tmp_path), database_name="soccer_predictions_test_proof")
+    running = result["backend"]["running_code"]
+    assert running["basis"] == "measured" and running["includes_head"] is True
+    assert running["measured"]["tree_served"] == running["measured"]["tree_now"] == tree
+    assert result["backend"]["health"]["source"]["commit"] == HEAD_SHA
+    assert "running code includes HEAD: True (measured)" in pj.render(result)
 
 
 def test_a_write_inside_the_tools_session_is_refused_by_the_database(engine, world):

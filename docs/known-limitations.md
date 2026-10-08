@@ -466,8 +466,13 @@ serves it, and it reads `blocked`, nothing new since 2026-10-02 14:52 UTC.
   disclosure; the visible line names no vendor, HTTP code or link, and nothing states when it ends.
 - The freshness block reads "no new fixtures or scores since {date}" and its three failure notes
   become one line. It used to say "fixtures and scores last refreshed 4 minutes ago" in this state,
-  because the recover and settle passes, which fetch nothing, counted as refreshes; they, and a
-  live pass that polled nothing, no longer set that age in any state.
+  because the recover and settle passes, which fetch nothing, counted as refreshes. In every state
+  the line now keeps two facts apart: "new fixtures or scores last arrived {when}", the newest row
+  a provider's answer wrote (`match_data.since`, measured on the rows and checked against the
+  provider's own record), and "last checked {when}", the newest completed fixture-side pass — which
+  can succeed having sent nothing, and is never called a refresh. A backend without `match_data`
+  gets only "last checked". Each task's row says "last succeeded", and says when its last pass sent
+  no request to any provider.
 - An overdue result reads "result updates are unavailable at the moment" on the day list and on the
   match page; an upcoming kick-off is said to be the last one stored; forecasts and markets render
   unchanged. An empty day, the slip and the slip history say that fixtures or results cannot arrive
@@ -538,9 +543,11 @@ Live Score's last real answer, read from the match rows that answer synced (mark
 row count changed, and a second run changed nothing. The plan, the invariants and the decisions the
 owner has to make are in `docs/evidence/not-answers-repair/rehearsal.md`.
 
-`attempts_quality` is now served beside `attempts`, the archive says when its row count was
-`reconstructed`, and a stop on a marked row states its count as "at most N". The site's own wording
-does not read `attempts_quality` yet.
+`attempts_quality` is served beside `attempts`, the archive says when its row count was
+`reconstructed`, and a stop on a marked row states its count as "at most N" — on the API and on the
+page, in both languages: a fixture given up on whose count is `upper_bound` or `unverified` reads
+"The provider answered at most N times …", followed by how many of those predate the correction
+and are not verified. A row with no mark keeps the exact sentence.
 
 **Not yet done.** The live database is unchanged. Applying the repair needs the owner's choices
 (reconstruct or not; subtract the proven 2 October not-answer or not; correct the closed second
@@ -577,9 +584,12 @@ What changed:
   backend suite. To use `venv` again, grant that Python access to the Documents folder in System
   Settings → Privacy & Security; this application does not change that setting.
 - **Lifecycle:** servers started from `.claude/launch.json` belong to the desktop app and stop
-  when it quits. Nothing fetches while it is closed; the scheduler picks up where it left off when
-  the backend starts again (its due-times live in Redis). For an always-on backend, start it from
-  your own terminal: `cd backend && ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000`.
+  when its session ends — which is how the stack was found down twice in a week with the machine
+  still up. `scripts/local-servers.sh start all` starts both pairs (main and isolated) detached from
+  the app and the terminal; they then run until a reboot. `status` says who listens on each port and
+  since when; logs and pids are in `.local-run/`. Nothing fetches while the backend is down; the
+  scheduler picks up where it left off when it starts again (its due-times live in Redis). A launchd
+  agent would survive a reboot too; that is a system setting the owner would have to add.
 - **Counting during the incident:** each failed pass still counted one request against our own
   daily allowance (and one against GameForecast's eight) although nothing was sent. Those figures
   overstate real traffic for 2026-10-02 to -05; the provider's own counters were not affected.
@@ -608,13 +618,19 @@ What changed:
   both servers stayed down until 2026-10-07 01:02 UTC, so nothing was fetched or scheduled for a
   day, and the reboot also erased every scratch capture and test log of the previous round. To
   restore: open Docker Desktop, wait until `soccer_predictions_postgres` and
-  `soccer_predictions_redis` report healthy, then start the `backend` and `frontend` entries of
-  `.claude/launch.json`. The scheduler resumes from its due-times in Redis. Evidence now goes into
-  `docs/evidence/` when it is produced.
-- **Which code is running.** No endpoint reports the commit. It is established from the process
-  start time (`ps -o lstart -p $(lsof -iTCP:8000 -sTCP:LISTEN -t)`) against the newest change under
-  `backend/app` and the git state of the process's working directory; the test-evidence runner and
-  the journey proof record exactly that.
+  `soccer_predictions_redis` report healthy, then `scripts/local-servers.sh start all`. The
+  scheduler resumes from its due-times in Redis. Evidence now goes into `docs/evidence/` when it is
+  produced.
+- **Which code is running is measured, no longer inferred.** At startup the backend records its
+  source identity (`backend/app/core/source_identity.py`) and serves it on `GET /health`: the git
+  commit, the application files that differed from it at that moment, a sha256 digest of every
+  `.py` file under `backend/app` as loaded (the algorithm is in the module docstring, and the
+  test-evidence runner and the journey proof recompute it with the standard library), the process
+  start time and the database name. Both tools compare the served digest with the checkout's and
+  say `measured`; the runner refuses the live projects when the trees differ. File modification
+  times remain only as the fallback for a backend too old to publish its identity, labelled
+  `inferred`. A digest cannot show an edit made and undone before the start; the commit and the
+  dirty list beside it say what the tree was.
 
 ## Test totals are kept as evidence, recomputable by anyone
 
@@ -623,9 +639,12 @@ checked: no raw output survived. Playwright empties its output directory at the 
 and the logs lived in a scratch folder the 2026-10-06 reboot erased.
 
 `scripts/test_evidence.py run` runs the backend suite and each Playwright project once
-(mocked-desktop, mocked-mobile, mocked-mobile-360, live), takes every exit code from the child
-process itself, refuses to start on a dirty tree or beside another test run, and watches for a
-server restart, a foreign run or a change of commit during the run. It keeps the raw output in the
+(mocked-desktop, mocked-mobile, mocked-mobile-360, live, and live-isolated against the isolated
+pair), takes every exit code from the child process itself, refuses to start on a dirty tree,
+beside another test run, with a backend whose loaded source tree is not the one on disk, or with an
+isolated backend that does not say it serves a database other than the live one, and watches for a
+server restart, a foreign run or a change of commit during the run. Each summary records the suite
+set its runner had, so `verify` judges an older run complete against the set of its day. It keeps the raw output in the
 gitignored `.test-runs/` and publishes scrubbed JUnit files, console tails, `summary.md`,
 `summary.json` and `SHA256SUMS` to `docs/evidence/test-reports/<run-id>/`.
 `python3 scripts/test_evidence.py verify <dir>` recomputes every total and every check from the
@@ -680,11 +699,15 @@ until one such read, which is a write and needs the owner's go-ahead. The sugges
 be observed before kickoff. The re-run procedure is in `docs/evidence/journey-proof/README.md`; the
 latest run is `2026-10-07T0437Z.json`.
 
-**The live suite records a slip each time it runs.** `e2e/live/parlay-journey.spec.ts` saves and
-records a combination for the QA account on whatever backend it is pointed at — by default the main
-one on :8000 — and a recorded slip cannot be deleted through the API. On 2026-10-07 the QA account
-held five such slips, four from that day's runs. They are test data on the QA account only; whether
-the spec should move to the isolated pair, or tag its slips, is an open decision.
+**The browser test that records a slip now runs only against the isolated pair.** Until
+2026-10-08 `parlay-journey.spec.ts` saved and recorded a combination for the QA account on whatever
+backend it was pointed at — by default the main one on :8000 — and deleted that account's
+unrecorded slips first; a recorded slip cannot be deleted through the API, so the QA account on the
+live database holds five of them (test data, on that account only). The spec is now
+`e2e/live-isolated/parlay-journey.spec.ts`, collected by the `live-isolated` project alone, pointed
+at the :8001 backend on the e2e clone, and `e2e/support/isolated.ts` refuses any backend whose
+`/health` names the live database (`docs/isolated-dev-environment.md`). The five slips stay; they
+are the QA account's own.
 
 ## Selections and slips
 

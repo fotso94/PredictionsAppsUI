@@ -172,6 +172,14 @@ export interface ResultDelay {
   budgetStop: boolean;
   /** Passes in which the provider answered without a final result for this fixture. */
   attempts: number | null;
+  /**
+   * `exact` when the backend stands behind the count; `upper_bound` or `unverified` when a repair
+   * found earlier asks it could not separate from ones never sent, in which case the count is
+   * worded "at most". Null reads as exact: a row no repair touched carries no mark.
+   */
+  attemptsQuality: 'exact' | 'upper_bound' | 'unverified' | null;
+  /** Of `attempts`, how many predate that repair; null when there was none. */
+  attemptsAtCorrection: number | null;
   /** The most recent pass's finding, or null when the payload does not state one. */
   lastCheck: LastCheck | null;
   /**
@@ -343,6 +351,14 @@ function reportsPlayInProgress(match: Match, now: number): boolean {
  * that deadline has passed, and it can only ever answer that a fixture is still being played. A
  * payload that carries no deadline still produces no claim at all.
  */
+const isAttemptsQuality = (value: unknown): value is 'exact' | 'upper_bound' | 'unverified' =>
+  value === 'exact' || value === 'upper_bound' || value === 'unverified';
+
+/** True when the count must be worded "at most": the backend marked it as not exact. */
+export function attemptsAreBounded(delay: Pick<ResultDelay, 'attemptsQuality'>): boolean {
+  return delay.attemptsQuality === 'upper_bound' || delay.attemptsQuality === 'unverified';
+}
+
 export function resultDelay(match: Match, now: number = Date.now()): ResultDelay | null {
   if (!UNSETTLED_STATUSES.includes(match.status)) return null;
 
@@ -367,6 +383,8 @@ export function resultDelay(match: Match, now: number = Date.now()): ResultDelay
     gaveUpAt,
     budgetStop: Boolean(gaveUpAt) && recovery?.stoppedBy === 'retry_budget',
     attempts: typeof recovery?.attempts === 'number' ? recovery.attempts : null,
+    attemptsQuality: isAttemptsQuality(recovery?.attemptsQuality) ? recovery.attemptsQuality : null,
+    attemptsAtCorrection: typeof recovery?.attemptsAtCorrection === 'number' ? recovery.attemptsAtCorrection : null,
     lastCheck: lastCheckOf(match),
     stillAsking: recovery !== null && !gaveUpAt,
   };

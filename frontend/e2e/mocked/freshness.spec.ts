@@ -63,14 +63,14 @@ test('a scheduler that ran recently reports when, and stays quiet about it', asy
 
   const block = freshness(page);
   await expect(block).toHaveAttribute('data-tone', 'ok');
-  await expect(block.getByTestId('freshness-summary')).toContainText(/last refreshed .* ago/i);
+  await expect(block.getByTestId('freshness-summary')).toContainText(/last checked .* ago/i);
   // Nothing on any page is live, and the line says so before it says anything reassuring.
   await expect(block.getByTestId('freshness-summary')).toContainText(/stored data/i);
   // A healthy schedule needs no second sentence.
   await expect(block.getByTestId('freshness-note')).toHaveCount(0);
 
   await openDetail(page);
-  await expect(block.locator('[data-task="fixtures"]')).toContainText(/updated .* ago/i);
+  await expect(block.locator('[data-task="fixtures"]')).toContainText(/last succeeded .* ago/i);
   // The provider retrieval is a different fact from our own refresh, and is labelled as one.
   await expect(block.getByTestId('freshness-retrieval')).toContainText(/last answer from live score api/i);
   await expect(block).toContainText(/when a provider.s model actually\s+ran is a different fact/i);
@@ -84,7 +84,7 @@ test('a paused refresh says when it resumes, not merely that it is paused', asyn
   const block = freshness(page);
   // Paused is not broken: attention, not alarm, and the fixtures that are current stay current.
   await expect(block).toHaveAttribute('data-tone', 'ageing');
-  await expect(block.getByTestId('freshness-summary')).toContainText(/last refreshed .* ago/i);
+  await expect(block.getByTestId('freshness-summary')).toContainText(/last checked .* ago/i);
 
   const note = block.getByTestId('freshness-note');
   await expect(note).toContainText(/model forecasts: paused/i);

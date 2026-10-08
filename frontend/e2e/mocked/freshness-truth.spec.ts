@@ -335,7 +335,7 @@ test('a forecast refresh the provider refused still says when it comes back', as
   expect(resets, 'the reset time is stated once, not once per source that knows it').toBe(1);
 
   // The fixture side is current and is not dragged down by the forecast side's trouble.
-  await expect(block.getByTestId('freshness-summary')).toContainText(/fixtures and scores last refreshed/i);
+  await expect(block.getByTestId('freshness-summary')).toContainText(/fixtures and scores last checked/i);
 });
 
 // ------------------------------------------------- ran and failed is not never ran
