@@ -2,15 +2,22 @@
 #
 # The local servers, detached from any terminal or desktop-app session.
 #
-#   scripts/local-servers.sh start  [main|isolated|all]   start whatever is not already listening
-#   scripts/local-servers.sh stop   [main|isolated|all]   stop what this script (or anyone) started on those ports
-#   scripts/local-servers.sh status                       who listens on each port, since when, from where
-#   scripts/local-servers.sh reset-e2e-db                 recreate the e2e clone from the live database
+#   scripts/local-servers.sh start  [TARGET]   start whatever is not already listening
+#   scripts/local-servers.sh stop   [TARGET]   stop what listens on those ports, if it runs from this repo
+#   scripts/local-servers.sh status            who listens on each port, since when, from where
+#   scripts/local-servers.sh reset-e2e-db      recreate the e2e clone from the live database
+#
+# TARGET is a pair or a single server: main (backend + frontend), isolated (backend-isolated +
+# frontend-isolated), all, or one of backend, frontend, backend-isolated, frontend-isolated.
+# The repair window uses `stop backend`: the frontend keeps serving stored data meanwhile.
 #
 # WHY. Servers started from .claude/launch.json belong to the desktop app and stop when its session
 # ends; twice in a week the stack was found down for that reason alone. Started here they are
-# children of launchd (nohup, disowned) and outlive the app; only a reboot stops them. Logs and
-# pids go to .local-run/ (gitignored).
+# children of launchd (nohup, disowned) and outlive the app; only a reboot stops them. They are
+# NOT supervised: a crash is not restarted, nothing watches them, and after a reboot nothing
+# starts them. `status` shows a gap and `start` is safe to re-run any time (it skips what already
+# listens). Supervision would be a user-level launchd agent, a system setting for the owner.
+# Logs and pids go to .local-run/ (gitignored).
 #
 # THE TWO PAIRS.
 #   main      backend :8000 on the live database, scheduler on; frontend :3100.
@@ -85,8 +92,7 @@ ISOLATED_ENV=(
 )
 
 start_main() {
-  start_one backend 8000 "$ROOT/backend" "$RUN/backend.log" -- \
-    ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+  start_backend
   start_one frontend 3100 "$ROOT/frontend" "$RUN/frontend.log" -- \
     npx vite --port 3100 --strictPort
 }
@@ -143,6 +149,11 @@ reset_e2e_db() {
   echo "$E2E_DB recreated from $LIVE_DB at $(date -u +%Y-%m-%dT%H:%M:%SZ): $(docker exec "$CONTAINER" psql -U postgres -d "$E2E_DB" -tAc 'select count(*) from predictions.matches') matches"
 }
 
+start_backend() {
+  start_one backend 8000 "$ROOT/backend" "$RUN/backend.log" -- \
+    ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+}
+
 cmd="${1:-status}"; which="${2:-all}"
 case "$cmd" in
   start)
@@ -150,14 +161,21 @@ case "$cmd" in
       main) start_main ;;
       isolated) start_isolated ;;
       all) start_main; start_isolated ;;
-      *) echo "usage: $0 start [main|isolated|all]" >&2; exit 2 ;;
+      backend) start_backend ;;
+      frontend) start_one frontend 3100 "$ROOT/frontend" "$RUN/frontend.log" -- npx vite --port 3100 --strictPort ;;
+      backend-isolated|frontend-isolated) start_isolated ;;
+      *) echo "usage: $0 start [main|isolated|all|backend|frontend|backend-isolated|frontend-isolated]" >&2; exit 2 ;;
     esac ;;
   stop)
     case "$which" in
       main) stop_port backend 8000; stop_port frontend 3100 ;;
       isolated) stop_port backend-isolated 8001; stop_port frontend-isolated 3101 ;;
       all) stop_port backend 8000; stop_port frontend 3100; stop_port backend-isolated 8001; stop_port frontend-isolated 3101 ;;
-      *) echo "usage: $0 stop [main|isolated|all]" >&2; exit 2 ;;
+      backend) stop_port backend 8000 ;;
+      frontend) stop_port frontend 3100 ;;
+      backend-isolated) stop_port backend-isolated 8001 ;;
+      frontend-isolated) stop_port frontend-isolated 3101 ;;
+      *) echo "usage: $0 stop [main|isolated|all|backend|frontend|backend-isolated|frontend-isolated]" >&2; exit 2 ;;
     esac ;;
   status)
     describe backend 8000; describe frontend 3100; describe backend-isolated 8001; describe frontend-isolated 3101 ;;

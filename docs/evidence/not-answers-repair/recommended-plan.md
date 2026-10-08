@@ -34,7 +34,8 @@ write to any row outside the 13 + 66 (the rehearsal hashed every other row ident
   sending the Live Score support question, or at least before access is restored.
 - **About five minutes with the main backend stopped**, any time of day. The script refuses while
   the scheduler recorded a task in the last two ticks, so stop the backend, wait two minutes, run
-  the three commands below, restart. The frontend can stay up; it serves stored data meanwhile.
+  the three commands below, restart. Only the backend stops (`stop backend`); the frontend stays
+  up and serves stored data meanwhile.
 - No other backend may be started against `soccer_predictions` during the window (the
   `strange-matsumoto-455cbe` worktree is still at d6f9a13, the code from before the fix).
 
@@ -43,8 +44,8 @@ write to any row outside the 13 + 66 (the rehearsal hashed every other row ident
 From the repository root, as the owner, with the choices above:
 
 ```bash
-# 0. stop the main backend and let the scheduler go quiet
-scripts/local-servers.sh stop main                 # or stop the backend entry in the desktop app
+# 0. stop the main backend (the frontend stays up) and let the scheduler go quiet
+scripts/local-servers.sh stop backend
 sleep 130
 
 # 1. the backup that is also the rollback (a plain pg_dump; never docker/scripts/backup-database.sh)
@@ -73,7 +74,7 @@ PIN=2026-10-02T14:53:28.028159Z
 #    api_football or thesportsdb; 0 fixtures with a retry clock or archive stamped after the pin.
 
 # 5. restart on the current code, which serves and words the marks
-cd .. && scripts/local-servers.sh start main
+cd .. && scripts/local-servers.sh start backend
 ```
 
 The script refuses on its own if any of these is not true: the database name is the live one and

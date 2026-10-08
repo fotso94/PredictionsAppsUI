@@ -586,7 +586,10 @@ What changed:
 - **Lifecycle:** servers started from `.claude/launch.json` belong to the desktop app and stop
   when its session ends — which is how the stack was found down twice in a week with the machine
   still up. `scripts/local-servers.sh start all` starts both pairs (main and isolated) detached from
-  the app and the terminal; they then run until a reboot. `status` says who listens on each port and
+  the app and the terminal; they then run until a reboot — or a crash, because nothing supervises
+  or restarts them. `status` shows a gap, and `start` is safe to re-run any time: it skips what
+  already listens. Supervision across crashes and reboots would be a launchd agent, a system
+  setting the owner would have to add. `status` says who listens on each port and
   since when; logs and pids are in `.local-run/`. Nothing fetches while the backend is down; the
   scheduler picks up where it left off when it starts again (its due-times live in Redis). A launchd
   agent would survive a reboot too; that is a system setting the owner would have to add.

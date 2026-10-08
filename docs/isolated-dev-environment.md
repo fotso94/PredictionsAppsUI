@@ -20,7 +20,10 @@ scripts/local-servers.sh stop isolated    # or: stop main / stop all
 ```
 
 The script starts each server detached from the terminal and from the desktop app (`nohup`,
-disowned), so they outlive the app's session; only a reboot stops them. Logs and pids are in
+disowned), so they outlive the app's session; only a reboot or a crash stops them, and nothing
+restarts them on its own — `status` shows a gap, and `start` can be re-run any time. A single
+server can be addressed too: `stop backend` leaves the frontend serving stored data, which is what
+the repair window uses. Logs and pids are in
 `.local-run/` (gitignored). The `backend-isolated` and `frontend-isolated` entries in
 `.claude/launch.json` start the same processes from the app, which stops them when its session ends.
 
