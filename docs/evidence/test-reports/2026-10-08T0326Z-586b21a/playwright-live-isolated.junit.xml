@@ -1,0 +1,8 @@
+<testsuites id="" name="playwright-live-isolated" tests="2" failures="0" skipped="0" errors="0" time="4.520099">
+<testsuite name="live-isolated/parlay-journey.spec.ts" timestamp="2026-10-08T03:54:41.193Z" hostname="live-isolated" tests="2" failures="0" skipped="0" time="4.131" errors="0">
+<testcase name="[live-isolated] a real fixture → a selection → a saved, recorded combination, with no provider request" classname="live-isolated/parlay-journey.spec.ts" time="3.492">
+</testcase>
+<testcase name="[live-isolated] suggestions come from stored forecasts and add to the slip without a provider request" classname="live-isolated/parlay-journey.spec.ts" time="0.639">
+</testcase>
+</testsuite>
+</testsuites>

@@ -658,13 +658,17 @@ it. `docs/evidence/test-reports/README.md` has the layout and the scrub policy.
 | `2026-10-07T0301Z-7be42cc` | 7be42cc | 1644 passed | 449 passed, 2 skipped | 451 passed | 138 passed | 51 passed, 6 skipped, **1 failed** |
 | `2026-10-07T0332Z-b753202` | b753202 | 1644 passed | 449 passed, 2 skipped | 451 passed | 138 passed | 51 passed, 6 skipped, **1 failed** |
 | `2026-10-07T0408Z-12753b6` | 12753b6 | 1644 passed | 449 passed, 2 skipped | 451 passed | 138 passed | 52 passed, 6 skipped — **PASS** |
+| `2026-10-08T0326Z-586b21a` | 586b21a | 1681 passed | 451 passed, 2 skipped | 453 passed | 140 passed | 47 passed, 9 skipped; live-isolated 2 passed — **PASS**, running code measured |
 
 The first failure was a precondition: a live scroll-restoration check measured on a day whose three
 stored fixtures fitted in a 1440x900 window (fixed in b753202). The second was a club crest from
 Live Score's CDN unanswered for 45 s, which held a page waiting to go quiet (fixed in 12753b6: live
 tests now fetch crests and the web font under a deadline, as the mocked tests do). The two mocked
-skips are menu tests that apply only on narrow screens; the six live skips all come from the outage
-(nothing in play, no finished fixture with a result inside the feed window).
+skips are menu tests that apply only on narrow screens; every live skip comes from the outage:
+nothing in play, no finished fixture with a result inside the feed window, and on 2026-10-08 no
+fixture or forecast stored for the day at all (the store's last fixtures are the three club
+matches of 9 October). The 2026-10-08 run is the first whose backend identity is measured rather
+than inferred, and the first to include the isolated suite.
 
 Limits: `verify` cannot see what only the run saw (a deleted record of contamination), and the
 published files are scrubbed copies — only whoever holds the run's `.test-runs/` can show they came
