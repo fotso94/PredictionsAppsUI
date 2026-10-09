@@ -1,5 +1,9 @@
 # Not-answers repair: rehearsal on an isolated copy
 
+> **Applied to the live database on 2026-10-09** with the recommended options; see
+> `recommended-plan.md` (the execution record) and `applied.jsonl` (the applied report). This page
+> remains the rehearsal evidence the approval was based on.
+
 Rehearsed 2026-10-07 02:53 UTC by `backend/scripts/repair_not_answers.py` (sha256 prefix
 `609a153ad52b93de`, recorded in every row of `plan.jsonl`). **The live database was not written to.**
 It was read only with `pg_dump` and read-only `psql` sessions. The repair ran against

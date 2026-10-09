@@ -1,4 +1,14 @@
-# Not-answers repair: the recommended plan, for approval
+# Not-answers repair: the recommended plan — approved and executed
+
+**Executed 2026-10-09 00:00 UTC** with every choice below as recommended; the owner's reviewer
+note of 2026-10-08 approved proceeding. The execution record: backup
+`soccer_predictions-before-not-answer-repair-20261008T235832Z.sql.gz` (verified by restoring it;
+the plan derived from the copy matched the rehearsal), live report-only identical to the rehearsed
+plan on every corrected field, apply wrote 13 observations and 66 fixtures, a second apply wrote 0,
+all 311 untouched leagues/matches rows byte-identical to the backup, every table's row count
+unchanged, marks served 57/6/3, and the restarted scheduler's first passes added nothing tainted.
+The applied report is `applied.jsonl` beside this file; docs/known-limitations.md carries the same
+record. The sections below are the plan as approved.
 
 One plan, with the choices made. `rehearsal.md` holds the evidence behind each choice, the row-by-row
 before and after, and the alternatives; this page is what to approve and what to run.

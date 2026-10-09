@@ -612,6 +612,22 @@
       "fixtures": 66,
       "note": "The 10 observations and 44 fixtures above, plus what the earlier code's last pass added at 2026-10-06T00:25:19Z before the machine restarted: CONCACAF Nations League, UEFA Nations League and National Teams Friendlies on 2026-10-04 (times_asked 1 each) and 22 fixtures. Selected by rule, not by the 'api_football answered' text, which later genuine deferrals have overwritten on 65 of the 66.",
       "repair": "Rehearsed on an isolated copy, not applied to the live database: see docs/evidence/not-answers-repair/ and docs/known-limitations.md, section 'A provider that could not be asked was recorded as answering'."
+    },
+    "repaired": {
+      "applied_at": "2026-10-09T00:00:32Z",
+      "written": {
+        "observations": 13,
+        "fixtures": 66
+      },
+      "second_apply_wrote": 0,
+      "options": {
+        "reconstruct_from_synced_rows": true,
+        "subtract_proven_pre_window": true,
+        "skip_closed_relistings": false
+      },
+      "backup": "backups/soccer_predictions-before-not-answer-repair-20261008T235832Z.sql.gz (local, gitignored; verified by restoring it)",
+      "report": "docs/evidence/not-answers-repair/applied.jsonl",
+      "invariants": "0 national observations naming api_football/thesportsdb; 0 records stamped after Live Score's last success; 311 untouched leagues/matches rows byte-identical to the backup; 74 tables' row counts unchanged; attempts_quality served as 57 exact / 6 upper_bound / 3 unverified"
     }
   }
 }

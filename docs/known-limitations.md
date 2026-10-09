@@ -429,8 +429,8 @@ fixture since 14:46 UTC, and only 4 future fixtures were held. (On 2026-10-05 at
 count was 67.) A slip holding such a fixture stays *pending*; nothing settles until a result
 source answers. (The
 results and recovery passes recorded API-Football as having answered for those competitions, with
-no rows, although it sent no request, having no id to ask with. That is fixed; the records already
-written are not yet corrected — see the next section.)
+no rows, although it sent no request, having no id to ask with. That is fixed, and the records it
+had written were repaired on 2026-10-09 — see the next section.)
 
 Forecasts still arrive — GameForecastAPI answers (8 of 8 requests with HTTP 200 on the 2026-10-07
 01:04 UTC pass) — but only attach to fixtures already stored. It returned 48 club fixtures for
@@ -497,7 +497,7 @@ serves it, and it reads `blocked`, nothing new since 2026-10-02 14:52 UTC.
 - Cool-downs are unchanged: API-Football's plan refusal and TheSportsDB's invalid-key refusal still
   cool down for two minutes.
 
-## A provider that could not be asked was recorded as answering: fixed; the repair rehearsed, not yet applied
+## A provider that could not be asked was recorded as answering: fixed, and the record repaired
 
 **What happened.** API-Football and TheSportsDB hold an id for the six club competitions and for
 none of the national-team ones. Asked for results across several competitions, each skipped the
@@ -549,17 +549,37 @@ page, in both languages: a fixture given up on whose count is `upper_bound` or `
 "The provider answered at most N times …", followed by how many of those predate the correction
 and are not verified. A row with no mark keeps the exact sentence.
 
-**Not yet done.** The live database is unchanged. Applying the repair needs the owner's choices
-(reconstruct or not; subtract the proven 2 October not-answer or not; correct the closed second
-listing of Senegal v Mozambique or not) and the backend stopped until the repair commits, because
-the scheduler rewrites these rows whole on every pass. The script refuses to write to the live
-database without `--owner-approved` and `--i-stopped-the-backend`, and checks the second claim: it
-refuses while the backend's address accepts connections, while a sync pass holds its lock or while
-the scheduler recorded a task in the last two minutes, and looks again just before committing.
-**It must be applied before Live Score answers again**: after that, real asks mix into these
-counters and the script refuses, so the plan would have to be made again by a person. Until then a
-stop the retry budget makes on one of these fixtures would quote a count that includes asks never
-made.
+**Applied in the window 2026-10-08 23:53 to 2026-10-09 00:10 UTC, with the owner's approval and the options
+the recommended plan named** (reconstruction on; the proven 2 October not-answer subtracted; the
+closed second listing corrected; Congo v Uganda kept `unverified`). Live Score was still refusing,
+so the window the plan required was open. What the record shows, in order:
+
+- Only the backend was stopped; the frontend served stored data throughout. After the scheduler's
+  records aged out, a fresh plain backup was taken
+  (`backups/soccer_predictions-before-not-answer-repair-20261008T235832Z.sql.gz`) and **verified by
+  restoring it** into a scratch database; the plan the script derived from that copy matched the
+  rehearsed plan on every corrected field.
+- The report-only run against the live database found exactly what was rehearsed: 13 observations
+  (classes 8/2/3), 66 fixtures (groups 57/3/6), 32 asks and 167 attempts to remove, the synced-row
+  method agreeing 18 of 18. Its corrected fields matched `plan.jsonl` row for row; only the
+  genuine deferral stamps the scheduler had moved since the rehearsal differed, as the plan said
+  they would.
+- `--apply` wrote 13 observations and 66 fixtures; a second `--apply` wrote **0** and skipped all
+  66 as already corrected. The applied report is `docs/evidence/not-answers-repair/applied.jsonl`.
+- Invariants, against the pre-apply backup: every one of the 311 untouched leagues/matches rows is
+  byte-identical, the 70 target rows changed only in their metadata column and `updated_at`, and
+  no table's row count moved across all 74 tables. No national observation names API-Football or
+  TheSportsDB, nothing is stamped after Live Score's last success, and the quality marks read
+  57 `exact`, 6 `upper_bound`, 3 `unverified`.
+- The backend restarted on the current code (identity measured on `/health`), and its first
+  recover and settle passes wrote only genuine deferrals: the tainted counts stayed at zero. The
+  journey proof of 2026-10-09 flags exactly one in-window fixture for its attempt count — Congo v
+  Uganda, the row deliberately kept `unverified` — instead of the 58 it had to flag by clock
+  before.
+
+The repair corrected bookkeeping only: no status, score, result or kickoff changed, and the 96
+missing results are still missing until a match-data source answers. The rollback, should anything
+surface later, is the backup above plus each row's own `corrections` audit record.
 
 ## Running it locally: what stopped updates for 2½ days, and how it is run now
 
