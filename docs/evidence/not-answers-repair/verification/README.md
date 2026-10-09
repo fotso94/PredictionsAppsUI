@@ -63,6 +63,23 @@ restored twice — a pristine copy and a copy to repair — and the whole chain 
 Anyone holding the backup can repeat this: restore it twice, run the script with the options
 above, and run `check_preservation.py` (here) between the two copies.
 
+## Inputs to preserve
+
+The reproduction needs exactly three inputs. Two are local files the repository must never hold
+(plain `pg_dump` output of a database with user rows, and this repository is public); their
+hashes are committed in `inputs.sha256` beside this file so any preserved copy can be
+authenticated, and copies sit in `backups/keep-for-not-answers-repair/` with a do-not-delete
+note. Keeping a copy off this machine is the owner's part.
+
+| Input | Where | sha256 (first 12) |
+|---|---|---|
+| The pre-apply backup, `...before-not-answer-repair-20261008T235832Z.sql.gz` (805,613 bytes) | local `backups/` and `backups/keep-for-not-answers-repair/` | `44a44d2c974f` |
+| The prior dump, `...before-relisting-repair-20261005T034608Z.sql.gz` (755,709 bytes) | same | `a22ad4bf944d` |
+| The 03:15 capture the classification reads (`--prior-capture`) | committed: `docs/evidence/livescore-archive-observations.json`, unchanged in this respect since commit 02ff9cb | in git |
+
+The script itself is committed; the run used it at the sha256 prefix `609a153ad52b93de`, recorded
+in every row of the reports.
+
 ## The checkers
 
 - `compare_plans.py` — compares two repair reports on the **corrected** fields only. Deferral

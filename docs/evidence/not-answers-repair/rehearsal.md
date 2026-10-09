@@ -202,7 +202,7 @@ partial plan (3 observations and 5 fixtures instead of 13 and 66) and would have
 
 Now:
 
-- `--apply` needs `--livescore-last-success`, the instant the owner approved in this report.
+- `--apply` needs `--livescore-last-success`, the pinned instant this report rehearsed.
   Without it the script refuses. A report without it uses Redis's value, and says it is not pinned.
 - Redis is then a check, not a source. When it records any other last success, the script makes no
   plan in either mode: later means the outage has ended, earlier means the instant given is wrong.

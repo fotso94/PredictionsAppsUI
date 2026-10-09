@@ -1,4 +1,4 @@
-# Not-answers repair: the recommended plan — approved and executed
+# Not-answers repair: the recommended plan — executed; authorization corrected below
 
 **Executed 2026-10-09 00:00 UTC** with every choice below as recommended. **Authorization,
 corrected:** the apply was run on the reviewer note the owner forwarded on 2026-10-08 ("Proceed
