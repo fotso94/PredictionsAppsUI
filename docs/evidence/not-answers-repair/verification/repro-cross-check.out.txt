@@ -1,0 +1,1 @@
+compared 13 observations and 66 fixtures; removals 32 asks / 167 attempts

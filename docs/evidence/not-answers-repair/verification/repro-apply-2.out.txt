@@ -1,0 +1,22 @@
+database: postgresql://postgres:***@localhost:5432/notanswers_repro_applied
+mode:     APPLY - the plan below will be written
+now:      2026-10-09T00:21:22.640477+00:00
+live score last success: 2026-10-02T14:53:28.028159+00:00 (given; Redis agrees; given 2026-10-02T14:53:28.028159+00:00, Redis says 2026-10-02T14:53:28.028159+00:00)
+false if stamped after: 2026-10-02T14:53:29.028159+00:00 (1 s margin)
+prior dump:    ../backups/soccer_predictions-before-relisting-repair-20261005T034608Z.sql.gz (5 competitions with observations, 95 fixtures with recovery)
+prior capture: ~/Documents/DevProjects/PredictionsAppsUI/docs/evidence/livescore-archive-observations.json (captured 2026-10-05T03:15:00Z, 26 observations)
+options:  reconstruct from synced rows: yes; subtract the proven pre-window not-answer: yes; skip closed relistings: no
+
+synced-row method checked on genuine answers: 22 of 22 agree
+
+false archive observations: 0
+
+affected fixtures: 0
+
+already corrected by this script, skipped: 66
+
+observations by class: {1: 0, 2: 0, 3: 0}; fixtures by group: {'A': 0, 'B': 0, 'C': 0}; asks removed: 0; attempts removed: 0
+
+report: <scratch>/apply/repro/apply-2.jsonl
+
+written: 0 observation(s), 0 fixture(s)

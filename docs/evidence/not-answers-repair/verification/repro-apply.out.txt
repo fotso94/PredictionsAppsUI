@@ -1,0 +1,165 @@
+database: postgresql://postgres:***@localhost:5432/notanswers_repro_applied
+mode:     APPLY - the plan below will be written
+now:      2026-10-09T00:21:22.134508+00:00
+live score last success: 2026-10-02T14:53:28.028159+00:00 (given; Redis agrees; given 2026-10-02T14:53:28.028159+00:00, Redis says 2026-10-02T14:53:28.028159+00:00)
+false if stamped after: 2026-10-02T14:53:29.028159+00:00 (1 s margin)
+prior dump:    ../backups/soccer_predictions-before-relisting-repair-20261005T034608Z.sql.gz (5 competitions with observations, 95 fixtures with recovery)
+prior capture: ~/Documents/DevProjects/PredictionsAppsUI/docs/evidence/livescore-archive-observations.json (captured 2026-10-05T03:15:00Z, 26 observations)
+options:  reconstruct from synced rows: yes; subtract the proven pre-window not-answer: yes; skip closed relistings: no
+
+synced-row method checked on genuine answers: 18 of 18 agree
+
+false archive observations: 13
+  class 3  Africa Cup of Nations Qualifications   2026-09-25  empty/0/api_football x31 -> answered/14/livescore x29 asked 2026-10-01T07:46:53.389206+00:00  [upper_bound, reconstructed; 2 ask(s) removed; at cut: capture]
+  class 1  CONCACAF Nations League                2026-10-02  empty/0/api_football x3 -> removed  [removed; 3 ask(s) removed; at cut: no entry]
+  class 1  CONCACAF Nations League                2026-10-03  empty/0/api_football x4 -> removed  [removed; 4 ask(s) removed; at cut: no entry]
+  class 1  CONCACAF Nations League                2026-10-04  empty/0/api_football x1 -> removed  [removed; 1 ask(s) removed; at cut: no entry]
+  class 3  National Teams Friendlies              2026-09-24  empty/0/api_football x17 -> answered/5/livescore x15 asked 2026-10-01T07:46:51.829861+00:00  [upper_bound, reconstructed; 2 ask(s) removed; at cut: capture]
+  class 3  National Teams Friendlies              2026-09-28  empty/0/api_football x25 -> answered/4/livescore x23 asked 2026-10-01T07:16:22.276377+00:00  [upper_bound, reconstructed; 2 ask(s) removed; at cut: dump]
+  class 2  National Teams Friendlies              2026-09-30  empty/0/api_football x31 -> answered/6/livescore x29 asked 2026-10-02T12:16:17.850638+00:00  [unverified; 2 ask(s) removed; at cut: dump]
+  class 2  National Teams Friendlies              2026-10-02  empty/0/api_football x8 -> empty/0/livescore x5 asked 2026-10-02T14:53:28.031992+00:00  [unverified; 3 ask(s) removed; at cut: dump]
+  class 1  National Teams Friendlies              2026-10-03  empty/0/api_football x4 -> removed  [removed; 4 ask(s) removed; at cut: no entry]
+  class 1  National Teams Friendlies              2026-10-04  empty/0/api_football x1 -> removed  [removed; 1 ask(s) removed; at cut: no entry]
+  class 1  UEFA Nations League                    2026-10-02  empty/0/api_football x3 -> removed  [removed; 3 ask(s) removed; at cut: no entry]
+  class 1  UEFA Nations League                    2026-10-03  empty/0/api_football x4 -> removed  [removed; 4 ask(s) removed; at cut: no entry]
+  class 1  UEFA Nations League                    2026-10-04  empty/0/api_football x1 -> removed  [removed; 1 ask(s) removed; at cut: no entry]
+
+affected fixtures: 66
+  group C  aecec855-309d-4450-9eeb-1cfe85ae40a4  Solomon Islands v Vanuatu  2026-09-24T04:00:00 UTC  scheduled
+           attempts 20 -> 18 [upper_bound], last_attempt_at 2026-10-05T03:23:35.035832+00:00 -> 2026-10-01T07:46:51.829861+00:00, archive empty@2026-10-05T03:23:35.032467+00:00 -> answered@2026-10-01T07:46:51.829861+00:00
+  group C  1b4073e5-8d0e-45b3-ab1a-1b03b0a5ef79  Papua New Guinea v New Caledonia  2026-09-24T07:00:00 UTC  scheduled
+           attempts 20 -> 18 [upper_bound], last_attempt_at 2026-10-05T03:23:35.036765+00:00 -> 2026-10-01T07:46:51.829861+00:00, archive empty@2026-10-05T03:23:35.032467+00:00 -> answered@2026-10-01T07:46:51.829861+00:00
+  group C  f0b594b7-1bc7-4bc2-a0df-66164578566d  Turkmenistan v New Zealand  2026-09-24T09:30:00 UTC  scheduled
+           attempts 20 -> 18 [upper_bound], last_attempt_at 2026-10-05T03:23:35.037350+00:00 -> 2026-10-01T07:46:51.829861+00:00, archive empty@2026-10-05T03:23:35.032467+00:00 -> answered@2026-10-01T07:46:51.829861+00:00
+  group C  9dbb3854-85d2-46dc-843b-14dfbb708494  Senegal v Mozambique  2026-09-25T19:00:00 UTC  postponed
+           attempts 31 -> 29 [upper_bound], last_attempt_at 2026-10-05T03:23:35.168455+00:00 -> 2026-10-01T07:46:53.389206+00:00, archive empty@2026-10-05T03:23:35.165626+00:00 -> answered@2026-10-01T07:46:53.389206+00:00
+  group C  535ea78d-d020-4ea4-b0ba-a168d2c540a5  Kyrgyzstan v Lebanon  2026-09-28T12:00:00 UTC  scheduled
+           attempts 25 -> 23 [upper_bound], last_attempt_at 2026-10-05T03:54:23.621995+00:00 -> 2026-10-01T07:16:22.276377+00:00, archive empty@2026-10-05T03:54:23.616092+00:00 -> answered@2026-10-01T07:16:22.276377+00:00
+  group C  dc2cbc24-96d1-4ebe-a712-5a7e24399604  Tajikistan v Palestine  2026-09-28T12:00:00 UTC  scheduled
+           attempts 25 -> 23 [upper_bound], last_attempt_at 2026-10-05T03:54:23.620637+00:00 -> 2026-10-01T07:16:22.276377+00:00, archive empty@2026-10-05T03:54:23.616092+00:00 -> answered@2026-10-01T07:16:22.276377+00:00
+  group B  8295ac2c-a472-4f7f-a459-72a04566cd3e  Papua New Guinea v Solomon Islands  2026-09-30T04:00:00 UTC  scheduled
+           attempts 31 -> 29 [unverified], last_attempt_at 2026-10-05T16:04:55.036575+00:00 -> 2026-10-02T12:16:17.857905+00:00, archive empty@2026-10-05T16:04:55.033008+00:00 -> answered@2026-10-02T12:16:17.850638+00:00
+  group B  8816e353-a272-49b2-9bdd-95136a0d3da5  Mauritius v Djibouti  2026-09-30T12:00:00 UTC  live
+           attempts 22 -> 20 [unverified], last_attempt_at 2026-10-05T16:04:55.037403+00:00 -> 2026-10-02T12:16:17.861089+00:00, archive empty@2026-10-05T16:04:55.033008+00:00 -> answered@2026-10-02T12:16:17.850638+00:00
+  group B  7e976555-f229-4854-a454-7297ecae96e9  Congo v Uganda  2026-10-02T10:00:00 UTC  live
+           attempts 8 -> 5 [unverified], last_attempt_at 2026-10-05T22:24:42.479218+00:00 -> 2026-10-02T14:53:28.045798+00:00, archive empty@2026-10-05T22:24:42.473598+00:00 -> empty@2026-10-02T14:53:28.031992+00:00
+  group A  72308ba8-e291-4bfa-8284-1919f74a9a8e  Kazakhstan v Moldova  2026-10-02T14:00:00 UTC  live
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.011409+00:00 -> None, archive empty@2026-10-05T16:35:46.004912+00:00 -> None@None
+  group A  cd98235f-9839-4a06-8e6c-f735ee35a6e6  Mauritius v Sri Lanka  2026-10-02T15:00:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T22:24:42.481370+00:00 -> None, archive empty@2026-10-05T22:24:42.473598+00:00 -> None@None
+  group A  58fa3c98-f713-4f30-a42e-5fcf808ffdd4  Latvia v Montenegro  2026-10-02T16:00:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.013221+00:00 -> None, archive empty@2026-10-05T16:35:46.004912+00:00 -> None@None
+  group A  b819f559-77b3-4982-9475-e0aaa6596cd7  Cyprus v Armenia  2026-10-02T16:00:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.012396+00:00 -> None, archive empty@2026-10-05T16:35:46.004912+00:00 -> None@None
+  group A  456c5e55-843b-4c47-8636-7ac023a01f2d  Ukraine v N.Ireland  2026-10-02T18:45:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.017690+00:00 -> None, archive empty@2026-10-05T16:35:46.004912+00:00 -> None@None
+  group A  54f0d0cf-c667-42e1-a8a2-92e1e22241c1  Belgium v Turkey  2026-10-02T18:45:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.015611+00:00 -> None, archive empty@2026-10-05T16:35:46.004912+00:00 -> None@None
+  group A  54fca72e-602c-4510-a9a7-be1b5c641892  Faroe Islands v Slovakia  2026-10-02T18:45:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.019266+00:00 -> None, archive empty@2026-10-05T16:35:46.004912+00:00 -> None@None
+  group A  826fba1f-1b9b-463e-ab4f-646949a9c045  Bosnia and Herzegovina v Sweden  2026-10-02T18:45:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.016980+00:00 -> None, archive empty@2026-10-05T16:35:46.004912+00:00 -> None@None
+  group A  ae40c0f0-7d13-4c58-bafc-29cd99cdd52f  Poland v Romania  2026-10-02T18:45:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.014070+00:00 -> None, archive empty@2026-10-05T16:35:46.004912+00:00 -> None@None
+  group A  cf8455c4-8506-468c-b2fd-320297cec512  France v Italy  2026-10-02T18:45:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.018482+00:00 -> None, archive empty@2026-10-05T16:35:46.004912+00:00 -> None@None
+  group A  d5e829db-3b76-486f-8c1c-1cb21d3b159b  Hungary v Georgia  2026-10-02T18:45:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.014841+00:00 -> None, archive empty@2026-10-05T16:35:46.004912+00:00 -> None@None
+  group A  080a51da-92fb-413d-8ceb-a1efebabee84  Saint Lucia v Guadeloupe  2026-10-02T19:00:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.019987+00:00 -> None, archive empty@2026-10-05T16:35:46.008746+00:00 -> None@None
+  group A  1439aa68-19ad-4e60-b86c-6675157282cd  St. Kitts and Nevis v Cuba  2026-10-02T21:00:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.020994+00:00 -> None, archive empty@2026-10-05T16:35:46.008746+00:00 -> None@None
+  group A  01bc9588-ed62-49a4-8522-24fd7690f7f3  Suriname v Guatemala  2026-10-02T22:00:00 UTC  scheduled
+           attempts 3 -> 0 [exact], last_attempt_at 2026-10-05T16:35:46.022128+00:00 -> None, archive empty@2026-10-05T16:35:46.008746+00:00 -> None@None
+  group A  0840c56d-a21e-418c-9934-a61297100695  Colombia v Paraguay  2026-10-03T00:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.448857+00:00 -> None, archive empty@2026-10-05T22:54:47.434682+00:00 -> None@None
+  group A  35917448-65dc-44f9-82c4-df17598c1636  Barbados v Bermuda  2026-10-03T00:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.444093+00:00 -> None, archive empty@2026-10-05T22:54:47.432404+00:00 -> None@None
+  group A  9b2c4291-56d3-43bf-a416-d228624e1c28  Martinique v Honduras  2026-10-03T00:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.445141+00:00 -> None, archive empty@2026-10-05T22:54:47.432404+00:00 -> None@None
+  group A  b9b277bf-3590-4a55-a450-8d2ed119c857  Bonaire v Grenada  2026-10-03T00:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.446278+00:00 -> None, archive empty@2026-10-05T22:54:47.432404+00:00 -> None@None
+  group A  076424a8-1515-42bb-923f-de287274f75e  El Salvador v Jamaica  2026-10-03T02:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.447078+00:00 -> None, archive empty@2026-10-05T22:54:47.432404+00:00 -> None@None
+  group A  8c583ac0-8a7c-4dcf-b995-5ffd7068e856  Fiji v Vanuatu  2026-10-03T04:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.449716+00:00 -> None, archive empty@2026-10-05T22:54:47.434682+00:00 -> None@None
+  group A  341ab36f-0eda-45ab-8f62-8ac66b8522b0  Tunisia v Mali  2026-10-03T10:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.450408+00:00 -> None, archive empty@2026-10-05T22:54:47.434682+00:00 -> None@None
+  group A  4a153516-294b-4bac-b3ef-58013357b8bd  India v Brazil  2026-10-03T10:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.451779+00:00 -> None, archive empty@2026-10-05T22:54:47.434682+00:00 -> None@None
+  group A  8300116e-10ef-4cf9-a4d9-4a123eda09b0  Sri Lanka v Djibouti  2026-10-03T10:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.451105+00:00 -> None, archive empty@2026-10-05T22:54:47.434682+00:00 -> None@None
+  group A  c9b4f24a-a481-48fa-a9f9-2a61b13a5900  Finland v Albania  2026-10-03T13:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.437122+00:00 -> None, archive empty@2026-10-05T22:54:47.428267+00:00 -> None@None
+  group A  9f33b820-9997-4bcc-bb33-ed18b20566aa  Russia v Namibia  2026-10-03T15:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.452738+00:00 -> None, archive empty@2026-10-05T22:54:47.434682+00:00 -> None@None
+  group A  a2bcce4e-841a-47ef-a8ef-1e47500a696e  Belarus v San Marino  2026-10-03T16:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.438444+00:00 -> None, archive empty@2026-10-05T22:54:47.428267+00:00 -> None@None
+  group A  a2e1562d-867d-414a-9f18-150d84084de0  Croatia v England  2026-10-03T16:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.440419+00:00 -> None, archive empty@2026-10-05T22:54:47.428267+00:00 -> None@None
+  group A  ab9588e1-4af0-46aa-842e-44da832a4e11  Estonia v Luxembourg  2026-10-03T16:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.439195+00:00 -> None, archive empty@2026-10-05T22:54:47.428267+00:00 -> None@None
+  group A  eb445dc5-2d86-4599-85b4-cc3a5e92bf91  Iceland v Bulgaria  2026-10-03T16:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.439821+00:00 -> None, archive empty@2026-10-05T22:54:47.428267+00:00 -> None@None
+  group A  889729b0-56b7-4d68-8882-ceb914854a79  Canada v Peru  2026-10-03T18:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.453684+00:00 -> None, archive empty@2026-10-05T22:54:47.434682+00:00 -> None@None
+  group A  7f355728-4659-49ed-972e-6064517ef308  Spain v Czech Republic  2026-10-03T18:45:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.443061+00:00 -> None, archive empty@2026-10-05T22:54:47.428267+00:00 -> None@None
+  group A  8eaf8812-d0ef-4c4b-8b6a-7e91b96f976c  FYR Macedonia v Scotland  2026-10-03T18:45:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.441135+00:00 -> None, archive empty@2026-10-05T22:54:47.428267+00:00 -> None@None
+  group A  f8586d25-1dd2-4160-ab68-5edf446707c8  Switzerland v Slovenia  2026-10-03T18:45:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.442038+00:00 -> None, archive empty@2026-10-05T22:54:47.428267+00:00 -> None@None
+  group A  00a0e0fb-46e6-453d-a4a3-37af0a52ef1f  Ivory Coast v Cameroon  2026-10-03T20:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.454509+00:00 -> None, archive empty@2026-10-05T22:54:47.434682+00:00 -> None@None
+  group A  a60228a8-6645-42af-8744-619971b9fb60  Sint Maarten v Saint Vincent and The Grenadines  2026-10-03T21:00:00 UTC  scheduled
+           attempts 4 -> 0 [exact], last_attempt_at 2026-10-05T22:54:47.447981+00:00 -> None, archive empty@2026-10-05T22:54:47.432404+00:00 -> None@None
+  group A  e35e3b78-f8a1-4801-9e43-a14df8e7cd76  Argentina v Burkina Faso  2026-10-04T00:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.876857+00:00 -> None, archive empty@2026-10-06T00:25:19.841592+00:00 -> None@None
+  group A  6cc2c578-ea38-4f10-b34d-f28b5d377c88  Belize v French Guiana  2026-10-04T02:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.861352+00:00 -> None, archive empty@2026-10-06T00:25:19.834808+00:00 -> None@None
+  group A  e7855ab3-5b5a-419b-9889-5e4f4e33162f  USA v Mexico  2026-10-04T02:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.878501+00:00 -> None, archive empty@2026-10-06T00:25:19.841592+00:00 -> None@None
+  group A  1112f5d3-0052-4cc9-9ac0-2a68fd7533a8  Senegal v Comoros  2026-10-04T10:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.879948+00:00 -> None, archive empty@2026-10-06T00:25:19.841592+00:00 -> None@None
+  group A  c5912349-a167-4647-836e-e55a205fbdf5  Kyrgyzstan v Lebanon  2026-10-04T12:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.881347+00:00 -> None, archive empty@2026-10-06T00:25:19.841592+00:00 -> None@None
+  group A  d8d88c67-c430-4e06-9043-19cb0b338520  Azerbaijan v Lithuania  2026-10-04T13:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.847237+00:00 -> None, archive empty@2026-10-06T00:25:19.825069+00:00 -> None@None
+  group A  18b34d79-834b-477d-8dc6-691b4c9e5425  Kosovo v Austria  2026-10-04T16:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.851184+00:00 -> None, archive empty@2026-10-06T00:25:19.825069+00:00 -> None@None
+  group A  a27582d3-35ed-4707-ba42-78e3a30dd156  Malta v Andorra  2026-10-04T16:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.849532+00:00 -> None, archive empty@2026-10-06T00:25:19.825069+00:00 -> None@None
+  group A  c278d9bb-41ad-4ff4-bdaf-c89ecf2aa4b0  Morocco v Ghana  2026-10-04T18:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.884272+00:00 -> None, archive empty@2026-10-06T00:25:19.841592+00:00 -> None@None
+  group A  fc177543-349b-4f13-b87a-8f0e85acaf94  Egypt v South Africa  2026-10-04T18:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.882785+00:00 -> None, archive empty@2026-10-06T00:25:19.841592+00:00 -> None@None
+  group A  867ee6cd-7675-4c1f-b91a-e0d42e8064f6  Republic of Ireland v Israel  2026-10-04T18:45:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.852981+00:00 -> None, archive empty@2026-10-06T00:25:19.825069+00:00 -> None@None
+  group A  89b2c04a-ffa1-43bb-be30-701e4fc412b4  Greece v Germany  2026-10-04T18:45:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.856192+00:00 -> None, archive empty@2026-10-06T00:25:19.825069+00:00 -> None@None
+  group A  903c23e1-1eca-4457-9750-b7a728af089e  Netherlands v Serbia  2026-10-04T18:45:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.858167+00:00 -> None, archive empty@2026-10-06T00:25:19.825069+00:00 -> None@None
+  group A  c20a511f-2508-4074-8f7c-779214dc2755  Portugal v Norway  2026-10-04T18:45:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.859881+00:00 -> None, archive empty@2026-10-06T00:25:19.825069+00:00 -> None@None
+  group A  ff388807-2816-48df-87eb-5b1bc1978db7  Wales v Denmark  2026-10-04T18:45:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.854807+00:00 -> None, archive empty@2026-10-06T00:25:19.825069+00:00 -> None@None
+  group A  3383b456-ae76-44ae-bfc1-2e7b7e7a6777  Turks and Caicos Islands v British Virgin Islands  2026-10-04T19:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.863629+00:00 -> None, archive empty@2026-10-06T00:25:19.834808+00:00 -> None@None
+  group A  7d4bed02-12b4-4055-ab79-39bb17f28d5c  Guyana v Dominica  2026-10-04T19:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.862560+00:00 -> None, archive empty@2026-10-06T00:25:19.834808+00:00 -> None@None
+  group A  ecab8280-195d-44b7-a3c5-dd92951e9c25  Bahamas v U.S. Virgin Islands  2026-10-04T20:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.864865+00:00 -> None, archive empty@2026-10-06T00:25:19.834808+00:00 -> None@None
+  group A  0959581f-65bb-4cf9-bbac-6ededadb94a3  Puerto Rico v Cayman Islands  2026-10-04T22:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.867253+00:00 -> None, archive empty@2026-10-06T00:25:19.834808+00:00 -> None@None
+  group A  48cad3c9-0024-42bb-b54c-132fae4ef6ad  Trinidad and Tobago v Curacao  2026-10-04T22:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.871764+00:00 -> None, archive empty@2026-10-06T00:25:19.834808+00:00 -> None@None
+  group A  0a69f8f7-5d3d-45bd-9ac1-64a350b766db  Bolivia v Gambia  2026-10-04T22:30:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.886134+00:00 -> None, archive empty@2026-10-06T00:25:19.841592+00:00 -> None@None
+  group A  deb00878-ec25-4e26-9327-a98a81becdee  Aruba v Anguilla  2026-10-04T23:00:00 UTC  scheduled
+           attempts 1 -> 0 [exact], last_attempt_at 2026-10-06T00:25:19.875243+00:00 -> None, archive empty@2026-10-06T00:25:19.834808+00:00 -> None@None
+
+observations by class: {1: 8, 2: 2, 3: 3}; fixtures by group: {'A': 57, 'B': 3, 'C': 6}; asks removed: 32; attempts removed: 167
+
+report: <scratch>/apply/repro/apply.jsonl
+
+written: 13 observation(s), 66 fixture(s)

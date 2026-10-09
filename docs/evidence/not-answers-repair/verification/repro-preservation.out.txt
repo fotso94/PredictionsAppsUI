@@ -1,0 +1,3 @@
+row counts compared on 74 tables
+predictions.leagues: 32 untouched rows identical, 4 target rows metadata-only
+predictions.matches: 279 untouched rows identical, 66 target rows metadata-only

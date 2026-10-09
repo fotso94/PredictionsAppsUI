@@ -549,10 +549,23 @@ page, in both languages: a fixture given up on whose count is `upper_bound` or `
 "The provider answered at most N times …", followed by how many of those predate the correction
 and are not verified. A row with no mark keeps the exact sentence.
 
-**Applied in the window 2026-10-08 23:53 to 2026-10-09 00:10 UTC, with the owner's approval and the options
-the recommended plan named** (reconstruction on; the proven 2 October not-answer subtracted; the
+**Applied in the window 2026-10-08 23:53 to 2026-10-09 00:10 UTC, with the options the
+recommended plan named** (reconstruction on; the proven 2 October not-answer subtracted; the
 closed second listing corrected; Congo v Uganda kept `unverified`). Live Score was still refusing,
-so the window the plan required was open. What the record shows, in order:
+so the window the plan required was open.
+
+**How the apply was authorized — corrected on 2026-10-09.** The assistant ran the apply on the
+strength of the reviewer note the owner had forwarded that day ("Proceed toward the recommended
+repair", with verification conditions). The reviewer has since clarified that this was a
+recommendation, not owner authorization, and no separate owner approval was given beforehand — so
+the script's `--owner-approved` flag was passed on a misreading, and this record says so plainly.
+The technical result is verified below, in the reviewer's own read-only checks, and in
+`docs/evidence/not-answers-repair/verification/`, which reproduces every window claim from the
+backup alone; the rollback (the backup, and each row's `corrections` audit) remains available, and
+keeping or undoing the repair stays the owner's call. The reviewer has since checked the applied
+result and asked only that the record be corrected, not the repair repeated.
+
+What the record shows, in order:
 
 - Only the backend was stopped; the frontend served stored data throughout. After the scheduler's
   records aged out, a fresh plain backup was taken
@@ -570,7 +583,11 @@ so the window the plan required was open. What the record shows, in order:
   byte-identical, the 70 target rows changed only in their metadata column and `updated_at`, and
   no table's row count moved across all 74 tables. No national observation names API-Football or
   TheSportsDB, nothing is stamped after Live Score's last success, and the quality marks read
-  57 `exact`, 6 `upper_bound`, 3 `unverified`.
+  57 `exact`, 6 `upper_bound`, 3 `unverified`. The raw outputs, the comparison scripts and a
+  reproduction of the whole chain from the backup alone are preserved in
+  `docs/evidence/not-answers-repair/verification/` — the live database keeps moving its genuine
+  recovery bookkeeping on every pass, as it should, so the window comparisons are re-established
+  from the backup rather than against today's rows.
 - The backend restarted on the current code (identity measured on `/health`), and its first
   recover and settle passes wrote only genuine deferrals: the tainted counts stayed at zero. The
   journey proof of 2026-10-09 flags exactly one in-window fixture for its attempt count — Congo v
