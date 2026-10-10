@@ -1,0 +1,148 @@
+<testsuites id="" name="playwright-live" tests="56" failures="0" skipped="1" errors="0" time="162.192332">
+<testsuite name="live/detail-refresh.spec.ts" timestamp="2026-10-10T18:37:20.389Z" hostname="live" tests="2" failures="0" skipped="1" time="14.216" errors="0">
+<testcase name="[live] coming back to a match page reads it once, from stored data, and spends nothing" classname="live/detail-refresh.spec.ts" time="14.028">
+</testcase>
+<testcase name="[live] a fixture in play keeps its running score under a running label across a return" classname="live/detail-refresh.spec.ts">
+<properties>
+<property name="skip" value="no fixture is in play in the local database right now">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+<testsuite name="live/expert-composer.spec.ts" timestamp="2026-10-10T18:37:20.389Z" hostname="live" tests="3" failures="0" skipped="0" time="6.873" errors="0">
+<testcase name="[live] an expert reaches the form without ever seeing a match id" classname="live/expert-composer.spec.ts" time="1.742">
+</testcase>
+<testcase name="[live] the form suggests no probability of its own" classname="live/expert-composer.spec.ts" time="2.326">
+</testcase>
+<testcase name="[live] a percentage typed as 55 is stored as 0.55 and published immediately" classname="live/expert-composer.spec.ts" time="2.805">
+</testcase>
+</testsuite>
+<testsuite name="live/expert-publishing.spec.ts" timestamp="2026-10-10T18:37:20.389Z" hostname="live" tests="7" failures="0" skipped="0" time="7.096" errors="0">
+<testcase name="[live] a published prediction needs no approval and is public immediately" classname="live/expert-publishing.spec.ts" time="1.092">
+</testcase>
+<testcase name="[live] an expert prediction is shown apart from the model forecast" classname="live/expert-publishing.spec.ts" time="1.12">
+</testcase>
+<testcase name="[live] editing a published prediction updates the public view" classname="live/expert-publishing.spec.ts" time="1.189">
+</testcase>
+<testcase name="[live] deleting a prediction removes it from the public view immediately" classname="live/expert-publishing.spec.ts" time="1.172">
+</testcase>
+<testcase name="[live] a record the suite creates is classified as test data, by a flag and not by its text" classname="live/expert-publishing.spec.ts" time="0.116">
+</testcase>
+<testcase name="[live] the QA label in the reasoning is a label, not a mechanism" classname="live/expert-publishing.spec.ts" time="0.125">
+</testcase>
+<testcase name="[live] an expert signs in through the UI and reaches the match picker" classname="live/expert-publishing.spec.ts" time="2.282">
+<system-err>
+<![CDATA[[qa-account] removing a record that carries the legacy reasoning label but no is_test_data classification. Either the backend is running without ALLOW_TEST_DATA_CLASSIFICATION, or the record was created through the composer UI, which does not yet ask for the classification.
+]]>
+</system-err>
+</testcase>
+</testsuite>
+<testsuite name="live/journey-proof.spec.ts" timestamp="2026-10-10T18:37:20.389Z" hostname="live" tests="11" failures="0" skipped="0" time="53.284" errors="0">
+<testcase name="[live] LIVE: the personal journey, end to end, at 360px" classname="live/journey-proof.spec.ts" time="9.205">
+<system-out>
+<![CDATA[[journey-proof] all providers BEFORE: {"livescore":{"usedToday":138,"schedulerSent":4047},"api_football":{"usedToday":17,"schedulerSent":236},"thesportsdb":{"usedToday":4,"schedulerSent":23},"gameforecast":{"usedToday":7,"schedulerSent":97}}
+]]>
+</system-out>
+</testcase>
+<testcase name="[live] LIVE: the personal journey, end to end, at 390px" classname="live/journey-proof.spec.ts" time="8.962">
+</testcase>
+<testcase name="[live] LIVE: the personal journey, end to end, at 1440px" classname="live/journey-proof.spec.ts" time="5.51">
+</testcase>
+<testcase name="[live] LIVE: Back restores the previous list, its filters and its position at 360px" classname="live/journey-proof.spec.ts" time="5.515">
+</testcase>
+<testcase name="[live] LIVE: Back restores the previous list, its filters and its position at 390px" classname="live/journey-proof.spec.ts" time="5.528">
+</testcase>
+<testcase name="[live] LIVE: Back restores the previous list, its filters and its position at 1440px" classname="live/journey-proof.spec.ts" time="8.419">
+</testcase>
+<testcase name="[live] LIVE: a save resumed after sign-in on an already-saved match leaves one saved match, not two" classname="live/journey-proof.spec.ts" time="3.472">
+</testcase>
+<testcase name="[live] LIVE (one route failed in the browser): a feed short because a follow failed says so, and offers a retry" classname="live/journey-proof.spec.ts" time="1.441">
+</testcase>
+<testcase name="[live] LIVE: a save made from the keyboard leaves focus on the control that made it, at 360px" classname="live/journey-proof.spec.ts" time="1.743">
+</testcase>
+<testcase name="[live] LIVE: a save made from the keyboard leaves focus on the control that made it, at 390px" classname="live/journey-proof.spec.ts" time="1.749">
+</testcase>
+<testcase name="[live] LIVE: a save made from the keyboard leaves focus on the control that made it, at 1440px" classname="live/journey-proof.spec.ts" time="1.74">
+<system-out>
+<![CDATA[[journey-proof] all providers AFTER:  {"livescore":{"usedToday":138,"schedulerSent":4047},"api_football":{"usedToday":17,"schedulerSent":236},"thesportsdb":{"usedToday":4,"schedulerSent":23},"gameforecast":{"usedToday":7,"schedulerSent":97}}
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="live/personal-controls.spec.ts" timestamp="2026-10-10T18:37:20.389Z" hostname="live" tests="12" failures="0" skipped="0" time="24.415" errors="0">
+<testcase name="[live] personal controls at 1440px › a reader can turn the forecasts off, keep the football, and find it still off after a reload" classname="live/personal-controls.spec.ts" time="2.972">
+</testcase>
+<testcase name="[live] personal controls at 1440px › pausing stops everything optional, says exactly what it is not, and gives the settings back" classname="live/personal-controls.spec.ts" time="1.815">
+</testcase>
+<testcase name="[live] personal controls at 1440px › a reader can download their own data, and what comes out is their own data" classname="live/personal-controls.spec.ts" time="1.904">
+</testcase>
+<testcase name="[live] personal controls at 1440px › the calendar download is a snapshot, says so beside the button, and implies no feed" classname="live/personal-controls.spec.ts" time="1.737">
+</testcase>
+<testcase name="[live] personal controls at 1440px › deletion asks once, is honest about what remains, and the server really has nothing left" classname="live/personal-controls.spec.ts" time="2.024">
+</testcase>
+<testcase name="[live] personal controls at 1440px › nothing on the panel nudges, and none of this spends a provider request" classname="live/personal-controls.spec.ts" time="1.948">
+</testcase>
+<testcase name="[live] personal controls at 390px › a reader can turn the forecasts off, keep the football, and find it still off after a reload" classname="live/personal-controls.spec.ts" time="2.756">
+</testcase>
+<testcase name="[live] personal controls at 390px › pausing stops everything optional, says exactly what it is not, and gives the settings back" classname="live/personal-controls.spec.ts" time="1.761">
+</testcase>
+<testcase name="[live] personal controls at 390px › a reader can download their own data, and what comes out is their own data" classname="live/personal-controls.spec.ts" time="1.816">
+</testcase>
+<testcase name="[live] personal controls at 390px › the calendar download is a snapshot, says so beside the button, and implies no feed" classname="live/personal-controls.spec.ts" time="1.727">
+</testcase>
+<testcase name="[live] personal controls at 390px › deletion asks once, is honest about what remains, and the server really has nothing left" classname="live/personal-controls.spec.ts" time="2.035">
+</testcase>
+<testcase name="[live] personal controls at 390px › nothing on the panel nudges, and none of this spends a provider request" classname="live/personal-controls.spec.ts" time="1.92">
+</testcase>
+</testsuite>
+<testsuite name="live/real-data.spec.ts" timestamp="2026-10-10T18:37:20.389Z" hostname="live" tests="4" failures="0" skipped="0" time="3.544" errors="0">
+<testcase name="[live] the coverage figures the home page shows are measured, not invented" classname="live/real-data.spec.ts" time="1.758">
+</testcase>
+<testcase name="[live] a stored forecast renders with the same numbers the API serves" classname="live/real-data.spec.ts" time="1.142">
+</testcase>
+<testcase name="[live] three distinct forecast timestamps reach the API" classname="live/real-data.spec.ts" time="0.279">
+</testcase>
+<testcase name="[live] no provider request is spent by browsing" classname="live/real-data.spec.ts" time="0.365">
+</testcase>
+</testsuite>
+<testsuite name="live/return-journey.spec.ts" timestamp="2026-10-10T18:37:20.389Z" hostname="live" tests="7" failures="0" skipped="0" time="19.338" errors="0">
+<testcase name="[live] a saved match that has been played shows its result in the feed" classname="live/return-journey.spec.ts" time="2.149">
+</testcase>
+<testcase name="[live] the results group is reachable from the top of the feed without scrolling for it" classname="live/return-journey.spec.ts" time="1.767">
+</testcase>
+<testcase name="[live] a followed team&apos;s upcoming fixtures appear in the feed, labelled with the follow" classname="live/return-journey.spec.ts" time="2.164">
+</testcase>
+<testcase name="[live] unfollowing a team on the dashboard takes its fixtures out of the feed at once" classname="live/return-journey.spec.ts" time="1.865">
+</testcase>
+<testcase name="[live] an account with nothing saved and nothing followed gets an honest empty feed" classname="live/return-journey.spec.ts" time="1.548">
+</testcase>
+<testcase name="[live] coming back to the tab picks up a change made elsewhere, and spends no provider request" classname="live/return-journey.spec.ts" time="8.073">
+</testcase>
+<testcase name="[live] on a 390px phone › the feed fits the screen and scrolls only downwards" classname="live/return-journey.spec.ts" time="1.772">
+</testcase>
+</testsuite>
+<testsuite name="live/save-journey.spec.ts" timestamp="2026-10-10T18:37:20.389Z" hostname="live" tests="10" failures="0" skipped="0" time="31.787" errors="0">
+<testcase name="[live] the star in the fixture list finishes the save across sign-in, and keeps the list it was pressed on" classname="live/save-journey.spec.ts" time="4.943">
+</testcase>
+<testcase name="[live] the save a visitor started finishes itself after sign-in, and the match is on the dashboard" classname="live/save-journey.spec.ts" time="2.998">
+</testcase>
+<testcase name="[live] the match-page control saves and unsaves, and says which it is" classname="live/save-journey.spec.ts" time="1.839">
+</testcase>
+<testcase name="[live] a save made from the keyboard never moves focus off the control that made it" classname="live/save-journey.spec.ts" time="1.69">
+</testcase>
+<testcase name="[live] the way back to results still carries the competition after a sign-in round trip" classname="live/save-journey.spec.ts" time="2.489">
+</testcase>
+<testcase name="[live] a &quot;back to results&quot; the fixture URL asks for must be a results list on this application" classname="live/save-journey.spec.ts" time="7.968">
+</testcase>
+<testcase name="[live] a return destination that leaves this application is refused" classname="live/save-journey.spec.ts" time="3.511">
+</testcase>
+<testcase name="[live] a save intent left over from hours ago is not acted on" classname="live/save-journey.spec.ts" time="1.581">
+</testcase>
+<testcase name="[live] the return-to-results action goes back to the filtered list the reader came from" classname="live/save-journey.spec.ts" time="2.025">
+</testcase>
+<testcase name="[live] a saved fixture that has been played shows its result" classname="live/save-journey.spec.ts" time="2.743">
+</testcase>
+</testsuite>
+</testsuites>

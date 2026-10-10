@@ -1,0 +1,7 @@
+
+Running 2 tests using 1 worker
+
+  ✓  1 [live-isolated] › e2e/live-isolated/parlay-journey.spec.ts:58:1 › a real fixture → a selection → a saved, recorded combination, with no provider request (3.0s)
+  ✓  2 [live-isolated] › e2e/live-isolated/parlay-journey.spec.ts:124:1 › suggestions come from stored forecasts and add to the slip without a provider request (1.2s)
+
+  2 passed (4.6s)

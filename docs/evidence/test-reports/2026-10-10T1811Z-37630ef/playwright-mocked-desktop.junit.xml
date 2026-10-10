@@ -1,0 +1,970 @@
+<testsuites id="" name="playwright-mocked-desktop" tests="453" failures="0" skipped="2" errors="0" time="641.9490010000001">
+<testsuite name="mocked/clutter.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="13" failures="0" skipped="0" time="13.723" errors="0">
+<testcase name="[mocked-desktop] the forecast table is far closer to the top of a phone than it was" classname="mocked/clutter.spec.ts" time="1.022">
+</testcase>
+<testcase name="[mocked-desktop] the home page is materially shorter on a phone, with nothing dropped" classname="mocked/clutter.spec.ts" time="0.901">
+</testcase>
+<testcase name="[mocked-desktop] the headings on the home page are written for a reader who wants football" classname="mocked/clutter.spec.ts" time="0.818">
+</testcase>
+<testcase name="[mocked-desktop] the quota explanation appears exactly once on a match detail page" classname="mocked/clutter.spec.ts" time="0.843">
+</testcase>
+<testcase name="[mocked-desktop] a paused refresh alone raises no site-wide banner, and a broken provider still does" classname="mocked/clutter.spec.ts" time="1.433">
+</testcase>
+<testcase name="[mocked-desktop] fixture freshness and forecast freshness are separately identifiable" classname="mocked/clutter.spec.ts" time="0.874">
+</testcase>
+<testcase name="[mocked-desktop] the technical detail is one tap away, not deleted" classname="mocked/clutter.spec.ts" time="0.867">
+</testcase>
+<testcase name="[mocked-desktop] the site-wide banner keeps its extra reports behind a disclosure" classname="mocked/clutter.spec.ts" time="0.836">
+</testcase>
+<testcase name="[mocked-desktop] no odds panel exists while no odds feed does" classname="mocked/clutter.spec.ts" time="0.761">
+</testcase>
+<testcase name="[mocked-desktop] the missing-expert explanation appears once" classname="mocked/clutter.spec.ts" time="0.79">
+</testcase>
+<testcase name="[mocked-desktop] neither page scrolls sideways at 360px, banner and all" classname="mocked/clutter.spec.ts" time="1.541">
+</testcase>
+<testcase name="[mocked-desktop] neither page scrolls sideways at 390px, banner and all" classname="mocked/clutter.spec.ts" time="1.494">
+</testcase>
+<testcase name="[mocked-desktop] neither page scrolls sideways at 1440px, banner and all" classname="mocked/clutter.spec.ts" time="1.543">
+</testcase>
+</testsuite>
+<testsuite name="mocked/conviction-clearing.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="10" failures="0" skipped="0" time="8.571" errors="0">
+<testcase name="[mocked-desktop] clearing a value in the composer reaches the API as a withdrawal › a cleared conviction is sent as an explicit null" classname="mocked/conviction-clearing.spec.ts" time="1.363">
+</testcase>
+<testcase name="[mocked-desktop] clearing a value in the composer reaches the API as a withdrawal › a conviction that was not touched is sent unchanged, not withdrawn" classname="mocked/conviction-clearing.spec.ts" time="0.455">
+</testcase>
+<testcase name="[mocked-desktop] clearing a value in the composer reaches the API as a withdrawal › a conviction of zero is sent as zero and not as a withdrawal" classname="mocked/conviction-clearing.spec.ts" time="1.335">
+</testcase>
+<testcase name="[mocked-desktop] clearing a value in the composer reaches the API as a withdrawal › a cleared reasoning note is sent as an explicit null" classname="mocked/conviction-clearing.spec.ts" time="1.825">
+</testcase>
+<testcase name="[mocked-desktop] clearing a value in the composer reaches the API as a withdrawal › switching a market off sends both sides of the pair as null, never one" classname="mocked/conviction-clearing.spec.ts" time="0.638">
+</testcase>
+<testcase name="[mocked-desktop] clearing a value in the composer reaches the API as a withdrawal › a market switched on is sent whole, with both sides as numbers" classname="mocked/conviction-clearing.spec.ts" time="0.547">
+</testcase>
+<testcase name="[mocked-desktop] clearing a value in the composer reaches the API as a withdrawal › a conviction can be withdrawn while its market stays published" classname="mocked/conviction-clearing.spec.ts" time="0.817">
+</testcase>
+<testcase name="[mocked-desktop] clearing a value in the composer reaches the API as a withdrawal › an unbalanced pair is never sent at all" classname="mocked/conviction-clearing.spec.ts" time="0.532">
+</testcase>
+<testcase name="[mocked-desktop] a total the API cannot store is refused in the form › three outcomes that add to 99 are held back, and the form says to add 1" classname="mocked/conviction-clearing.spec.ts" time="0.525">
+</testcase>
+<testcase name="[mocked-desktop] a total the API cannot store is refused in the form › a pair that only rounds past the window at the fourth decimal is held back" classname="mocked/conviction-clearing.spec.ts" time="0.534">
+</testcase>
+</testsuite>
+<testsuite name="mocked/dashboard-truthfulness.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="5" failures="0" skipped="0" time="4.457" errors="0">
+<testcase name="[mocked-desktop] the dashboard is not reachable without signing in" classname="mocked/dashboard-truthfulness.spec.ts" time="0.81">
+</testcase>
+<testcase name="[mocked-desktop] the dashboard shows no fabricated performance figures" classname="mocked/dashboard-truthfulness.spec.ts" time="0.902">
+</testcase>
+<testcase name="[mocked-desktop] the dashboard says plainly that no record has been scored" classname="mocked/dashboard-truthfulness.spec.ts" time="0.923">
+</testcase>
+<testcase name="[mocked-desktop] the coverage counts are labelled site-wide, not as the reader&apos;s own record" classname="mocked/dashboard-truthfulness.spec.ts" time="0.923">
+</testcase>
+<testcase name="[mocked-desktop] a dashboard whose coverage endpoint fails says so instead of showing a number" classname="mocked/dashboard-truthfulness.spec.ts" time="0.899">
+</testcase>
+</testsuite>
+<testsuite name="mocked/detail-refresh.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="3" failures="0" skipped="0" time="16.157" errors="0">
+<testcase name="[mocked-desktop] a match page that was left open › coming back to the tab shows the new score, the new state and the new age" classname="mocked/detail-refresh.spec.ts" time="6.897">
+</testcase>
+<testcase name="[mocked-desktop] a match page that was left open › a page that has just loaded and taken focus does not read again" classname="mocked/detail-refresh.spec.ts" time="2.359">
+</testcase>
+<testcase name="[mocked-desktop] a match page that was left open › a re-read that fails keeps the content and withdraws the age" classname="mocked/detail-refresh.spec.ts" time="6.901">
+</testcase>
+</testsuite>
+<testsuite name="mocked/expert-localisation.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="32" failures="0" skipped="0" time="33.856" errors="0">
+<testcase name="[mocked-desktop] every expert screen is in en and carries nothing from the other CATALOGUE" classname="mocked/expert-localisation.spec.ts" time="3.575">
+</testcase>
+<testcase name="[mocked-desktop] every expert screen is in fr and carries nothing from the other CATALOGUE" classname="mocked/expert-localisation.spec.ts" time="3.556">
+</testcase>
+<testcase name="[mocked-desktop] an unscored accuracy and an unclaimed conviction are sentences, not zeros, in en" classname="mocked/expert-localisation.spec.ts" time="0.805">
+</testcase>
+<testcase name="[mocked-desktop] an average conviction of zero is a claim, not a blank, in en" classname="mocked/expert-localisation.spec.ts" time="0.771">
+</testcase>
+<testcase name="[mocked-desktop] a market the expert never published reads as unset, not 0%, in en" classname="mocked/expert-localisation.spec.ts" time="0.858">
+</testcase>
+<testcase name="[mocked-desktop] a conviction the expert never claimed reads as unset, not 0%, in en" classname="mocked/expert-localisation.spec.ts" time="0.856">
+</testcase>
+<testcase name="[mocked-desktop] a conviction the expert deliberately set to zero still reads as 0%, in en" classname="mocked/expert-localisation.spec.ts" time="0.855">
+</testcase>
+<testcase name="[mocked-desktop] an unscored accuracy and an unclaimed conviction are sentences, not zeros, in fr" classname="mocked/expert-localisation.spec.ts" time="0.788">
+</testcase>
+<testcase name="[mocked-desktop] an average conviction of zero is a claim, not a blank, in fr" classname="mocked/expert-localisation.spec.ts" time="0.789">
+</testcase>
+<testcase name="[mocked-desktop] a market the expert never published reads as unset, not 0%, in fr" classname="mocked/expert-localisation.spec.ts" time="0.859">
+</testcase>
+<testcase name="[mocked-desktop] a conviction the expert never claimed reads as unset, not 0%, in fr" classname="mocked/expert-localisation.spec.ts" time="0.875">
+</testcase>
+<testcase name="[mocked-desktop] a conviction the expert deliberately set to zero still reads as 0%, in fr" classname="mocked/expert-localisation.spec.ts" time="0.874">
+</testcase>
+<testcase name="[mocked-desktop] every count on the expert screens is right at 0, 1, 2 and 11, in both languages" classname="mocked/expert-localisation.spec.ts" time="0.011">
+</testcase>
+<testcase name="[mocked-desktop] no expert message counts something without being in the table above" classname="mocked/expert-localisation.spec.ts" time="0">
+</testcase>
+<testcase name="[mocked-desktop] a kick-off and a timestamp are shown in the CHOSEN zone, not the device&apos;s, in en" classname="mocked/expert-localisation.spec.ts" time="0.806">
+</testcase>
+<testcase name="[mocked-desktop] a kick-off and a timestamp are shown in the CHOSEN zone, not the device&apos;s, in fr" classname="mocked/expert-localisation.spec.ts" time="0.807">
+</testcase>
+<testcase name="[mocked-desktop] the moderation list reads its timestamps in the chosen zone too" classname="mocked/expert-localisation.spec.ts" time="0.802">
+</testcase>
+<testcase name="[mocked-desktop] an unfinished draft for another fixture is offered in en, whole sentence and all" classname="mocked/expert-localisation.spec.ts" time="0.878">
+</testcase>
+<testcase name="[mocked-desktop] a restored draft says so in en, and says it publishes nothing by itself" classname="mocked/expert-localisation.spec.ts" time="0.798">
+</testcase>
+<testcase name="[mocked-desktop] an unfinished draft for another fixture is offered in fr, whole sentence and all" classname="mocked/expert-localisation.spec.ts" time="0.89">
+</testcase>
+<testcase name="[mocked-desktop] a restored draft says so in fr, and says it publishes nothing by itself" classname="mocked/expert-localisation.spec.ts" time="0.809">
+</testcase>
+<testcase name="[mocked-desktop] a percentage typed as 55 in the French composer is still sent as 0.55" classname="mocked/expert-localisation.spec.ts" time="0.955">
+</testcase>
+<testcase name="[mocked-desktop] the English left on the French composer is counted, and has not grown" classname="mocked/expert-localisation.spec.ts" time="0.794">
+</testcase>
+<testcase name="[mocked-desktop] no expert screen asks a provider to refresh" classname="mocked/expert-localisation.spec.ts" time="3.483">
+</testcase>
+<testcase name="[mocked-desktop] the French match picker carries no English the catalogue cannot account for" classname="mocked/expert-localisation.spec.ts" time="0.9">
+</testcase>
+<testcase name="[mocked-desktop] the French match picker says nothing in English when the day is empty or the load fails" classname="mocked/expert-localisation.spec.ts" time="1.469">
+</testcase>
+<testcase name="[mocked-desktop] a near-midnight kick-off reads in Africa/Douala, not the browser&apos;s zone, in fr" classname="mocked/expert-localisation.spec.ts" time="0.81">
+</testcase>
+<testcase name="[mocked-desktop] a near-midnight kick-off reads in Africa/Nairobi, not the browser&apos;s zone, in fr" classname="mocked/expert-localisation.spec.ts" time="0.809">
+</testcase>
+<testcase name="[mocked-desktop] a near-midnight kick-off reads in Africa/Douala, not the browser&apos;s zone, in en" classname="mocked/expert-localisation.spec.ts" time="0.777">
+</testcase>
+<testcase name="[mocked-desktop] a near-midnight kick-off reads in Africa/Nairobi, not the browser&apos;s zone, in en" classname="mocked/expert-localisation.spec.ts" time="0.788">
+</testcase>
+<testcase name="[mocked-desktop] changing the zone re-times and re-dates the match picker already on screen" classname="mocked/expert-localisation.spec.ts" time="0.915">
+</testcase>
+<testcase name="[mocked-desktop] changing the zone asks the backend again, because the local day is a different window" classname="mocked/expert-localisation.spec.ts" time="0.894">
+</testcase>
+</testsuite>
+<testsuite name="mocked/favourites-consistency.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="28" failures="0" skipped="0" time="179.816" errors="0">
+<testcase name="[mocked-desktop] MOCKED-ONLY: a favourites read held open across sign-out is discarded, not kept for the next session" classname="mocked/favourites-consistency.spec.ts" time="6.845">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a favourites read discarded at sign-out leaves no focus watcher behind it" classname="mocked/favourites-consistency.spec.ts" time="8.23">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a favourites read from the previous account does not land in the next account&apos;s session" classname="mocked/favourites-consistency.spec.ts" time="7.001">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a favourites read that FAILS after the account changed does not fail the new session" classname="mocked/favourites-consistency.spec.ts" time="7.023">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a favourites read that predates a save does not undo the save" classname="mocked/favourites-consistency.spec.ts" time="6.979">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a favourites read that predates a follow does not undo the follow" classname="mocked/favourites-consistency.spec.ts" time="6.96">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a favourites read that predates an unfollow does not reinstate it" classname="mocked/favourites-consistency.spec.ts" time="6.928">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a SAVE released after another account signs in does not put the first reader&apos;s row — or their private note — into the second&apos;s" classname="mocked/favourites-consistency.spec.ts" time="7.278">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a SAVE that FAILS after another account signs in does not roll the first reader&apos;s snapshot into the second&apos;s" classname="mocked/favourites-consistency.spec.ts" time="7.364">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: an UNSAVE released after another account signs in does not remove the second reader&apos;s bookmark" classname="mocked/favourites-consistency.spec.ts" time="7.316">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: an UNSAVE that FAILS after another account signs in does not restore the first reader&apos;s saves into the second&apos;s session" classname="mocked/favourites-consistency.spec.ts" time="7.295">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a FOLLOW released after another account signs in does not follow anything for the second reader" classname="mocked/favourites-consistency.spec.ts" time="7.341">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a FOLLOW that FAILS after another account signs in does not roll the first reader&apos;s snapshot into the second&apos;s" classname="mocked/favourites-consistency.spec.ts" time="7.431">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a rollback after a failed write keeps what a refresh legitimately brought in" classname="mocked/favourites-consistency.spec.ts" time="6.893">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a refresh landing between an optimistic removal and its answer does not resurrect the bookmark" classname="mocked/favourites-consistency.spec.ts" time="6.963">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a refresh landing in the middle of a save does not leave the save undone" classname="mocked/favourites-consistency.spec.ts" time="7.417">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a refresh landing in the middle of an unfollow does not leave the team in the followed list" classname="mocked/favourites-consistency.spec.ts" time="6.9">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a note edit that fails after the result has landed leaves the finished match finished" classname="mocked/favourites-consistency.spec.ts" time="6.936">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a note edit that SUCCEEDS after the result has landed leaves the finished match finished" classname="mocked/favourites-consistency.spec.ts" time="6.948">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a save answer carrying a FRESHER fixture than the tab holds is adopted, result and all" classname="mocked/favourites-consistency.spec.ts" time="0.875">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: two unfollows answered in the reverse order leave both teams unfollowed" classname="mocked/favourites-consistency.spec.ts" time="1.395">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: two note edits on one match answered in the reverse order leave the LAST edit standing" classname="mocked/favourites-consistency.spec.ts" time="1.798">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: an unfollow answer must not delete a follow a refresh brought in from another device" classname="mocked/favourites-consistency.spec.ts" time="6.902">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: two overlapping note edits that BOTH fail leave the note the server still holds, not the first edit" classname="mocked/favourites-consistency.spec.ts" time="7.666">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: when the first of two overlapping note edits SUCCEEDS, the second&apos;s failure falls back to it and not to the original" classname="mocked/favourites-consistency.spec.ts" time="7.694">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: the first of two overlapping note edits SUCCEEDS and is answered LAST, and its note is what the reader is left with" classname="mocked/favourites-consistency.spec.ts" time="7.654">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a bookmark the server confirmed is not deleted by the failure of the write issued after it" classname="mocked/favourites-consistency.spec.ts" time="2.118">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: the older of two failed note edits does not undo a note a refresh brought in from the phone" classname="mocked/favourites-consistency.spec.ts" time="7.666">
+</testcase>
+</testsuite>
+<testsuite name="mocked/forecast-display.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="12" failures="0" skipped="0" time="9.035" errors="0">
+<testcase name="[mocked-desktop] forecast probabilities › a 1% probability reads as 1%, not 100%" classname="mocked/forecast-display.spec.ts" time="0.274">
+</testcase>
+<testcase name="[mocked-desktop] forecast probabilities › probabilities are shown as whole percentages that never exceed 100" classname="mocked/forecast-display.spec.ts" time="0.83">
+</testcase>
+<testcase name="[mocked-desktop] missing markets › a forecast with no 1X2 market never shows a 0% outcome" classname="mocked/forecast-display.spec.ts" time="0.781">
+</testcase>
+<testcase name="[mocked-desktop] missing markets › a forecast with only both-teams-to-score still renders that market" classname="mocked/forecast-display.spec.ts" time="0.796">
+</testcase>
+<testcase name="[mocked-desktop] missing markets › a forecast with only an exact score does not invent the other markets" classname="mocked/forecast-display.spec.ts" time="0.797">
+</testcase>
+<testcase name="[mocked-desktop] missing markets › a match with no forecast at all says so plainly" classname="mocked/forecast-display.spec.ts" time="0.796">
+</testcase>
+<testcase name="[mocked-desktop] payload observations › numbers that do not add up are flagged, not quietly corrected" classname="mocked/forecast-display.spec.ts" time="0.815">
+</testcase>
+<testcase name="[mocked-desktop] payload observations › a harmless bookkeeping note does not raise a caution" classname="mocked/forecast-display.spec.ts" time="0.799">
+</testcase>
+<testcase name="[mocked-desktop] confidence attribution › a model forecast never claims a confidence the model did not publish" classname="mocked/forecast-display.spec.ts" time="0.814">
+</testcase>
+<testcase name="[mocked-desktop] bookmaker odds › absent odds are reported as unavailable, never invented" classname="mocked/forecast-display.spec.ts" time="0.778">
+</testcase>
+<testcase name="[mocked-desktop] page health › today renders without console errors or failed requests" classname="mocked/forecast-display.spec.ts" time="0.777">
+</testcase>
+<testcase name="[mocked-desktop] page health › a match detail page renders without console errors" classname="mocked/forecast-display.spec.ts" time="0.778">
+</testcase>
+</testsuite>
+<testsuite name="mocked/freshness-truth.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="10" failures="0" skipped="0" time="9.613" errors="0">
+<testcase name="[mocked-desktop] a follow whose fixtures could not be read says so and offers a retry, while an empty one stays empty" classname="mocked/freshness-truth.spec.ts" time="0.85">
+</testcase>
+<testcase name="[mocked-desktop] retrying a failed follow recovers it, so an error is not left reading as a result" classname="mocked/freshness-truth.spec.ts" time="0.908">
+</testcase>
+<testcase name="[mocked-desktop] a task that is failing AND paused shows both, with the time it comes back" classname="mocked/freshness-truth.spec.ts" time="0.914">
+</testcase>
+<testcase name="[mocked-desktop] a forecast refresh the provider refused still says when it comes back" classname="mocked/freshness-truth.spec.ts" time="0.893">
+</testcase>
+<testcase name="[mocked-desktop] a task that ran and failed is not described as never having run" classname="mocked/freshness-truth.spec.ts" time="1.617">
+</testcase>
+<testcase name="[mocked-desktop] an attempt that is already late is reported as late, never as a moment in the past" classname="mocked/freshness-truth.spec.ts" time="0.898">
+</testcase>
+<testcase name="[mocked-desktop] with two tasks in trouble every sentence stays with the task it is about" classname="mocked/freshness-truth.spec.ts" time="0.853">
+</testcase>
+<testcase name="[mocked-desktop] a single failure is not described as a run, and its backoff is in the units the block uses" classname="mocked/freshness-truth.spec.ts" time="0.897">
+</testcase>
+<testcase name="[mocked-desktop] the Retry in the unreadable-follow empty state reports itself, like the row Retry beside it" classname="mocked/freshness-truth.spec.ts" time="0.893">
+</testcase>
+<testcase name="[mocked-desktop] the Retry on a feed shortened by an unreadable follow reports itself too" classname="mocked/freshness-truth.spec.ts" time="0.89">
+</testcase>
+</testsuite>
+<testsuite name="mocked/freshness.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="11" failures="0" skipped="0" time="9.305" errors="0">
+<testcase name="[mocked-desktop] a scheduler that has never run says so, and borrows no timestamp" classname="mocked/freshness.spec.ts" time="0.875">
+</testcase>
+<testcase name="[mocked-desktop] a scheduler that ran recently reports when, and stays quiet about it" classname="mocked/freshness.spec.ts" time="0.911">
+</testcase>
+<testcase name="[mocked-desktop] a paused refresh says when it resumes, not merely that it is paused" classname="mocked/freshness.spec.ts" time="0.879">
+</testcase>
+<testcase name="[mocked-desktop] a backend with no scheduler does not imply that one exists" classname="mocked/freshness.spec.ts" time="0.828">
+</testcase>
+<testcase name="[mocked-desktop] an unreachable status endpoint reads as unknown, never as current" classname="mocked/freshness.spec.ts" time="0.832">
+</testcase>
+<testcase name="[mocked-desktop] the match page carries the same freshness statement as the list" classname="mocked/freshness.spec.ts" time="0.854">
+</testcase>
+<testcase name="[mocked-desktop] with nothing scored the record says so, with the reason and the window" classname="mocked/freshness.spec.ts" time="0.828">
+</testcase>
+<testcase name="[mocked-desktop] a source with too few scored predictions gets a sentence, not a number" classname="mocked/freshness.spec.ts" time="0.829">
+</testcase>
+<testcase name="[mocked-desktop] a source with enough scored predictions shows the figure with its sample" classname="mocked/freshness.spec.ts" time="0.829">
+</testcase>
+<testcase name="[mocked-desktop] a failed performance request is not reported as &quot;nothing measured&quot;" classname="mocked/freshness.spec.ts" time="0.827">
+</testcase>
+<testcase name="[mocked-desktop] the freshness and record panels do not disturb what the pages already promise" classname="mocked/freshness.spec.ts" time="0.813">
+</testcase>
+</testsuite>
+<testsuite name="mocked/journey-proof.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="13" failures="0" skipped="0" time="27.77" errors="0">
+<testcase name="[mocked-desktop] the personal journey, end to end, at 360px" classname="mocked/journey-proof.spec.ts" time="3.148">
+</testcase>
+<testcase name="[mocked-desktop] the personal journey, end to end, at 390px" classname="mocked/journey-proof.spec.ts" time="3.037">
+</testcase>
+<testcase name="[mocked-desktop] the personal journey, end to end, at 1440px" classname="mocked/journey-proof.spec.ts" time="3.07">
+</testcase>
+<testcase name="[mocked-desktop] Back restores the previous list and its scroll position at 360px" classname="mocked/journey-proof.spec.ts" time="1.662">
+</testcase>
+<testcase name="[mocked-desktop] Back restores the previous list and its scroll position at 390px" classname="mocked/journey-proof.spec.ts" time="1.666">
+</testcase>
+<testcase name="[mocked-desktop] Back restores the previous list and its scroll position at 1440px" classname="mocked/journey-proof.spec.ts" time="1.696">
+</testcase>
+<testcase name="[mocked-desktop] a save that resumes after sign-in on an already-saved match leaves one saved match, not two" classname="mocked/journey-proof.spec.ts" time="1.79">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: pressing the save control twice before the first write lands issues one write" classname="mocked/journey-proof.spec.ts" time="2.211">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: one unreadable follow reads as a failure with a retry, never as an empty feed" classname="mocked/journey-proof.spec.ts" time="0.894">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a feed that is short because a follow failed says so, and says which" classname="mocked/journey-proof.spec.ts" time="0.79">
+</testcase>
+<testcase name="[mocked-desktop] a save made from the keyboard leaves focus on the control that made it, at 360px" classname="mocked/journey-proof.spec.ts" time="2.613">
+</testcase>
+<testcase name="[mocked-desktop] a save made from the keyboard leaves focus on the control that made it, at 390px" classname="mocked/journey-proof.spec.ts" time="2.593">
+</testcase>
+<testcase name="[mocked-desktop] a save made from the keyboard leaves focus on the control that made it, at 1440px" classname="mocked/journey-proof.spec.ts" time="2.6">
+</testcase>
+</testsuite>
+<testsuite name="mocked/localisation.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="43" failures="0" skipped="0" time="45.18" errors="0">
+<testcase name="[mocked-desktop] the core journey is in en and carries nothing from the other CATALOGUE" classname="mocked/localisation.spec.ts" time="3.61">
+</testcase>
+<testcase name="[mocked-desktop] the core journey is in fr and carries nothing from the other CATALOGUE" classname="mocked/localisation.spec.ts" time="3.671">
+</testcase>
+<testcase name="[mocked-desktop] the English the backend supplies on a French page is counted, not overlooked" classname="mocked/localisation.spec.ts" time="0.815">
+</testcase>
+<testcase name="[mocked-desktop] the auth and account screens are in en and carry nothing from the other CATALOGUE" classname="mocked/localisation.spec.ts" time="4.888">
+</testcase>
+<testcase name="[mocked-desktop] both states of the reset screen are in en" classname="mocked/localisation.spec.ts" time="0.853">
+</testcase>
+<testcase name="[mocked-desktop] the save-intent notice on sign-in is in en, with the fixture named as published" classname="mocked/localisation.spec.ts" time="0.902">
+</testcase>
+<testcase name="[mocked-desktop] the auth and account screens are in fr and carry nothing from the other CATALOGUE" classname="mocked/localisation.spec.ts" time="4.917">
+</testcase>
+<testcase name="[mocked-desktop] both states of the reset screen are in fr" classname="mocked/localisation.spec.ts" time="0.866">
+</testcase>
+<testcase name="[mocked-desktop] the save-intent notice on sign-in is in fr, with the fixture named as published" classname="mocked/localisation.spec.ts" time="0.9">
+</testcase>
+<testcase name="[mocked-desktop] the backend&apos;s own words are not translated in en" classname="mocked/localisation.spec.ts" time="0.79">
+</testcase>
+<testcase name="[mocked-desktop] the backend&apos;s own words are not translated in fr" classname="mocked/localisation.spec.ts" time="0.768">
+</testcase>
+<testcase name="[mocked-desktop] the four catalogue areas claim no key twice" classname="mocked/localisation.spec.ts" time="0.001">
+</testcase>
+<testcase name="[mocked-desktop] the two catalogues hold the same keys, and no French entry is still its English" classname="mocked/localisation.spec.ts" time="0.001">
+</testcase>
+<testcase name="[mocked-desktop] the language a reader chose survives a reload, and the other one does not come back" classname="mocked/localisation.spec.ts" time="1.658">
+</testcase>
+<testcase name="[mocked-desktop] language, time zone and country are three separate choices" classname="mocked/localisation.spec.ts" time="0.871">
+</testcase>
+<testcase name="[mocked-desktop] a measured sentence is one sentence in French, not English fragments" classname="mocked/localisation.spec.ts" time="0.845">
+</testcase>
+<testcase name="[mocked-desktop] a French page counts one as singular where the English rule would not" classname="mocked/localisation.spec.ts" time="0.796">
+</testcase>
+<testcase name="[mocked-desktop] every count-bearing French string has the right form at 0, 1, 2 and 11" classname="mocked/localisation.spec.ts" time="0.002">
+</testcase>
+<testcase name="[mocked-desktop] the English counts this package changed are right at 0, 1, 2 and 11" classname="mocked/localisation.spec.ts" time="0">
+</testcase>
+<testcase name="[mocked-desktop] every message with a plural is in the table above" classname="mocked/localisation.spec.ts" time="0">
+</testcase>
+<testcase name="[mocked-desktop] French puts zero with the singular and English puts it with the plural" classname="mocked/localisation.spec.ts" time="0">
+</testcase>
+<testcase name="[mocked-desktop] a count handed over already formatted still selects its branch, and prints back unchanged" classname="mocked/localisation.spec.ts" time="0.001">
+</testcase>
+<testcase name="[mocked-desktop] the strings their component gives no count to do not inflect" classname="mocked/localisation.spec.ts" time="0">
+</testcase>
+<testcase name="[mocked-desktop] the device this suite runs on is on none of the zones a test chooses" classname="mocked/localisation.spec.ts" time="0.284">
+</testcase>
+<testcase name="[mocked-desktop] a midnight kick-off in Africa/Douala belongs to the Douala day, whatever the device thinks" classname="mocked/localisation.spec.ts" time="0.814">
+</testcase>
+<testcase name="[mocked-desktop] the day asked for, and the window it is bounded by, follow the chosen zone" classname="mocked/localisation.spec.ts" time="0.786">
+</testcase>
+<testcase name="[mocked-desktop] a chosen zone that observes daylight saving bounds its 25-hour day with two offsets" classname="mocked/localisation.spec.ts" time="0.859">
+</testcase>
+<testcase name="[mocked-desktop] both ends of a 25-hour chosen day are shown, and the hour after it is not" classname="mocked/localisation.spec.ts" time="0.821">
+</testcase>
+<testcase name="[mocked-desktop] a rescheduled fixture moves to its new day and new time, in the chosen zone" classname="mocked/localisation.spec.ts" time="2.214">
+</testcase>
+<testcase name="[mocked-desktop] changing the zone re-asks for the day and re-times the fixtures already on screen" classname="mocked/localisation.spec.ts" time="0.885">
+</testcase>
+<testcase name="[mocked-desktop] Member Since follows the chosen zone and language, not the device&apos;s, in en" classname="mocked/localisation.spec.ts" time="0.792">
+</testcase>
+<testcase name="[mocked-desktop] Member Since follows the chosen zone and language, not the device&apos;s, in fr" classname="mocked/localisation.spec.ts" time="0.81">
+</testcase>
+<testcase name="[mocked-desktop] a timestamp that carries its own offset is shown without the caveat" classname="mocked/localisation.spec.ts" time="0.813">
+</testcase>
+<testcase name="[mocked-desktop] an offset-less timestamp is read as the UTC the server wrote, not in the device&apos;s zone" classname="mocked/localisation.spec.ts" time="0.785">
+</testcase>
+<testcase name="[mocked-desktop] the subscription price is written the way the reader&apos;s language writes money" classname="mocked/localisation.spec.ts" time="0.76">
+</testcase>
+<testcase name="[mocked-desktop] the same price in French is not the English one" classname="mocked/localisation.spec.ts" time="0.814">
+</testcase>
+<testcase name="[mocked-desktop] at 200% text zoom in en nothing is clipped or scrolls sideways at 360px" classname="mocked/localisation.spec.ts" time="0.915">
+</testcase>
+<testcase name="[mocked-desktop] at 200% text zoom in fr nothing is clipped or scrolls sideways at 360px" classname="mocked/localisation.spec.ts" time="0.949">
+</testcase>
+<testcase name="[mocked-desktop] at 200% text zoom in en nothing is clipped or scrolls sideways at 390px" classname="mocked/localisation.spec.ts" time="0.919">
+</testcase>
+<testcase name="[mocked-desktop] at 200% text zoom in fr nothing is clipped or scrolls sideways at 390px" classname="mocked/localisation.spec.ts" time="0.934">
+</testcase>
+<testcase name="[mocked-desktop] at 200% text zoom in en nothing is clipped or scrolls sideways at 1440px" classname="mocked/localisation.spec.ts" time="0.93">
+</testcase>
+<testcase name="[mocked-desktop] at 200% text zoom in fr nothing is clipped or scrolls sideways at 1440px" classname="mocked/localisation.spec.ts" time="0.948">
+</testcase>
+<testcase name="[mocked-desktop] nothing this package added asks a provider for anything" classname="mocked/localisation.spec.ts" time="0.993">
+</testcase>
+</testsuite>
+<testsuite name="mocked/low-data.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="13" failures="0" skipped="0" time="21.153" errors="0">
+<testcase name="[mocked-desktop] text-only mode is off until the reader asks, and the crests load while it is" classname="mocked/low-data.spec.ts" time="0.828">
+</testcase>
+<testcase name="[mocked-desktop] with text-only mode on, not one crest is requested" classname="mocked/low-data.spec.ts" time="1.582">
+</testcase>
+<testcase name="[mocked-desktop] the choice persists, and turning it off brings the crests back" classname="mocked/low-data.spec.ts" time="1.612">
+</testcase>
+<testcase name="[mocked-desktop] the switch says what the mode does, and does not promise offline reading" classname="mocked/low-data.spec.ts" time="0.814">
+</testcase>
+<testcase name="[mocked-desktop] the switch does not push the wide header into a sideways scroll" classname="mocked/low-data.spec.ts" time="3.154">
+</testcase>
+<testcase name="[mocked-desktop] nor does it overflow for an expert, who carries a sixth entry on that bar" classname="mocked/low-data.spec.ts" time="3.188">
+</testcase>
+<testcase name="[mocked-desktop] a lazily loaded route still arrives, and the shell never leaves the screen" classname="mocked/low-data.spec.ts" time="1.51">
+</testcase>
+<testcase name="[mocked-desktop] a chunk that arrives quickly says nothing at all" classname="mocked/low-data.spec.ts" time="2.18">
+</testcase>
+<testcase name="[mocked-desktop] a chunk that is slow says so, honestly, and draws no fixtures it does not have" classname="mocked/low-data.spec.ts" time="2.263">
+</testcase>
+<testcase name="[mocked-desktop] a chunk that never arrives says so, and blames the download rather than the page" classname="mocked/low-data.spec.ts" time="0.241">
+</testcase>
+<testcase name="[mocked-desktop] and leaving by that navigation actually works, rather than carrying the failure along" classname="mocked/low-data.spec.ts" time="0.358">
+</testcase>
+<testcase name="[mocked-desktop] the reading mode changes not one word about how old the data is" classname="mocked/low-data.spec.ts" time="1.582">
+</testcase>
+<testcase name="[mocked-desktop] filtering, changing the day, reloading and switching the mode spend nothing" classname="mocked/low-data.spec.ts" time="1.841">
+</testcase>
+</testsuite>
+<testsuite name="mocked/match-data-state.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="24" failures="0" skipped="0" time="34.447" errors="0">
+<testcase name="[mocked-desktop] fixture and result updates blocked, in en › the banner leads with one plain sentence and keeps every source in its disclosure" classname="mocked/match-data-state.spec.ts" time="0.897">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in en › the lead never promises forecasts the forecast source cannot give" classname="mocked/match-data-state.spec.ts" time="0.794">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in en › the freshness line states the last provider write, never a refresh minutes ago" classname="mocked/match-data-state.spec.ts" time="0.878">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in en › the match page keeps its forecast and says what cannot change" classname="mocked/match-data-state.spec.ts" time="2.193">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in en › an overdue row on the day list says result updates are unavailable" classname="mocked/match-data-state.spec.ts" time="0.786">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in en › an empty day says it cannot fill itself while updates are blocked" classname="mocked/match-data-state.spec.ts" time="0.814">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in en › a selection waiting for its result says it cannot settle for now, in the slip and the history" classname="mocked/match-data-state.spec.ts" time="0.835">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in en › suggestions say they use only stored fixtures and count the forecasts waiting" classname="mocked/match-data-state.spec.ts" time="0.787">
+</testcase>
+<testcase name="[mocked-desktop] every other state leaves the pages as they were, in en › healthy: none of it, and the fixture age no longer comes from recover or settle" classname="mocked/match-data-state.spec.ts" time="4.45">
+</testcase>
+<testcase name="[mocked-desktop] every other state leaves the pages as they were, in en › degraded: the banner keeps its old rules and nothing new appears" classname="mocked/match-data-state.spec.ts" time="0.831">
+</testcase>
+<testcase name="[mocked-desktop] every other state leaves the pages as they were, in en › an older backend with no block gets exactly the banner it always had" classname="mocked/match-data-state.spec.ts" time="0.846">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in fr › the banner leads with one plain sentence and keeps every source in its disclosure" classname="mocked/match-data-state.spec.ts" time="0.914">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in fr › the lead never promises forecasts the forecast source cannot give" classname="mocked/match-data-state.spec.ts" time="0.855">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in fr › the freshness line states the last provider write, never a refresh minutes ago" classname="mocked/match-data-state.spec.ts" time="0.929">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in fr › the match page keeps its forecast and says what cannot change" classname="mocked/match-data-state.spec.ts" time="2.214">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in fr › an overdue row on the day list says result updates are unavailable" classname="mocked/match-data-state.spec.ts" time="0.84">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in fr › an empty day says it cannot fill itself while updates are blocked" classname="mocked/match-data-state.spec.ts" time="0.797">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in fr › a selection waiting for its result says it cannot settle for now, in the slip and the history" classname="mocked/match-data-state.spec.ts" time="0.854">
+</testcase>
+<testcase name="[mocked-desktop] fixture and result updates blocked, in fr › suggestions say they use only stored fixtures and count the forecasts waiting" classname="mocked/match-data-state.spec.ts" time="0.82">
+</testcase>
+<testcase name="[mocked-desktop] every other state leaves the pages as they were, in fr › healthy: none of it, and the fixture age no longer comes from recover or settle" classname="mocked/match-data-state.spec.ts" time="4.5">
+</testcase>
+<testcase name="[mocked-desktop] every other state leaves the pages as they were, in fr › degraded: the banner keeps its old rules and nothing new appears" classname="mocked/match-data-state.spec.ts" time="0.865">
+</testcase>
+<testcase name="[mocked-desktop] every other state leaves the pages as they were, in fr › an older backend with no block gets exactly the banner it always had" classname="mocked/match-data-state.spec.ts" time="0.843">
+</testcase>
+<testcase name="[mocked-desktop] at 360px in French the blocked banner fits, its disclosure included" classname="mocked/match-data-state.spec.ts" time="1.602">
+</testcase>
+<testcase name="[mocked-desktop] nothing in the blocked state asks a provider for anything" classname="mocked/match-data-state.spec.ts" time="4.303">
+</testcase>
+</testsuite>
+<testsuite name="mocked/national-teams.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="21" failures="0" skipped="0" time="21.053" errors="0">
+<testcase name="[mocked-desktop] a national-team fixture appears on its date like any other, under its own competition" classname="mocked/national-teams.spec.ts" time="0.815">
+</testcase>
+<testcase name="[mocked-desktop] an otherwise empty day shows its national-team fixtures, and says that is what they are" classname="mocked/national-teams.spec.ts" time="0.817">
+</testcase>
+<testcase name="[mocked-desktop] the note is about the day and never appears on a day that has club football too" classname="mocked/national-teams.spec.ts" time="0.783">
+</testcase>
+<testcase name="[mocked-desktop] a day of fixtures that state no classification claims nothing and hides nothing" classname="mocked/national-teams.spec.ts" time="0.829">
+</testcase>
+<testcase name="[mocked-desktop] the club / national filter is offered on a day that holds both, and narrows to each" classname="mocked/national-teams.spec.ts" time="0.894">
+</testcase>
+<testcase name="[mocked-desktop] the filter is in the URL, so a narrowed day is a link and survives Back" classname="mocked/national-teams.spec.ts" time="0.929">
+</testcase>
+<testcase name="[mocked-desktop] a link that arrives with the filter set can always see it and take it off" classname="mocked/national-teams.spec.ts" time="0.867">
+</testcase>
+<testcase name="[mocked-desktop] the filter sheet offers the same choice, and the summary chip removes it" classname="mocked/national-teams.spec.ts" time="1.176">
+</testcase>
+<testcase name="[mocked-desktop] a national-team fixture opens, names its competition and says what is published for it" classname="mocked/national-teams.spec.ts" time="0.911">
+</testcase>
+<testcase name="[mocked-desktop] following a country does not follow its women&apos;s squad, which is a different row" classname="mocked/national-teams.spec.ts" time="2.239">
+</testcase>
+<testcase name="[mocked-desktop] the follow list tells two squads of one country apart, which their name cannot" classname="mocked/national-teams.spec.ts" time="1.511">
+</testcase>
+<testcase name="[mocked-desktop] a national-team fixture can be saved from the day list, through the same star as any other" classname="mocked/national-teams.spec.ts" time="0.863">
+</testcase>
+<testcase name="[mocked-desktop] an expert picking a fixture to write about is offered the national-team ones too" classname="mocked/national-teams.spec.ts" time="0.774">
+</testcase>
+<testcase name="[mocked-desktop] a tie won on penalties shows the scoreline people remember beside the one markets settle on" classname="mocked/national-teams.spec.ts" time="0.89">
+</testcase>
+<testcase name="[mocked-desktop] everything this feature says is in French for a reader who chose French" classname="mocked/national-teams.spec.ts" time="0.832">
+</testcase>
+<testcase name="[mocked-desktop] the filter and the squad note are in French too" classname="mocked/national-teams.spec.ts" time="0.835">
+</testcase>
+<testcase name="[mocked-desktop] a country&apos;s squad is named in French on the team page" classname="mocked/national-teams.spec.ts" time="1.506">
+</testcase>
+<testcase name="[mocked-desktop] a national-team kick-off is shown in the reader&apos;s own zone, not UTC" classname="mocked/national-teams.spec.ts" time="0.805">
+</testcase>
+<testcase name="[mocked-desktop] the longest competition and country names do not push the page sideways" classname="mocked/national-teams.spec.ts" time="0.865">
+</testcase>
+<testcase name="[mocked-desktop] the match page for the longest names does not push the page sideways either" classname="mocked/national-teams.spec.ts" time="0.852">
+</testcase>
+<testcase name="[mocked-desktop] the whole journey: find it, narrow to it, open it, save it, read its result" classname="mocked/national-teams.spec.ts" time="1.06">
+</testcase>
+</testsuite>
+<testsuite name="mocked/navigation-continuity.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="20" failures="0" skipped="2" time="39.262" errors="0">
+<testcase name="[mocked-desktop] the home page does not scroll sideways, signed out" classname="mocked/navigation-continuity.spec.ts" time="0.814">
+</testcase>
+<testcase name="[mocked-desktop] the home page does not scroll sideways, signed in" classname="mocked/navigation-continuity.spec.ts" time="0.833">
+</testcase>
+<testcase name="[mocked-desktop] the matches list does not scroll sideways, signed out" classname="mocked/navigation-continuity.spec.ts" time="0.816">
+</testcase>
+<testcase name="[mocked-desktop] the matches list does not scroll sideways, signed in" classname="mocked/navigation-continuity.spec.ts" time="0.831">
+</testcase>
+<testcase name="[mocked-desktop] a match detail page does not scroll sideways, signed out" classname="mocked/navigation-continuity.spec.ts" time="0.785">
+</testcase>
+<testcase name="[mocked-desktop] a match detail page does not scroll sideways, signed in" classname="mocked/navigation-continuity.spec.ts" time="0.794">
+</testcase>
+<testcase name="[mocked-desktop] the leagues index does not scroll sideways, signed out" classname="mocked/navigation-continuity.spec.ts" time="0.783">
+</testcase>
+<testcase name="[mocked-desktop] the leagues index does not scroll sideways, signed in" classname="mocked/navigation-continuity.spec.ts" time="0.792">
+</testcase>
+<testcase name="[mocked-desktop] the menu button is reachable and opens the menu" classname="mocked/navigation-continuity.spec.ts">
+<properties>
+<property name="skip" value="the full navigation is on the bar at this width">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="[mocked-desktop] opening a team from the foot of a match page lands at the top of the team page" classname="mocked/navigation-continuity.spec.ts" time="0.958">
+</testcase>
+<testcase name="[mocked-desktop] Back from the team page returns to where the match page was left" classname="mocked/navigation-continuity.spec.ts" time="1.012">
+</testcase>
+<testcase name="[mocked-desktop] Back to a list that arrives after the restore window still lands where the reader was" classname="mocked/navigation-continuity.spec.ts" time="4.29">
+</testcase>
+<testcase name="[mocked-desktop] a page that finishes growing after the restore reaches the offset leaves the reader on it" classname="mocked/navigation-continuity.spec.ts" time="1.772">
+</testcase>
+<testcase name="[mocked-desktop] a reader who takes the page back with a keypress during a slow restore keeps it" classname="mocked/navigation-continuity.spec.ts" time="2.385">
+</testcase>
+<testcase name="[mocked-desktop] a reader who takes the page back with a scrollbar drag during a slow restore keeps it" classname="mocked/navigation-continuity.spec.ts" time="2.483">
+</testcase>
+<testcase name="[mocked-desktop] past its cap the restore gives up, and the page growing afterwards does not move the reader" classname="mocked/navigation-continuity.spec.ts" time="9.351">
+</testcase>
+<testcase name="[mocked-desktop] a fresh document does not inherit the offset the last document left in this tab" classname="mocked/navigation-continuity.spec.ts" time="8.028">
+</testcase>
+<testcase name="[mocked-desktop] Back from a fixture restores the filtered list, its filters and its position" classname="mocked/navigation-continuity.spec.ts" time="1.579">
+</testcase>
+<testcase name="[mocked-desktop] Escape closes the filter sheet and gives focus back to the button that opened it" classname="mocked/navigation-continuity.spec.ts" time="0.864">
+</testcase>
+<testcase name="[mocked-desktop] Escape closes the header menu and gives focus back to the menu button" classname="mocked/navigation-continuity.spec.ts">
+<properties>
+<property name="skip" value="there is no menu button at this width">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+<testsuite name="mocked/navigation.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="14" failures="0" skipped="0" time="16.926" errors="0">
+<testcase name="[mocked-desktop] / renders and does not scroll sideways" classname="mocked/navigation.spec.ts" time="0.811">
+</testcase>
+<testcase name="[mocked-desktop] /predictions/today renders and does not scroll sideways" classname="mocked/navigation.spec.ts" time="0.831">
+</testcase>
+<testcase name="[mocked-desktop] /predictions/tomorrow renders and does not scroll sideways" classname="mocked/navigation.spec.ts" time="0.815">
+</testcase>
+<testcase name="[mocked-desktop] /leagues renders and does not scroll sideways" classname="mocked/navigation.spec.ts" time="0.791">
+</testcase>
+<testcase name="[mocked-desktop] every internal link points at a route that renders" classname="mocked/navigation.spec.ts" time="3.42">
+</testcase>
+<testcase name="[mocked-desktop] no image falls back to a third-party placeholder host" classname="mocked/navigation.spec.ts" time="0.842">
+</testcase>
+<testcase name="[mocked-desktop] every image either loads or falls back to a local asset" classname="mocked/navigation.spec.ts" time="2.349">
+</testcase>
+<testcase name="[mocked-desktop] the home page publishes no unmeasured performance claim" classname="mocked/navigation.spec.ts" time="0.815">
+</testcase>
+<testcase name="[mocked-desktop] the footer makes no promise the site does not keep" classname="mocked/navigation.spec.ts" time="0.797">
+</testcase>
+<testcase name="[mocked-desktop] the footer copyright year is current, not frozen" classname="mocked/navigation.spec.ts" time="0.794">
+</testcase>
+<testcase name="[mocked-desktop] search lists the clubs and competitions that match" classname="mocked/navigation.spec.ts" time="1.263">
+</testcase>
+<testcase name="[mocked-desktop] a search with no matches says so instead of showing a blank panel" classname="mocked/navigation.spec.ts" time="1.25">
+</testcase>
+<testcase name="[mocked-desktop] a failed search reports the failure, not an empty result" classname="mocked/navigation.spec.ts" time="1.229">
+</testcase>
+<testcase name="[mocked-desktop] the competition filter says it is loading rather than not existing" classname="mocked/navigation.spec.ts" time="0.919">
+</testcase>
+</testsuite>
+<testsuite name="mocked/overdue-results.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="49" failures="0" skipped="0" time="17.863" errors="0">
+<testcase name="[mocked-desktop] [en] the day list says a result is overdue where the kickoff time would be" classname="mocked/overdue-results.spec.ts" time="0.297">
+</testcase>
+<testcase name="[mocked-desktop] [en] the day list distinguishes a fixture that has been given up on" classname="mocked/overdue-results.spec.ts" time="0.296">
+</testcase>
+<testcase name="[mocked-desktop] [en] THE MATCH THAT IS GENUINELY IN PLAY keeps its running minute and its score" classname="mocked/overdue-results.spec.ts" time="0.279">
+</testcase>
+<testcase name="[mocked-desktop] [en] A TIE PLAYED PAST THE DEADLINE KEEPS ITS MINUTE AND ITS SCORE" classname="mocked/overdue-results.spec.ts" time="0.296">
+</testcase>
+<testcase name="[mocked-desktop] [fr] the day list says a result is overdue where the kickoff time would be" classname="mocked/overdue-results.spec.ts" time="0.331">
+</testcase>
+<testcase name="[mocked-desktop] [fr] the day list distinguishes a fixture that has been given up on" classname="mocked/overdue-results.spec.ts" time="0.313">
+</testcase>
+<testcase name="[mocked-desktop] [fr] THE MATCH THAT IS GENUINELY IN PLAY keeps its running minute and its score" classname="mocked/overdue-results.spec.ts" time="0.295">
+</testcase>
+<testcase name="[mocked-desktop] [fr] A TIE PLAYED PAST THE DEADLINE KEEPS ITS MINUTE AND ITS SCORE" classname="mocked/overdue-results.spec.ts" time="0.329">
+</testcase>
+<testcase name="[mocked-desktop] [en] the day list tells an unreachable provider apart from an empty answer" classname="mocked/overdue-results.spec.ts" time="0.312">
+</testcase>
+<testcase name="[mocked-desktop] [en] the match page says what the last check found, and only what it found" classname="mocked/overdue-results.spec.ts" time="0.469">
+</testcase>
+<testcase name="[mocked-desktop] [fr] the day list tells an unreachable provider apart from an empty answer" classname="mocked/overdue-results.spec.ts" time="0.329">
+</testcase>
+<testcase name="[mocked-desktop] [fr] the match page says what the last check found, and only what it found" classname="mocked/overdue-results.spec.ts" time="0.478">
+</testcase>
+<testcase name="[mocked-desktop] [en] no sentence in the catalogue says a result cannot exist, and a held-back check names no failure" classname="mocked/overdue-results.spec.ts" time="0.006">
+</testcase>
+<testcase name="[mocked-desktop] [en] THE FOUR THINGS A READER CAN BE TOLD, on one day list beside a live match and a tie in extra time" classname="mocked/overdue-results.spec.ts" time="0.376">
+</testcase>
+<testcase name="[mocked-desktop] [en] a check held back by our own allowance is said as ours, and not as the provider&apos;s failure" classname="mocked/overdue-results.spec.ts" time="0.293">
+</testcase>
+<testcase name="[mocked-desktop] [en] a check that never left is worded by WHY it never left: only our own allowance is called ours" classname="mocked/overdue-results.spec.ts" time="1.063">
+</testcase>
+<testcase name="[mocked-desktop] [en] a stop the retry budget made says it was our allowance; the backend&apos;s prose stays off the page" classname="mocked/overdue-results.spec.ts" time="0.298">
+</testcase>
+<testcase name="[mocked-desktop] [en] a stop on a corrected count says &quot;at most&quot;, exactly as the backend does" classname="mocked/overdue-results.spec.ts" time="0.29">
+</testcase>
+<testcase name="[mocked-desktop] [en] a check that read our own stored copy says so, and claims no call" classname="mocked/overdue-results.spec.ts" time="0.292">
+</testcase>
+<testcase name="[mocked-desktop] [en] a fixture put back under the retry schedule reads overdue and still asked about, not Unresolved" classname="mocked/overdue-results.spec.ts" time="0.476">
+</testcase>
+<testcase name="[mocked-desktop] [en] an outcome with no sentence of its own adds none, and the overdue statement stands" classname="mocked/overdue-results.spec.ts" time="0.481">
+</testcase>
+<testcase name="[mocked-desktop] [fr] no sentence in the catalogue says a result cannot exist, and a held-back check names no failure" classname="mocked/overdue-results.spec.ts" time="0.006">
+</testcase>
+<testcase name="[mocked-desktop] [fr] THE FOUR THINGS A READER CAN BE TOLD, on one day list beside a live match and a tie in extra time" classname="mocked/overdue-results.spec.ts" time="0.398">
+</testcase>
+<testcase name="[mocked-desktop] [fr] a check held back by our own allowance is said as ours, and not as the provider&apos;s failure" classname="mocked/overdue-results.spec.ts" time="0.332">
+</testcase>
+<testcase name="[mocked-desktop] [fr] a check that never left is worded by WHY it never left: only our own allowance is called ours" classname="mocked/overdue-results.spec.ts" time="1.164">
+</testcase>
+<testcase name="[mocked-desktop] [fr] a stop the retry budget made says it was our allowance; the backend&apos;s prose stays off the page" classname="mocked/overdue-results.spec.ts" time="0.317">
+</testcase>
+<testcase name="[mocked-desktop] [fr] a stop on a corrected count says &quot;at most&quot;, exactly as the backend does" classname="mocked/overdue-results.spec.ts" time="0.292">
+</testcase>
+<testcase name="[mocked-desktop] [fr] a check that read our own stored copy says so, and claims no call" classname="mocked/overdue-results.spec.ts" time="0.292">
+</testcase>
+<testcase name="[mocked-desktop] [fr] a fixture put back under the retry schedule reads overdue and still asked about, not Unresolved" classname="mocked/overdue-results.spec.ts" time="0.499">
+</testcase>
+<testcase name="[mocked-desktop] [fr] an outcome with no sentence of its own adds none, and the overdue statement stands" classname="mocked/overdue-results.spec.ts" time="0.502">
+</testcase>
+<testcase name="[mocked-desktop] [en] the match page states an overdue result instead of a scoreline" classname="mocked/overdue-results.spec.ts" time="0.289">
+</testcase>
+<testcase name="[mocked-desktop] [en] the match page says how often the provider answered, and does not credit a removed rule&apos;s stop to our allowance" classname="mocked/overdue-results.spec.ts" time="0.324">
+</testcase>
+<testcase name="[mocked-desktop] [en] THE UNRESOLVED STATE THE OWNER CHECKED reads Unresolved on its row and its page" classname="mocked/overdue-results.spec.ts" time="0.482">
+</testcase>
+<testcase name="[mocked-desktop] [en] WHAT UNRESOLVED MAY NOT SAY: the backend&apos;s claim about an archive never reaches the page" classname="mocked/overdue-results.spec.ts" time="0.462">
+</testcase>
+<testcase name="[mocked-desktop] [en] the match page of a live fixture is untouched by any of this" classname="mocked/overdue-results.spec.ts" time="0.29">
+</testcase>
+<testcase name="[mocked-desktop] [en] the match page of a tie in extra time shows the tie, not a warning" classname="mocked/overdue-results.spec.ts" time="0.278">
+</testcase>
+<testcase name="[mocked-desktop] [en] a provider we cannot reach is said at the top of the page, and the fixture stays overdue" classname="mocked/overdue-results.spec.ts" time="0.297">
+</testcase>
+<testcase name="[mocked-desktop] [fr] the match page states an overdue result instead of a scoreline" classname="mocked/overdue-results.spec.ts" time="0.293">
+</testcase>
+<testcase name="[mocked-desktop] [fr] the match page says how often the provider answered, and does not credit a removed rule&apos;s stop to our allowance" classname="mocked/overdue-results.spec.ts" time="0.306">
+</testcase>
+<testcase name="[mocked-desktop] [fr] THE UNRESOLVED STATE THE OWNER CHECKED reads Unresolved on its row and its page" classname="mocked/overdue-results.spec.ts" time="0.501">
+</testcase>
+<testcase name="[mocked-desktop] [fr] WHAT UNRESOLVED MAY NOT SAY: the backend&apos;s claim about an archive never reaches the page" classname="mocked/overdue-results.spec.ts" time="0.492">
+</testcase>
+<testcase name="[mocked-desktop] [fr] the match page of a live fixture is untouched by any of this" classname="mocked/overdue-results.spec.ts" time="0.301">
+</testcase>
+<testcase name="[mocked-desktop] [fr] the match page of a tie in extra time shows the tie, not a warning" classname="mocked/overdue-results.spec.ts" time="0.294">
+</testcase>
+<testcase name="[mocked-desktop] [fr] a provider we cannot reach is said at the top of the page, and the fixture stays overdue" classname="mocked/overdue-results.spec.ts" time="0.301">
+</testcase>
+<testcase name="[mocked-desktop] a saved fixture whose result never arrived is not filed under &quot;In play now&quot;" classname="mocked/overdue-results.spec.ts" time="0.293">
+</testcase>
+<testcase name="[mocked-desktop] with nothing actually in play the dashboard says nothing about anything being in play" classname="mocked/overdue-results.spec.ts" time="0.29">
+</testcase>
+<testcase name="[mocked-desktop] the day list this file drives asks for its own local day and spends nothing extra" classname="mocked/overdue-results.spec.ts" time="0.282">
+</testcase>
+<testcase name="[mocked-desktop] a fixture that was called off is never described as late for a result" classname="mocked/overdue-results.spec.ts" time="0.407">
+</testcase>
+<testcase name="[mocked-desktop] a payload that carries no deadline produces no claim, and the row says what it always said" classname="mocked/overdue-results.spec.ts" time="0.28">
+</testcase>
+</testsuite>
+<testsuite name="mocked/parlay-builder.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="26" failures="0" skipped="0" time="21.363" errors="0">
+<testcase name="[mocked-desktop] [en] mocked: markets and the slip › every served market renders with its number, source and rule; nothing unpublished is selectable" classname="mocked/parlay-builder.spec.ts" time="0.323">
+</testcase>
+<testcase name="[mocked-desktop] [en] mocked: markets and the slip › signed out: one selection per fixture, a draft that survives a reload, and a copied slip that invents nothing" classname="mocked/parlay-builder.spec.ts" time="0.866">
+</testcase>
+<testcase name="[mocked-desktop] [en] mocked: markets and the slip › signing in hands the browser draft to the account, and a refused leg is reported, not dropped silently" classname="mocked/parlay-builder.spec.ts" time="0.848">
+</testcase>
+<testcase name="[mocked-desktop] [en] mocked: markets and the slip › a draft left open crosses kickoff visibly, and recording makes the slip immutable" classname="mocked/parlay-builder.spec.ts" time="0.996">
+</testcase>
+<testcase name="[mocked-desktop] [en] mocked: markets and the slip › history shows what became of each leg, with the rule, and never guesses" classname="mocked/parlay-builder.spec.ts" time="0.321">
+</testcase>
+<testcase name="[mocked-desktop] [en] mocked: markets and the slip › suggestions explain every leg, admit a shortfall, and add to the slip" classname="mocked/parlay-builder.spec.ts" time="0.357">
+</testcase>
+<testcase name="[mocked-desktop] [fr] mocked: markets and the slip › every served market renders with its number, source and rule; nothing unpublished is selectable" classname="mocked/parlay-builder.spec.ts" time="0.322">
+</testcase>
+<testcase name="[mocked-desktop] [fr] mocked: markets and the slip › signed out: one selection per fixture, a draft that survives a reload, and a copied slip that invents nothing" classname="mocked/parlay-builder.spec.ts" time="0.866">
+</testcase>
+<testcase name="[mocked-desktop] [fr] mocked: markets and the slip › signing in hands the browser draft to the account, and a refused leg is reported, not dropped silently" classname="mocked/parlay-builder.spec.ts" time="0.923">
+</testcase>
+<testcase name="[mocked-desktop] [fr] mocked: markets and the slip › a draft left open crosses kickoff visibly, and recording makes the slip immutable" classname="mocked/parlay-builder.spec.ts" time="1.06">
+</testcase>
+<testcase name="[mocked-desktop] [fr] mocked: markets and the slip › history shows what became of each leg, with the rule, and never guesses" classname="mocked/parlay-builder.spec.ts" time="0.351">
+</testcase>
+<testcase name="[mocked-desktop] [fr] mocked: markets and the slip › suggestions explain every leg, admit a shortfall, and add to the slip" classname="mocked/parlay-builder.spec.ts" time="0.356">
+</testcase>
+<testcase name="[mocked-desktop] mocked: a slip write that lands after the account changed does not reach the next account" classname="mocked/parlay-builder.spec.ts" time="1.362">
+</testcase>
+<testcase name="[mocked-desktop] mocked: a draft transfer whose first request fails while the account changes never sends a selection under the new account" classname="mocked/parlay-builder.spec.ts" time="2.121">
+</testcase>
+<testcase name="[mocked-desktop] mocked: a draft transfer whose first request succeeds while the account changes never sends a selection under the new account" classname="mocked/parlay-builder.spec.ts" time="2.105">
+</testcase>
+<testcase name="[mocked-desktop] mocked: a transfer whose second leg fails (refused) completes the SAME slip after a reload, with no duplicate" classname="mocked/parlay-builder.spec.ts" time="1.195">
+</testcase>
+<testcase name="[mocked-desktop] mocked: a transfer whose second leg fails (answer lost) completes the SAME slip after a reload, with no duplicate" classname="mocked/parlay-builder.spec.ts" time="1.226">
+</testcase>
+<testcase name="[mocked-desktop] mocked: a transfer whose FIRST request fails (refused) ends in one slip after a reload, never two" classname="mocked/parlay-builder.spec.ts" time="1.202">
+</testcase>
+<testcase name="[mocked-desktop] mocked: a transfer whose FIRST request fails (answer lost) ends in one slip after a reload, never two" classname="mocked/parlay-builder.spec.ts" time="1.238">
+</testcase>
+<testcase name="[mocked-desktop] mocked: a refused replacement leaves the original selection on the slip" classname="mocked/parlay-builder.spec.ts" time="0.549">
+</testcase>
+<testcase name="[mocked-desktop] mocked: an older suggestions answer does not overwrite the newer filters&apos; results" classname="mocked/parlay-builder.spec.ts" time="0.905">
+</testcase>
+<testcase name="[mocked-desktop] mocked: a void selection shows the recorded price and the effective one, and withholds what it cannot compute" classname="mocked/parlay-builder.spec.ts" time="0.278">
+</testcase>
+<testcase name="[mocked-desktop] [en] mocked: an empty suggestion result names its real cause, not the probability" classname="mocked/parlay-builder.spec.ts" time="0.297">
+</testcase>
+<testcase name="[mocked-desktop] [fr] mocked: an empty suggestion result names its real cause, not the probability" classname="mocked/parlay-builder.spec.ts" time="0.279">
+</testcase>
+<testcase name="[mocked-desktop] mocked: a draw-no-bet selection withholds the combined chance and keeps each leg&apos;s own" classname="mocked/parlay-builder.spec.ts" time="0.629">
+</testcase>
+<testcase name="[mocked-desktop] mocked: the page stays inside the viewport at every width and logs no error" classname="mocked/parlay-builder.spec.ts" time="0.388">
+</testcase>
+</testsuite>
+<testsuite name="mocked/provider-states.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="6" failures="0" skipped="0" time="6.887" errors="0">
+<testcase name="[mocked-desktop] an exhausted daily allowance reads as paused, not unavailable" classname="mocked/provider-states.spec.ts" time="0.849">
+</testcase>
+<testcase name="[mocked-desktop] an expired or rejected trial is surfaced to the reader" classname="mocked/provider-states.spec.ts" time="0.834">
+</testcase>
+<testcase name="[mocked-desktop] a day with no fixtures shows an empty state, not an error" classname="mocked/provider-states.spec.ts" time="0.787">
+</testcase>
+<testcase name="[mocked-desktop] a backend failure shows an error state, not an empty day" classname="mocked/provider-states.spec.ts" time="0.787">
+</testcase>
+<testcase name="[mocked-desktop] the status banner stays away when every provider is healthy" classname="mocked/provider-states.spec.ts" time="0.815">
+</testcase>
+<testcase name="[mocked-desktop] a loading state appears before the data arrives" classname="mocked/provider-states.spec.ts" time="2.815">
+</testcase>
+</testsuite>
+<testsuite name="mocked/reader-localisation.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="32" failures="0" skipped="0" time="39.946" errors="0">
+<testcase name="[mocked-desktop] the reader pages are in en and carry nothing from the other catalogue" classname="mocked/reader-localisation.spec.ts" time="3.634">
+</testcase>
+<testcase name="[mocked-desktop] the provenance, revision and evidence panels are in en" classname="mocked/reader-localisation.spec.ts" time="0.819">
+</testcase>
+<testcase name="[mocked-desktop] the reader pages are in fr and carry nothing from the other catalogue" classname="mocked/reader-localisation.spec.ts" time="3.66">
+</testcase>
+<testcase name="[mocked-desktop] the provenance, revision and evidence panels are in fr" classname="mocked/reader-localisation.spec.ts" time="0.811">
+</testcase>
+<testcase name="[mocked-desktop] the labels French shares with English are on the en page unchanged" classname="mocked/reader-localisation.spec.ts" time="1.497">
+</testcase>
+<testcase name="[mocked-desktop] the labels French shares with English are on the fr page unchanged" classname="mocked/reader-localisation.spec.ts" time="1.522">
+</testcase>
+<testcase name="[mocked-desktop] the backend’s own sentences are rendered verbatim on the French page" classname="mocked/reader-localisation.spec.ts" time="0.791">
+</testcase>
+<testcase name="[mocked-desktop] every en count label in the reader area reads the same at 0, 1, 2 and 11" classname="mocked/reader-localisation.spec.ts" time="0">
+</testcase>
+<testcase name="[mocked-desktop] every fr count label in the reader area reads the same at 0, 1, 2 and 11" classname="mocked/reader-localisation.spec.ts" time="0">
+</testcase>
+<testcase name="[mocked-desktop] the competition page shows 0 fixtures and 0 teams in French without moving its labels" classname="mocked/reader-localisation.spec.ts" time="0.797">
+</testcase>
+<testcase name="[mocked-desktop] the competition page shows 1 fixtures and 1 teams in French without moving its labels" classname="mocked/reader-localisation.spec.ts" time="0.817">
+</testcase>
+<testcase name="[mocked-desktop] the competition page shows 2 fixtures and 2 teams in French without moving its labels" classname="mocked/reader-localisation.spec.ts" time="0.8">
+</testcase>
+<testcase name="[mocked-desktop] the competition page shows 11 fixtures and 11 teams in French without moving its labels" classname="mocked/reader-localisation.spec.ts" time="0.84">
+</testcase>
+<testcase name="[mocked-desktop] the dashboard’s saved and in-play counts are whole French sentences with the numeral picked out" classname="mocked/reader-localisation.spec.ts" time="0.851">
+</testcase>
+<testcase name="[mocked-desktop] the device this suite runs on is on neither zone these tests choose" classname="mocked/reader-localisation.spec.ts" time="0.22">
+</testcase>
+<testcase name="[mocked-desktop] the three provenance times are shown in the chosen zone, on the chosen zone’s day" classname="mocked/reader-localisation.spec.ts" time="0.806">
+</testcase>
+<testcase name="[mocked-desktop] a revision’s replacement time and an expert’s publication time follow the chosen zone" classname="mocked/reader-localisation.spec.ts" time="0.813">
+</testcase>
+<testcase name="[mocked-desktop] the competition’s fixture window is asked for in the reader’s zone, not the device’s" classname="mocked/reader-localisation.spec.ts" time="0.775">
+</testcase>
+<testcase name="[mocked-desktop] no reader page asks a provider for anything" classname="mocked/reader-localisation.spec.ts" time="2.869">
+</testcase>
+<testcase name="[mocked-desktop] the follow control is in en, in both states, beside both nouns" classname="mocked/reader-localisation.spec.ts" time="2.173">
+</testcase>
+<testcase name="[mocked-desktop] the follow count against the limit is right at 0, 1 and several in en" classname="mocked/reader-localisation.spec.ts" time="2.889">
+</testcase>
+<testcase name="[mocked-desktop] the confirmation read out after a follow is in en" classname="mocked/reader-localisation.spec.ts" time="0.891">
+</testcase>
+<testcase name="[mocked-desktop] the follow control is in fr, in both states, beside both nouns" classname="mocked/reader-localisation.spec.ts" time="2.202">
+</testcase>
+<testcase name="[mocked-desktop] the follow count against the limit is right at 0, 1 and several in fr" classname="mocked/reader-localisation.spec.ts" time="2.936">
+</testcase>
+<testcase name="[mocked-desktop] the confirmation read out after a follow is in fr" classname="mocked/reader-localisation.spec.ts" time="0.898">
+</testcase>
+<testcase name="[mocked-desktop] a signed-out reader is invited to sign in in en, and is given no count" classname="mocked/reader-localisation.spec.ts" time="0.789">
+</testcase>
+<testcase name="[mocked-desktop] a failed favourites read says so in en rather than showing an empty star" classname="mocked/reader-localisation.spec.ts" time="0.78">
+</testcase>
+<testcase name="[mocked-desktop] a signed-out reader is invited to sign in in fr, and is given no count" classname="mocked/reader-localisation.spec.ts" time="0.808">
+</testcase>
+<testcase name="[mocked-desktop] a failed favourites read says so in fr rather than showing an empty star" classname="mocked/reader-localisation.spec.ts" time="0.797">
+</testcase>
+<testcase name="[mocked-desktop] at 360px the French expert dashboard keeps its saved-ago line inside the box that holds it" classname="mocked/reader-localisation.spec.ts" time="0.819">
+</testcase>
+<testcase name="[mocked-desktop] at 360px in French a published row keeps its kick-off: a name that fits, so the line wraps and nothing is abbreviated" classname="mocked/reader-localisation.spec.ts" time="0.817">
+</testcase>
+<testcase name="[mocked-desktop] at 360px in French a published row keeps its kick-off: a name longer than the row, so the name is abbreviated and the kick-off is not" classname="mocked/reader-localisation.spec.ts" time="0.825">
+</testcase>
+</testsuite>
+<testsuite name="mocked/result-language.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="23" failures="0" skipped="0" time="18.89" errors="0">
+<testcase name="[mocked-desktop] with forecasts scored, no screen claims nothing has been scored" classname="mocked/result-language.spec.ts" time="0.834">
+</testcase>
+<testcase name="[mocked-desktop] below the minimum sample, the page still does not claim nothing has been scored" classname="mocked/result-language.spec.ts" time="0.797">
+</testcase>
+<testcase name="[mocked-desktop] with nothing scored the honest nothing-scored state still renders" classname="mocked/result-language.spec.ts" time="0.831">
+</testcase>
+<testcase name="[mocked-desktop] correct outcomes and sample size are separately labelled" classname="mocked/result-language.spec.ts" time="0.831">
+</testcase>
+<testcase name="[mocked-desktop] a hit count on a small sample cannot be read as a sample size" classname="mocked/result-language.spec.ts" time="0.829">
+</testcase>
+<testcase name="[mocked-desktop] below the minimum sample no percentage appears and the refusal is a sentence" classname="mocked/result-language.spec.ts" time="0.83">
+</testcase>
+<testcase name="[mocked-desktop] the empty-date state says what is stored, not what exists, and offers an action" classname="mocked/result-language.spec.ts" time="0.874">
+</testcase>
+<testcase name="[mocked-desktop] the filtered-empty state stays distinct from the nothing-stored one" classname="mocked/result-language.spec.ts" time="0.811">
+</testcase>
+<testcase name="[mocked-desktop] the rewritten copy stays inside its container at 360px" classname="mocked/result-language.spec.ts" time="0.818">
+</testcase>
+<testcase name="[mocked-desktop] the computed footnote stays inside its container at 360px" classname="mocked/result-language.spec.ts" time="0.821">
+</testcase>
+<testcase name="[mocked-desktop] the empty-date state stays inside its container at 360px" classname="mocked/result-language.spec.ts" time="0.787">
+</testcase>
+<testcase name="[mocked-desktop] the rewritten copy stays inside its container at 390px" classname="mocked/result-language.spec.ts" time="0.822">
+</testcase>
+<testcase name="[mocked-desktop] the computed footnote stays inside its container at 390px" classname="mocked/result-language.spec.ts" time="0.818">
+</testcase>
+<testcase name="[mocked-desktop] the empty-date state stays inside its container at 390px" classname="mocked/result-language.spec.ts" time="0.786">
+</testcase>
+<testcase name="[mocked-desktop] the rewritten copy stays inside its container at 1440px" classname="mocked/result-language.spec.ts" time="0.846">
+</testcase>
+<testcase name="[mocked-desktop] the computed footnote stays inside its container at 1440px" classname="mocked/result-language.spec.ts" time="0.847">
+</testcase>
+<testcase name="[mocked-desktop] the empty-date state stays inside its container at 1440px" classname="mocked/result-language.spec.ts" time="0.792">
+</testcase>
+<testcase name="[mocked-desktop] a list of fixtures none of which has been played says so, counted from the list" classname="mocked/result-language.spec.ts" time="0.812">
+</testcase>
+<testcase name="[mocked-desktop] once a listed fixture has been played the page stops claiming nothing has been scored" classname="mocked/result-language.spec.ts" time="0.849">
+</testcase>
+<testcase name="[mocked-desktop] a fixture still in play is not reported as finished" classname="mocked/result-language.spec.ts" time="0.836">
+</testcase>
+<testcase name="[mocked-desktop] the rest of the footnote — the part that is about the page, not the data — survives" classname="mocked/result-language.spec.ts" time="0.83">
+</testcase>
+<testcase name="[mocked-desktop] the match page prints the scoring position the payload measured, not one of its own" classname="mocked/result-language.spec.ts" time="0.812">
+</testcase>
+<testcase name="[mocked-desktop] with nothing scored the match page still carries the honest nothing-scored sentence" classname="mocked/result-language.spec.ts" time="0.777">
+</testcase>
+</testsuite>
+<testsuite name="mocked/saved-lifecycle.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="4" failures="0" skipped="0" time="3.245" errors="0">
+<testcase name="[mocked-desktop] MOCKED-ONLY: a saved fixture goes from upcoming to in play to finished while the tab stays in front" classname="mocked/saved-lifecycle.spec.ts" time="0.308">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: with automatic updates off, a saved fixture due to kick off is not polled" classname="mocked/saved-lifecycle.spec.ts" time="1.33">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: a fixture reached only through a followed team is noticed when it kicks off, with the tab never leaving the front" classname="mocked/saved-lifecycle.spec.ts" time="0.295">
+</testcase>
+<testcase name="[mocked-desktop] MOCKED-ONLY: with automatic updates off, a followed fixture due to kick off is not polled either" classname="mocked/saved-lifecycle.spec.ts" time="1.312">
+</testcase>
+</testsuite>
+<testsuite name="mocked/scoreline.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="7" failures="0" skipped="0" time="5.712" errors="0">
+<testcase name="[mocked-desktop] a tie won on penalties names the shoot-out beside the score, not as the score" classname="mocked/scoreline.spec.ts" time="0.798">
+</testcase>
+<testcase name="[mocked-desktop] a tie decided in extra time publishes the 90-minute score the markets settle on" classname="mocked/scoreline.spec.ts" time="0.816">
+</testcase>
+<testcase name="[mocked-desktop] an ordinary match gets no period line at all" classname="mocked/scoreline.spec.ts" time="0.824">
+</testcase>
+<testcase name="[mocked-desktop] a period the source never supplied is shown as nothing, never as 0-0" classname="mocked/scoreline.spec.ts" time="0.816">
+</testcase>
+<testcase name="[mocked-desktop] the shoot-out is named in French for a reader who chose French" classname="mocked/scoreline.spec.ts" time="0.812">
+</testcase>
+<testcase name="[mocked-desktop] the extra-time lines are in French too" classname="mocked/scoreline.spec.ts" time="0.812">
+</testcase>
+<testcase name="[mocked-desktop] the fixture list carries the shoot-out too, in the short form the row has space for" classname="mocked/scoreline.spec.ts" time="0.834">
+</testcase>
+</testsuite>
+<testsuite name="mocked/timezone.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="12" failures="0" skipped="0" time="9.558" errors="0">
+<testcase name="[mocked-desktop] a viewer in New York › today asks the backend for the viewer&apos;s local calendar day" classname="mocked/timezone.spec.ts" time="0.795">
+</testcase>
+<testcase name="[mocked-desktop] a viewer in New York › tomorrow asks for the day after the viewer&apos;s local day" classname="mocked/timezone.spec.ts" time="0.779">
+</testcase>
+<testcase name="[mocked-desktop] a viewer in Auckland, far ahead of UTC › today is the Auckland day, not the UTC day" classname="mocked/timezone.spec.ts" time="0.781">
+</testcase>
+<testcase name="[mocked-desktop] a viewer in Los Angeles, far behind UTC › a late-evening kickoff still belongs to today" classname="mocked/timezone.spec.ts" time="0.806">
+</testcase>
+<testcase name="[mocked-desktop] a viewer in Los Angeles, far behind UTC › a kickoff just outside the local day is not shown as today" classname="mocked/timezone.spec.ts" time="0.789">
+</testcase>
+<testcase name="[mocked-desktop] a daylight-saving transition day in Lisbon › the requested day matches the viewer&apos;s calendar" classname="mocked/timezone.spec.ts" time="0.793">
+</testcase>
+<testcase name="[mocked-desktop] a daylight-saving transition day in Lisbon › both ends of a 25-hour local day are shown" classname="mocked/timezone.spec.ts" time="0.825">
+</testcase>
+<testcase name="[mocked-desktop] a daylight-saving transition day in Lisbon › the hours either side of a 25-hour local day are not" classname="mocked/timezone.spec.ts" time="0.787">
+</testcase>
+<testcase name="[mocked-desktop] a daylight-saving transition day in New York › the requested day matches the viewer&apos;s calendar" classname="mocked/timezone.spec.ts" time="0.792">
+</testcase>
+<testcase name="[mocked-desktop] a daylight-saving transition day in New York › the client bounds the day with the offset at each end, not one offset twice" classname="mocked/timezone.spec.ts" time="0.795">
+</testcase>
+<testcase name="[mocked-desktop] a daylight-saving transition day in New York › both ends of a 25-hour local day are shown" classname="mocked/timezone.spec.ts" time="0.809">
+</testcase>
+<testcase name="[mocked-desktop] a daylight-saving transition day in New York › the first hour of the next local day is not" classname="mocked/timezone.spec.ts" time="0.807">
+</testcase>
+</testsuite>
+<testsuite name="mocked/upcoming-empty-state.spec.ts" timestamp="2026-10-10T18:12:06.014Z" hostname="mocked-desktop" tests="22" failures="0" skipped="0" time="24.884" errors="0">
+<testcase name="[mocked-desktop] an empty day names when the competitions play again, and who plays" classname="mocked/upcoming-empty-state.spec.ts" time="0.813">
+</testcase>
+<testcase name="[mocked-desktop] the same answer reads as French for a French reader" classname="mocked/upcoming-empty-state.spec.ts" time="0.816">
+</testcase>
+<testcase name="[mocked-desktop] a calendar that was read and lists nothing says so" classname="mocked/upcoming-empty-state.spec.ts" time="0.803">
+</testcase>
+<testcase name="[mocked-desktop] a calendar nobody could read is reported as not known, never as no football" classname="mocked/upcoming-empty-state.spec.ts" time="0.817">
+</testcase>
+<testcase name="[mocked-desktop] a request that fails adds nothing at all to the empty state" classname="mocked/upcoming-empty-state.spec.ts" time="0.817">
+</testcase>
+<testcase name="[mocked-desktop] an answer that missed some calendars does not speak for the ones it missed" classname="mocked/upcoming-empty-state.spec.ts" time="0.779">
+</testcase>
+<testcase name="[mocked-desktop] a partial answer with nothing in it is not reported as a calendar with nothing in it" classname="mocked/upcoming-empty-state.spec.ts" time="0.78">
+</testcase>
+<testcase name="[mocked-desktop] a day that could not find out does not stop the next empty day from asking" classname="mocked/upcoming-empty-state.spec.ts" time="0.949">
+</testcase>
+<testcase name="[mocked-desktop] an answer already given is not paid for again on the next empty day" classname="mocked/upcoming-empty-state.spec.ts" time="0.863">
+</testcase>
+<testcase name="[mocked-desktop] a day with fixtures on it never asks when football resumes" classname="mocked/upcoming-empty-state.spec.ts" time="0.816">
+</testcase>
+<testcase name="[mocked-desktop] an answer is kept up to the age limit and asked again past it, kickoff or no kickoff" classname="mocked/upcoming-empty-state.spec.ts" time="0.946">
+</testcase>
+<testcase name="[mocked-desktop] an answer whose kickoff has passed is asked again, long before it is old" classname="mocked/upcoming-empty-state.spec.ts" time="0.869">
+</testcase>
+<testcase name="[mocked-desktop] an answer that names nothing to come expires on the clock like any other" classname="mocked/upcoming-empty-state.spec.ts" time="0.946">
+</testcase>
+<testcase name="[mocked-desktop] a kickoff that passes while the reader is away is re-asked when they come back to the tab" classname="mocked/upcoming-empty-state.spec.ts" time="0.797">
+</testcase>
+<testcase name="[mocked-desktop] coming back to the tab asks nothing when the answer on screen is still good" classname="mocked/upcoming-empty-state.spec.ts" time="0.815">
+</testcase>
+<testcase name="[mocked-desktop] a tab that is not in front does no work when the events arrive" classname="mocked/upcoming-empty-state.spec.ts" time="1.318">
+</testcase>
+<testcase name="[mocked-desktop] a refresh that fails leaves the notice the reader was reading on screen" classname="mocked/upcoming-empty-state.spec.ts" time="1.339">
+</testcase>
+<testcase name="[mocked-desktop] a refresh the backend refuses to spend on leaves the notice alone" classname="mocked/upcoming-empty-state.spec.ts" time="1.321">
+</testcase>
+<testcase name="[mocked-desktop] a return that could not find out is not re-asked by the return after it" classname="mocked/upcoming-empty-state.spec.ts" time="1.341">
+</testcase>
+<testcase name="[mocked-desktop] automatic updates switched off stops the note re-asking when the reader comes back" classname="mocked/upcoming-empty-state.spec.ts" time="1.843">
+</testcase>
+<testcase name="[mocked-desktop] the same reader with automatic updates on does get the refresh" classname="mocked/upcoming-empty-state.spec.ts" time="1.353">
+</testcase>
+<testcase name="[mocked-desktop] empty days opened faster than the answer arrives share the one request" classname="mocked/upcoming-empty-state.spec.ts" time="3.743">
+</testcase>
+</testsuite>
+</testsuites>
