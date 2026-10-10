@@ -1,0 +1,40 @@
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('section[aria-labelledby="record-heading"]')
+    Expected substring: "Pas encore évaluée"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" locator('section[aria-labelledby="record-heading"]') with timeout 10000ms
+      - waiting for locator('section[aria-labelledby="record-heading"]')
+
+
+      397 |     const catalogue = language === 'en' ? en : fr;
+      398 |     const record = page.locator('section[aria-labelledby="record-heading"]');
+    > 399 |     await expect(record).toContainText(catalogue['expert.dashboard.notScoredYet']);
+          |                          ^
+      400 |     await expect(record).toContainText(catalogue['expert.dashboard.nonePublished']);
+      401 |     await expect(record).toContainText(catalogue['expert.dashboard.accuracyNote']);
+      402 |
+        at <repo>/frontend/e2e/mocked/expert-localisation.spec.ts:399:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../.test-runs/2026-10-10T1841Z-b754d58/artifacts-mocked-desktop/mocked-expert-localisation-1e9d3-e-sentences-not-zeros-in-fr-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../.test-runs/2026-10-10T1841Z-b754d58/artifacts-mocked-desktop/mocked-expert-localisation-1e9d3-e-sentences-not-zeros-in-fr-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../.test-runs/2026-10-10T1841Z-b754d58/artifacts-mocked-desktop/mocked-expert-localisation-1e9d3-e-sentences-not-zeros-in-fr-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace ../.test-runs/2026-10-10T1841Z-b754d58/artifacts-mocked-desktop/mocked-expert-localisation-1e9d3-e-sentences-not-zeros-in-fr-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [mocked-desktop] › e2e/mocked/expert-localisation.spec.ts:392:3 › an unscored accuracy and an unclaimed conviction are sentences, not zeros, in fr 
+  2 skipped
+  450 passed (10.8m)

@@ -701,6 +701,7 @@ it. `docs/evidence/test-reports/README.md` has the layout and the scrub policy.
 | `2026-10-08T0326Z-586b21a` | 586b21a | 1681 passed | 451 passed, 2 skipped | 453 passed | 140 passed | 47 passed, 9 skipped; live-isolated 2 passed — **PASS**, running code measured |
 | `2026-10-10T1740Z-dd1c857` | dd1c857 | 1682 passed, **3 failed** | 451 passed, 2 skipped | 453 passed | 140 passed | 56 passed, 0 skipped; live-isolated 2 passed — **FAIL** (backend) |
 | `2026-10-10T1811Z-37630ef` | 37630ef | 1685 passed | 451 passed, 2 skipped | 453 passed | 140 passed | 55 passed, 1 skipped; live-isolated 2 passed — **CONTAMINATED**: a pytest run not this runner's was seen for two minutes during mocked-desktop; every suite passed, the verdict stands, the run was repeated |
+| `2026-10-10T1841Z-b754d58` | b754d58 | 1685 passed | 450 passed, **1 failed**, 2 skipped | 453 passed | 140 passed | 56 passed; live-isolated 2 passed — **FAIL** (mocked-desktop): the French expert-dashboard test waited 10 s for the record section and did not find it; the same test passed in both earlier runs that day, and the run was repeated |
 
 The first failure was a precondition: a live scroll-restoration check measured on a day whose three
 stored fixtures fitted in a 1440x900 window (fixed in b753202). The second was a club crest from
