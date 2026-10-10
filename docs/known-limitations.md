@@ -717,7 +717,7 @@ data and the providers, so they are comparable only together with their skip rea
 grew this round with the new tests, and `npm run e2e:mocked` now includes the mocked-mobile-360
 project, so neither is comparable with earlier figures.
 
-## The journey from fixture to settlement is proven only as far as the stored result
+## The journey from fixture to settlement: proven to the stored result on the live database, and through settlement on a copy
 
 `backend/scripts/prove_journey.py` follows each fixture through five stages, read-only: fixture
 stored, forecast before kickoff, suggestion, stored result, settlement. It reads the database in a
@@ -725,23 +725,35 @@ read-only transaction, Redis through a read-only wrapper, and the API through an
 GET requests on this machine only; each run checks that it spent nothing, and is kept under
 `docs/evidence/journey-proof/`.
 
-The runs of 2026-10-07 find match-data access **blocked**. Of the fixtures that kicked off from
-2 October, 89 stop at the stored-result stage; the 5 stored results all date from 2 October. The
-journey slip recorded on 2026-10-05 is pending with both legs held there. Fixtures still to kick off
-pass the fixture, forecast and suggestion stages — French Guiana v Belize (kickoff 2026-10-07 02:00
-UTC) did, before kickoff — and then wait for a result no source can deliver.
+Match-data access **returned on 2026-10-09 at 01:15 UTC**, when the Live Score Starter plan went
+live on the existing key; an operator-run fixtures pass that night stored 41 fixtures, and the
+recovery passes stored 82 international results between 02:06 and 03:37. The run of
+2026-10-10T1716Z reads `returned`: of the fixtures that kicked off from 2 October, 97 have a
+result stored since access came back and 6 had one before; 17 are overdue, and each of those is
+accounted for one by one in `docs/evidence/overdue-and-waiting-2026-10-10.md` — one is a provider
+feed that has stalled on a match in play, two have their result stored under another row, and the
+rest are listings the provider published and never played as listed, which no retry will resolve.
+The 40 forecasts waiting for fixtures are all for matches beyond the three-day fixture window and
+attach, spending nothing, once their fixtures arrive; none is a matching failure.
 
 The verdict `returned` needs three signals together: the primary provider answering, a fixtures or
 results pass that asked it and was answered, and newly stored rows. It ignores what only looks like
 recovery: a fallback's HTTP 200 carrying a plan error, a recovery or settlement "success" that sent
 nothing, and `matches.updated_at`, which recovery bookkeeping moves.
 
-**What it cannot show yet.** No slip leg has ever settled against a stored result. A slip settles
-when its owner reads it (`GET /api/v1/me/slips` settles and commits); the scheduler's settle task
-scores forecasts and never touches slips. So after results return, a leg reads `pending: owner read`
-until one such read, which is a write and needs the owner's go-ahead. The suggestion stage can only
-be observed before kickoff. The re-run procedure is in `docs/evidence/journey-proof/README.md`; the
-latest run is `2026-10-07T0437Z.json`.
+**Settlement is proven on a copy, and owed on the live database.** A slip settles when its owner
+reads it (`GET /api/v1/me/slips` settles and commits); the scheduler's settle task scores forecasts
+and never touches slips. On 2026-10-10 the five recorded slips were read that way against a copy of
+the live database taken at 17:14 UTC, through the isolated backend: `18724af2` (5 October: Cyprus v
+Latvia home, France v Belgium over 0.5) settled **won**, the four of 7 October (Dortmund v Werder
+Bremen home, which finished 2-2) settled **lost**, every leg with its rule and the score that decided
+it, and a second read changed no row, no timestamp and no table
+(`docs/evidence/journey-proof/settlement-isolated-2026-10-10/`). On the live database the same five
+still read `pending: owner read` with the same dry-run outcomes, because that read is a write and
+waits for the owner's explicit go-ahead. The suggestion stage can only be observed before kickoff;
+the recorded slips' legs were taken from the forecast markets, and the suggestion service was
+exercised in the same test runs without recording its combination. The re-run procedure is in
+`docs/evidence/journey-proof/README.md`; the latest run is `2026-10-10T1716Z.json`.
 
 **The browser test that records a slip now runs only against the isolated pair.** Until
 2026-10-08 `parlay-journey.spec.ts` saved and recorded a combination for the QA account on whatever

@@ -1,0 +1,1114 @@
+{
+  "slips": [
+    {
+      "id": "4e0a43fa-d21e-4eb3-b382-3beb29c37a63",
+      "name": "Journey 2026-10-07T04:34",
+      "status": "recorded",
+      "note": null,
+      "currency": null,
+      "stake": null,
+      "price": null,
+      "price_source": null,
+      "price_missing_legs": 1,
+      "price_note": "no combined price: at least one selection has no price for exactly that selection",
+      "effective_price": null,
+      "effective_price_source": null,
+      "effective_price_note": null,
+      "potential": null,
+      "potential_withheld_reason": null,
+      "recorded_at": "2026-10-07T04:34:40.731477Z",
+      "recorded_reference": "live journey",
+      "recorded_note": "the reader's own statement that this was placed elsewhere; nothing here is confirmed by any bookmaker",
+      "state": "lost",
+      "settled_at": "2026-10-10T17:19:44.094018Z",
+      "counts": {
+        "pending": 0,
+        "won": 1,
+        "lost": 1,
+        "void": 0,
+        "unresolved": 0,
+        "legs": 2
+      },
+      "created_at": "2026-10-07T04:34:39.366139Z",
+      "updated_at": "2026-10-10T17:19:44.106151Z",
+      "legs": [
+        {
+          "id": "0397b06f-80db-466b-b948-2a9b24aa6c26",
+          "position": 0,
+          "match": {
+            "id": "932ed462-0bf2-40ff-b275-4a7f936a535d",
+            "home": {
+              "id": "3b89134e-9e56-4208-9c11-4201c0ec9bcb",
+              "name": "Borussia Dortmund",
+              "short_name": "Borussia Dortmund",
+              "logo": "https://cdn.live-score-api.com/teams/41.png",
+              "country": "Germany",
+              "team_scope": "club_senior_men"
+            },
+            "away": {
+              "id": "c48142e2-95ec-4db0-b19f-533eae421be2",
+              "name": "Werder Bremen",
+              "short_name": "Werder Bremen",
+              "logo": "https://cdn.live-score-api.com/teams/56.png",
+              "country": "Germany",
+              "team_scope": "club_senior_men"
+            },
+            "competition": {
+              "id": "652c64e7-84d5-472f-86d3-0d3b87a983a6",
+              "key": "bundesliga",
+              "name": "Bundesliga",
+              "country": "Germany",
+              "country_code": "GER",
+              "logo": "/leagues/default.svg",
+              "is_cup": false,
+              "providers": {},
+              "is_national_team": false,
+              "confederation": "UEFA",
+              "squad_category": "senior_men"
+            },
+            "kickoff_utc": "2026-10-09T18:30:00Z",
+            "status": "finished",
+            "minute": "FT",
+            "score": {
+              "home": 2,
+              "away": 2,
+              "ht_home": 0,
+              "ht_away": 0,
+              "ft_home": 2,
+              "ft_away": 2,
+              "et_home": null,
+              "et_away": null,
+              "ps_home": null,
+              "ps_away": null
+            }
+          },
+          "selection": {
+            "selection_id": "match_result:home",
+            "market_id": "match_result",
+            "outcome": "home",
+            "line": null,
+            "period": "regulation"
+          },
+          "probability": 0.72,
+          "probability_source": "provider",
+          "calculation": null,
+          "provider": "gameforecast",
+          "snapshot_id": "eb8e0a17-d54f-41cb-85f9-dd9ffe9a6dad",
+          "model_run_at": "2026-10-06T00:00:00Z",
+          "forecast_fetched_at": "2026-10-07T01:04:53.012426Z",
+          "normalisation_version": "markets.v1",
+          "odds": {
+            "value": 1.36,
+            "format": "decimal",
+            "source": "provider_snapshot",
+            "captured_at": "2026-10-06T00:00:00Z"
+          },
+          "kickoff_utc": "2026-10-09T18:30:00Z",
+          "started": true,
+          "result_expected_by": "2026-10-09T21:00:00Z",
+          "current": {
+            "probability": 0.72,
+            "available": true,
+            "forecast_changed": false,
+            "state": "kickoff_passed"
+          },
+          "state": "lost",
+          "settled_at": "2026-10-10T17:19:44.094018Z",
+          "settlement": {
+            "rule": "regulation-time result",
+            "basis": "regulation_time",
+            "state": "lost",
+            "actual": "2-2",
+            "rules_version": "slip-settlement.v1",
+            "actual_outcome": "draw"
+          },
+          "settlement_capability": {
+            "capable": true,
+            "basis": "regulation_time",
+            "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+          }
+        },
+        {
+          "id": "3d83fcd4-36d0-415b-ac65-3c39b80875be",
+          "position": 1,
+          "match": {
+            "id": "0c4adb8c-9c43-4abb-8112-ba6780470a0a",
+            "home": {
+              "id": "a29cd147-3b9e-4bfd-ba71-c315067c4812",
+              "name": "Lens",
+              "short_name": "Lens",
+              "logo": "https://cdn.live-score-api.com/teams/957.png",
+              "country": "France",
+              "team_scope": "club_senior_men"
+            },
+            "away": {
+              "id": "ebc9f153-69d3-4c54-98b4-684b12466479",
+              "name": "Lyon",
+              "short_name": "Lyon",
+              "logo": "https://cdn.live-score-api.com/teams/61.png",
+              "country": "France",
+              "team_scope": "club_senior_men"
+            },
+            "competition": {
+              "id": "3625e042-b4e6-46cd-bb68-8f48c3dd81fe",
+              "key": "ligue_1",
+              "name": "Ligue 1",
+              "country": "France",
+              "country_code": "FRA",
+              "logo": "/leagues/default.svg",
+              "is_cup": false,
+              "providers": {},
+              "is_national_team": false,
+              "confederation": "UEFA",
+              "squad_category": "senior_men"
+            },
+            "kickoff_utc": "2026-10-09T18:45:00Z",
+            "status": "finished",
+            "minute": "FT",
+            "score": {
+              "home": 2,
+              "away": 1,
+              "ht_home": 1,
+              "ht_away": 0,
+              "ft_home": 2,
+              "ft_away": 1,
+              "et_home": null,
+              "et_away": null,
+              "ps_home": null,
+              "ps_away": null
+            }
+          },
+          "selection": {
+            "selection_id": "total_goals:over@0.5",
+            "market_id": "total_goals",
+            "outcome": "over",
+            "line": 0.5,
+            "period": "regulation"
+          },
+          "probability": 0.92,
+          "probability_source": "provider",
+          "calculation": null,
+          "provider": "gameforecast",
+          "snapshot_id": "0b128be1-d67e-4b7f-9e79-d8f7b2eff470",
+          "model_run_at": "2026-10-06T00:00:00Z",
+          "forecast_fetched_at": "2026-10-07T01:04:53.910352Z",
+          "normalisation_version": "markets.v1",
+          "odds": null,
+          "kickoff_utc": "2026-10-09T18:45:00Z",
+          "started": true,
+          "result_expected_by": "2026-10-09T21:15:00Z",
+          "current": {
+            "probability": 0.95,
+            "available": true,
+            "forecast_changed": true,
+            "state": "kickoff_passed"
+          },
+          "state": "won",
+          "settled_at": "2026-10-10T17:19:44.094018Z",
+          "settlement": {
+            "rule": "regulation-time goals against the 0.5 line",
+            "basis": "regulation_time",
+            "goals": 3,
+            "state": "won",
+            "actual": "2-1",
+            "rules_version": "slip-settlement.v1",
+            "actual_outcome": "home"
+          },
+          "settlement_capability": {
+            "capable": true,
+            "basis": "regulation_time",
+            "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+          }
+        }
+      ]
+    },
+    {
+      "id": "5d918730-e0e7-43a5-a4bc-fd5d2657ba34",
+      "name": "Journey 2026-10-07T03:59",
+      "status": "recorded",
+      "note": null,
+      "currency": null,
+      "stake": null,
+      "price": null,
+      "price_source": null,
+      "price_missing_legs": 1,
+      "price_note": "no combined price: at least one selection has no price for exactly that selection",
+      "effective_price": null,
+      "effective_price_source": null,
+      "effective_price_note": null,
+      "potential": null,
+      "potential_withheld_reason": null,
+      "recorded_at": "2026-10-07T03:59:38.182458Z",
+      "recorded_reference": "live journey",
+      "recorded_note": "the reader's own statement that this was placed elsewhere; nothing here is confirmed by any bookmaker",
+      "state": "lost",
+      "settled_at": "2026-10-10T17:19:44.094018Z",
+      "counts": {
+        "pending": 0,
+        "won": 1,
+        "lost": 1,
+        "void": 0,
+        "unresolved": 0,
+        "legs": 2
+      },
+      "created_at": "2026-10-07T03:59:36.952824Z",
+      "updated_at": "2026-10-10T17:19:44.106151Z",
+      "legs": [
+        {
+          "id": "15494d61-cdb1-4511-8b0b-4360c9fae24b",
+          "position": 0,
+          "match": {
+            "id": "932ed462-0bf2-40ff-b275-4a7f936a535d",
+            "home": {
+              "id": "3b89134e-9e56-4208-9c11-4201c0ec9bcb",
+              "name": "Borussia Dortmund",
+              "short_name": "Borussia Dortmund",
+              "logo": "https://cdn.live-score-api.com/teams/41.png",
+              "country": "Germany",
+              "team_scope": "club_senior_men"
+            },
+            "away": {
+              "id": "c48142e2-95ec-4db0-b19f-533eae421be2",
+              "name": "Werder Bremen",
+              "short_name": "Werder Bremen",
+              "logo": "https://cdn.live-score-api.com/teams/56.png",
+              "country": "Germany",
+              "team_scope": "club_senior_men"
+            },
+            "competition": {
+              "id": "652c64e7-84d5-472f-86d3-0d3b87a983a6",
+              "key": "bundesliga",
+              "name": "Bundesliga",
+              "country": "Germany",
+              "country_code": "GER",
+              "logo": "/leagues/default.svg",
+              "is_cup": false,
+              "providers": {},
+              "is_national_team": false,
+              "confederation": "UEFA",
+              "squad_category": "senior_men"
+            },
+            "kickoff_utc": "2026-10-09T18:30:00Z",
+            "status": "finished",
+            "minute": "FT",
+            "score": {
+              "home": 2,
+              "away": 2,
+              "ht_home": 0,
+              "ht_away": 0,
+              "ft_home": 2,
+              "ft_away": 2,
+              "et_home": null,
+              "et_away": null,
+              "ps_home": null,
+              "ps_away": null
+            }
+          },
+          "selection": {
+            "selection_id": "match_result:home",
+            "market_id": "match_result",
+            "outcome": "home",
+            "line": null,
+            "period": "regulation"
+          },
+          "probability": 0.72,
+          "probability_source": "provider",
+          "calculation": null,
+          "provider": "gameforecast",
+          "snapshot_id": "eb8e0a17-d54f-41cb-85f9-dd9ffe9a6dad",
+          "model_run_at": "2026-10-06T00:00:00Z",
+          "forecast_fetched_at": "2026-10-07T01:04:53.012426Z",
+          "normalisation_version": "markets.v1",
+          "odds": {
+            "value": 1.36,
+            "format": "decimal",
+            "source": "provider_snapshot",
+            "captured_at": "2026-10-06T00:00:00Z"
+          },
+          "kickoff_utc": "2026-10-09T18:30:00Z",
+          "started": true,
+          "result_expected_by": "2026-10-09T21:00:00Z",
+          "current": {
+            "probability": 0.72,
+            "available": true,
+            "forecast_changed": false,
+            "state": "kickoff_passed"
+          },
+          "state": "lost",
+          "settled_at": "2026-10-10T17:19:44.094018Z",
+          "settlement": {
+            "rule": "regulation-time result",
+            "basis": "regulation_time",
+            "state": "lost",
+            "actual": "2-2",
+            "rules_version": "slip-settlement.v1",
+            "actual_outcome": "draw"
+          },
+          "settlement_capability": {
+            "capable": true,
+            "basis": "regulation_time",
+            "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+          }
+        },
+        {
+          "id": "0d01860a-b32a-4a54-809d-ed14df28392d",
+          "position": 1,
+          "match": {
+            "id": "0c4adb8c-9c43-4abb-8112-ba6780470a0a",
+            "home": {
+              "id": "a29cd147-3b9e-4bfd-ba71-c315067c4812",
+              "name": "Lens",
+              "short_name": "Lens",
+              "logo": "https://cdn.live-score-api.com/teams/957.png",
+              "country": "France",
+              "team_scope": "club_senior_men"
+            },
+            "away": {
+              "id": "ebc9f153-69d3-4c54-98b4-684b12466479",
+              "name": "Lyon",
+              "short_name": "Lyon",
+              "logo": "https://cdn.live-score-api.com/teams/61.png",
+              "country": "France",
+              "team_scope": "club_senior_men"
+            },
+            "competition": {
+              "id": "3625e042-b4e6-46cd-bb68-8f48c3dd81fe",
+              "key": "ligue_1",
+              "name": "Ligue 1",
+              "country": "France",
+              "country_code": "FRA",
+              "logo": "/leagues/default.svg",
+              "is_cup": false,
+              "providers": {},
+              "is_national_team": false,
+              "confederation": "UEFA",
+              "squad_category": "senior_men"
+            },
+            "kickoff_utc": "2026-10-09T18:45:00Z",
+            "status": "finished",
+            "minute": "FT",
+            "score": {
+              "home": 2,
+              "away": 1,
+              "ht_home": 1,
+              "ht_away": 0,
+              "ft_home": 2,
+              "ft_away": 1,
+              "et_home": null,
+              "et_away": null,
+              "ps_home": null,
+              "ps_away": null
+            }
+          },
+          "selection": {
+            "selection_id": "total_goals:over@0.5",
+            "market_id": "total_goals",
+            "outcome": "over",
+            "line": 0.5,
+            "period": "regulation"
+          },
+          "probability": 0.92,
+          "probability_source": "provider",
+          "calculation": null,
+          "provider": "gameforecast",
+          "snapshot_id": "0b128be1-d67e-4b7f-9e79-d8f7b2eff470",
+          "model_run_at": "2026-10-06T00:00:00Z",
+          "forecast_fetched_at": "2026-10-07T01:04:53.910352Z",
+          "normalisation_version": "markets.v1",
+          "odds": null,
+          "kickoff_utc": "2026-10-09T18:45:00Z",
+          "started": true,
+          "result_expected_by": "2026-10-09T21:15:00Z",
+          "current": {
+            "probability": 0.95,
+            "available": true,
+            "forecast_changed": true,
+            "state": "kickoff_passed"
+          },
+          "state": "won",
+          "settled_at": "2026-10-10T17:19:44.094018Z",
+          "settlement": {
+            "rule": "regulation-time goals against the 0.5 line",
+            "basis": "regulation_time",
+            "goals": 3,
+            "state": "won",
+            "actual": "2-1",
+            "rules_version": "slip-settlement.v1",
+            "actual_outcome": "home"
+          },
+          "settlement_capability": {
+            "capable": true,
+            "basis": "regulation_time",
+            "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+          }
+        }
+      ]
+    },
+    {
+      "id": "63778783-9c7b-47f4-b152-9f6deaad4eb5",
+      "name": "Journey 2026-10-07T03:27",
+      "status": "recorded",
+      "note": null,
+      "currency": null,
+      "stake": null,
+      "price": null,
+      "price_source": null,
+      "price_missing_legs": 1,
+      "price_note": "no combined price: at least one selection has no price for exactly that selection",
+      "effective_price": null,
+      "effective_price_source": null,
+      "effective_price_note": null,
+      "potential": null,
+      "potential_withheld_reason": null,
+      "recorded_at": "2026-10-07T03:27:53.570183Z",
+      "recorded_reference": "live journey",
+      "recorded_note": "the reader's own statement that this was placed elsewhere; nothing here is confirmed by any bookmaker",
+      "state": "lost",
+      "settled_at": "2026-10-10T17:19:44.094018Z",
+      "counts": {
+        "pending": 0,
+        "won": 1,
+        "lost": 1,
+        "void": 0,
+        "unresolved": 0,
+        "legs": 2
+      },
+      "created_at": "2026-10-07T03:27:52.313175Z",
+      "updated_at": "2026-10-10T17:19:44.106151Z",
+      "legs": [
+        {
+          "id": "b01ca27b-9923-46ee-9042-71499e04abd6",
+          "position": 0,
+          "match": {
+            "id": "932ed462-0bf2-40ff-b275-4a7f936a535d",
+            "home": {
+              "id": "3b89134e-9e56-4208-9c11-4201c0ec9bcb",
+              "name": "Borussia Dortmund",
+              "short_name": "Borussia Dortmund",
+              "logo": "https://cdn.live-score-api.com/teams/41.png",
+              "country": "Germany",
+              "team_scope": "club_senior_men"
+            },
+            "away": {
+              "id": "c48142e2-95ec-4db0-b19f-533eae421be2",
+              "name": "Werder Bremen",
+              "short_name": "Werder Bremen",
+              "logo": "https://cdn.live-score-api.com/teams/56.png",
+              "country": "Germany",
+              "team_scope": "club_senior_men"
+            },
+            "competition": {
+              "id": "652c64e7-84d5-472f-86d3-0d3b87a983a6",
+              "key": "bundesliga",
+              "name": "Bundesliga",
+              "country": "Germany",
+              "country_code": "GER",
+              "logo": "/leagues/default.svg",
+              "is_cup": false,
+              "providers": {},
+              "is_national_team": false,
+              "confederation": "UEFA",
+              "squad_category": "senior_men"
+            },
+            "kickoff_utc": "2026-10-09T18:30:00Z",
+            "status": "finished",
+            "minute": "FT",
+            "score": {
+              "home": 2,
+              "away": 2,
+              "ht_home": 0,
+              "ht_away": 0,
+              "ft_home": 2,
+              "ft_away": 2,
+              "et_home": null,
+              "et_away": null,
+              "ps_home": null,
+              "ps_away": null
+            }
+          },
+          "selection": {
+            "selection_id": "match_result:home",
+            "market_id": "match_result",
+            "outcome": "home",
+            "line": null,
+            "period": "regulation"
+          },
+          "probability": 0.72,
+          "probability_source": "provider",
+          "calculation": null,
+          "provider": "gameforecast",
+          "snapshot_id": "eb8e0a17-d54f-41cb-85f9-dd9ffe9a6dad",
+          "model_run_at": "2026-10-06T00:00:00Z",
+          "forecast_fetched_at": "2026-10-07T01:04:53.012426Z",
+          "normalisation_version": "markets.v1",
+          "odds": {
+            "value": 1.36,
+            "format": "decimal",
+            "source": "provider_snapshot",
+            "captured_at": "2026-10-06T00:00:00Z"
+          },
+          "kickoff_utc": "2026-10-09T18:30:00Z",
+          "started": true,
+          "result_expected_by": "2026-10-09T21:00:00Z",
+          "current": {
+            "probability": 0.72,
+            "available": true,
+            "forecast_changed": false,
+            "state": "kickoff_passed"
+          },
+          "state": "lost",
+          "settled_at": "2026-10-10T17:19:44.094018Z",
+          "settlement": {
+            "rule": "regulation-time result",
+            "basis": "regulation_time",
+            "state": "lost",
+            "actual": "2-2",
+            "rules_version": "slip-settlement.v1",
+            "actual_outcome": "draw"
+          },
+          "settlement_capability": {
+            "capable": true,
+            "basis": "regulation_time",
+            "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+          }
+        },
+        {
+          "id": "324bc80c-a605-4b31-8f58-99395b3c0825",
+          "position": 1,
+          "match": {
+            "id": "0c4adb8c-9c43-4abb-8112-ba6780470a0a",
+            "home": {
+              "id": "a29cd147-3b9e-4bfd-ba71-c315067c4812",
+              "name": "Lens",
+              "short_name": "Lens",
+              "logo": "https://cdn.live-score-api.com/teams/957.png",
+              "country": "France",
+              "team_scope": "club_senior_men"
+            },
+            "away": {
+              "id": "ebc9f153-69d3-4c54-98b4-684b12466479",
+              "name": "Lyon",
+              "short_name": "Lyon",
+              "logo": "https://cdn.live-score-api.com/teams/61.png",
+              "country": "France",
+              "team_scope": "club_senior_men"
+            },
+            "competition": {
+              "id": "3625e042-b4e6-46cd-bb68-8f48c3dd81fe",
+              "key": "ligue_1",
+              "name": "Ligue 1",
+              "country": "France",
+              "country_code": "FRA",
+              "logo": "/leagues/default.svg",
+              "is_cup": false,
+              "providers": {},
+              "is_national_team": false,
+              "confederation": "UEFA",
+              "squad_category": "senior_men"
+            },
+            "kickoff_utc": "2026-10-09T18:45:00Z",
+            "status": "finished",
+            "minute": "FT",
+            "score": {
+              "home": 2,
+              "away": 1,
+              "ht_home": 1,
+              "ht_away": 0,
+              "ft_home": 2,
+              "ft_away": 1,
+              "et_home": null,
+              "et_away": null,
+              "ps_home": null,
+              "ps_away": null
+            }
+          },
+          "selection": {
+            "selection_id": "total_goals:over@0.5",
+            "market_id": "total_goals",
+            "outcome": "over",
+            "line": 0.5,
+            "period": "regulation"
+          },
+          "probability": 0.92,
+          "probability_source": "provider",
+          "calculation": null,
+          "provider": "gameforecast",
+          "snapshot_id": "0b128be1-d67e-4b7f-9e79-d8f7b2eff470",
+          "model_run_at": "2026-10-06T00:00:00Z",
+          "forecast_fetched_at": "2026-10-07T01:04:53.910352Z",
+          "normalisation_version": "markets.v1",
+          "odds": null,
+          "kickoff_utc": "2026-10-09T18:45:00Z",
+          "started": true,
+          "result_expected_by": "2026-10-09T21:15:00Z",
+          "current": {
+            "probability": 0.95,
+            "available": true,
+            "forecast_changed": true,
+            "state": "kickoff_passed"
+          },
+          "state": "won",
+          "settled_at": "2026-10-10T17:19:44.094018Z",
+          "settlement": {
+            "rule": "regulation-time goals against the 0.5 line",
+            "basis": "regulation_time",
+            "goals": 3,
+            "state": "won",
+            "actual": "2-1",
+            "rules_version": "slip-settlement.v1",
+            "actual_outcome": "home"
+          },
+          "settlement_capability": {
+            "capable": true,
+            "basis": "regulation_time",
+            "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+          }
+        }
+      ]
+    },
+    {
+      "id": "18724af2-1f5d-444e-98d4-d1f42fef9f5e",
+      "name": "Journey 2026-10-05T06:08",
+      "status": "recorded",
+      "note": null,
+      "currency": null,
+      "stake": null,
+      "price": null,
+      "price_source": null,
+      "price_missing_legs": 1,
+      "price_note": "no combined price: at least one selection has no price for exactly that selection",
+      "effective_price": null,
+      "effective_price_source": null,
+      "effective_price_note": null,
+      "potential": null,
+      "potential_withheld_reason": null,
+      "recorded_at": "2026-10-05T06:08:38.127768Z",
+      "recorded_reference": "live journey",
+      "recorded_note": "the reader's own statement that this was placed elsewhere; nothing here is confirmed by any bookmaker",
+      "state": "won",
+      "settled_at": "2026-10-10T17:19:44.094018Z",
+      "counts": {
+        "pending": 0,
+        "won": 2,
+        "lost": 0,
+        "void": 0,
+        "unresolved": 0,
+        "legs": 2
+      },
+      "created_at": "2026-10-05T06:08:37.371225Z",
+      "updated_at": "2026-10-10T17:19:44.106150Z",
+      "legs": [
+        {
+          "id": "a9b3d984-a570-446d-a387-d02e64a181d8",
+          "position": 0,
+          "match": {
+            "id": "1dabe788-3629-4b89-ab33-435c5846e7de",
+            "home": {
+              "id": "94fa4dd6-46cd-4be4-9424-821b0f1c62cd",
+              "name": "Cyprus",
+              "short_name": "Cyprus",
+              "logo": "https://cdn.live-score-api.com/teams/1647.png",
+              "country": "Unknown",
+              "team_scope": "national_senior_men"
+            },
+            "away": {
+              "id": "9b1c59a2-b487-4e5d-a9fb-9453fadaab3f",
+              "name": "Latvia",
+              "short_name": "Latvia",
+              "logo": "https://cdn.live-score-api.com/teams/2683.png",
+              "country": "Unknown",
+              "team_scope": "national_senior_men"
+            },
+            "competition": {
+              "id": "53b493c9-c0b3-4f65-89dc-13bb91af1d3f",
+              "key": "uefa_nations_league",
+              "name": "UEFA Nations League",
+              "country": "Europe",
+              "country_code": "EUR",
+              "logo": "/leagues/default.svg",
+              "is_cup": true,
+              "providers": {},
+              "is_national_team": true,
+              "confederation": "UEFA",
+              "squad_category": "senior_men"
+            },
+            "kickoff_utc": "2026-10-05T16:01:00Z",
+            "status": "finished",
+            "minute": "FT",
+            "score": {
+              "home": 2,
+              "away": 1,
+              "ht_home": 0,
+              "ht_away": 0,
+              "ft_home": 2,
+              "ft_away": 1,
+              "et_home": null,
+              "et_away": null,
+              "ps_home": null,
+              "ps_away": null
+            }
+          },
+          "selection": {
+            "selection_id": "match_result:home",
+            "market_id": "match_result",
+            "outcome": "home",
+            "line": null,
+            "period": "regulation"
+          },
+          "probability": 0.45,
+          "probability_source": "provider",
+          "calculation": null,
+          "provider": "gameforecast",
+          "snapshot_id": "bba86a28-834b-4c08-981b-c69674de8fe2",
+          "model_run_at": "2026-10-04T00:00:00Z",
+          "forecast_fetched_at": "2026-10-05T06:02:06.921889Z",
+          "normalisation_version": "markets.v1",
+          "odds": {
+            "value": 1.7,
+            "format": "decimal",
+            "source": "provider_snapshot",
+            "captured_at": "2026-10-04T00:00:00Z"
+          },
+          "kickoff_utc": "2026-10-05T16:01:00Z",
+          "started": true,
+          "result_expected_by": "2026-10-05T18:31:00Z",
+          "current": {
+            "probability": 0.45,
+            "available": true,
+            "forecast_changed": false,
+            "state": "kickoff_passed"
+          },
+          "state": "won",
+          "settled_at": "2026-10-10T17:19:44.094018Z",
+          "settlement": {
+            "rule": "regulation-time result",
+            "basis": "regulation_time",
+            "state": "won",
+            "actual": "2-1",
+            "rules_version": "slip-settlement.v1",
+            "actual_outcome": "home"
+          },
+          "settlement_capability": {
+            "capable": true,
+            "basis": "regulation_time",
+            "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+          }
+        },
+        {
+          "id": "eac38846-95a1-475d-8ff0-182711408f02",
+          "position": 1,
+          "match": {
+            "id": "897decfa-9722-49ed-a49d-0b30a87f4589",
+            "home": {
+              "id": "04e5e417-11ae-4ff0-919e-bccf791e0ff9",
+              "name": "France",
+              "short_name": "France",
+              "logo": "https://cdn.live-score-api.com/teams/1439.png",
+              "country": "Unknown",
+              "team_scope": "national_senior_men"
+            },
+            "away": {
+              "id": "63be017a-b4bc-49c5-ba93-1f9339a530ba",
+              "name": "Belgium",
+              "short_name": "Belgium",
+              "logo": "https://cdn.live-score-api.com/teams/1453.png",
+              "country": "Unknown",
+              "team_scope": "national_senior_men"
+            },
+            "competition": {
+              "id": "53b493c9-c0b3-4f65-89dc-13bb91af1d3f",
+              "key": "uefa_nations_league",
+              "name": "UEFA Nations League",
+              "country": "Europe",
+              "country_code": "EUR",
+              "logo": "/leagues/default.svg",
+              "is_cup": true,
+              "providers": {},
+              "is_national_team": true,
+              "confederation": "UEFA",
+              "squad_category": "senior_men"
+            },
+            "kickoff_utc": "2026-10-05T18:45:00Z",
+            "status": "finished",
+            "minute": "FT",
+            "score": {
+              "home": 4,
+              "away": 1,
+              "ht_home": 0,
+              "ht_away": 1,
+              "ft_home": 4,
+              "ft_away": 1,
+              "et_home": null,
+              "et_away": null,
+              "ps_home": null,
+              "ps_away": null
+            }
+          },
+          "selection": {
+            "selection_id": "total_goals:over@0.5",
+            "market_id": "total_goals",
+            "outcome": "over",
+            "line": 0.5,
+            "period": "regulation"
+          },
+          "probability": 0.9,
+          "probability_source": "provider",
+          "calculation": null,
+          "provider": "gameforecast",
+          "snapshot_id": "f9a75754-c32c-4102-a8ab-95fcb862512e",
+          "model_run_at": "2026-10-04T00:00:00Z",
+          "forecast_fetched_at": "2026-10-05T06:02:06.921889Z",
+          "normalisation_version": "markets.v1",
+          "odds": null,
+          "kickoff_utc": "2026-10-05T18:45:00Z",
+          "started": true,
+          "result_expected_by": "2026-10-05T21:15:00Z",
+          "current": {
+            "probability": 0.9,
+            "available": true,
+            "forecast_changed": false,
+            "state": "kickoff_passed"
+          },
+          "state": "won",
+          "settled_at": "2026-10-10T17:19:44.094018Z",
+          "settlement": {
+            "rule": "regulation-time goals against the 0.5 line",
+            "basis": "regulation_time",
+            "goals": 5,
+            "state": "won",
+            "actual": "4-1",
+            "rules_version": "slip-settlement.v1",
+            "actual_outcome": "home"
+          },
+          "settlement_capability": {
+            "capable": true,
+            "basis": "regulation_time",
+            "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+          }
+        }
+      ]
+    },
+    {
+      "id": "106adf89-182e-4961-8172-78182390693d",
+      "name": "Journey 2026-10-07T04:06",
+      "status": "recorded",
+      "note": null,
+      "currency": null,
+      "stake": null,
+      "price": null,
+      "price_source": null,
+      "price_missing_legs": 1,
+      "price_note": "no combined price: at least one selection has no price for exactly that selection",
+      "effective_price": null,
+      "effective_price_source": null,
+      "effective_price_note": null,
+      "potential": null,
+      "potential_withheld_reason": null,
+      "recorded_at": "2026-10-07T04:06:26.696843Z",
+      "recorded_reference": "live journey",
+      "recorded_note": "the reader's own statement that this was placed elsewhere; nothing here is confirmed by any bookmaker",
+      "state": "lost",
+      "settled_at": "2026-10-10T17:19:44.094018Z",
+      "counts": {
+        "pending": 0,
+        "won": 1,
+        "lost": 1,
+        "void": 0,
+        "unresolved": 0,
+        "legs": 2
+      },
+      "created_at": "2026-10-07T04:06:25.862617Z",
+      "updated_at": "2026-10-10T17:19:44.106149Z",
+      "legs": [
+        {
+          "id": "caaf7ddc-e313-42b5-8018-73f6b0ff34c8",
+          "position": 0,
+          "match": {
+            "id": "932ed462-0bf2-40ff-b275-4a7f936a535d",
+            "home": {
+              "id": "3b89134e-9e56-4208-9c11-4201c0ec9bcb",
+              "name": "Borussia Dortmund",
+              "short_name": "Borussia Dortmund",
+              "logo": "https://cdn.live-score-api.com/teams/41.png",
+              "country": "Germany",
+              "team_scope": "club_senior_men"
+            },
+            "away": {
+              "id": "c48142e2-95ec-4db0-b19f-533eae421be2",
+              "name": "Werder Bremen",
+              "short_name": "Werder Bremen",
+              "logo": "https://cdn.live-score-api.com/teams/56.png",
+              "country": "Germany",
+              "team_scope": "club_senior_men"
+            },
+            "competition": {
+              "id": "652c64e7-84d5-472f-86d3-0d3b87a983a6",
+              "key": "bundesliga",
+              "name": "Bundesliga",
+              "country": "Germany",
+              "country_code": "GER",
+              "logo": "/leagues/default.svg",
+              "is_cup": false,
+              "providers": {},
+              "is_national_team": false,
+              "confederation": "UEFA",
+              "squad_category": "senior_men"
+            },
+            "kickoff_utc": "2026-10-09T18:30:00Z",
+            "status": "finished",
+            "minute": "FT",
+            "score": {
+              "home": 2,
+              "away": 2,
+              "ht_home": 0,
+              "ht_away": 0,
+              "ft_home": 2,
+              "ft_away": 2,
+              "et_home": null,
+              "et_away": null,
+              "ps_home": null,
+              "ps_away": null
+            }
+          },
+          "selection": {
+            "selection_id": "match_result:home",
+            "market_id": "match_result",
+            "outcome": "home",
+            "line": null,
+            "period": "regulation"
+          },
+          "probability": 0.72,
+          "probability_source": "provider",
+          "calculation": null,
+          "provider": "gameforecast",
+          "snapshot_id": "eb8e0a17-d54f-41cb-85f9-dd9ffe9a6dad",
+          "model_run_at": "2026-10-06T00:00:00Z",
+          "forecast_fetched_at": "2026-10-07T01:04:53.012426Z",
+          "normalisation_version": "markets.v1",
+          "odds": {
+            "value": 1.36,
+            "format": "decimal",
+            "source": "provider_snapshot",
+            "captured_at": "2026-10-06T00:00:00Z"
+          },
+          "kickoff_utc": "2026-10-09T18:30:00Z",
+          "started": true,
+          "result_expected_by": "2026-10-09T21:00:00Z",
+          "current": {
+            "probability": 0.72,
+            "available": true,
+            "forecast_changed": false,
+            "state": "kickoff_passed"
+          },
+          "state": "lost",
+          "settled_at": "2026-10-10T17:19:44.094018Z",
+          "settlement": {
+            "rule": "regulation-time result",
+            "basis": "regulation_time",
+            "state": "lost",
+            "actual": "2-2",
+            "rules_version": "slip-settlement.v1",
+            "actual_outcome": "draw"
+          },
+          "settlement_capability": {
+            "capable": true,
+            "basis": "regulation_time",
+            "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+          }
+        },
+        {
+          "id": "3e1e6d0c-b322-4b29-917f-8fbc4a9ce334",
+          "position": 1,
+          "match": {
+            "id": "0c4adb8c-9c43-4abb-8112-ba6780470a0a",
+            "home": {
+              "id": "a29cd147-3b9e-4bfd-ba71-c315067c4812",
+              "name": "Lens",
+              "short_name": "Lens",
+              "logo": "https://cdn.live-score-api.com/teams/957.png",
+              "country": "France",
+              "team_scope": "club_senior_men"
+            },
+            "away": {
+              "id": "ebc9f153-69d3-4c54-98b4-684b12466479",
+              "name": "Lyon",
+              "short_name": "Lyon",
+              "logo": "https://cdn.live-score-api.com/teams/61.png",
+              "country": "France",
+              "team_scope": "club_senior_men"
+            },
+            "competition": {
+              "id": "3625e042-b4e6-46cd-bb68-8f48c3dd81fe",
+              "key": "ligue_1",
+              "name": "Ligue 1",
+              "country": "France",
+              "country_code": "FRA",
+              "logo": "/leagues/default.svg",
+              "is_cup": false,
+              "providers": {},
+              "is_national_team": false,
+              "confederation": "UEFA",
+              "squad_category": "senior_men"
+            },
+            "kickoff_utc": "2026-10-09T18:45:00Z",
+            "status": "finished",
+            "minute": "FT",
+            "score": {
+              "home": 2,
+              "away": 1,
+              "ht_home": 1,
+              "ht_away": 0,
+              "ft_home": 2,
+              "ft_away": 1,
+              "et_home": null,
+              "et_away": null,
+              "ps_home": null,
+              "ps_away": null
+            }
+          },
+          "selection": {
+            "selection_id": "total_goals:over@0.5",
+            "market_id": "total_goals",
+            "outcome": "over",
+            "line": 0.5,
+            "period": "regulation"
+          },
+          "probability": 0.92,
+          "probability_source": "provider",
+          "calculation": null,
+          "provider": "gameforecast",
+          "snapshot_id": "0b128be1-d67e-4b7f-9e79-d8f7b2eff470",
+          "model_run_at": "2026-10-06T00:00:00Z",
+          "forecast_fetched_at": "2026-10-07T01:04:53.910352Z",
+          "normalisation_version": "markets.v1",
+          "odds": null,
+          "kickoff_utc": "2026-10-09T18:45:00Z",
+          "started": true,
+          "result_expected_by": "2026-10-09T21:15:00Z",
+          "current": {
+            "probability": 0.95,
+            "available": true,
+            "forecast_changed": true,
+            "state": "kickoff_passed"
+          },
+          "state": "won",
+          "settled_at": "2026-10-10T17:19:44.094018Z",
+          "settlement": {
+            "rule": "regulation-time goals against the 0.5 line",
+            "basis": "regulation_time",
+            "goals": 3,
+            "state": "won",
+            "actual": "2-1",
+            "rules_version": "slip-settlement.v1",
+            "actual_outcome": "home"
+          },
+          "settlement_capability": {
+            "capable": true,
+            "basis": "regulation_time",
+            "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+          }
+        }
+      ]
+    }
+  ]
+}

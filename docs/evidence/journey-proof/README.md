@@ -22,6 +22,9 @@ that time. `spend_check.verdict: passed` means the run spent nothing.
 | `2026-10-07T0155Z.json` | The recorded slip, plus every fixture with kickoff from 2026-10-02T00:00Z to 2026-10-07T01:55:36Z (94 fixtures) | Match-data access **blocked**. 89 of 94 fixtures have no stored result. The journey slip is pending, and both its legs are blocked at `stored_result`. Spend check passed. |
 | `2026-10-07T0156Z.json` | Fixtures with kickoff in the next 7 days (4 fixtures) | Each one's suggestion stage was **proven before kickoff**, which is the only time it can be observed. Give this file as `--previous` to later runs. |
 | `2026-10-07T0221Z.json` | The recorded slip, plus every fixture with kickoff from 2026-10-02T00:00Z to 2026-10-07T02:21:39Z (95 fixtures), with both files above as `--previous` | Match-data access **blocked**, read with the corrected signal (b) (see below). 89 fixtures are blocked at `stored_result`. French Guiana v Belize (kickoff 02:00) passes its first three stages, the suggestion stage through `proven_earlier` from `0156Z`, and is `pending: inside result window`. The journey slip is still pending. Spend check passed. |
+| `2026-10-07T0437Z.json` | The recorded slips, plus every fixture with kickoff from 2026-10-02T00:00Z to 2026-10-07T04:37:25Z (97 fixtures), with the files above as `--previous` | Match-data access **blocked**: 90 of 97 fixtures blocked at `stored_result`, 2 waiting for kickoff, 5 results stored (all from 2 October). The suggestion stage proven before kickoff for 2 fixtures and carried from `0156Z` for 1; settlement proven for 3 scored forecasts. Spend check passed. |
+| `2026-10-09T0006Z.json` | The recorded slips, plus every fixture with kickoff from 2026-10-02T00:00Z to 2026-10-09T00:06:37Z, run straight after the not-answers repair, with every earlier file as `--previous` | Match-data access still **blocked**. The repair's marks now decide the attempt-count flag: one in-window fixture flagged (Congo v Uganda, kept `unverified`) instead of 58 by clock. Spend check passed; running code measured. |
+| `2026-10-10T1716Z.json` | The recorded slips, plus every fixture with kickoff from 2026-10-02T00:00Z to 2026-10-10T17:16:25Z, with every earlier file as `--previous` | Match-data access **returned** (Live Score answering since 2026-10-09 01:15 UTC; 82 international results stored on the 9th between 02:06 and 03:37). Stored results: 97 `proven_current`, 6 `proven`, 10 in the recovery queue, 5 inside their result window. All five recorded slips read `pending: owner read` with a final dry run — one `won`, four `lost`. Spend check passed; running code measured. |
 
 The first two files are `schema_version: journey-proof.v1`. Under v1, signal (b) accepted any
 success of the fixtures or results task. From `journey-proof.v2` on, it accepts only a pass that
@@ -105,6 +108,15 @@ What `2026-10-07T0155Z.json` shows:
   the other 44 no forecast was stored at all.
 - 58 fixtures carry attempt counts that cannot be trusted. Congo v Uganda and Kazakhstan v Moldova
   still read LIVE five days on.
+
+## Settlement, proven on the isolated copy
+
+`settlement-isolated-2026-10-10/` holds the one stage no run above can reach without a write: the
+five recorded slips settled by the application's own read (`GET /api/v1/me/slips`) against a copy
+of the live database taken at 17:14 UTC on 2026-10-10, then read a second time. The first read
+settled them exactly as the dry run above predicts — `18724af2` won, the four of 7 October lost —
+and the second read changed no row, no timestamp and no table. The same read against the live
+backend is step 5 below, and still waits for the owner.
 
 ## Re-running once match-data access returns
 

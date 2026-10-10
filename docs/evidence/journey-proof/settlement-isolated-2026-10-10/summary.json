@@ -1,0 +1,157 @@
+{
+  "before": {
+    "18724af2": [
+      "pending",
+      null
+    ],
+    "63778783": [
+      "pending",
+      null
+    ],
+    "5d918730": [
+      "pending",
+      null
+    ],
+    "106adf89": [
+      "pending",
+      null
+    ],
+    "4e0a43fa": [
+      "pending",
+      null
+    ]
+  },
+  "after_first_read": {
+    "18724af2": [
+      "won",
+      "2026-10-10T17:19:44.094018"
+    ],
+    "63778783": [
+      "lost",
+      "2026-10-10T17:19:44.094018"
+    ],
+    "5d918730": [
+      "lost",
+      "2026-10-10T17:19:44.094018"
+    ],
+    "106adf89": [
+      "lost",
+      "2026-10-10T17:19:44.094018"
+    ],
+    "4e0a43fa": [
+      "lost",
+      "2026-10-10T17:19:44.094018"
+    ]
+  },
+  "after_second_read": {
+    "18724af2": [
+      "won",
+      "2026-10-10T17:19:44.094018"
+    ],
+    "63778783": [
+      "lost",
+      "2026-10-10T17:19:44.094018"
+    ],
+    "5d918730": [
+      "lost",
+      "2026-10-10T17:19:44.094018"
+    ],
+    "106adf89": [
+      "lost",
+      "2026-10-10T17:19:44.094018"
+    ],
+    "4e0a43fa": [
+      "lost",
+      "2026-10-10T17:19:44.094018"
+    ]
+  },
+  "legs_after_first": [
+    [
+      "106adf89",
+      "match_result",
+      "home",
+      null,
+      "lost",
+      "2-2"
+    ],
+    [
+      "106adf89",
+      "total_goals",
+      "over",
+      0.5,
+      "won",
+      "2-1"
+    ],
+    [
+      "18724af2",
+      "match_result",
+      "home",
+      null,
+      "won",
+      "2-1"
+    ],
+    [
+      "18724af2",
+      "total_goals",
+      "over",
+      0.5,
+      "won",
+      "4-1"
+    ],
+    [
+      "4e0a43fa",
+      "match_result",
+      "home",
+      null,
+      "lost",
+      "2-2"
+    ],
+    [
+      "4e0a43fa",
+      "total_goals",
+      "over",
+      0.5,
+      "won",
+      "2-1"
+    ],
+    [
+      "5d918730",
+      "match_result",
+      "home",
+      null,
+      "lost",
+      "2-2"
+    ],
+    [
+      "5d918730",
+      "total_goals",
+      "over",
+      0.5,
+      "won",
+      "2-1"
+    ],
+    [
+      "63778783",
+      "match_result",
+      "home",
+      null,
+      "lost",
+      "2-2"
+    ],
+    [
+      "63778783",
+      "total_goals",
+      "over",
+      0.5,
+      "won",
+      "2-1"
+    ]
+  ],
+  "first_read_changed_rows": true,
+  "second_read_changed_rows": false,
+  "second_read_changed_any_table": false,
+  "updated_at_moved_on_second_read": [],
+  "first_response_equals_second_response": false,
+  "single_reads_match_list": true,
+  "row_counts_moved_between_before_and_after": {}
+}
