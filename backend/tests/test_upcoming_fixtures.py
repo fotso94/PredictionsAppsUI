@@ -476,11 +476,19 @@ def _answer(*rows: Dict[str, Any], unanswered: Optional[List[str]] = None) -> Di
     return {"fixtures": list(rows), "unanswered": list(unanswered or [])}
 
 
-def _call_endpoint(answer, meta, limit: int = 5):
+def _call_endpoint(answer, meta, limit: int = 5, clock=None):
+    """`clock` pins the endpoint's `datetime.now()`. The endpoint drops every kick-off already
+    behind it, so a test that hands it rows dated by the calendar must pin the clock: read against
+    the wall clock those rows were "ahead" when written and "behind" three days later, which is how
+    three tests here failed on 2026-10-10 without a line of application code changing. A test that
+    dates its rows from the real clock leaves `clock` alone."""
     service = MagicMock()
     service.next_fixtures.return_value = (answer, meta)
     with patch("app.api.v1.endpoints.matches.MatchDataService", return_value=service):
-        return asyncio.run(upcoming_matches(limit=limit, db=MagicMock()))
+        if clock is None:
+            return asyncio.run(upcoming_matches(limit=limit, db=MagicMock()))
+        with patch("app.api.v1.endpoints.matches.datetime", clock):
+            return asyncio.run(upcoming_matches(limit=limit, db=MagicMock()))
 
 
 def _payload_row(kickoff: str, key: str, home: str, away: str) -> Dict[str, Any]:
@@ -499,7 +507,7 @@ def test_the_endpoint_names_the_next_fixtures_and_when_football_resumes():
     body = _call_endpoint(
         _answer(_payload_row("2026-10-09T18:45:00+00:00", "la_liga", "Betis", "Elche"),
                 _payload_row("2026-10-10T11:30:00+00:00", "premier_league", "Arsenal", "Leeds United")),
-        SyncMeta(source="provider", provider="livescore"))
+        SyncMeta(source="provider", provider="livescore"), clock=FrozenDatetime)
 
     assert body["known"] is True
     assert body["unanswered"] == [], "this answer speaks for every covered competition"
@@ -534,7 +542,7 @@ def test_the_endpoint_caps_the_list_but_not_the_date_football_resumes():
     rows += [_payload_row("2026-10-10T14:00:00+00:00", "premier_league", f"H{n}", f"A{n}")
              for n in range(9)]
 
-    body = _call_endpoint(_answer(*rows), SyncMeta(source="provider", provider="livescore"), limit=3)
+    body = _call_endpoint(_answer(*rows), SyncMeta(source="provider", provider="livescore"), limit=3, clock=FrozenDatetime)
 
     assert len(body["fixtures"]) == 3
     assert body["next_kickoff"] == "2026-10-09T18:45:00+00:00"
@@ -550,7 +558,7 @@ def test_the_endpoint_names_the_competitions_its_answer_does_not_speak_for():
     body = _call_endpoint(
         _answer(_payload_row("2026-10-09T18:45:00+00:00", "la_liga", "Betis", "Elche"),
                 unanswered=["serie_a", "bundesliga", "ligue_1", "premier_league"]),
-        SyncMeta(source="cache", provider="livescore"))
+        SyncMeta(source="cache", provider="livescore"), clock=FrozenDatetime)
 
     assert body["known"] is True
     assert body["next_kickoff"] == "2026-10-09T18:45:00+00:00"

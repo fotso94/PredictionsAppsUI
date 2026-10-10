@@ -699,6 +699,7 @@ it. `docs/evidence/test-reports/README.md` has the layout and the scrub policy.
 | `2026-10-07T0332Z-b753202` | b753202 | 1644 passed | 449 passed, 2 skipped | 451 passed | 138 passed | 51 passed, 6 skipped, **1 failed** |
 | `2026-10-07T0408Z-12753b6` | 12753b6 | 1644 passed | 449 passed, 2 skipped | 451 passed | 138 passed | 52 passed, 6 skipped — **PASS** |
 | `2026-10-08T0326Z-586b21a` | 586b21a | 1681 passed | 451 passed, 2 skipped | 453 passed | 140 passed | 47 passed, 9 skipped; live-isolated 2 passed — **PASS**, running code measured |
+| `2026-10-10T1740Z-dd1c857` | dd1c857 | 1682 passed, **3 failed** | 451 passed, 2 skipped | 453 passed | 140 passed | 56 passed, 0 skipped; live-isolated 2 passed — **FAIL** (backend) |
 
 The first failure was a precondition: a live scroll-restoration check measured on a day whose three
 stored fixtures fitted in a 1440x900 window (fixed in b753202). The second was a club crest from
@@ -708,7 +709,11 @@ skips are menu tests that apply only on narrow screens; every live skip comes fr
 nothing in play, no finished fixture with a result inside the feed window, and on 2026-10-08 no
 fixture or forecast stored for the day at all (the store's last fixtures are the three club
 matches of 9 October). The 2026-10-08 run is the first whose backend identity is measured rather
-than inferred, and the first to include the isolated suite.
+than inferred, and the first to include the isolated suite. The 2026-10-10 run, on the pager fix, is
+the first since access returned in which every live test ran — 56, no skips — and its three backend
+failures were three endpoint tests that dated their fixture rows by the calendar (9 and 10 October)
+and read the endpoint against the wall clock: ahead when written, behind that evening. They now pin
+the endpoint's clock (the next commit); no application code was at fault.
 
 Limits: `verify` cannot see what only the run saw (a deleted record of contamination), and the
 published files are scrubbed copies — only whoever holds the run's `.test-runs/` can show they came
