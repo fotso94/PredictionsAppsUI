@@ -1,0 +1,191 @@
+{
+  "captured_at": "2026-10-10",
+  "note": "Two Live Score responses with their pagination fields intact: matches/history.json announces pages as total_pages and sends no next_page; fixtures/list.json sends next_page and prev_page as URLs. Each list is trimmed to two entries, every other value is an ellipsis, and the account key and secret, which the provider repeats inside its next_page URL, are redacted.",
+  "matches_history_2026-10-03_competition_371": {
+    "success": true,
+    "data": {
+      "match": [
+        {
+          "time": "FT",
+          "added": "…",
+          "id": 736384,
+          "competition": {
+            "id": 371,
+            "is_cup": true,
+            "is_league": false,
+            "tier": 0,
+            "active": true,
+            "name": "National Teams Friendlies",
+            "national_teams_only": false,
+            "has_groups": false
+          },
+          "away": {
+            "name": "Burkina Faso",
+            "logo": "https://cdn.live-score-api.com/teams/1530.png",
+            "id": 1530,
+            "country_id": 118,
+            "stadium": "Stade du 4 Août"
+          },
+          "country": "…",
+          "status": "FINISHED",
+          "fixture_id": "…",
+          "scheduled": "00:00",
+          "round": "",
+          "last_changed": "…",
+          "date": "2026-10-03",
+          "home": {
+            "name": "Argentina",
+            "logo": "https://cdn.live-score-api.com/teams/1443.png",
+            "id": 1443,
+            "country_id": 117,
+            "stadium": "Estadio Monumental Antonio Vespucio Liberti"
+          },
+          "federation": "…",
+          "group_id": "…",
+          "location": "…",
+          "odds": "…",
+          "outcomes": "…",
+          "scores": {
+            "score": "7 - 0",
+            "ht_score": "5 - 0",
+            "ft_score": "7 - 0",
+            "et_score": "",
+            "ps_score": ""
+          },
+          "urls": "…"
+        },
+        {
+          "time": "FT",
+          "added": "…",
+          "id": 736314,
+          "competition": {
+            "id": 371,
+            "is_cup": true,
+            "is_league": false,
+            "tier": 0,
+            "active": true,
+            "name": "National Teams Friendlies",
+            "national_teams_only": false,
+            "has_groups": false
+          },
+          "away": {
+            "name": "Ivory Coast",
+            "logo": "https://cdn.live-score-api.com/teams/1628.png",
+            "id": 1628,
+            "country_id": 118,
+            "stadium": "Stade Félix Houphouët-Boigny"
+          },
+          "country": "…",
+          "status": "FINISHED",
+          "fixture_id": "…",
+          "scheduled": "19:00",
+          "round": null,
+          "last_changed": "…",
+          "date": "2026-10-03",
+          "home": {
+            "name": "Cameroon",
+            "logo": "https://cdn.live-score-api.com/teams/2711.png",
+            "id": 2711,
+            "country_id": 118,
+            "stadium": "Stade Omnisport Ahmadou Ahidjo"
+          },
+          "federation": "…",
+          "group_id": "…",
+          "location": "…",
+          "odds": "…",
+          "outcomes": "…",
+          "scores": {
+            "score": "1 - 0",
+            "ht_score": "0 - 0",
+            "ft_score": "1 - 0",
+            "et_score": "",
+            "ps_score": ""
+          },
+          "urls": "…"
+        }
+      ],
+      "total_pages": 1,
+      "match_in_this_page": 6
+    }
+  },
+  "fixtures_list_2026-10-11": {
+    "success": true,
+    "data": {
+      "fixtures": [
+        {
+          "time": "00:00:00",
+          "id": 1835498,
+          "date": "2026-10-11",
+          "round": "30",
+          "competition": {
+            "id": 24,
+            "is_cup": false,
+            "is_league": true,
+            "tier": 1,
+            "active": true,
+            "name": "Serie A",
+            "national_teams_only": false,
+            "has_groups": true
+          },
+          "away": {
+            "name": "Vitoria",
+            "logo": "https://cdn.live-score-api.com/teams/262.png",
+            "id": 262,
+            "country_id": 16,
+            "stadium": "Estádio Manoel Barradas"
+          },
+          "country": "…",
+          "home": {
+            "name": "Sao Paulo",
+            "logo": "https://cdn.live-score-api.com/teams/266.png",
+            "id": 266,
+            "country_id": 16,
+            "stadium": "Estádio Cícero Pompeu de Toledo (Morumbi)"
+          },
+          "odds": "…",
+          "group_id": "…",
+          "location": "…",
+          "federation": "…"
+        },
+        {
+          "time": "00:00:00",
+          "id": 1859909,
+          "date": "2026-10-11",
+          "round": "Clausura - Round 11",
+          "competition": {
+            "id": 47,
+            "is_cup": false,
+            "is_league": true,
+            "tier": 1,
+            "active": true,
+            "name": "Primera Division",
+            "national_teams_only": false,
+            "has_groups": true
+          },
+          "away": {
+            "name": "FBC Melgar",
+            "logo": "https://cdn.live-score-api.com/teams/994.png",
+            "id": 994,
+            "country_id": 52,
+            "stadium": "Estadio de la Universidad Nacional San Agustín"
+          },
+          "country": "…",
+          "home": {
+            "name": "Universitario de Deportes",
+            "logo": "https://cdn.live-score-api.com/teams/1851.png",
+            "id": 1851,
+            "country_id": 52,
+            "stadium": ""
+          },
+          "odds": "…",
+          "group_id": "…",
+          "location": "…",
+          "federation": "…"
+        }
+      ],
+      "next_page": "https://livescore-api.com/api-client/fixtures/list.json?key=<redacted>&secret=<redacted>&date=2026-10-11&page=2",
+      "prev_page": false,
+      "fixtures_in_this_page": 30
+    }
+  }
+}

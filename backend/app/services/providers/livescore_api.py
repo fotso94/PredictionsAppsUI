@@ -171,17 +171,40 @@ class LiveScoreAPIProvider(MatchDataProvider):
 
     def _paginate(self, path: str, list_key: str, max_pages: int = MAX_PAGES, reason: str = "fetch",
                   **params: Any) -> List[Dict[str, Any]]:
+        """Every page of a list, up to `max_pages`.
+
+        Live Score announces its pages two ways, and a list is paged by whichever its endpoint
+        sends (docs/evidence/livescore-pagination-fields-2026-10-10.json): `fixtures/list.json`
+        carries `next_page`, a URL or false; `matches/history.json` carries `total_pages` and no
+        `next_page` at all. Until 2026-10-10 only `next_page` was read, so every results and
+        recovery request got the first 30 results of its competition-day and nothing said so.
+        Where both are sent, `total_pages` decides: it is a count, not a link.
+        """
         items: List[Dict[str, Any]] = []
         page = 1
-        while page <= max_pages:
+        while True:
             data = self._get(path, reason=reason if page == 1 else "page",
                              page=page if page > 1 else None, **params)
             chunk = data.get(list_key) or []
             items.extend(chunk)
-            if not data.get("next_page") or not chunk:
+            if not chunk or not self._has_more_pages(data, page):
+                break
+            if page >= max_pages:
+                logger.warning("Live Score API: %s stopped at %d page(s) with more advertised (%s); the rest is unread",
+                               path, page, {k: data.get(k) for k in ("total_pages", "next_page")})
                 break
             page += 1
         return items
+
+    @staticmethod
+    def _has_more_pages(data: Dict[str, Any], page: int) -> bool:
+        total = data.get("total_pages")
+        if total is not None:
+            try:
+                return page < int(total)
+            except (TypeError, ValueError):
+                pass
+        return bool(data.get("next_page"))
 
     # ------------------------------------------------------------------ mapping
     @staticmethod

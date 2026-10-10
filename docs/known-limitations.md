@@ -731,10 +731,15 @@ recovery passes stored 82 international results between 02:06 and 03:37. The run
 2026-10-10T1716Z reads `returned`: of the fixtures that kicked off from 2 October, 97 have a
 result stored since access came back and 6 had one before; 17 are overdue, and each of those is
 accounted for one by one in `docs/evidence/overdue-and-waiting-2026-10-10.md` — one is a provider
-feed that has stalled on a match in play, two have their result stored under another row, and the
-rest are listings the provider published and never played as listed, which no retry will resolve.
-The 40 forecasts waiting for fixtures are all for matches beyond the three-day fixture window and
-attach, spending nothing, once their fixtures arrive; none is a matching failure.
+feed that has stalled on a match in play, one is an exact duplicate of a played row, and the other
+15 are absent from the provider's history on their dates; that absence does not establish what
+happened to them, so they stay unresolved and no selection on them is voided. The 40 forecasts
+waiting for fixtures are all for matches beyond the three-day fixture window; the cached
+re-attachment that binds them once their fixtures are stored spends nothing, the forecast refresh
+in the same turn can, and none is a matching failure. The same reading found that the provider
+client read only the first page of a results answer (`total_pages` is the field that feed sends;
+the client stopped on `next_page`), fixed with a regression test the same day; no competition-day
+had exceeded a page.
 
 The verdict `returned` needs three signals together: the primary provider answering, a fixtures or
 results pass that asked it and was answered, and newly stored rows. It ignores what only looks like

@@ -369,3 +369,51 @@ def test_competition_discovery_is_attributed_to_discovery():
     p, _ = provider(budget=budget)
     p.list_competitions(["premier_league"])
     assert budget.by_reason() == {"discovery": 1}
+
+
+# --------------------------------------------------------------------------- paging the history feed
+def _history_pages(total_pages):
+    """A handler whose history feed announces its pages the way the real one does: `total_pages`, no
+    `next_page` (docs/evidence/livescore-pagination-fields-2026-10-10.json). Two pages of one result each."""
+    def row(match_id, home, away):
+        return {"id": match_id, "fixture_id": match_id, "date": "2026-10-06", "scheduled": "19:00", "time": "FT",
+                "status": "FINISHED", "home": {"id": "1", "name": home}, "away": {"id": "4", "name": away},
+                "scores": {"score": "1 - 0", "ht_score": "0 - 0", "ft_score": "1 - 0"},
+                "competition": {"id": "2", "name": "Premier League"}, "country": {"name": "England"}}
+    pages = {None: [row("71", "Liverpool", "Chelsea")], "2": [row("72", "Everton", "Fulham")]}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        params = dict(request.url.params)
+        if request.url.path.endswith("competitions/list.json"):
+            return json_response(COMPETITIONS)
+        assert request.url.path.endswith("matches/history.json")
+        return json_response({"success": True, "data": {"match": pages.get(params.get("page"), []), "total_pages": total_pages}})
+    return handler
+
+
+@pytest.mark.parametrize("total_pages", [2, "2"])
+def test_history_is_paged_by_total_pages_the_only_field_that_feed_sends(total_pages):
+    """Until 2026-10-10 the pager stopped when an answer carried no `next_page`, which the history
+    feed never sends, so every results and recovery request read the first 30 results of its
+    competition-day and nothing said so."""
+    p, recorder = provider(_history_pages(total_pages), overrides={"premier_league": "2"})
+    results = p.get_results(date(2026, 10, 6), date(2026, 10, 6), ["premier_league"])
+    assert [r.external_id for r in results] == ["71", "72"]
+    assert [dict(r.url.params).get("page") for r in recorder.requests] == [None, "2"]
+
+
+def test_history_stops_at_its_own_page_cap_and_says_so(caplog):
+    p, recorder = provider(_history_pages(2), overrides={"premier_league": "2"})
+    with caplog.at_level("WARNING", logger="app.services.providers.livescore_api"):
+        items = p._paginate("matches/history.json", "match", max_pages=1,
+                            **{"from": "2026-10-06", "to": "2026-10-06", "competition_id": "2"})
+    assert [i["id"] for i in items] == ["71"]
+    assert len(recorder.requests) == 1
+    assert any("more advertised" in record.getMessage() for record in caplog.records)
+
+
+def test_a_single_page_history_is_read_once():
+    p, recorder = provider(_history_pages(1), overrides={"premier_league": "2"})
+    results = p.get_results(date(2026, 10, 6), date(2026, 10, 6), ["premier_league"])
+    assert [r.external_id for r in results] == ["71"]
+    assert len(recorder.requests) == 1
