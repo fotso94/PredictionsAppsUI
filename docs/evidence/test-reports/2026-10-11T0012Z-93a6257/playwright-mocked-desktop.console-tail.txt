@@ -1,0 +1,40 @@
+
+    expect(locator).toBeVisible() failed
+
+    Locator: getByTestId('follow-count').first()
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - the count line is missing at 2 getByTestId('follow-count').first() with timeout 10000ms
+      - waiting for getByTestId('follow-count').first()
+
+
+      918 |
+      919 |       const line = page.getByTestId('follow-count').first();
+    > 920 |       await expect(line, `the count line is missing at ${followed}`).toBeVisible();
+          |                                                                      ^
+      921 |       await expect(line, `the count line at ${followed} is not the catalogue’s sentence`).toHaveText(
+      922 |         render(catalogue, language, 'reader.follow.league.count', { count: followed, limit: FOLLOW_LIMITS.leagues }),
+      923 |       );
+        at <repo>/frontend/e2e/mocked/reader-localisation.spec.ts:920:70
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../.test-runs/2026-10-11T0012Z-93a6257/artifacts-mocked-desktop/mocked-reader-localisation-a5ffe-ht-at-0-1-and-several-in-en-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../.test-runs/2026-10-11T0012Z-93a6257/artifacts-mocked-desktop/mocked-reader-localisation-a5ffe-ht-at-0-1-and-several-in-en-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../.test-runs/2026-10-11T0012Z-93a6257/artifacts-mocked-desktop/mocked-reader-localisation-a5ffe-ht-at-0-1-and-several-in-en-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace ../.test-runs/2026-10-11T0012Z-93a6257/artifacts-mocked-desktop/mocked-reader-localisation-a5ffe-ht-at-0-1-and-several-in-en-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [mocked-desktop] › e2e/mocked/reader-localisation.spec.ts:901:3 › the follow count against the limit is right at 0, 1 and several in en 
+  2 skipped
+  450 passed (10.7m)

@@ -1,0 +1,1674 @@
+{
+  "format": "predictionsappsui-test-evidence/1",
+  "run_id": "2026-10-11T0012Z-93a6257",
+  "partial": false,
+  "partial_reasons": [],
+  "interrupted": false,
+  "started_at": "2026-10-11T00:12:38Z",
+  "finished_at": "2026-10-11T00:41:22Z",
+  "repository": {
+    "head_at_start": "93a6257c4c6115ab84a7565955bdeeafa4114be1",
+    "head_at_end": "93a6257c4c6115ab84a7565955bdeeafa4114be1",
+    "branch": "main",
+    "origin_main": "a9e89d299ee6af19e6c25941151d2ae5a0997aa8",
+    "last_fetch_at": "2026-10-10T23:42:40Z",
+    "dirty": false,
+    "allow_dirty": false,
+    "dirty_paths": [],
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "untracked_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "unchanged_at_end": true
+  },
+  "servers": {
+    "frontend": {
+      "url": "http://localhost:3100",
+      "port": 3100,
+      "listening": true,
+      "pids": [
+        91426
+      ],
+      "pid": 91426,
+      "started_at": "2026-10-08T03:26:34Z",
+      "command": "node <repo>/frontend/node_modules/.bin/vite --port 3100 --strictPort",
+      "cwd": "<repo>/frontend",
+      "checkout": {
+        "toplevel": "<repo>",
+        "head": "93a6257c4c6115ab84a7565955bdeeafa4114be1",
+        "dirty_paths": []
+      },
+      "unchanged_at_end": true
+    },
+    "backend": {
+      "url": "http://127.0.0.1:8000",
+      "port": 8000,
+      "listening": true,
+      "pids": [
+        24525
+      ],
+      "pid": 24525,
+      "started_at": "2026-10-10T17:40:28Z",
+      "command": "<repo>/backend/venv311/bin/python3.11 ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000",
+      "cwd": "<repo>/backend",
+      "checkout": {
+        "toplevel": "<repo>",
+        "head": "93a6257c4c6115ab84a7565955bdeeafa4114be1",
+        "dirty_paths": []
+      },
+      "health": {
+        "http_status": 200,
+        "status": "healthy",
+        "environment": "development",
+        "version": "0.1.0",
+        "started_at": "2026-10-10T17:40:28Z",
+        "database": "soccer_predictions",
+        "source": {
+          "commit": "dd1c857d21b82aa89337183cf38b2bdff54c1272",
+          "app_tree_sha256": "cd47cdef6213fe573915fbe41a7cdc66754fe5c73854848174a11b815abe199c",
+          "app_files": 89,
+          "started_at": "2026-10-10T17:40:28Z",
+          "commit_dirty_app_files": []
+        }
+      },
+      "provider_status": {
+        "checked_at": "2026-10-11T00:12:38.098407+00:00",
+        "providers": [
+          {
+            "role": "match data",
+            "name": "livescore",
+            "integration_status": "primary",
+            "configured": true,
+            "last_success_at": "2026-10-11T00:01:10.709188+00:00",
+            "last_error_at": "2026-10-10T21:09:25.183786+00:00",
+            "error_kind": null,
+            "cooling_down": false
+          },
+          {
+            "role": "match data",
+            "name": "api_football",
+            "integration_status": "retained (free plan: current season restricted)",
+            "configured": true,
+            "last_success_at": "2026-10-10T21:09:25.505724+00:00",
+            "last_error_at": "2026-10-10T14:56:35.042058+00:00",
+            "error_kind": null,
+            "cooling_down": false
+          },
+          {
+            "role": "match data",
+            "name": "thesportsdb",
+            "integration_status": "retained (v1 API, untested, no live scores)",
+            "configured": true,
+            "last_success_at": "2026-10-05T21:39:12.435861+00:00",
+            "last_error_at": "2026-10-10T14:56:35.321707+00:00",
+            "error_kind": "http_400",
+            "cooling_down": false
+          },
+          {
+            "role": "forecasts",
+            "name": "gameforecast",
+            "integration_status": "primary",
+            "configured": true,
+            "last_success_at": "2026-10-11T00:01:13.019661+00:00",
+            "last_error_at": null,
+            "error_kind": null,
+            "cooling_down": false
+          }
+        ],
+        "scheduler_tasks": {
+          "fixtures": {
+            "last_success_at": "2026-10-10T19:19:46.443539+00:00",
+            "last_error_at": "2026-10-10T00:01:06.664583+00:00",
+            "error_kind": null
+          },
+          "forecasts": {
+            "last_success_at": "2026-10-11T00:01:13.020324+00:00",
+            "last_error_at": "2026-10-10T20:13:02.948422+00:00",
+            "error_kind": null
+          },
+          "live": {
+            "last_success_at": "2026-10-11T00:12:14.540396+00:00",
+            "last_error_at": "2026-10-10T21:09:25.512281+00:00",
+            "error_kind": null
+          },
+          "recover": {
+            "last_success_at": "2026-10-11T00:11:14.391281+00:00",
+            "last_error_at": "2026-10-10T15:33:21.748006+00:00",
+            "error_kind": null
+          },
+          "results": {
+            "last_success_at": "2026-10-11T00:06:13.577129+00:00",
+            "last_error_at": "2026-10-10T14:56:35.579242+00:00",
+            "error_kind": null
+          },
+          "settle": {
+            "last_success_at": "2026-10-11T00:10:14.190232+00:00",
+            "last_error_at": null,
+            "error_kind": null
+          }
+        }
+      },
+      "running_code": {
+        "basis": "measured",
+        "tree_served": "cd47cdef6213fe573915fbe41a7cdc66754fe5c73854848174a11b815abe199c",
+        "tree_now": "cd47cdef6213fe573915fbe41a7cdc66754fe5c73854848174a11b815abe199c",
+        "tree_matches": true,
+        "app_files_served": 89,
+        "app_files_now": 89,
+        "commit_served": "dd1c857d21b82aa89337183cf38b2bdff54c1272",
+        "commit_head": "93a6257c4c6115ab84a7565955bdeeafa4114be1",
+        "commit_matches": false,
+        "dirty_app_files_at_start": []
+      },
+      "unchanged_at_end": true
+    },
+    "frontend-isolated": {
+      "url": "http://localhost:3101",
+      "port": 3101,
+      "listening": true,
+      "pids": [
+        12765
+      ],
+      "pid": 12765,
+      "started_at": "2026-10-10T17:14:03Z",
+      "command": "node <repo>/frontend/node_modules/.bin/vite --port 3101 --strictPort --mode dev8001",
+      "cwd": "<repo>/frontend",
+      "checkout": {
+        "toplevel": "<repo>",
+        "head": "93a6257c4c6115ab84a7565955bdeeafa4114be1",
+        "dirty_paths": []
+      },
+      "unchanged_at_end": true
+    },
+    "backend-isolated": {
+      "url": "http://127.0.0.1:8001",
+      "port": 8001,
+      "listening": true,
+      "pids": [
+        24597
+      ],
+      "pid": 24597,
+      "started_at": "2026-10-10T17:40:30Z",
+      "command": "<repo>/backend/venv311/bin/python3.11 ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001",
+      "cwd": "<repo>/backend",
+      "checkout": {
+        "toplevel": "<repo>",
+        "head": "93a6257c4c6115ab84a7565955bdeeafa4114be1",
+        "dirty_paths": []
+      },
+      "health": {
+        "http_status": 200,
+        "status": "healthy",
+        "environment": "development",
+        "version": "0.1.0",
+        "started_at": "2026-10-10T17:40:30Z",
+        "database": "soccer_predictions_e2e",
+        "source": {
+          "commit": "dd1c857d21b82aa89337183cf38b2bdff54c1272",
+          "app_tree_sha256": "cd47cdef6213fe573915fbe41a7cdc66754fe5c73854848174a11b815abe199c",
+          "app_files": 89,
+          "started_at": "2026-10-10T17:40:30Z",
+          "commit_dirty_app_files": []
+        }
+      },
+      "provider_status": {
+        "checked_at": "2026-10-11T00:12:38.356248+00:00",
+        "providers": [
+          {
+            "role": "forecasts",
+            "name": "gameforecast",
+            "integration_status": null,
+            "configured": false,
+            "last_success_at": null,
+            "last_error_at": null,
+            "error_kind": null,
+            "cooling_down": false
+          }
+        ],
+        "scheduler_tasks": {
+          "fixtures": {
+            "last_success_at": null,
+            "last_error_at": null,
+            "error_kind": null
+          },
+          "forecasts": {
+            "last_success_at": null,
+            "last_error_at": null,
+            "error_kind": null
+          },
+          "live": {
+            "last_success_at": null,
+            "last_error_at": null,
+            "error_kind": null
+          },
+          "recover": {
+            "last_success_at": null,
+            "last_error_at": null,
+            "error_kind": null
+          },
+          "results": {
+            "last_success_at": null,
+            "last_error_at": null,
+            "error_kind": null
+          },
+          "settle": {
+            "last_success_at": null,
+            "last_error_at": null,
+            "error_kind": null
+          }
+        }
+      },
+      "running_code": {
+        "basis": "measured",
+        "tree_served": "cd47cdef6213fe573915fbe41a7cdc66754fe5c73854848174a11b815abe199c",
+        "tree_now": "cd47cdef6213fe573915fbe41a7cdc66754fe5c73854848174a11b815abe199c",
+        "tree_matches": true,
+        "app_files_served": 89,
+        "app_files_now": 89,
+        "commit_served": "dd1c857d21b82aa89337183cf38b2bdff54c1272",
+        "commit_head": "93a6257c4c6115ab84a7565955bdeeafa4114be1",
+        "commit_matches": false,
+        "dirty_app_files_at_start": []
+      },
+      "unchanged_at_end": true
+    }
+  },
+  "suites_available": [
+    "backend",
+    "mocked-desktop",
+    "mocked-mobile",
+    "mocked-mobile-360",
+    "live",
+    "live-isolated"
+  ],
+  "test_database": {
+    "scheme": "postgresql",
+    "host": "localhost",
+    "port": 5432,
+    "database": "soccer_predictions_test",
+    "source": "conftest.py default",
+    "conftest_reads_env": true,
+    "postgres": "ok",
+    "redis": "ok"
+  },
+  "tools": {
+    "node": "v24.8.0",
+    "npm": "11.6.0",
+    "macos": "26.7.1",
+    "playwright": "1.63.0",
+    "chromium": "153.0.8010.12 (revision 1243)",
+    "backend python (venv311)": "3.11.9",
+    "pytest": "7.4.3",
+    "pytest-cov": "4.1.0",
+    "pytest-asyncio": "0.21.1",
+    "postgres image": "postgres:15-alpine",
+    "redis image": "redis:7-alpine"
+  },
+  "suites": [
+    {
+      "name": "backend",
+      "kind": "pytest",
+      "files": {
+        "junit": "backend.junit.xml",
+        "console_tail": "backend.console-tail.txt"
+      },
+      "command": {
+        "cwd": "<repo>/backend",
+        "argv": [
+          "<repo>/backend/venv311/bin/python",
+          "-m",
+          "pytest",
+          "-o",
+          "addopts=",
+          "-p",
+          "no:cacheprovider",
+          "-q",
+          "-rfEs",
+          "--junitxml=<repo>/.test-runs/2026-10-11T0012Z-93a6257/backend.junit.xml",
+          "-o",
+          "junit_suite_name=backend",
+          "-o",
+          "junit_family=xunit2",
+          "-o",
+          "junit_logging=no"
+        ],
+        "env": [
+          "PYTHONUNBUFFERED",
+          "TEST_DATABASE_URL"
+        ]
+      },
+      "status": "ran",
+      "exit_code": 0,
+      "started_at": "2026-10-11T00:12:38Z",
+      "finished_at": "2026-10-11T00:13:31Z",
+      "duration_seconds": 52.3,
+      "interrupted": false,
+      "planned": null,
+      "buckets": {
+        "passed": 1685,
+        "failed": 0,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0,
+        "errors": 0,
+        "warnings": 20,
+        "deselected": 0
+      },
+      "human": {
+        "line": "1685 passed, 20 warnings in 51.17s",
+        "seconds": 51.17
+      },
+      "junit": {
+        "testcases": 1685,
+        "passed_or_xpassed": 1685,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "xfailed": 0,
+        "skips": [],
+        "consistent": true
+      },
+      "checks": [
+        {
+          "name": "pytest summary line present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit report present and parseable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit totals match its own testcases",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit failed = pytest failed",
+          "ok": true,
+          "detail": "JUnit 0 / pytest 0"
+        },
+        {
+          "name": "JUnit errors = pytest errors",
+          "ok": true,
+          "detail": "JUnit 0 / pytest 0"
+        },
+        {
+          "name": "JUnit skipped = pytest skipped",
+          "ok": true,
+          "detail": "JUnit 0 / pytest 0"
+        },
+        {
+          "name": "JUnit xfailed = pytest xfailed",
+          "ok": true,
+          "detail": "JUnit 0 / pytest 0"
+        },
+        {
+          "name": "JUnit passed = pytest passed + xpassed",
+          "ok": true,
+          "detail": "JUnit 1685 / pytest 1685"
+        },
+        {
+          "name": "no skip says the test database or Redis is not reachable",
+          "ok": true,
+          "detail": "0 such skip(s)"
+        },
+        {
+          "name": "nothing deselected",
+          "ok": true,
+          "detail": "0 deselected"
+        },
+        {
+          "name": "at least one test ran",
+          "ok": true,
+          "detail": "1685 test(s)"
+        },
+        {
+          "name": "exit code agrees with the results",
+          "ok": true,
+          "detail": "exit 0, failed 0, errors 0, tests 1685"
+        },
+        {
+          "name": "not interrupted",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "skipped_tests": [],
+      "failures": [],
+      "verdict": "PASS"
+    },
+    {
+      "name": "mocked-desktop",
+      "kind": "playwright",
+      "files": {
+        "junit": "playwright-mocked-desktop.junit.xml",
+        "console_tail": "playwright-mocked-desktop.console-tail.txt"
+      },
+      "command": {
+        "cwd": "<repo>/frontend",
+        "argv": [
+          "<repo>/frontend/node_modules/.bin/playwright",
+          "test",
+          "--project=mocked-desktop",
+          "--forbid-only",
+          "--retries=0",
+          "--output=<repo>/.test-runs/2026-10-11T0012Z-93a6257/artifacts-mocked-desktop",
+          "--reporter=list,json,junit"
+        ],
+        "env": [
+          "E2E_API_URL",
+          "E2E_BASE_URL",
+          "E2E_ISOLATED_API_URL",
+          "E2E_ISOLATED_BASE_URL",
+          "FORCE_COLOR",
+          "PLAYWRIGHT_JSON_OUTPUT_FILE",
+          "PLAYWRIGHT_JUNIT_INCLUDE_PROJECT_IN_TEST_NAME",
+          "PLAYWRIGHT_JUNIT_OUTPUT_FILE",
+          "PLAYWRIGHT_JUNIT_STRIP_ANSI",
+          "PLAYWRIGHT_JUNIT_SUITE_NAME"
+        ]
+      },
+      "status": "ran",
+      "exit_code": 1,
+      "started_at": "2026-10-11T00:13:31Z",
+      "finished_at": "2026-10-11T00:24:15Z",
+      "duration_seconds": 644.5,
+      "interrupted": false,
+      "planned": 453,
+      "buckets": {
+        "passed": 450,
+        "failed": 1,
+        "flaky": 0,
+        "skipped": 2,
+        "did_not_run": 0,
+        "interrupted": 0
+      },
+      "human": {
+        "planned": 453,
+        "workers": 1,
+        "buckets": {
+          "passed": 450,
+          "failed": 1,
+          "flaky": 0,
+          "skipped": 2,
+          "did_not_run": 0,
+          "interrupted": 0
+        },
+        "fatal_errors": 0,
+        "lines": [
+          "  1 failed",
+          "    [mocked-desktop] › e2e/mocked/reader-localisation.spec.ts:901:3 › the follow count against the limit is right at 0, 1 and several in en ",
+          "  2 skipped",
+          "  450 passed (10.7m)"
+        ]
+      },
+      "json": {
+        "present": true,
+        "total": 453,
+        "buckets": {
+          "passed": 450,
+          "failed": 1,
+          "flaky": 0,
+          "skipped": 2,
+          "did_not_run": 0,
+          "interrupted": 0
+        },
+        "projects": [
+          "mocked-desktop"
+        ],
+        "stats": {
+          "expected": 450,
+          "unexpected": 1,
+          "flaky": 0,
+          "skipped": 2
+        },
+        "status_disagreements": 0,
+        "fatal_errors": 0,
+        "playwright_version": "1.63.0"
+      },
+      "junit": {
+        "tests": 453,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 2,
+        "passed": 450,
+        "projects": [
+          "mocked-desktop"
+        ],
+        "consistent": true
+      },
+      "checks": [
+        {
+          "name": "human summary present",
+          "ok": true,
+          "detail": "the list reporter's 'Running N tests' line and its final bucket lines"
+        },
+        {
+          "name": "planned = sum of the human buckets",
+          "ok": true,
+          "detail": "planned 453 / buckets 453"
+        },
+        {
+          "name": "JSON report present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "human passed = JSON",
+          "ok": true,
+          "detail": "human 450 / JSON 450"
+        },
+        {
+          "name": "human failed = JSON",
+          "ok": true,
+          "detail": "human 1 / JSON 1"
+        },
+        {
+          "name": "human flaky = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human skipped = JSON",
+          "ok": true,
+          "detail": "human 2 / JSON 2"
+        },
+        {
+          "name": "human did not run = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human interrupted = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "JSON stats agree with the recomputed buckets",
+          "ok": true,
+          "detail": "stats {'expected': 450, 'unexpected': 1, 'flaky': 0, 'skipped': 2}"
+        },
+        {
+          "name": "JSON outcomes match their results",
+          "ok": true,
+          "detail": "0 disagreement(s)"
+        },
+        {
+          "name": "JSON holds exactly the requested project",
+          "ok": true,
+          "detail": "['mocked-desktop']"
+        },
+        {
+          "name": "JUnit report present and parseable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit totals match its own testcases",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit tests = planned",
+          "ok": true,
+          "detail": "JUnit 453 / planned 453"
+        },
+        {
+          "name": "JUnit failures + errors = failed",
+          "ok": true,
+          "detail": "JUnit 1 / failed 1"
+        },
+        {
+          "name": "JUnit skipped = skipped + did not run + interrupted",
+          "ok": true,
+          "detail": "JUnit 2 / 2"
+        },
+        {
+          "name": "JUnit passed = passed + flaky",
+          "ok": true,
+          "detail": "JUnit 450 / 450"
+        },
+        {
+          "name": "JUnit holds exactly the requested project",
+          "ok": true,
+          "detail": "['mocked-desktop']"
+        },
+        {
+          "name": "exit code agrees with the results",
+          "ok": true,
+          "detail": "exit 1, failed 1, interrupted 0, errors outside tests 0"
+        },
+        {
+          "name": "not interrupted",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "skipped_tests": [
+        {
+          "project": "mocked-desktop",
+          "location": "mocked/navigation-continuity.spec.ts:241",
+          "title": "the menu button is reachable and opens the menu",
+          "bucket": "skipped",
+          "reason": "the full navigation is on the bar at this width"
+        },
+        {
+          "project": "mocked-desktop",
+          "location": "mocked/navigation-continuity.spec.ts:1013",
+          "title": "Escape closes the header menu and gives focus back to the menu button",
+          "bucket": "skipped",
+          "reason": "there is no menu button at this width"
+        }
+      ],
+      "failures": [
+        {
+          "project": "mocked-desktop",
+          "location": "mocked/reader-localisation.spec.ts:901",
+          "title": "the follow count against the limit is right at 0, 1 and several in en",
+          "bucket": "failed",
+          "error": "Error: the count line is missing at 2"
+        }
+      ],
+      "verdict": "FAIL"
+    },
+    {
+      "name": "mocked-mobile",
+      "kind": "playwright",
+      "files": {
+        "junit": "playwright-mocked-mobile.junit.xml",
+        "console_tail": "playwright-mocked-mobile.console-tail.txt"
+      },
+      "command": {
+        "cwd": "<repo>/frontend",
+        "argv": [
+          "<repo>/frontend/node_modules/.bin/playwright",
+          "test",
+          "--project=mocked-mobile",
+          "--forbid-only",
+          "--retries=0",
+          "--output=<repo>/.test-runs/2026-10-11T0012Z-93a6257/artifacts-mocked-mobile",
+          "--reporter=list,json,junit"
+        ],
+        "env": [
+          "E2E_API_URL",
+          "E2E_BASE_URL",
+          "E2E_ISOLATED_API_URL",
+          "E2E_ISOLATED_BASE_URL",
+          "FORCE_COLOR",
+          "PLAYWRIGHT_JSON_OUTPUT_FILE",
+          "PLAYWRIGHT_JUNIT_INCLUDE_PROJECT_IN_TEST_NAME",
+          "PLAYWRIGHT_JUNIT_OUTPUT_FILE",
+          "PLAYWRIGHT_JUNIT_STRIP_ANSI",
+          "PLAYWRIGHT_JUNIT_SUITE_NAME"
+        ]
+      },
+      "status": "ran",
+      "exit_code": 0,
+      "started_at": "2026-10-11T00:24:15Z",
+      "finished_at": "2026-10-11T00:36:06Z",
+      "duration_seconds": 710.7,
+      "interrupted": false,
+      "planned": 453,
+      "buckets": {
+        "passed": 453,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "did_not_run": 0,
+        "interrupted": 0
+      },
+      "human": {
+        "planned": 453,
+        "workers": 1,
+        "buckets": {
+          "passed": 453,
+          "failed": 0,
+          "flaky": 0,
+          "skipped": 0,
+          "did_not_run": 0,
+          "interrupted": 0
+        },
+        "fatal_errors": 0,
+        "lines": [
+          "  453 passed (11.8m)"
+        ]
+      },
+      "json": {
+        "present": true,
+        "total": 453,
+        "buckets": {
+          "passed": 453,
+          "failed": 0,
+          "flaky": 0,
+          "skipped": 0,
+          "did_not_run": 0,
+          "interrupted": 0
+        },
+        "projects": [
+          "mocked-mobile"
+        ],
+        "stats": {
+          "expected": 453,
+          "unexpected": 0,
+          "flaky": 0,
+          "skipped": 0
+        },
+        "status_disagreements": 0,
+        "fatal_errors": 0,
+        "playwright_version": "1.63.0"
+      },
+      "junit": {
+        "tests": 453,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 453,
+        "projects": [
+          "mocked-mobile"
+        ],
+        "consistent": true
+      },
+      "checks": [
+        {
+          "name": "human summary present",
+          "ok": true,
+          "detail": "the list reporter's 'Running N tests' line and its final bucket lines"
+        },
+        {
+          "name": "planned = sum of the human buckets",
+          "ok": true,
+          "detail": "planned 453 / buckets 453"
+        },
+        {
+          "name": "JSON report present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "human passed = JSON",
+          "ok": true,
+          "detail": "human 453 / JSON 453"
+        },
+        {
+          "name": "human failed = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human flaky = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human skipped = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human did not run = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human interrupted = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "JSON stats agree with the recomputed buckets",
+          "ok": true,
+          "detail": "stats {'expected': 453, 'unexpected': 0, 'flaky': 0, 'skipped': 0}"
+        },
+        {
+          "name": "JSON outcomes match their results",
+          "ok": true,
+          "detail": "0 disagreement(s)"
+        },
+        {
+          "name": "JSON holds exactly the requested project",
+          "ok": true,
+          "detail": "['mocked-mobile']"
+        },
+        {
+          "name": "JUnit report present and parseable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit totals match its own testcases",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit tests = planned",
+          "ok": true,
+          "detail": "JUnit 453 / planned 453"
+        },
+        {
+          "name": "JUnit failures + errors = failed",
+          "ok": true,
+          "detail": "JUnit 0 / failed 0"
+        },
+        {
+          "name": "JUnit skipped = skipped + did not run + interrupted",
+          "ok": true,
+          "detail": "JUnit 0 / 0"
+        },
+        {
+          "name": "JUnit passed = passed + flaky",
+          "ok": true,
+          "detail": "JUnit 453 / 453"
+        },
+        {
+          "name": "JUnit holds exactly the requested project",
+          "ok": true,
+          "detail": "['mocked-mobile']"
+        },
+        {
+          "name": "exit code agrees with the results",
+          "ok": true,
+          "detail": "exit 0, failed 0, interrupted 0, errors outside tests 0"
+        },
+        {
+          "name": "not interrupted",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "skipped_tests": [],
+      "failures": [],
+      "verdict": "PASS"
+    },
+    {
+      "name": "mocked-mobile-360",
+      "kind": "playwright",
+      "files": {
+        "junit": "playwright-mocked-mobile-360.junit.xml",
+        "console_tail": "playwright-mocked-mobile-360.console-tail.txt"
+      },
+      "command": {
+        "cwd": "<repo>/frontend",
+        "argv": [
+          "<repo>/frontend/node_modules/.bin/playwright",
+          "test",
+          "--project=mocked-mobile-360",
+          "--forbid-only",
+          "--retries=0",
+          "--output=<repo>/.test-runs/2026-10-11T0012Z-93a6257/artifacts-mocked-mobile-360",
+          "--reporter=list,json,junit"
+        ],
+        "env": [
+          "E2E_API_URL",
+          "E2E_BASE_URL",
+          "E2E_ISOLATED_API_URL",
+          "E2E_ISOLATED_BASE_URL",
+          "FORCE_COLOR",
+          "PLAYWRIGHT_JSON_OUTPUT_FILE",
+          "PLAYWRIGHT_JUNIT_INCLUDE_PROJECT_IN_TEST_NAME",
+          "PLAYWRIGHT_JUNIT_OUTPUT_FILE",
+          "PLAYWRIGHT_JUNIT_STRIP_ANSI",
+          "PLAYWRIGHT_JUNIT_SUITE_NAME"
+        ]
+      },
+      "status": "ran",
+      "exit_code": 0,
+      "started_at": "2026-10-11T00:36:06Z",
+      "finished_at": "2026-10-11T00:38:43Z",
+      "duration_seconds": 157.4,
+      "interrupted": false,
+      "planned": 140,
+      "buckets": {
+        "passed": 140,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "did_not_run": 0,
+        "interrupted": 0
+      },
+      "human": {
+        "planned": 140,
+        "workers": 1,
+        "buckets": {
+          "passed": 140,
+          "failed": 0,
+          "flaky": 0,
+          "skipped": 0,
+          "did_not_run": 0,
+          "interrupted": 0
+        },
+        "fatal_errors": 0,
+        "lines": [
+          "  140 passed (2.6m)"
+        ]
+      },
+      "json": {
+        "present": true,
+        "total": 140,
+        "buckets": {
+          "passed": 140,
+          "failed": 0,
+          "flaky": 0,
+          "skipped": 0,
+          "did_not_run": 0,
+          "interrupted": 0
+        },
+        "projects": [
+          "mocked-mobile-360"
+        ],
+        "stats": {
+          "expected": 140,
+          "unexpected": 0,
+          "flaky": 0,
+          "skipped": 0
+        },
+        "status_disagreements": 0,
+        "fatal_errors": 0,
+        "playwright_version": "1.63.0"
+      },
+      "junit": {
+        "tests": 140,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 140,
+        "projects": [
+          "mocked-mobile-360"
+        ],
+        "consistent": true
+      },
+      "checks": [
+        {
+          "name": "human summary present",
+          "ok": true,
+          "detail": "the list reporter's 'Running N tests' line and its final bucket lines"
+        },
+        {
+          "name": "planned = sum of the human buckets",
+          "ok": true,
+          "detail": "planned 140 / buckets 140"
+        },
+        {
+          "name": "JSON report present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "human passed = JSON",
+          "ok": true,
+          "detail": "human 140 / JSON 140"
+        },
+        {
+          "name": "human failed = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human flaky = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human skipped = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human did not run = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human interrupted = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "JSON stats agree with the recomputed buckets",
+          "ok": true,
+          "detail": "stats {'expected': 140, 'unexpected': 0, 'flaky': 0, 'skipped': 0}"
+        },
+        {
+          "name": "JSON outcomes match their results",
+          "ok": true,
+          "detail": "0 disagreement(s)"
+        },
+        {
+          "name": "JSON holds exactly the requested project",
+          "ok": true,
+          "detail": "['mocked-mobile-360']"
+        },
+        {
+          "name": "JUnit report present and parseable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit totals match its own testcases",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit tests = planned",
+          "ok": true,
+          "detail": "JUnit 140 / planned 140"
+        },
+        {
+          "name": "JUnit failures + errors = failed",
+          "ok": true,
+          "detail": "JUnit 0 / failed 0"
+        },
+        {
+          "name": "JUnit skipped = skipped + did not run + interrupted",
+          "ok": true,
+          "detail": "JUnit 0 / 0"
+        },
+        {
+          "name": "JUnit passed = passed + flaky",
+          "ok": true,
+          "detail": "JUnit 140 / 140"
+        },
+        {
+          "name": "JUnit holds exactly the requested project",
+          "ok": true,
+          "detail": "['mocked-mobile-360']"
+        },
+        {
+          "name": "exit code agrees with the results",
+          "ok": true,
+          "detail": "exit 0, failed 0, interrupted 0, errors outside tests 0"
+        },
+        {
+          "name": "not interrupted",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "skipped_tests": [],
+      "failures": [],
+      "verdict": "PASS"
+    },
+    {
+      "name": "live",
+      "kind": "playwright",
+      "files": {
+        "junit": "playwright-live.junit.xml",
+        "console_tail": "playwright-live.console-tail.txt"
+      },
+      "command": {
+        "cwd": "<repo>/frontend",
+        "argv": [
+          "<repo>/frontend/node_modules/.bin/playwright",
+          "test",
+          "--project=live",
+          "--forbid-only",
+          "--retries=0",
+          "--output=<repo>/.test-runs/2026-10-11T0012Z-93a6257/artifacts-live",
+          "--reporter=list,json,junit"
+        ],
+        "env": [
+          "E2E_API_URL",
+          "E2E_BASE_URL",
+          "E2E_ISOLATED_API_URL",
+          "E2E_ISOLATED_BASE_URL",
+          "FORCE_COLOR",
+          "PLAYWRIGHT_JSON_OUTPUT_FILE",
+          "PLAYWRIGHT_JUNIT_INCLUDE_PROJECT_IN_TEST_NAME",
+          "PLAYWRIGHT_JUNIT_OUTPUT_FILE",
+          "PLAYWRIGHT_JUNIT_STRIP_ANSI",
+          "PLAYWRIGHT_JUNIT_SUITE_NAME"
+        ]
+      },
+      "status": "ran",
+      "exit_code": 0,
+      "started_at": "2026-10-11T00:38:43Z",
+      "finished_at": "2026-10-11T00:41:17Z",
+      "duration_seconds": 153.6,
+      "interrupted": false,
+      "planned": 56,
+      "buckets": {
+        "passed": 55,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 1,
+        "did_not_run": 0,
+        "interrupted": 0
+      },
+      "human": {
+        "planned": 56,
+        "workers": 1,
+        "buckets": {
+          "passed": 55,
+          "failed": 0,
+          "flaky": 0,
+          "skipped": 1,
+          "did_not_run": 0,
+          "interrupted": 0
+        },
+        "fatal_errors": 0,
+        "lines": [
+          "  1 skipped",
+          "  55 passed (2.6m)"
+        ]
+      },
+      "json": {
+        "present": true,
+        "total": 56,
+        "buckets": {
+          "passed": 55,
+          "failed": 0,
+          "flaky": 0,
+          "skipped": 1,
+          "did_not_run": 0,
+          "interrupted": 0
+        },
+        "projects": [
+          "live"
+        ],
+        "stats": {
+          "expected": 55,
+          "unexpected": 0,
+          "flaky": 0,
+          "skipped": 1
+        },
+        "status_disagreements": 0,
+        "fatal_errors": 0,
+        "playwright_version": "1.63.0"
+      },
+      "junit": {
+        "tests": 56,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1,
+        "passed": 55,
+        "projects": [
+          "live"
+        ],
+        "consistent": true
+      },
+      "checks": [
+        {
+          "name": "human summary present",
+          "ok": true,
+          "detail": "the list reporter's 'Running N tests' line and its final bucket lines"
+        },
+        {
+          "name": "planned = sum of the human buckets",
+          "ok": true,
+          "detail": "planned 56 / buckets 56"
+        },
+        {
+          "name": "JSON report present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "human passed = JSON",
+          "ok": true,
+          "detail": "human 55 / JSON 55"
+        },
+        {
+          "name": "human failed = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human flaky = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human skipped = JSON",
+          "ok": true,
+          "detail": "human 1 / JSON 1"
+        },
+        {
+          "name": "human did not run = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human interrupted = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "JSON stats agree with the recomputed buckets",
+          "ok": true,
+          "detail": "stats {'expected': 55, 'unexpected': 0, 'flaky': 0, 'skipped': 1}"
+        },
+        {
+          "name": "JSON outcomes match their results",
+          "ok": true,
+          "detail": "0 disagreement(s)"
+        },
+        {
+          "name": "JSON holds exactly the requested project",
+          "ok": true,
+          "detail": "['live']"
+        },
+        {
+          "name": "JUnit report present and parseable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit totals match its own testcases",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit tests = planned",
+          "ok": true,
+          "detail": "JUnit 56 / planned 56"
+        },
+        {
+          "name": "JUnit failures + errors = failed",
+          "ok": true,
+          "detail": "JUnit 0 / failed 0"
+        },
+        {
+          "name": "JUnit skipped = skipped + did not run + interrupted",
+          "ok": true,
+          "detail": "JUnit 1 / 1"
+        },
+        {
+          "name": "JUnit passed = passed + flaky",
+          "ok": true,
+          "detail": "JUnit 55 / 55"
+        },
+        {
+          "name": "JUnit holds exactly the requested project",
+          "ok": true,
+          "detail": "['live']"
+        },
+        {
+          "name": "exit code agrees with the results",
+          "ok": true,
+          "detail": "exit 0, failed 0, interrupted 0, errors outside tests 0"
+        },
+        {
+          "name": "not interrupted",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "skipped_tests": [
+        {
+          "project": "live",
+          "location": "live/detail-refresh.spec.ts:174",
+          "title": "a fixture in play keeps its running score under a running label across a return",
+          "bucket": "skipped",
+          "reason": "no fixture is in play in the local database right now"
+        }
+      ],
+      "failures": [],
+      "verdict": "PASS"
+    },
+    {
+      "name": "live-isolated",
+      "kind": "playwright",
+      "files": {
+        "junit": "playwright-live-isolated.junit.xml",
+        "console_tail": "playwright-live-isolated.console-tail.txt"
+      },
+      "command": {
+        "cwd": "<repo>/frontend",
+        "argv": [
+          "<repo>/frontend/node_modules/.bin/playwright",
+          "test",
+          "--project=live-isolated",
+          "--forbid-only",
+          "--retries=0",
+          "--output=<repo>/.test-runs/2026-10-11T0012Z-93a6257/artifacts-live-isolated",
+          "--reporter=list,json,junit"
+        ],
+        "env": [
+          "E2E_API_URL",
+          "E2E_BASE_URL",
+          "E2E_ISOLATED_API_URL",
+          "E2E_ISOLATED_BASE_URL",
+          "FORCE_COLOR",
+          "PLAYWRIGHT_JSON_OUTPUT_FILE",
+          "PLAYWRIGHT_JUNIT_INCLUDE_PROJECT_IN_TEST_NAME",
+          "PLAYWRIGHT_JUNIT_OUTPUT_FILE",
+          "PLAYWRIGHT_JUNIT_STRIP_ANSI",
+          "PLAYWRIGHT_JUNIT_SUITE_NAME"
+        ]
+      },
+      "status": "ran",
+      "exit_code": 0,
+      "started_at": "2026-10-11T00:41:17Z",
+      "finished_at": "2026-10-11T00:41:21Z",
+      "duration_seconds": 4.6,
+      "interrupted": false,
+      "planned": 2,
+      "buckets": {
+        "passed": 2,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "did_not_run": 0,
+        "interrupted": 0
+      },
+      "human": {
+        "planned": 2,
+        "workers": 1,
+        "buckets": {
+          "passed": 2,
+          "failed": 0,
+          "flaky": 0,
+          "skipped": 0,
+          "did_not_run": 0,
+          "interrupted": 0
+        },
+        "fatal_errors": 0,
+        "lines": [
+          "  2 passed (4.4s)"
+        ]
+      },
+      "json": {
+        "present": true,
+        "total": 2,
+        "buckets": {
+          "passed": 2,
+          "failed": 0,
+          "flaky": 0,
+          "skipped": 0,
+          "did_not_run": 0,
+          "interrupted": 0
+        },
+        "projects": [
+          "live-isolated"
+        ],
+        "stats": {
+          "expected": 2,
+          "unexpected": 0,
+          "flaky": 0,
+          "skipped": 0
+        },
+        "status_disagreements": 0,
+        "fatal_errors": 0,
+        "playwright_version": "1.63.0"
+      },
+      "junit": {
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 2,
+        "projects": [
+          "live-isolated"
+        ],
+        "consistent": true
+      },
+      "checks": [
+        {
+          "name": "human summary present",
+          "ok": true,
+          "detail": "the list reporter's 'Running N tests' line and its final bucket lines"
+        },
+        {
+          "name": "planned = sum of the human buckets",
+          "ok": true,
+          "detail": "planned 2 / buckets 2"
+        },
+        {
+          "name": "JSON report present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "human passed = JSON",
+          "ok": true,
+          "detail": "human 2 / JSON 2"
+        },
+        {
+          "name": "human failed = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human flaky = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human skipped = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human did not run = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "human interrupted = JSON",
+          "ok": true,
+          "detail": "human 0 / JSON 0"
+        },
+        {
+          "name": "JSON stats agree with the recomputed buckets",
+          "ok": true,
+          "detail": "stats {'expected': 2, 'unexpected': 0, 'flaky': 0, 'skipped': 0}"
+        },
+        {
+          "name": "JSON outcomes match their results",
+          "ok": true,
+          "detail": "0 disagreement(s)"
+        },
+        {
+          "name": "JSON holds exactly the requested project",
+          "ok": true,
+          "detail": "['live-isolated']"
+        },
+        {
+          "name": "JUnit report present and parseable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit totals match its own testcases",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "JUnit tests = planned",
+          "ok": true,
+          "detail": "JUnit 2 / planned 2"
+        },
+        {
+          "name": "JUnit failures + errors = failed",
+          "ok": true,
+          "detail": "JUnit 0 / failed 0"
+        },
+        {
+          "name": "JUnit skipped = skipped + did not run + interrupted",
+          "ok": true,
+          "detail": "JUnit 0 / 0"
+        },
+        {
+          "name": "JUnit passed = passed + flaky",
+          "ok": true,
+          "detail": "JUnit 2 / 2"
+        },
+        {
+          "name": "JUnit holds exactly the requested project",
+          "ok": true,
+          "detail": "['live-isolated']"
+        },
+        {
+          "name": "exit code agrees with the results",
+          "ok": true,
+          "detail": "exit 0, failed 0, interrupted 0, errors outside tests 0"
+        },
+        {
+          "name": "not interrupted",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "skipped_tests": [],
+      "failures": [],
+      "verdict": "PASS"
+    }
+  ],
+  "watcher": {
+    "interval_seconds": 15,
+    "samples": 113,
+    "anomalies": [
+      {
+        "kind": "foreign_runner",
+        "detail": "pid 88225 (pytest: zsh '-m pytest')",
+        "first_seen": "2026-10-11T00:18:47Z",
+        "last_seen": "2026-10-11T00:19:48Z",
+        "samples": 5,
+        "during": "mocked-desktop"
+      },
+      {
+        "kind": "foreign_runner",
+        "detail": "pid 88230 (pytest: python3 '-m pytest')",
+        "first_seen": "2026-10-11T00:18:47Z",
+        "last_seen": "2026-10-11T00:19:48Z",
+        "samples": 5,
+        "during": "mocked-desktop"
+      },
+      {
+        "kind": "foreign_runner",
+        "detail": "pid 95136 (pytest: Python '-m pytest')",
+        "first_seen": "2026-10-11T00:31:04Z",
+        "last_seen": "2026-10-11T00:32:36Z",
+        "samples": 7,
+        "during": "mocked-mobile"
+      }
+    ]
+  },
+  "integrity": {
+    "guard_at_start": [],
+    "lock": {
+      "path": "<repo>/.git/predictionsappsui-test-evidence.lock",
+      "acquired_at": "2026-10-11T00:12:38Z",
+      "stale_lock_cleared": null
+    },
+    "raw_files": {
+      "backend.junit.xml": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/backend.junit.xml",
+        "sha256": "a9064fbe8b5d7c8153f3ad9f5285c65f9c004a27c84954f478a428a9284720af"
+      },
+      "backend.console-tail.txt": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/backend.console.log",
+        "sha256": "9cc88516d1e045d0598d4e26c4f1757f19fd4a215f330d128b092dfebc8b94f3"
+      },
+      "playwright-mocked-desktop.junit.xml": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/playwright-mocked-desktop.junit.xml",
+        "sha256": "976ea2a585c97fd4680235f6e26403526aec055173c010b2f325992b3689d2ef"
+      },
+      "playwright-mocked-desktop.console-tail.txt": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/playwright-mocked-desktop.console.log",
+        "sha256": "8a18c2002354d5565dec21364d6e4227720a6524f8c6f023a49b8950781b48f3"
+      },
+      "playwright-mocked-mobile.junit.xml": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/playwright-mocked-mobile.junit.xml",
+        "sha256": "9ad9cacd86719de044b86f1cbe811f42834bd73e99e846b5c594607ae31bba04"
+      },
+      "playwright-mocked-mobile.console-tail.txt": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/playwright-mocked-mobile.console.log",
+        "sha256": "a0da794c179d27f6ae9985bbe1e39494dd22ce638bfd8d6c84cdac6a5e0ec10e"
+      },
+      "playwright-mocked-mobile-360.junit.xml": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/playwright-mocked-mobile-360.junit.xml",
+        "sha256": "d25a8c54ee4353513c25dd634c8ec3866d248f745751e6ad0b550c2d750f0a01"
+      },
+      "playwright-mocked-mobile-360.console-tail.txt": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/playwright-mocked-mobile-360.console.log",
+        "sha256": "cdd9811514b0d5b04388bc1f57f4252a095151c8388f15911e3b935308ff95c1"
+      },
+      "playwright-live.junit.xml": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/playwright-live.junit.xml",
+        "sha256": "c4aa02129c9769b7c39f9e8cd7cd21fa614dac1373a35ff74babe94a78b8b829"
+      },
+      "playwright-live.console-tail.txt": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/playwright-live.console.log",
+        "sha256": "838b5e50e8e87abe6d6260a52023af06dd17dad1a7075c40e7b7cf990ed6a9d5"
+      },
+      "playwright-live-isolated.junit.xml": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/playwright-live-isolated.junit.xml",
+        "sha256": "e3dc87a04d0a812b30ae83b1040c94a60c1d9e8636822b824317fd4c3f33b318"
+      },
+      "playwright-live-isolated.console-tail.txt": {
+        "raw": ".test-runs/2026-10-11T0012Z-93a6257/playwright-live-isolated.console.log",
+        "sha256": "b3c8191e9fb18792548cf44311d90cd853452000a9c0f4b0e3fb7e836bc67ac4"
+      }
+    },
+    "published_sha256": {
+      "backend.console-tail.txt": "8c070532e7479fe68ebca7297e16e29eca4f60304b95734a69050d58f858096d",
+      "backend.junit.xml": "0ca02fa68404c9022675b1d8a0ea58d259dd0e44f67f2837ffbd5397cbaf39c2",
+      "playwright-live-isolated.console-tail.txt": "b3c8191e9fb18792548cf44311d90cd853452000a9c0f4b0e3fb7e836bc67ac4",
+      "playwright-live-isolated.junit.xml": "e3dc87a04d0a812b30ae83b1040c94a60c1d9e8636822b824317fd4c3f33b318",
+      "playwright-live.console-tail.txt": "f05bc56fd166f4de6026bec0c996c81e7bc83e098fc9fe2b1e9b971454a49fb7",
+      "playwright-live.junit.xml": "c4aa02129c9769b7c39f9e8cd7cd21fa614dac1373a35ff74babe94a78b8b829",
+      "playwright-mocked-desktop.console-tail.txt": "46395f048beb03d70e59fe8fd9f2ba459f38e5182ddc62d622ed50947d8254b1",
+      "playwright-mocked-desktop.junit.xml": "90042bc1779020cf27ce2e7da4aabca295160cf46cd871e69697c84488e8b508",
+      "playwright-mocked-mobile-360.console-tail.txt": "b6528288a47367b3e545e86a6de08283bccacaadc266b6eb16954b47a8e23ff2",
+      "playwright-mocked-mobile-360.junit.xml": "d25a8c54ee4353513c25dd634c8ec3866d248f745751e6ad0b550c2d750f0a01",
+      "playwright-mocked-mobile.console-tail.txt": "b26efbb31a24a074b909037df9bc2787be1b61aa8430f124ca039c0c4e45b5ee",
+      "playwright-mocked-mobile.junit.xml": "9ad9cacd86719de044b86f1cbe811f42834bd73e99e846b5c594607ae31bba04"
+    },
+    "deny_list": {
+      "scanned": [
+        "API_FOOTBALL_KEY (backend/.env)",
+        "API_FOOTBALL_KEY (frontend/.env)",
+        "E2E_QA_PASSWORD (committed fallback)",
+        "EMAILS_FROM_EMAIL (backend/.env)",
+        "FIRST_SUPERUSER_EMAIL (backend/.env)",
+        "FIRST_SUPERUSER_PASSWORD (backend/.env)",
+        "GAMEFORECAST_API_KEY (backend/.env)",
+        "LIVESCORE_API_KEY (backend/.env)",
+        "LIVESCORE_API_SECRET (backend/.env)",
+        "POSTGRES_PASSWORD (backend/.env)",
+        "SECRET_KEY (backend/.env)",
+        "SMTP_PASSWORD (backend/.env)",
+        "THESPORTSDB_KEY (backend/.env)",
+        "git user.email"
+      ],
+      "too_short": [
+        "SMTP_USER (backend/.env)",
+        "hostname"
+      ],
+      "min_length": 6
+    },
+    "published_bytes": 496052,
+    "size_warning": false,
+    "scrub_counts": {
+      "backend.console-tail.txt": {
+        "repo-root": 12
+      },
+      "backend.junit.xml": {
+        "pytest-hostname": 1
+      },
+      "playwright-live-isolated.console-tail.txt": {},
+      "playwright-live-isolated.junit.xml": {},
+      "playwright-live.console-tail.txt": {},
+      "playwright-live.junit.xml": {},
+      "playwright-mocked-desktop.console-tail.txt": {
+        "repo-root": 1
+      },
+      "playwright-mocked-desktop.junit.xml": {
+        "repo-root": 1
+      },
+      "playwright-mocked-mobile-360.console-tail.txt": {},
+      "playwright-mocked-mobile-360.junit.xml": {},
+      "playwright-mocked-mobile.console-tail.txt": {},
+      "playwright-mocked-mobile.junit.xml": {},
+      "summary": {
+        "repo-root": 31
+      }
+    }
+  },
+  "runner": {
+    "path": "scripts/test_evidence.py",
+    "sha256": "d7af93ea453b63ab4e066becadc48e8eabc7ba5286996003b3f9979278fcc33c"
+  },
+  "verify_command": "python3 scripts/test_evidence.py verify docs/evidence/test-reports/2026-10-11T0012Z-93a6257",
+  "verdict": "CONTAMINATED"
+}
