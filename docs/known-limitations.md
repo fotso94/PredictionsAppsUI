@@ -704,6 +704,7 @@ it. `docs/evidence/test-reports/README.md` has the layout and the scrub policy.
 | `2026-10-10T1841Z-b754d58` | b754d58 | 1685 passed | 450 passed, **1 failed**, 2 skipped | 453 passed | 140 passed | 56 passed; live-isolated 2 passed — **FAIL** (mocked-desktop): the French expert-dashboard test waited 10 s for the record section and did not find it; the same test passed in both earlier runs that day, and the run was repeated |
 | `2026-10-10T2342Z-a9e89d2` | a9e89d2 | 1685 passed | 451 passed, 2 skipped | 453 passed | 140 passed | 55 passed, 1 skipped; live-isolated 2 passed — **CONTAMINATED**: a `python -m pytest` not this runner's ran for 77 s during mocked-desktop; every suite passed, the verdict stands, the run was repeated |
 | `2026-10-11T0012Z-93a6257` | 93a6257 | 1685 passed | 450 passed, **1 failed**, 2 skipped | 453 passed | 140 passed | 55 passed, 1 skipped; live-isolated 2 passed — **FAIL** (mocked-desktop): the English follow-count test waited 10 s for the count line at two followed leagues and did not find it — a different test from the 1841Z failure, and one that passed in the four other runs of the day |
+| `2026-10-11T0042Z-de5762b` | de5762b | 1685 passed | 451 passed, 2 skipped | 453 passed | 140 passed | 55 passed, 1 skipped; live-isolated 2 passed — **PASS**, uncontaminated, running code measured |
 
 The first failure was a precondition: a live scroll-restoration check measured on a day whose three
 stored fixtures fitted in a 1440x900 window (fixed in b753202). The second was a club crest from
@@ -717,7 +718,13 @@ than inferred, and the first to include the isolated suite. The 2026-10-10 run, 
 the first since access returned in which every live test ran — 56, no skips — and its three backend
 failures were three endpoint tests that dated their fixture rows by the calendar (9 and 10 October)
 and read the endpoint against the wall clock: ahead when written, behind that evening. They now pin
-the endpoint's clock (the next commit); no application code was at fault.
+the endpoint's clock (the next commit); no application code was at fault. Of the six runs that
+followed on 10–11 October, three were marked CONTAMINATED by a `pytest` belonging to another
+session on this machine (the watcher counts any test runner, in any repository), two failed one
+mocked-desktop test each on a ten-second wait for an element — two different tests, each green in
+every other run, both gated on data the test's stubs register only after sign-in, which makes an
+ordering race in the test harness the probable cause and nothing in the application the
+established one — and the sixth, `2026-10-11T0042Z`, passed clean on the same application code.
 
 Limits: `verify` cannot see what only the run saw (a deleted record of contamination), and the
 published files are scrubbed copies — only whoever holds the run's `.test-runs/` can show they came

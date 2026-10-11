@@ -1,0 +1,292 @@
+<testsuites id="" name="playwright-mocked-mobile-360" tests="140" failures="0" skipped="0" errors="0" time="157.840579">
+<testsuite name="mocked/match-data-state.spec.ts" timestamp="2026-10-11T01:06:11.499Z" hostname="mocked-mobile-360" tests="24" failures="0" skipped="0" time="35.375" errors="0">
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in en › the banner leads with one plain sentence and keeps every source in its disclosure" classname="mocked/match-data-state.spec.ts" time="1.164">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in en › the lead never promises forecasts the forecast source cannot give" classname="mocked/match-data-state.spec.ts" time="0.854">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in en › the freshness line states the last provider write, never a refresh minutes ago" classname="mocked/match-data-state.spec.ts" time="0.908">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in en › the match page keeps its forecast and says what cannot change" classname="mocked/match-data-state.spec.ts" time="2.24">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in en › an overdue row on the day list says result updates are unavailable" classname="mocked/match-data-state.spec.ts" time="0.814">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in en › an empty day says it cannot fill itself while updates are blocked" classname="mocked/match-data-state.spec.ts" time="0.814">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in en › a selection waiting for its result says it cannot settle for now, in the slip and the history" classname="mocked/match-data-state.spec.ts" time="0.875">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in en › suggestions say they use only stored fixtures and count the forecasts waiting" classname="mocked/match-data-state.spec.ts" time="0.815">
+</testcase>
+<testcase name="[mocked-mobile-360] every other state leaves the pages as they were, in en › healthy: none of it, and the fixture age no longer comes from recover or settle" classname="mocked/match-data-state.spec.ts" time="4.458">
+</testcase>
+<testcase name="[mocked-mobile-360] every other state leaves the pages as they were, in en › degraded: the banner keeps its old rules and nothing new appears" classname="mocked/match-data-state.spec.ts" time="0.866">
+</testcase>
+<testcase name="[mocked-mobile-360] every other state leaves the pages as they were, in en › an older backend with no block gets exactly the banner it always had" classname="mocked/match-data-state.spec.ts" time="0.859">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in fr › the banner leads with one plain sentence and keeps every source in its disclosure" classname="mocked/match-data-state.spec.ts" time="0.949">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in fr › the lead never promises forecasts the forecast source cannot give" classname="mocked/match-data-state.spec.ts" time="0.883">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in fr › the freshness line states the last provider write, never a refresh minutes ago" classname="mocked/match-data-state.spec.ts" time="0.961">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in fr › the match page keeps its forecast and says what cannot change" classname="mocked/match-data-state.spec.ts" time="2.256">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in fr › an overdue row on the day list says result updates are unavailable" classname="mocked/match-data-state.spec.ts" time="0.866">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in fr › an empty day says it cannot fill itself while updates are blocked" classname="mocked/match-data-state.spec.ts" time="0.851">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in fr › a selection waiting for its result says it cannot settle for now, in the slip and the history" classname="mocked/match-data-state.spec.ts" time="0.878">
+</testcase>
+<testcase name="[mocked-mobile-360] fixture and result updates blocked, in fr › suggestions say they use only stored fixtures and count the forecasts waiting" classname="mocked/match-data-state.spec.ts" time="0.834">
+</testcase>
+<testcase name="[mocked-mobile-360] every other state leaves the pages as they were, in fr › healthy: none of it, and the fixture age no longer comes from recover or settle" classname="mocked/match-data-state.spec.ts" time="4.511">
+</testcase>
+<testcase name="[mocked-mobile-360] every other state leaves the pages as they were, in fr › degraded: the banner keeps its old rules and nothing new appears" classname="mocked/match-data-state.spec.ts" time="0.86">
+</testcase>
+<testcase name="[mocked-mobile-360] every other state leaves the pages as they were, in fr › an older backend with no block gets exactly the banner it always had" classname="mocked/match-data-state.spec.ts" time="0.88">
+</testcase>
+<testcase name="[mocked-mobile-360] at 360px in French the blocked banner fits, its disclosure included" classname="mocked/match-data-state.spec.ts" time="1.645">
+</testcase>
+<testcase name="[mocked-mobile-360] nothing in the blocked state asks a provider for anything" classname="mocked/match-data-state.spec.ts" time="4.334">
+</testcase>
+</testsuite>
+<testsuite name="mocked/national-teams.spec.ts" timestamp="2026-10-11T01:06:11.499Z" hostname="mocked-mobile-360" tests="21" failures="0" skipped="0" time="22.819" errors="0">
+<testcase name="[mocked-mobile-360] a national-team fixture appears on its date like any other, under its own competition" classname="mocked/national-teams.spec.ts" time="0.831">
+</testcase>
+<testcase name="[mocked-mobile-360] an otherwise empty day shows its national-team fixtures, and says that is what they are" classname="mocked/national-teams.spec.ts" time="0.848">
+</testcase>
+<testcase name="[mocked-mobile-360] the note is about the day and never appears on a day that has club football too" classname="mocked/national-teams.spec.ts" time="0.835">
+</testcase>
+<testcase name="[mocked-mobile-360] a day of fixtures that state no classification claims nothing and hides nothing" classname="mocked/national-teams.spec.ts" time="0.824">
+</testcase>
+<testcase name="[mocked-mobile-360] the club / national filter is offered on a day that holds both, and narrows to each" classname="mocked/national-teams.spec.ts" time="0.929">
+</testcase>
+<testcase name="[mocked-mobile-360] the filter is in the URL, so a narrowed day is a link and survives Back" classname="mocked/national-teams.spec.ts" time="0.979">
+</testcase>
+<testcase name="[mocked-mobile-360] a link that arrives with the filter set can always see it and take it off" classname="mocked/national-teams.spec.ts" time="0.88">
+</testcase>
+<testcase name="[mocked-mobile-360] the filter sheet offers the same choice, and the summary chip removes it" classname="mocked/national-teams.spec.ts" time="1.226">
+</testcase>
+<testcase name="[mocked-mobile-360] a national-team fixture opens, names its competition and says what is published for it" classname="mocked/national-teams.spec.ts" time="0.92">
+</testcase>
+<testcase name="[mocked-mobile-360] following a country does not follow its women&apos;s squad, which is a different row" classname="mocked/national-teams.spec.ts" time="2.246">
+</testcase>
+<testcase name="[mocked-mobile-360] the follow list tells two squads of one country apart, which their name cannot" classname="mocked/national-teams.spec.ts" time="1.539">
+</testcase>
+<testcase name="[mocked-mobile-360] a national-team fixture can be saved from the day list, through the same star as any other" classname="mocked/national-teams.spec.ts" time="0.882">
+</testcase>
+<testcase name="[mocked-mobile-360] an expert picking a fixture to write about is offered the national-team ones too" classname="mocked/national-teams.spec.ts" time="0.829">
+</testcase>
+<testcase name="[mocked-mobile-360] a tie won on penalties shows the scoreline people remember beside the one markets settle on" classname="mocked/national-teams.spec.ts" time="0.903">
+</testcase>
+<testcase name="[mocked-mobile-360] everything this feature says is in French for a reader who chose French" classname="mocked/national-teams.spec.ts" time="0.85">
+</testcase>
+<testcase name="[mocked-mobile-360] the filter and the squad note are in French too" classname="mocked/national-teams.spec.ts" time="0.866">
+</testcase>
+<testcase name="[mocked-mobile-360] a country&apos;s squad is named in French on the team page" classname="mocked/national-teams.spec.ts" time="1.523">
+</testcase>
+<testcase name="[mocked-mobile-360] a national-team kick-off is shown in the reader&apos;s own zone, not UTC" classname="mocked/national-teams.spec.ts" time="0.851">
+</testcase>
+<testcase name="[mocked-mobile-360] the longest competition and country names do not push the page sideways" classname="mocked/national-teams.spec.ts" time="0.877">
+</testcase>
+<testcase name="[mocked-mobile-360] the match page for the longest names does not push the page sideways either" classname="mocked/national-teams.spec.ts" time="0.875">
+</testcase>
+<testcase name="[mocked-mobile-360] the whole journey: find it, narrow to it, open it, save it, read its result" classname="mocked/national-teams.spec.ts" time="2.306">
+</testcase>
+</testsuite>
+<testsuite name="mocked/navigation-continuity.spec.ts" timestamp="2026-10-11T01:06:11.499Z" hostname="mocked-mobile-360" tests="20" failures="0" skipped="0" time="41.735" errors="0">
+<testcase name="[mocked-mobile-360] the home page does not scroll sideways, signed out" classname="mocked/navigation-continuity.spec.ts" time="0.835">
+</testcase>
+<testcase name="[mocked-mobile-360] the home page does not scroll sideways, signed in" classname="mocked/navigation-continuity.spec.ts" time="0.868">
+</testcase>
+<testcase name="[mocked-mobile-360] the matches list does not scroll sideways, signed out" classname="mocked/navigation-continuity.spec.ts" time="0.852">
+</testcase>
+<testcase name="[mocked-mobile-360] the matches list does not scroll sideways, signed in" classname="mocked/navigation-continuity.spec.ts" time="0.883">
+</testcase>
+<testcase name="[mocked-mobile-360] a match detail page does not scroll sideways, signed out" classname="mocked/navigation-continuity.spec.ts" time="0.811">
+</testcase>
+<testcase name="[mocked-mobile-360] a match detail page does not scroll sideways, signed in" classname="mocked/navigation-continuity.spec.ts" time="0.825">
+</testcase>
+<testcase name="[mocked-mobile-360] the leagues index does not scroll sideways, signed out" classname="mocked/navigation-continuity.spec.ts" time="0.773">
+</testcase>
+<testcase name="[mocked-mobile-360] the leagues index does not scroll sideways, signed in" classname="mocked/navigation-continuity.spec.ts" time="0.821">
+</testcase>
+<testcase name="[mocked-mobile-360] the menu button is reachable and opens the menu" classname="mocked/navigation-continuity.spec.ts" time="0.978">
+</testcase>
+<testcase name="[mocked-mobile-360] opening a team from the foot of a match page lands at the top of the team page" classname="mocked/navigation-continuity.spec.ts" time="0.968">
+</testcase>
+<testcase name="[mocked-mobile-360] Back from the team page returns to where the match page was left" classname="mocked/navigation-continuity.spec.ts" time="1.008">
+</testcase>
+<testcase name="[mocked-mobile-360] Back to a list that arrives after the restore window still lands where the reader was" classname="mocked/navigation-continuity.spec.ts" time="4.268">
+</testcase>
+<testcase name="[mocked-mobile-360] a page that finishes growing after the restore reaches the offset leaves the reader on it" classname="mocked/navigation-continuity.spec.ts" time="1.905">
+</testcase>
+<testcase name="[mocked-mobile-360] a reader who takes the page back with a keypress during a slow restore keeps it" classname="mocked/navigation-continuity.spec.ts" time="2.429">
+</testcase>
+<testcase name="[mocked-mobile-360] a reader who takes the page back with a scrollbar drag during a slow restore keeps it" classname="mocked/navigation-continuity.spec.ts" time="2.487">
+</testcase>
+<testcase name="[mocked-mobile-360] past its cap the restore gives up, and the page growing afterwards does not move the reader" classname="mocked/navigation-continuity.spec.ts" time="9.452">
+</testcase>
+<testcase name="[mocked-mobile-360] a fresh document does not inherit the offset the last document left in this tab" classname="mocked/navigation-continuity.spec.ts" time="8.155">
+</testcase>
+<testcase name="[mocked-mobile-360] Back from a fixture restores the filtered list, its filters and its position" classname="mocked/navigation-continuity.spec.ts" time="1.608">
+</testcase>
+<testcase name="[mocked-mobile-360] Escape closes the filter sheet and gives focus back to the button that opened it" classname="mocked/navigation-continuity.spec.ts" time="0.892">
+</testcase>
+<testcase name="[mocked-mobile-360] Escape closes the header menu and gives focus back to the menu button" classname="mocked/navigation-continuity.spec.ts" time="0.917">
+</testcase>
+</testsuite>
+<testsuite name="mocked/overdue-results.spec.ts" timestamp="2026-10-11T01:06:11.499Z" hostname="mocked-mobile-360" tests="49" failures="0" skipped="0" time="18.876" errors="0">
+<testcase name="[mocked-mobile-360] [en] the day list says a result is overdue where the kickoff time would be" classname="mocked/overdue-results.spec.ts" time="0.333">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] the day list distinguishes a fixture that has been given up on" classname="mocked/overdue-results.spec.ts" time="0.307">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] THE MATCH THAT IS GENUINELY IN PLAY keeps its running minute and its score" classname="mocked/overdue-results.spec.ts" time="0.298">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] A TIE PLAYED PAST THE DEADLINE KEEPS ITS MINUTE AND ITS SCORE" classname="mocked/overdue-results.spec.ts" time="0.308">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] the day list says a result is overdue where the kickoff time would be" classname="mocked/overdue-results.spec.ts" time="0.324">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] the day list distinguishes a fixture that has been given up on" classname="mocked/overdue-results.spec.ts" time="0.328">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] THE MATCH THAT IS GENUINELY IN PLAY keeps its running minute and its score" classname="mocked/overdue-results.spec.ts" time="0.325">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] A TIE PLAYED PAST THE DEADLINE KEEPS ITS MINUTE AND ITS SCORE" classname="mocked/overdue-results.spec.ts" time="0.359">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] the day list tells an unreachable provider apart from an empty answer" classname="mocked/overdue-results.spec.ts" time="0.314">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] the match page says what the last check found, and only what it found" classname="mocked/overdue-results.spec.ts" time="0.49">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] the day list tells an unreachable provider apart from an empty answer" classname="mocked/overdue-results.spec.ts" time="0.362">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] the match page says what the last check found, and only what it found" classname="mocked/overdue-results.spec.ts" time="0.518">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] no sentence in the catalogue says a result cannot exist, and a held-back check names no failure" classname="mocked/overdue-results.spec.ts" time="0.006">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] THE FOUR THINGS A READER CAN BE TOLD, on one day list beside a live match and a tie in extra time" classname="mocked/overdue-results.spec.ts" time="0.391">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] a check held back by our own allowance is said as ours, and not as the provider&apos;s failure" classname="mocked/overdue-results.spec.ts" time="0.324">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] a check that never left is worded by WHY it never left: only our own allowance is called ours" classname="mocked/overdue-results.spec.ts" time="1.102">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] a stop the retry budget made says it was our allowance; the backend&apos;s prose stays off the page" classname="mocked/overdue-results.spec.ts" time="0.308">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] a stop on a corrected count says &quot;at most&quot;, exactly as the backend does" classname="mocked/overdue-results.spec.ts" time="0.308">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] a check that read our own stored copy says so, and claims no call" classname="mocked/overdue-results.spec.ts" time="0.321">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] a fixture put back under the retry schedule reads overdue and still asked about, not Unresolved" classname="mocked/overdue-results.spec.ts" time="0.503">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] an outcome with no sentence of its own adds none, and the overdue statement stands" classname="mocked/overdue-results.spec.ts" time="0.498">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] no sentence in the catalogue says a result cannot exist, and a held-back check names no failure" classname="mocked/overdue-results.spec.ts" time="0.007">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] THE FOUR THINGS A READER CAN BE TOLD, on one day list beside a live match and a tie in extra time" classname="mocked/overdue-results.spec.ts" time="0.426">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] a check held back by our own allowance is said as ours, and not as the provider&apos;s failure" classname="mocked/overdue-results.spec.ts" time="0.346">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] a check that never left is worded by WHY it never left: only our own allowance is called ours" classname="mocked/overdue-results.spec.ts" time="1.152">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] a stop the retry budget made says it was our allowance; the backend&apos;s prose stays off the page" classname="mocked/overdue-results.spec.ts" time="0.328">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] a stop on a corrected count says &quot;at most&quot;, exactly as the backend does" classname="mocked/overdue-results.spec.ts" time="0.328">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] a check that read our own stored copy says so, and claims no call" classname="mocked/overdue-results.spec.ts" time="0.341">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] a fixture put back under the retry schedule reads overdue and still asked about, not Unresolved" classname="mocked/overdue-results.spec.ts" time="0.507">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] an outcome with no sentence of its own adds none, and the overdue statement stands" classname="mocked/overdue-results.spec.ts" time="0.515">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] the match page states an overdue result instead of a scoreline" classname="mocked/overdue-results.spec.ts" time="0.32">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] the match page says how often the provider answered, and does not credit a removed rule&apos;s stop to our allowance" classname="mocked/overdue-results.spec.ts" time="0.322">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] THE UNRESOLVED STATE THE OWNER CHECKED reads Unresolved on its row and its page" classname="mocked/overdue-results.spec.ts" time="0.502">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] WHAT UNRESOLVED MAY NOT SAY: the backend&apos;s claim about an archive never reaches the page" classname="mocked/overdue-results.spec.ts" time="0.469">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] the match page of a live fixture is untouched by any of this" classname="mocked/overdue-results.spec.ts" time="0.322">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] the match page of a tie in extra time shows the tie, not a warning" classname="mocked/overdue-results.spec.ts" time="0.308">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] a provider we cannot reach is said at the top of the page, and the fixture stays overdue" classname="mocked/overdue-results.spec.ts" time="0.325">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] the match page states an overdue result instead of a scoreline" classname="mocked/overdue-results.spec.ts" time="0.321">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] the match page says how often the provider answered, and does not credit a removed rule&apos;s stop to our allowance" classname="mocked/overdue-results.spec.ts" time="0.322">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] THE UNRESOLVED STATE THE OWNER CHECKED reads Unresolved on its row and its page" classname="mocked/overdue-results.spec.ts" time="0.547">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] WHAT UNRESOLVED MAY NOT SAY: the backend&apos;s claim about an archive never reaches the page" classname="mocked/overdue-results.spec.ts" time="0.52">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] the match page of a live fixture is untouched by any of this" classname="mocked/overdue-results.spec.ts" time="0.324">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] the match page of a tie in extra time shows the tie, not a warning" classname="mocked/overdue-results.spec.ts" time="0.309">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] a provider we cannot reach is said at the top of the page, and the fixture stays overdue" classname="mocked/overdue-results.spec.ts" time="0.324">
+</testcase>
+<testcase name="[mocked-mobile-360] a saved fixture whose result never arrived is not filed under &quot;In play now&quot;" classname="mocked/overdue-results.spec.ts" time="0.34">
+</testcase>
+<testcase name="[mocked-mobile-360] with nothing actually in play the dashboard says nothing about anything being in play" classname="mocked/overdue-results.spec.ts" time="0.307">
+</testcase>
+<testcase name="[mocked-mobile-360] the day list this file drives asks for its own local day and spends nothing extra" classname="mocked/overdue-results.spec.ts" time="0.294">
+</testcase>
+<testcase name="[mocked-mobile-360] a fixture that was called off is never described as late for a result" classname="mocked/overdue-results.spec.ts" time="0.43">
+</testcase>
+<testcase name="[mocked-mobile-360] a payload that carries no deadline produces no claim, and the row says what it always said" classname="mocked/overdue-results.spec.ts" time="0.293">
+</testcase>
+</testsuite>
+<testsuite name="mocked/parlay-builder.spec.ts" timestamp="2026-10-11T01:06:11.499Z" hostname="mocked-mobile-360" tests="26" failures="0" skipped="0" time="37.74" errors="0">
+<testcase name="[mocked-mobile-360] [en] mocked: markets and the slip › every served market renders with its number, source and rule; nothing unpublished is selectable" classname="mocked/parlay-builder.spec.ts" time="0.339">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] mocked: markets and the slip › signed out: one selection per fixture, a draft that survives a reload, and a copied slip that invents nothing" classname="mocked/parlay-builder.spec.ts" time="0.851">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] mocked: markets and the slip › signing in hands the browser draft to the account, and a refused leg is reported, not dropped silently" classname="mocked/parlay-builder.spec.ts" time="0.889">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] mocked: markets and the slip › a draft left open crosses kickoff visibly, and recording makes the slip immutable" classname="mocked/parlay-builder.spec.ts" time="0.998">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] mocked: markets and the slip › history shows what became of each leg, with the rule, and never guesses" classname="mocked/parlay-builder.spec.ts" time="0.326">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] mocked: markets and the slip › suggestions explain every leg, admit a shortfall, and add to the slip" classname="mocked/parlay-builder.spec.ts" time="0.376">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] mocked: markets and the slip › every served market renders with its number, source and rule; nothing unpublished is selectable" classname="mocked/parlay-builder.spec.ts" time="0.34">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] mocked: markets and the slip › signed out: one selection per fixture, a draft that survives a reload, and a copied slip that invents nothing" classname="mocked/parlay-builder.spec.ts" time="0.904">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] mocked: markets and the slip › signing in hands the browser draft to the account, and a refused leg is reported, not dropped silently" classname="mocked/parlay-builder.spec.ts" time="1.01">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] mocked: markets and the slip › a draft left open crosses kickoff visibly, and recording makes the slip immutable" classname="mocked/parlay-builder.spec.ts" time="1.097">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] mocked: markets and the slip › history shows what became of each leg, with the rule, and never guesses" classname="mocked/parlay-builder.spec.ts" time="0.379">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] mocked: markets and the slip › suggestions explain every leg, admit a shortfall, and add to the slip" classname="mocked/parlay-builder.spec.ts" time="0.363">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: a slip write that lands after the account changed does not reach the next account" classname="mocked/parlay-builder.spec.ts" time="1.398">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: a draft transfer whose first request fails while the account changes never sends a selection under the new account" classname="mocked/parlay-builder.spec.ts" time="10.277">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: a draft transfer whose first request succeeds while the account changes never sends a selection under the new account" classname="mocked/parlay-builder.spec.ts" time="9.867">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: a transfer whose second leg fails (refused) completes the SAME slip after a reload, with no duplicate" classname="mocked/parlay-builder.spec.ts" time="1.245">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: a transfer whose second leg fails (answer lost) completes the SAME slip after a reload, with no duplicate" classname="mocked/parlay-builder.spec.ts" time="1.19">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: a transfer whose FIRST request fails (refused) ends in one slip after a reload, never two" classname="mocked/parlay-builder.spec.ts" time="1.205">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: a transfer whose FIRST request fails (answer lost) ends in one slip after a reload, never two" classname="mocked/parlay-builder.spec.ts" time="1.298">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: a refused replacement leaves the original selection on the slip" classname="mocked/parlay-builder.spec.ts" time="0.502">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: an older suggestions answer does not overwrite the newer filters&apos; results" classname="mocked/parlay-builder.spec.ts" time="0.937">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: a void selection shows the recorded price and the effective one, and withholds what it cannot compute" classname="mocked/parlay-builder.spec.ts" time="0.292">
+</testcase>
+<testcase name="[mocked-mobile-360] [en] mocked: an empty suggestion result names its real cause, not the probability" classname="mocked/parlay-builder.spec.ts" time="0.326">
+</testcase>
+<testcase name="[mocked-mobile-360] [fr] mocked: an empty suggestion result names its real cause, not the probability" classname="mocked/parlay-builder.spec.ts" time="0.304">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: a draw-no-bet selection withholds the combined chance and keeps each leg&apos;s own" classname="mocked/parlay-builder.spec.ts" time="0.627">
+</testcase>
+<testcase name="[mocked-mobile-360] mocked: the page stays inside the viewport at every width and logs no error" classname="mocked/parlay-builder.spec.ts" time="0.4">
+</testcase>
+</testsuite>
+</testsuites>
