@@ -214,8 +214,13 @@ async function openAsExpert(
   await stubBackend(page, {
     matchById: (id: string) => (options.fixtures ?? []).find(match => match.id === id) ?? null,
   });
-  await signIn(page, { user: regularUser({ role: 'expert', full_name: 'QA Expert' }) });
+  // Every stub the signed-in page will ask for is in place BEFORE the sign-in: a request the app
+  // makes the moment it has a token must never find its route still unstubbed. On 2026-10-10 the
+  // French dashboard test waited ten seconds for the record section and did not find it, once in
+  // six runs; the section renders only when the metrics answer has arrived, and this order is the
+  // one thing that was wrong with the test's side of that race. Cause not established, order fixed.
   await stubExpert(page, options);
+  await signIn(page, { user: regularUser({ role: 'expert', full_name: 'QA Expert' }) });
 }
 
 // --------------------------------------------------------------------------- stray detection

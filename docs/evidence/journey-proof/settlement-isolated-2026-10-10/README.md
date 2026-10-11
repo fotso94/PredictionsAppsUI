@@ -61,7 +61,11 @@ The rule that makes this so is in `backend/app/services/slip_settlement.py`: a l
 
 ## What this does and does not show
 
-It shows the settlement rule and its idempotency on these five slips and this data. It does not
-touch the live database, so the five live slips still read `pending` with `settled_at` null; the
-journey proof of the same afternoon (`../2026-10-10T1716Z.json`) reads each leg as
-`pending: owner read` with a final dry-run state that matches this table.
+It shows the settlement rule and its idempotency on these five slips and this data. It did not
+touch the live database; when it was written (about 17:30 UTC) the five live slips still read
+`pending` with `settled_at` null, and the journey proof of the same afternoon
+(`../2026-10-10T1716Z.json`) read each leg as `pending: owner read` with a final dry-run state that
+matches this table. **Added 2026-10-11:** at 18:07:05 UTC that evening the five live slips settled
+with exactly these outcomes, through the live browser suite's sign-in as the QA account
+(`../live-settlement-2026-10-10.md`) — so this copy's result was confirmed on the live rows, by a
+read nobody had authorized.

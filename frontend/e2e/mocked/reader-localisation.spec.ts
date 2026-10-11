@@ -904,8 +904,12 @@ for (const language of ['en', 'fr'] as const) {
     await seedPreferences(page, { language, zone: DOUALA });
     await stubBackend(page);
     await stubLeague(page, { teams: 1, fixtures: [{ ...FIXTURE, kickoff_utc: futureIso(2, 12) }] });
-    await signIn(page);
+    // The favourites stub is in place before the sign-in, so no request the app makes on getting
+    // its token can find the route unstubbed. Once in six runs on 2026-10-11 the league test waited
+    // ten seconds for the count line at two followed competitions and did not find it; the line
+    // renders only once the favourites answer is known. Cause not established, order fixed.
     await stubFavourites(page, { leagueIds: () => leagueIds });
+    await signIn(page);
 
     const shapes = new Set<string>();
     for (const followed of [0, 1, 2, FOLLOW_LIMITS.leagues]) {
@@ -945,8 +949,12 @@ for (const language of ['en', 'fr'] as const) {
     await seedPreferences(page, { language, zone: DOUALA });
     await stubBackend(page);
     await stubLeague(page, { teams: 1, fixtures: [{ ...FIXTURE, kickoff_utc: futureIso(2, 12) }] });
-    await signIn(page);
+    // The favourites stub is in place before the sign-in, so no request the app makes on getting
+    // its token can find the route unstubbed. Once in six runs on 2026-10-11 the league test waited
+    // ten seconds for the count line at two followed competitions and did not find it; the line
+    // renders only once the favourites answer is known. Cause not established, order fixed.
     await stubFavourites(page, { leagueIds: () => leagueIds });
+    await signIn(page);
     await page.route(`**/api/v1/me/favourites/leagues/${LEAGUE.id}`, (route: Route) => route.fulfill({
       status: 200,
       contentType: 'application/json',

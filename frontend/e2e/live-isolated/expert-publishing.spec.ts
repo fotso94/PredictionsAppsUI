@@ -1,10 +1,8 @@
 import { APIRequestContext } from '@playwright/test';
 import { test, expect } from '../support/live-test';
 import { ApiMatch } from '../support/api-stub';
-import {
-  apiContext, ensureQaExpertToken, cleanupQaPredictions, anyUpcomingMatch, publishQaPrediction,
-  classifyQaPrediction, QA_EXPERT, QA_REASONING_MARKER,
-} from '../support/qa-account';
+import { ensureQaExpertToken, cleanupQaPredictions, anyUpcomingMatch, publishQaPrediction, classifyQaPrediction, QA_EXPERT, QA_REASONING_MARKER } from '../support/qa-account';
+import { isolatedApiContext as apiContext } from '../support/isolated';
 
 /**
  * Expert publishing, end to end, against the local backend and the real local data.

@@ -762,29 +762,39 @@ results pass that asked it and was answered, and newly stored rows. It ignores w
 recovery: a fallback's HTTP 200 carrying a plan error, a recovery or settlement "success" that sent
 nothing, and `matches.updated_at`, which recovery bookkeeping moves.
 
-**Settlement is proven on a copy, and owed on the live database.** A slip settles when its owner
-reads it (`GET /api/v1/me/slips` settles and commits); the scheduler's settle task scores forecasts
-and never touches slips. On 2026-10-10 the five recorded slips were read that way against a copy of
-the live database taken at 17:14 UTC, through the isolated backend: `18724af2` (5 October: Cyprus v
-Latvia home, France v Belgium over 0.5) settled **won**, the four of 7 October (Dortmund v Werder
-Bremen home, which finished 2-2) settled **lost**, every leg with its rule and the score that decided
-it, and a second read changed no row, no timestamp and no table
-(`docs/evidence/journey-proof/settlement-isolated-2026-10-10/`). On the live database the same five
-still read `pending: owner read` with the same dry-run outcomes, because that read is a write and
-waits for the owner's explicit go-ahead. The suggestion stage can only be observed before kickoff;
+**Settlement has happened on the live database — proven on a copy first, and then, unplanned, on
+the live rows.** A slip settles when its owner reads it (`GET /api/v1/me/slips` settles and
+commits); the scheduler's settle task scores forecasts and never touches slips. On 2026-10-10 the
+five recorded slips were read that way against a copy of the live database taken at 17:14 UTC,
+through the isolated backend: `18724af2` (5 October: Cyprus v Latvia home, France v Belgium over
+0.5) settled **won**, the four of 7 October (Dortmund v Werder Bremen home, which finished 2-2)
+settled **lost**, every leg with its rule and the score that decided it, and a second read changed no
+row, no timestamp and no table (`docs/evidence/journey-proof/settlement-isolated-2026-10-10/`). The
+same five then settled on the live database at 18:07:05 UTC that evening — with exactly those
+outcomes — when the live browser suite signed in as the QA account and the slip dock loaded the
+slips; not the deliberately authorized read that had been described, and the account given that
+night ("the live database was not written to") was wrong. The trace is
+`docs/evidence/journey-proof/live-settlement-2026-10-10.md`; the journey proof of 2026-10-11T0126Z
+reads every leg `proven`, and the later sign-ins that evening moved nothing. The suggestion stage can only be observed before kickoff;
 the recorded slips' legs were taken from the forecast markets, and the suggestion service was
-exercised in the same test runs without recording its combination. The re-run procedure is in
-`docs/evidence/journey-proof/README.md`; the latest run is `2026-10-10T1716Z.json`.
+exercised in the same test runs without recording its combination — so the one journey still to
+show on live data is a suggested combination recorded as a slip and carried to settlement, which
+needs the owner's go-ahead for that one new QA record. The re-run procedure is in
+`docs/evidence/journey-proof/README.md`; the latest run is `2026-10-11T0126Z.json`.
 
-**The browser test that records a slip now runs only against the isolated pair.** Until
-2026-10-08 `parlay-journey.spec.ts` saved and recorded a combination for the QA account on whatever
-backend it was pointed at — by default the main one on :8000 — and deleted that account's
-unrecorded slips first; a recorded slip cannot be deleted through the API, so the QA account on the
-live database holds five of them (test data, on that account only). The spec is now
-`e2e/live-isolated/parlay-journey.spec.ts`, collected by the `live-isolated` project alone, pointed
-at the :8001 backend on the e2e clone, and `e2e/support/isolated.ts` refuses any backend whose
-`/health` names the live database (`docs/isolated-dev-environment.md`). The five slips stay; they
-are the QA account's own.
+**Every browser test that signs in now runs only against the isolated pair.** Until 2026-10-08
+`parlay-journey.spec.ts` saved and recorded a combination for the QA account on whatever backend it
+was pointed at — by default the main one on :8000 — and deleted that account's unrecorded slips
+first; a recorded slip cannot be deleted through the API, so the QA account on the live database
+holds five of them (test data, on that account only). That spec moved to the `live-isolated`
+project on 2026-10-08. On 2026-10-10 the reviewer found that signing in is a write path of its own:
+the slip dock loads the reader's slips on sign-in, that read settles pending legs and commits, and
+the five live slips settled that way at 18:07:05 UTC during the live project's first run of the
+evening — through `expert-composer.spec.ts`, not through any authorized read
+(`docs/evidence/journey-proof/live-settlement-2026-10-10.md`). So on 2026-10-11 the six specs that
+sign in as the QA account moved too; `e2e/live/` keeps the two anonymous specs, and
+`e2e/support/isolated.ts` refuses any backend whose `/health` names the live database
+(`docs/isolated-dev-environment.md`). The five slips stay, settled; they are the QA account's own.
 
 ## Selections and slips
 

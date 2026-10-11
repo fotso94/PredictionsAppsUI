@@ -25,6 +25,7 @@ that time. `spend_check.verdict: passed` means the run spent nothing.
 | `2026-10-07T0437Z.json` | The recorded slips, plus every fixture with kickoff from 2026-10-02T00:00Z to 2026-10-07T04:37:25Z (97 fixtures), with the files above as `--previous` | Match-data access **blocked**: 90 of 97 fixtures blocked at `stored_result`, 2 waiting for kickoff, 5 results stored (all from 2 October). The suggestion stage proven before kickoff for 2 fixtures and carried from `0156Z` for 1; settlement proven for 3 scored forecasts. Spend check passed. |
 | `2026-10-09T0006Z.json` | The recorded slips, plus every fixture with kickoff from 2026-10-02T00:00Z to 2026-10-09T00:06:37Z, run straight after the not-answers repair, with every earlier file as `--previous` | Match-data access still **blocked**. The repair's marks now decide the attempt-count flag: one in-window fixture flagged (Congo v Uganda, kept `unverified`) instead of 58 by clock. Spend check passed; running code measured. |
 | `2026-10-10T1716Z.json` | The recorded slips, plus every fixture with kickoff from 2026-10-02T00:00Z to 2026-10-10T17:16:25Z, with every earlier file as `--previous` | Match-data access **returned** (Live Score answering since 2026-10-09 01:15 UTC; 82 international results stored on the 9th between 02:06 and 03:37). Stored results: 97 `proven_current`, 6 `proven`, 10 in the recovery queue, 5 inside their result window. All five recorded slips read `pending: owner read` with a final dry run — one `won`, four `lost`. Spend check passed; running code measured. |
+| `2026-10-11T0126Z.json` | The recorded slips, plus every fixture with kickoff from 2026-10-02T00:00Z to 2026-10-11T01:26:03Z, with every earlier file as `--previous` | Match-data access **returned**. All five recorded slips read **`proven`** on every leg: stored state equal to the rule's, `settled_at` 2026-10-10 18:07:05 UTC — settled by the live browser suite's sign-in that evening, not by an authorized read (`live-settlement-2026-10-10.md`). Spend check passed; running code measured. |
 
 The first two files are `schema_version: journey-proof.v1`. Under v1, signal (b) accepted any
 success of the fixtures or results task. From `journey-proof.v2` on, it accepts only a pass that
@@ -115,8 +116,14 @@ What `2026-10-07T0155Z.json` shows:
 five recorded slips settled by the application's own read (`GET /api/v1/me/slips`) against a copy
 of the live database taken at 17:14 UTC on 2026-10-10, then read a second time. The first read
 settled them exactly as the dry run above predicts — `18724af2` won, the four of 7 October lost —
-and the second read changed no row, no timestamp and no table. The same read against the live
-backend is step 5 below, and still waits for the owner.
+and the second read changed no row, no timestamp and no table.
+
+**Then it happened on the live database without anyone deciding it.** At 18:07:05 UTC the same
+evening the live browser suite signed in as the QA account against the live backend, the slip dock
+loaded the account's slips, and that read settled all five — one won, four lost, the outcomes
+above — and committed. `live-settlement-2026-10-10.md` has the database rows, the backend log
+sequence and the test on the clock. Step 5 below is rewritten: the first settlement on live data is
+done, by the application's own read path, and was not the controlled step it describes.
 
 ## Re-running once match-data access returns
 
@@ -147,15 +154,17 @@ The exit code is 0, or 2 when the spend check fails.
 4. **The same fixture, after its result.** Run `--match <id> --previous <the file from step 3>`.
    The chain should read `proven` with `current: true`, and settlement should be `proven` once its
    forecast is scored.
-5. **Settling the journey slip needs one write, and the owner's go-ahead.** Run
-   `--slip 18724af2-1f5d-444e-98d4-d1f42fef9f5e`. Once both legs have results, stage 5 should read
-   `pending: owner read` with a final `dry_run_state`. The stored legs do not change until the
-   slip's owner reads the slip, because the scheduler's settle task scores forecasts and never
-   touches slips. That read happens through GET `/api/v1/me/slips`, which settles the slip and
-   commits to the live database. It is the only write in this procedure, so do it only after the
-   owner explicitly agrees: one sign-in as the QA account in the app, or one authenticated GET
-   `/api/v1/me/slips`. Then re-run step 5's command. The slip and its legs should read `proven`,
-   with a stored `settled_at` that matches the dry run.
+5. **Settlement is a write, and signing in is enough to cause it.** A slip settles when its owner's
+   slips are read (`GET /api/v1/me/slips`), and the slip dock reads them on sign-in; the scheduler's
+   settle task scores forecasts and never touches slips. On 2026-10-10 the five recorded slips
+   settled on the live database at 18:07:05 UTC because a live browser test signed in as the QA
+   account (`live-settlement-2026-10-10.md`) — which is why every signed-in browser journey now runs
+   against the isolated pair. For a slip still pending, the controlled form of this step is: run
+   `--slip <id>` and read `pending: owner read` with a final `dry_run_state`; then, only with the
+   owner's explicit go-ahead, one sign-in as the QA account or one authenticated GET
+   `/api/v1/me/slips` against the live backend; then `--slip <id>` again. Compare the stored states
+   with the dry run and show a second read changes nothing; the stored `settled_at` is the moment of
+   that read, not a value to match against any earlier run.
 6. Commit each new file as it was written. Never edit one.
 
 `--access-since` should stay at its default, the moment the outage began, so that `returned` and

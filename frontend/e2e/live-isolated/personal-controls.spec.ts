@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { APIRequestContext, Download, Page } from '@playwright/test';
 import { test, expect } from '../support/live-test';
-import { apiContext, ensureQaExpertToken, QA_EXPERT } from '../support/qa-account';
+import { ensureQaExpertToken, QA_EXPERT } from '../support/qa-account';
+import { isolatedApiContext as apiContext } from '../support/isolated';
 import { expectNothingSpentBesidesTheScheduler, providerSpend } from '../support/provider-spend';
 
 /**

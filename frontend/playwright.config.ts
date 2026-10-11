@@ -6,13 +6,18 @@ import { defineConfig, devices } from '@playwright/test';
  *  - `mocked`  — every backend response is stubbed from captured, sanitised payloads in e2e/fixtures.
  *                Deterministic, spends no provider allowance, and is where the edge cases live
  *                (missing markets, 1% probabilities, exhausted quota, provider errors, empty days).
- *  - `live`    — runs against the local backend and the data already in the local database. It
- *                reads, and it publishes only its own clearly-marked QA records, which it removes
- *                again. It never triggers a provider refresh, so it also spends no trial allowance.
- *  - `live-isolated` — the live tests that WRITE something they cannot remove (a recorded slip).
- *                They run only against the isolated pair, a clone of the live database behind a
- *                backend with the scheduler off and no provider credentials
- *                (docs/isolated-dev-environment.md; e2e/support/isolated.ts refuses anything else).
+ *  - `live`    — runs against the local backend and the data already in the local database, and
+ *                NEVER SIGNS IN: two anonymous specs that read. It never triggers a provider
+ *                refresh, so it also spends no trial allowance.
+ *  - `live-isolated` — every live test that signs in as the QA account, and the one that records
+ *                a slip. Signing in is a write path: the slip dock loads the reader's slips, and that
+ *                read settles any pending leg whose fixture has a result and commits — which is how
+ *                the five QA slips on the live database settled on 2026-10-10 during a `live` run
+ *                (docs/evidence/journey-proof/live-settlement-2026-10-10.md). These specs therefore
+ *                run only against the isolated pair, a clone of the live database behind a backend
+ *                with the scheduler off and no provider credentials (docs/isolated-dev-environment.md;
+ *                e2e/support/isolated.ts refuses anything else), where they publish their own
+ *                clearly-marked QA records and remove them again.
  *
  * They assume the local stack is already running (scripts/local-servers.sh start all):
  *   backend  http://127.0.0.1:8000   frontend  http://localhost:3100

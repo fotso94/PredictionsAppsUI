@@ -32,8 +32,10 @@ WHAT `run` DOES
        The backend suite (pytest) runs first. Then the Playwright projects mocked-desktop,
        mocked-mobile, mocked-mobile-360, live and live-isolated run in that order, one invocation
        each. live-isolated drives the isolated pair (:3101 and :8001 on a clone of the live
-       database), and the preflight refuses it unless that backend says it serves a database other
-       than the live one. Raw output goes to .test-runs/<run-id>/, which is gitignored.
+       database) and holds every browser spec that signs in — signing in makes the slip dock read
+       the reader's slips, and that read settles and commits — while live keeps the two anonymous
+       specs; the preflight refuses live-isolated unless that backend says it serves a database
+       other than the live one. Raw output goes to .test-runs/<run-id>/, which is gitignored.
     4. Post-checks. The reporter's own human summary, the JSON report and the JUnit report must
        agree bucket by bucket, and every requested project must be present. A backend skip that
        says "not reachable" disqualifies the run.

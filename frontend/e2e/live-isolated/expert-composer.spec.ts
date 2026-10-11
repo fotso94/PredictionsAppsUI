@@ -1,8 +1,6 @@
 import { test, expect } from '../support/live-test';
-import {
-  apiContext, ensureQaExpertToken, cleanupQaPredictions, classifyQaPrediction,
-  QA_EXPERT, QA_REASONING_MARKER, QaPredictionRow,
-} from '../support/qa-account';
+import { ensureQaExpertToken, cleanupQaPredictions, classifyQaPrediction, QA_EXPERT, QA_REASONING_MARKER, QaPredictionRow } from '../support/qa-account';
+import { isolatedApiContext as apiContext } from '../support/isolated';
 
 /**
  * The composer, driven the way an expert actually drives it.

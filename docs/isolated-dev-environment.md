@@ -2,14 +2,19 @@
 
 A second frontend and backend beside the ones under observation, on a copy of the data, with every
 provider door closed. First used for the multi-market and slip work on 2026-09-25 while the retry
-watcher was recording the backend on port 8000; since 2026-10-08 it is also where the browser tests
-that write something they cannot remove are run (the Playwright project `live-isolated`).
+watcher was recording the backend on port 8000; since 2026-10-08 it is where the browser test that
+records a slip runs, and since 2026-10-11 where every browser test that signs in runs (the
+Playwright project `live-isolated`). Signing in is itself a write path: the slip dock loads the
+reader's slips on sign-in, and that read settles any pending leg whose fixture has a result and
+commits — which is how the five QA slips on the live database settled on 2026-10-10 at 18:07 UTC,
+during a live-project run (`docs/evidence/journey-proof/live-settlement-2026-10-10.md`). The `live`
+project therefore keeps only the specs that never sign in.
 
 | | main pair | isolated pair |
 |---|---|---|
 | backend | :8000, database `soccer_predictions`, scheduler on, provider credentials from `backend/.env` | :8001, database `soccer_predictions_e2e`, scheduler **off**, every provider credential **blank**, Redis databases 10–15 |
 | frontend | :3100 | :3101 (`--mode dev8001`, reads `frontend/.env.dev8001.local`) |
-| browser tests | `live` (reads; removes what it adds) | `live-isolated` (records slips that cannot be deleted) |
+| browser tests | `live`: the two anonymous specs (`detail-refresh`, `real-data`), which never sign in | `live-isolated`: every spec that signs in as the QA account — the expert, save, return, personal-controls and journey specs, and the parlay spec that records a slip |
 
 ## Starting and stopping
 
