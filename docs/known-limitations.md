@@ -705,6 +705,7 @@ it. `docs/evidence/test-reports/README.md` has the layout and the scrub policy.
 | `2026-10-10T2342Z-a9e89d2` | a9e89d2 | 1685 passed | 451 passed, 2 skipped | 453 passed | 140 passed | 55 passed, 1 skipped; live-isolated 2 passed — **CONTAMINATED**: a `python -m pytest` not this runner's ran for 77 s during mocked-desktop; every suite passed, the verdict stands, the run was repeated |
 | `2026-10-11T0012Z-93a6257` | 93a6257 | 1685 passed | 450 passed, **1 failed**, 2 skipped | 453 passed | 140 passed | 55 passed, 1 skipped; live-isolated 2 passed — **FAIL** (mocked-desktop): the English follow-count test waited 10 s for the count line at two followed leagues and did not find it — a different test from the 1841Z failure, and one that passed in the four other runs of the day |
 | `2026-10-11T0042Z-de5762b` | de5762b | 1685 passed | 451 passed, 2 skipped | 453 passed | 140 passed | 55 passed, 1 skipped; live-isolated 2 passed — **PASS**, uncontaminated, running code measured |
+| `2026-10-11T0134Z-3875a02` | 3875a02 | 1685 passed | 451 passed, 2 skipped | 453 passed | 140 passed | live (anonymous) 5 passed, 1 skipped; live-isolated (signed in, on the clone) 52 passed — **PASS**, uncontaminated, running code measured; the first run after every signed-in spec moved to the isolated pair |
 
 The first failure was a precondition: a live scroll-restoration check measured on a day whose three
 stored fixtures fitted in a 1440x900 window (fixed in b753202). The second was a club crest from

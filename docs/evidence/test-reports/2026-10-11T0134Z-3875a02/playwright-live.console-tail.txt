@@ -1,0 +1,12 @@
+
+Running 6 tests using 1 worker
+
+  ✓  1 [live] › e2e/live/detail-refresh.spec.ts:110:1 › coming back to a match page reads it once, from stored data, and spends nothing (9.7s)
+  -  2 [live] › e2e/live/detail-refresh.spec.ts:174:1 › a fixture in play keeps its running score under a running label across a return
+  ✓  3 [live] › e2e/live/real-data.spec.ts:27:1 › the coverage figures the home page shows are measured, not invented (3.1s)
+  ✓  4 [live] › e2e/live/real-data.spec.ts:64:1 › a stored forecast renders with the same numbers the API serves (1.1s)
+  ✓  5 [live] › e2e/live/real-data.spec.ts:81:1 › three distinct forecast timestamps reach the API (161ms)
+  ✓  6 [live] › e2e/live/real-data.spec.ts:99:1 › no provider request is spent by browsing (353ms)
+
+  1 skipped
+  5 passed (15.0s)

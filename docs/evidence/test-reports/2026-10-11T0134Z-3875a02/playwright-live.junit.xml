@@ -1,0 +1,24 @@
+<testsuites id="" name="playwright-live" tests="6" failures="0" skipped="1" errors="0" time="15.04293">
+<testsuite name="live/detail-refresh.spec.ts" timestamp="2026-10-11T02:00:29.851Z" hostname="live" tests="2" failures="0" skipped="1" time="9.847" errors="0">
+<testcase name="[live] coming back to a match page reads it once, from stored data, and spends nothing" classname="live/detail-refresh.spec.ts" time="9.667">
+</testcase>
+<testcase name="[live] a fixture in play keeps its running score under a running label across a return" classname="live/detail-refresh.spec.ts">
+<properties>
+<property name="skip" value="no fixture is in play in the local database right now">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+<testsuite name="live/real-data.spec.ts" timestamp="2026-10-11T02:00:29.851Z" hostname="live" tests="4" failures="0" skipped="0" time="4.79" errors="0">
+<testcase name="[live] the coverage figures the home page shows are measured, not invented" classname="live/real-data.spec.ts" time="3.137">
+</testcase>
+<testcase name="[live] a stored forecast renders with the same numbers the API serves" classname="live/real-data.spec.ts" time="1.139">
+</testcase>
+<testcase name="[live] three distinct forecast timestamps reach the API" classname="live/real-data.spec.ts" time="0.161">
+</testcase>
+<testcase name="[live] no provider request is spent by browsing" classname="live/real-data.spec.ts" time="0.353">
+</testcase>
+</testsuite>
+</testsuites>
