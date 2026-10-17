@@ -1,0 +1,734 @@
+{
+  "schema_version": "journey-proof.v2",
+  "tool": "backend/scripts/prove_journey.py",
+  "generated_at": "2026-10-17T14:16:28.879097Z",
+  "run": {
+    "access_since": "2026-10-02T14:53:29Z",
+    "selection": {
+      "matches": [
+        "4e1e2bdc-9ebb-40f0-9309-49352f213f22",
+        "be26cb61-3f69-4856-9846-dd019ed5498d"
+      ],
+      "slips": [
+        "a0dce8dd-8b7b-466e-b1f2-77b41a860cc9"
+      ],
+      "window": null,
+      "recorded_slips": false
+    }
+  },
+  "previous": [
+    "2026-10-07T0155Z.json",
+    "2026-10-07T0156Z.json",
+    "2026-10-07T0221Z.json",
+    "2026-10-07T0437Z.json",
+    "2026-10-09T0006Z.json",
+    "2026-10-10T1716Z.json",
+    "2026-10-11T0126Z.json"
+  ],
+  "repo": {
+    "head": "edc774e47050c5a84e68d5f06d21b7c4413e89cd",
+    "committed_at": "2026-10-11T14:08:55Z",
+    "head_moved_at": "2026-10-11T14:08:55Z",
+    "app_tree_changes": []
+  },
+  "backend": {
+    "api": "http://127.0.0.1:8000",
+    "health": {
+      "status": "healthy",
+      "environment": "development",
+      "version": "0.1.0",
+      "started_at": "2026-10-11T15:20:59Z",
+      "database": "soccer_predictions",
+      "source": {
+        "commit": "edc774e47050c5a84e68d5f06d21b7c4413e89cd",
+        "commit_dirty_app_files": [],
+        "app_tree_sha256": "cd47cdef6213fe573915fbe41a7cdc66754fe5c73854848174a11b815abe199c",
+        "app_files": 89,
+        "started_at": "2026-10-11T15:20:59Z"
+      }
+    },
+    "process": {
+      "found": true,
+      "pid": 5180,
+      "started_at": "2026-10-11T15:20:59Z",
+      "command": "uvicorn app.main:app --host 127.0.0.1 --port 8000",
+      "reload": false,
+      "cwd_is_this_backend": true,
+      "app_files_modified_after_start": []
+    },
+    "running_code": {
+      "includes_head": true,
+      "basis": "measured",
+      "detail": "the process loaded the application tree on disk now (sha256 cd47cdef6213), which is HEAD edc774e47050's: no application file differs from it",
+      "measured": {
+        "commit_served": "edc774e47050c5a84e68d5f06d21b7c4413e89cd",
+        "commit_head": "edc774e47050c5a84e68d5f06d21b7c4413e89cd",
+        "tree_served": "cd47cdef6213fe573915fbe41a7cdc66754fe5c73854848174a11b815abe199c",
+        "tree_now": "cd47cdef6213fe573915fbe41a7cdc66754fe5c73854848174a11b815abe199c",
+        "tree_matches": true,
+        "commit_matches": true,
+        "dirty_app_files_at_start": [],
+        "app_files_served": 89,
+        "app_files_now": 89
+      }
+    }
+  },
+  "database": {
+    "name": "soccer_predictions",
+    "transaction_read_only": "on",
+    "default_transaction_read_only": "on"
+  },
+  "guards": {
+    "http": {
+      "base": "http://127.0.0.1:8000",
+      "sent": {
+        "GET /api/v1/data-providers/status -> 200": 2,
+        "GET /api/v1/matches/{id} -> 200": 2,
+        "GET /api/v1/matches/{id}/markets -> 200": 2,
+        "GET /api/v1/suggestions -> 200": 3,
+        "GET /health -> 200": 1
+      },
+      "refused": []
+    },
+    "redis_refused": []
+  },
+  "match_data_access": {
+    "verdict": "partial",
+    "access_since": "2026-10-02T14:53:29Z",
+    "source": "api",
+    "checked_at": "2026-10-17T14:16:28.959839+00:00",
+    "signals": [
+      {
+        "signal": "primary_provider_answering",
+        "holds": true,
+        "evidence": {
+          "provider": "livescore",
+          "last_success_at": "2026-10-17T13:59:38.463743+00:00",
+          "transmitted_last_status": 200,
+          "cooling_down": null
+        }
+      },
+      {
+        "signal": "scheduler_fixtures_or_results_succeeding",
+        "holds": false,
+        "evidence": {
+          "fixtures": {
+            "last_success_at": "2026-10-17T14:11:32.937209+00:00",
+            "consecutive_failures": 0,
+            "last_error": null,
+            "last_requests_sent": {
+              "livescore": 1,
+              "api_football": 1,
+              "thesportsdb": 1
+            },
+            "counts": false,
+            "why_not": "no day of its last successful pass was answered by a provider in the pass (0 from the cache, 3 from the stale copy, 0 unanswered); a day served from the stale copy alone makes a fixtures pass succeed",
+            "days_from_provider": 0,
+            "days_answered": 0,
+            "days_from_stale_cache": 3,
+            "days_unanswered": 0
+          },
+          "results": {
+            "last_success_at": "2026-10-17T13:47:22.114079+00:00",
+            "consecutive_failures": 0,
+            "last_error": null,
+            "last_requests_sent": {},
+            "counts": false,
+            "why_not": "its last successful pass sent livescore no request (sent: nothing); a pass with nothing due, or answered from a cache or by a fallback, records a success all the same"
+          }
+        }
+      },
+      {
+        "signal": "stored_match_data_advancing",
+        "holds": true,
+        "evidence": {
+          "newest_last_synced_at": "2026-10-17T14:11:32.932768Z",
+          "newest_result_created_at": "2026-10-17T13:59:38.514945Z"
+        }
+      }
+    ],
+    "missing": [
+      "scheduler_fixtures_or_results_succeeding"
+    ],
+    "returned_no_later_than": null,
+    "providers": [
+      {
+        "name": "livescore",
+        "role": "primary",
+        "last_success_at": "2026-10-17T13:59:38.463743+00:00",
+        "last_error": "livescore: network error: The read operation timed out",
+        "last_error_at": "2026-10-17T14:11:30.197685+00:00",
+        "cooling_down": null,
+        "transmitted_last_status": 200
+      },
+      {
+        "name": "api_football",
+        "role": "fallback",
+        "last_success_at": "2026-10-17T14:07:13.498107+00:00",
+        "last_error": "API-Football errors: {'plan': 'Free plans do not have access to this season, try from 2022 to 2024.'}",
+        "last_error_at": "2026-10-17T14:11:30.778850+00:00",
+        "cooling_down": null,
+        "transmitted_last_status": 200
+      },
+      {
+        "name": "thesportsdb",
+        "role": "fallback",
+        "last_success_at": "2026-10-05T21:39:12.435861+00:00",
+        "last_error": "thesportsdb: request rejected (HTTP 400): {\"Message\":\"Invalid Premium API key: Signup here: https:\\/\\/www.thesportsdb.com\\/pricing\"}",
+        "last_error_at": "2026-10-17T14:11:31.035264+00:00",
+        "cooling_down": null,
+        "transmitted_last_status": 400
+      }
+    ],
+    "stored": {
+      "newest_last_synced_at": "2026-10-17T14:11:32.932768Z",
+      "first_last_synced_after_since": "2026-10-09T01:35:52.775029Z",
+      "newest_result_created_at": "2026-10-17T13:59:38.514945Z",
+      "first_result_created_after_since": "2026-10-09T02:06:06.005572Z",
+      "newest_result_updated_at": "2026-10-17T13:59:38.514946Z",
+      "newest_match_created_at": "2026-10-17T00:24:45.248556Z",
+      "newest_match_updated_at": "2026-10-17T14:11:32.933018Z"
+    },
+    "ignored_signals": [
+      {
+        "signal": "scheduler.tasks.recover.last_success_at",
+        "value": "2026-10-17T13:47:22.484048+00:00",
+        "last_requests": 0,
+        "why_ignored": "the recovery task records a success whenever no call failed outright, whether or not any provider answered - including passes that sent no request at all"
+      },
+      {
+        "signal": "matches.updated_at",
+        "value": "2026-10-17T14:11:32.933018Z",
+        "why_ignored": "recovery bookkeeping rewrites match_metadata.recovery and moves it; no provider spoke"
+      },
+      {
+        "signal": "scheduler.tasks.fixtures.last_success_at",
+        "value": "2026-10-17T14:11:32.937209+00:00",
+        "last_requests_sent": {
+          "livescore": 1,
+          "api_football": 1,
+          "thesportsdb": 1
+        },
+        "why_ignored": "no day of its last successful pass was answered by a provider in the pass (0 from the cache, 3 from the stale copy, 0 unanswered); a day served from the stale copy alone makes a fixtures pass succeed"
+      },
+      {
+        "signal": "scheduler.tasks.results.last_success_at",
+        "value": "2026-10-17T13:47:22.114079+00:00",
+        "last_requests_sent": {},
+        "why_ignored": "its last successful pass sent livescore no request (sent: nothing); a pass with nothing due, or answered from a cache or by a fallback, records a success all the same"
+      },
+      {
+        "signal": "api_football: last transmission status and last_success_at",
+        "value": {
+          "transmitted_last_status": 200,
+          "last_success_at": "2026-10-17T14:07:13.498107+00:00"
+        },
+        "last_error": "API-Football errors: {'plan': 'Free plans do not have access to this season, try from 2022 to 2024.'}",
+        "why_ignored": "a fallback's HTTP 200 can carry a plan error in its body (API-Football: free plans cannot read the current season), and its last_success_at has moved with no fixture synced"
+      },
+      {
+        "signal": "thesportsdb: last transmission status and last_success_at",
+        "value": {
+          "transmitted_last_status": 400,
+          "last_success_at": "2026-10-05T21:39:12.435861+00:00"
+        },
+        "last_error": "thesportsdb: request rejected (HTTP 400): {\"Message\":\"Invalid Premium API key: Signup here: https:\\/\\/www.thesportsdb.com\\/pricing\"}",
+        "why_ignored": "a fallback's HTTP 200 can carry a plan error in its body (API-Football: free plans cannot read the current season), and its last_success_at has moved with no fixture synced"
+      }
+    ],
+    "app_reports": {
+      "state": "degraded"
+    }
+  },
+  "forecasts": {
+    "provider": "gameforecast",
+    "cooling_down": null,
+    "remaining_today": 3,
+    "used_today": 5,
+    "daily_limit": 8,
+    "transmitted_today": {
+      "answered": 5,
+      "no_answer": 0,
+      "not_connected": 0,
+      "last_answered_at": "2026-10-17T00:24:47.231370+00:00",
+      "last_no_answer_at": null,
+      "last_not_connected_at": null,
+      "last_status": 200
+    }
+  },
+  "spend_check": {
+    "verdict": "passed",
+    "method": "used_today minus the scheduler's own ledger, before and after the run: from the status endpoint (one transaction per provider) and from the Redis counters (one MULTI/EXEC)",
+    "api": {
+      "verdict": "passed",
+      "providers": {
+        "api_football": {
+          "used_today": [
+            7,
+            7
+          ],
+          "scheduler_sent_in_run": 0,
+          "spent_besides_scheduler": 0,
+          "transmitted_in_run": 0
+        },
+        "gameforecast": {
+          "used_today": [
+            5,
+            5
+          ],
+          "scheduler_sent_in_run": 0,
+          "spent_besides_scheduler": 0,
+          "transmitted_in_run": 0
+        },
+        "livescore": {
+          "used_today": [
+            117,
+            117
+          ],
+          "scheduler_sent_in_run": 0,
+          "spent_besides_scheduler": 0,
+          "transmitted_in_run": 0
+        },
+        "thesportsdb": {
+          "used_today": [
+            1,
+            1
+          ],
+          "scheduler_sent_in_run": 0,
+          "spent_besides_scheduler": 0,
+          "transmitted_in_run": 0
+        }
+      },
+      "problems": []
+    },
+    "redis": {
+      "verdict": "passed",
+      "providers": {
+        "api_football": {
+          "used_today": [
+            7,
+            7
+          ],
+          "scheduler_sent_in_run": 0,
+          "spent_besides_scheduler": 0,
+          "transmitted_in_run": 0
+        },
+        "gameforecast": {
+          "used_today": [
+            5,
+            5
+          ],
+          "scheduler_sent_in_run": 0,
+          "spent_besides_scheduler": 0,
+          "transmitted_in_run": 0
+        },
+        "livescore": {
+          "used_today": [
+            117,
+            117
+          ],
+          "scheduler_sent_in_run": 0,
+          "spent_besides_scheduler": 0,
+          "transmitted_in_run": 0
+        },
+        "thesportsdb": {
+          "used_today": [
+            1,
+            1
+          ],
+          "scheduler_sent_in_run": 0,
+          "spent_besides_scheduler": 0,
+          "transmitted_in_run": 0
+        }
+      },
+      "problems": []
+    }
+  },
+  "summary": {
+    "fixtures": 2,
+    "stages": {
+      "fixture_stored": {
+        "proven_current": 2
+      },
+      "forecast_attached": {
+        "proven": 2
+      },
+      "suggestion": {
+        "proven": 2
+      },
+      "stored_result": {
+        "pending: waiting for kickoff": 2
+      },
+      "settlement": {
+        "pending": 2
+      }
+    },
+    "chain": {
+      "stored_result: pending: waiting for kickoff": 2
+    },
+    "current_chains_proven": 0,
+    "attempt_counts_unreliable": 0,
+    "status_stale_live": 0,
+    "slips": {
+      "pending": 1
+    }
+  },
+  "not_found": [],
+  "suggestions_default": {
+    "generated_at": "2026-10-17T14:16:29.098707Z",
+    "fixtures_in_window": 68,
+    "qualifying": 61,
+    "excluded": {
+      "no_forecast": 7
+    },
+    "combinations": 3,
+    "shortfall": null
+  },
+  "fixtures": [
+    {
+      "match_id": "4e1e2bdc-9ebb-40f0-9309-49352f213f22",
+      "fixture": "Strasbourg v Paris Saint Germain",
+      "competition": "Ligue 1",
+      "competition_id": "3625e042-b4e6-46cd-bb68-8f48c3dd81fe",
+      "kickoff": "2026-10-17T15:15:00Z",
+      "status": "scheduled",
+      "stages": {
+        "fixture_stored": {
+          "verdict": "proven_current",
+          "at": "2026-10-17T14:11:31.395974Z",
+          "evidence": {
+            "match_id": "4e1e2bdc-9ebb-40f0-9309-49352f213f22",
+            "external_api_source": "livescore",
+            "external_api_id": "livescore:1877005",
+            "created_at": "2026-10-10T20:12:59.139610Z",
+            "last_synced_at": "2026-10-17T14:11:31.395974Z",
+            "provider": "livescore",
+            "provider_status": "scheduled",
+            "status": "scheduled",
+            "kickoff": "2026-10-17T15:15:00Z",
+            "relisted_as": null
+          }
+        },
+        "forecast_attached": {
+          "verdict": "proven",
+          "at": "2026-10-10T20:13:01.833539Z",
+          "evidence": {
+            "snapshots": 6,
+            "prematch_snapshots": 6,
+            "snapshot": {
+              "id": "6cd2c84a-7c61-4c72-82b9-d407afc6e067",
+              "provider": "gameforecast",
+              "first_fetched_at": "2026-10-16T18:10:15.259009Z",
+              "last_fetched_at": "2026-10-16T18:10:15.259009Z",
+              "captured_before_kickoff": true,
+              "kickoff_at_capture": "2026-10-17T15:15:00Z",
+              "model_run_at": "2026-10-16T00:00:00Z"
+            },
+            "records": [
+              {
+                "provider": "gameforecast",
+                "fetched_at": "2026-10-16T18:10:15.259009Z",
+                "model_run_at": "2026-10-16T00:00:00Z",
+                "match_confidence": "exact",
+                "matched_by": "provider_id"
+              }
+            ],
+            "markets": {
+              "status": 200,
+              "forecast_state": "available",
+              "snapshot_id": "6cd2c84a-7c61-4c72-82b9-d407afc6e067",
+              "captured_before_kickoff": true,
+              "retrieved_at": "2026-10-16T18:10:15.259009Z",
+              "reason": null
+            }
+          }
+        },
+        "suggestion": {
+          "verdict": "proven",
+          "at": "2026-10-17T14:16:29.098707Z",
+          "evidence": {
+            "call": "default",
+            "basis": "combination",
+            "calls": {
+              "default": {
+                "generated_at": "2026-10-17T14:16:29.098707Z",
+                "fixtures_in_window": 68,
+                "qualifying": 61,
+                "excluded": {
+                  "no_forecast": 7
+                },
+                "combinations": 3,
+                "shortfall": null
+              },
+              "probe": {
+                "generated_at": "2026-10-17T14:16:29.443559Z",
+                "fixtures_in_window": 1,
+                "qualifying": 1,
+                "excluded": {},
+                "combinations": 1,
+                "shortfall": "only 1 fixture qualifies for 2 legs; the combination below is shorter than asked"
+              }
+            },
+            "generated_at": "2026-10-17T14:16:29.098707Z",
+            "combination": 1,
+            "rank": 1,
+            "selection_id": "away_team_goals:under@3.5",
+            "probability": 0.95,
+            "snapshot_id": "6cd2c84a-7c61-4c72-82b9-d407afc6e067"
+          }
+        },
+        "stored_result": {
+          "verdict": "pending: waiting for kickoff",
+          "at": null,
+          "evidence": {
+            "status": "scheduled",
+            "result_expected_by": "2026-10-17T17:45:00Z",
+            "result": null,
+            "recovery": null
+          }
+        },
+        "settlement": {
+          "verdict": "pending",
+          "at": null,
+          "evidence": {
+            "basis": "slip_legs",
+            "legs": [
+              {
+                "leg_id": "212aa608-daed-47cf-b578-b4b458793743",
+                "slip_id": "a0dce8dd-8b7b-466e-b1f2-77b41a860cc9",
+                "slip_status": "recorded",
+                "owner_is_qa": true,
+                "selection_id": "away_team_goals:under@3.5",
+                "stored_state": "pending",
+                "settled_at": null,
+                "stored_settlement": null,
+                "dry_run": {
+                  "state": "pending",
+                  "rule": "the fixture has not finished",
+                  "basis": "fixture",
+                  "rules_version": "slip-settlement.v1"
+                },
+                "verdict": "pending"
+              }
+            ],
+            "forecast_scoring": []
+          }
+        }
+      },
+      "chain": {
+        "verdict": "pending: waiting for kickoff",
+        "stage": "stored_result",
+        "passed_with": [],
+        "later": [
+          "settlement: pending"
+        ],
+        "current": true
+      },
+      "flags": {},
+      "api_detail": {
+        "status": 200,
+        "match_status": "scheduled",
+        "result_expected_by": "2026-10-17T17:45:00Z",
+        "forecast_state": "available",
+        "last_synced_at": "2026-10-17T14:11:31.395974+00:00",
+        "score": null
+      }
+    },
+    {
+      "match_id": "be26cb61-3f69-4856-9846-dd019ed5498d",
+      "fixture": "Bologna v Inter",
+      "competition": "Serie A",
+      "competition_id": "a4a90e51-2a1d-4b69-977a-ae41cc0f386e",
+      "kickoff": "2026-10-17T16:00:00Z",
+      "status": "scheduled",
+      "stages": {
+        "fixture_stored": {
+          "verdict": "proven_current",
+          "at": "2026-10-17T14:11:31.255593Z",
+          "evidence": {
+            "match_id": "be26cb61-3f69-4856-9846-dd019ed5498d",
+            "external_api_source": "livescore",
+            "external_api_id": "livescore:1877986",
+            "created_at": "2026-10-11T18:02:55.929955Z",
+            "last_synced_at": "2026-10-17T14:11:31.255593Z",
+            "provider": "livescore",
+            "provider_status": "scheduled",
+            "status": "scheduled",
+            "kickoff": "2026-10-17T16:00:00Z",
+            "relisted_as": null
+          }
+        },
+        "forecast_attached": {
+          "verdict": "proven",
+          "at": "2026-10-10T13:36:57.527478Z",
+          "evidence": {
+            "snapshots": 7,
+            "prematch_snapshots": 7,
+            "snapshot": {
+              "id": "67b8ab45-afe3-42ff-8c3e-b79c08eed31d",
+              "provider": "gameforecast",
+              "first_fetched_at": "2026-10-17T00:24:42.820357Z",
+              "last_fetched_at": "2026-10-17T00:24:42.820357Z",
+              "captured_before_kickoff": true,
+              "kickoff_at_capture": "2026-10-17T16:00:00Z",
+              "model_run_at": "2026-10-16T00:00:00Z"
+            },
+            "records": [
+              {
+                "provider": "gameforecast",
+                "fetched_at": "2026-10-17T00:24:42.820357Z",
+                "model_run_at": "2026-10-16T00:00:00Z",
+                "match_confidence": "exact",
+                "matched_by": "provider_id"
+              }
+            ],
+            "markets": {
+              "status": 200,
+              "forecast_state": "available",
+              "snapshot_id": "67b8ab45-afe3-42ff-8c3e-b79c08eed31d",
+              "captured_before_kickoff": true,
+              "retrieved_at": "2026-10-17T00:24:42.820357Z",
+              "reason": null
+            }
+          }
+        },
+        "suggestion": {
+          "verdict": "proven",
+          "at": "2026-10-17T14:16:29.098707Z",
+          "evidence": {
+            "call": "default",
+            "basis": "combination",
+            "calls": {
+              "default": {
+                "generated_at": "2026-10-17T14:16:29.098707Z",
+                "fixtures_in_window": 68,
+                "qualifying": 61,
+                "excluded": {
+                  "no_forecast": 7
+                },
+                "combinations": 3,
+                "shortfall": null
+              },
+              "probe": {
+                "generated_at": "2026-10-17T14:16:29.509313Z",
+                "fixtures_in_window": 1,
+                "qualifying": 1,
+                "excluded": {},
+                "combinations": 1,
+                "shortfall": "only 1 fixture qualifies for 2 legs; the combination below is shorter than asked"
+              }
+            },
+            "generated_at": "2026-10-17T14:16:29.098707Z",
+            "combination": 1,
+            "rank": 2,
+            "selection_id": "total_goals:over@0.5",
+            "probability": 0.95,
+            "snapshot_id": "67b8ab45-afe3-42ff-8c3e-b79c08eed31d"
+          }
+        },
+        "stored_result": {
+          "verdict": "pending: waiting for kickoff",
+          "at": null,
+          "evidence": {
+            "status": "scheduled",
+            "result_expected_by": "2026-10-17T18:30:00Z",
+            "result": null,
+            "recovery": null
+          }
+        },
+        "settlement": {
+          "verdict": "pending",
+          "at": null,
+          "evidence": {
+            "basis": "slip_legs",
+            "legs": [
+              {
+                "leg_id": "05973cf7-90b6-4ca1-8bb9-86c2b953def3",
+                "slip_id": "a0dce8dd-8b7b-466e-b1f2-77b41a860cc9",
+                "slip_status": "recorded",
+                "owner_is_qa": true,
+                "selection_id": "total_goals:over@0.5",
+                "stored_state": "pending",
+                "settled_at": null,
+                "stored_settlement": null,
+                "dry_run": {
+                  "state": "pending",
+                  "rule": "the fixture has not finished",
+                  "basis": "fixture",
+                  "rules_version": "slip-settlement.v1"
+                },
+                "verdict": "pending"
+              }
+            ],
+            "forecast_scoring": []
+          }
+        }
+      },
+      "chain": {
+        "verdict": "pending: waiting for kickoff",
+        "stage": "stored_result",
+        "passed_with": [],
+        "later": [
+          "settlement: pending"
+        ],
+        "current": true
+      },
+      "flags": {},
+      "api_detail": {
+        "status": 200,
+        "match_status": "scheduled",
+        "result_expected_by": "2026-10-17T18:30:00Z",
+        "forecast_state": "available",
+        "last_synced_at": "2026-10-17T14:11:31.255593+00:00",
+        "score": null
+      }
+    }
+  ],
+  "slips": [
+    {
+      "id": "a0dce8dd-8b7b-466e-b1f2-77b41a860cc9",
+      "name": "Suggestion journey 2026-10-17T14:16Z",
+      "owner_is_qa": true,
+      "status": "recorded",
+      "state": "pending",
+      "settled_at": null,
+      "created_at": "2026-10-17T14:16:16.756179Z",
+      "recorded_at": "2026-10-17T14:16:16.809825Z",
+      "price_recorded": false,
+      "legs": [
+        {
+          "leg_id": "212aa608-daed-47cf-b578-b4b458793743",
+          "position": 0,
+          "match_id": "4e1e2bdc-9ebb-40f0-9309-49352f213f22",
+          "fixture": "Strasbourg v Paris Saint Germain",
+          "selection_id": "away_team_goals:under@3.5",
+          "probability": 0.95,
+          "probability_source": "provider",
+          "snapshot_id": "6cd2c84a-7c61-4c72-82b9-d407afc6e067",
+          "created_at": "2026-10-17T14:16:16.760352Z",
+          "stored_state": "pending",
+          "settled_at": null,
+          "dry_run_state": "pending",
+          "verdict": "pending"
+        },
+        {
+          "leg_id": "05973cf7-90b6-4ca1-8bb9-86c2b953def3",
+          "position": 1,
+          "match_id": "be26cb61-3f69-4856-9846-dd019ed5498d",
+          "fixture": "Bologna v Inter",
+          "selection_id": "total_goals:over@0.5",
+          "probability": 0.95,
+          "probability_source": "provider",
+          "snapshot_id": "67b8ab45-afe3-42ff-8c3e-b79c08eed31d",
+          "created_at": "2026-10-17T14:16:16.760355Z",
+          "stored_state": "pending",
+          "settled_at": null,
+          "dry_run_state": "pending",
+          "verdict": "pending"
+        }
+      ],
+      "dry_run_state": "pending",
+      "verdict": "pending"
+    }
+  ]
+}
