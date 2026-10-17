@@ -1,0 +1,272 @@
+{
+  "taken_at": "2026-10-17T18:08:14.221636+00:00",
+  "slips": [
+    {
+      "id": "18724af2-1f5d-444e-98d4-d1f42fef9f5e",
+      "status": "recorded",
+      "state": "won",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "updated_at": "2026-10-10T18:07:05.640541"
+    },
+    {
+      "id": "63778783-9c7b-47f4-b152-9f6deaad4eb5",
+      "status": "recorded",
+      "state": "lost",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "updated_at": "2026-10-10T18:07:05.640542"
+    },
+    {
+      "id": "5d918730-e0e7-43a5-a4bc-fd5d2657ba34",
+      "status": "recorded",
+      "state": "lost",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "updated_at": "2026-10-10T18:07:05.640542"
+    },
+    {
+      "id": "106adf89-182e-4961-8172-78182390693d",
+      "status": "recorded",
+      "state": "lost",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "updated_at": "2026-10-10T18:07:05.64054"
+    },
+    {
+      "id": "4e0a43fa-d21e-4eb3-b382-3beb29c37a63",
+      "status": "recorded",
+      "state": "lost",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "updated_at": "2026-10-10T18:07:05.640541"
+    },
+    {
+      "id": "a0dce8dd-8b7b-466e-b1f2-77b41a860cc9",
+      "status": "recorded",
+      "state": "pending",
+      "settled_at": null,
+      "updated_at": "2026-10-17T14:16:16.81808"
+    }
+  ],
+  "legs": [
+    {
+      "id": "caaf7ddc-e313-42b5-8018-73f6b0ff34c8",
+      "slip_id": "106adf89-182e-4961-8172-78182390693d",
+      "match_id": "932ed462-0bf2-40ff-b275-4a7f936a535d",
+      "market_id": "match_result",
+      "outcome": "home",
+      "line": null,
+      "state": "lost",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "settlement": {
+        "rule": "regulation-time result",
+        "basis": "regulation_time",
+        "state": "lost",
+        "actual": "2-2",
+        "rules_version": "slip-settlement.v1",
+        "actual_outcome": "draw"
+      },
+      "updated_at": "2026-10-10T18:07:05.643882"
+    },
+    {
+      "id": "3e1e6d0c-b322-4b29-917f-8fbc4a9ce334",
+      "slip_id": "106adf89-182e-4961-8172-78182390693d",
+      "match_id": "0c4adb8c-9c43-4abb-8112-ba6780470a0a",
+      "market_id": "total_goals",
+      "outcome": "over",
+      "line": 0.5,
+      "state": "won",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "settlement": {
+        "rule": "regulation-time goals against the 0.5 line",
+        "basis": "regulation_time",
+        "goals": 3,
+        "state": "won",
+        "actual": "2-1",
+        "rules_version": "slip-settlement.v1",
+        "actual_outcome": "home"
+      },
+      "updated_at": "2026-10-10T18:07:05.643881"
+    },
+    {
+      "id": "a9b3d984-a570-446d-a387-d02e64a181d8",
+      "slip_id": "18724af2-1f5d-444e-98d4-d1f42fef9f5e",
+      "match_id": "1dabe788-3629-4b89-ab33-435c5846e7de",
+      "market_id": "match_result",
+      "outcome": "home",
+      "line": null,
+      "state": "won",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "settlement": {
+        "rule": "regulation-time result",
+        "basis": "regulation_time",
+        "state": "won",
+        "actual": "2-1",
+        "rules_version": "slip-settlement.v1",
+        "actual_outcome": "home"
+      },
+      "updated_at": "2026-10-10T18:07:05.643882"
+    },
+    {
+      "id": "eac38846-95a1-475d-8ff0-182711408f02",
+      "slip_id": "18724af2-1f5d-444e-98d4-d1f42fef9f5e",
+      "match_id": "897decfa-9722-49ed-a49d-0b30a87f4589",
+      "market_id": "total_goals",
+      "outcome": "over",
+      "line": 0.5,
+      "state": "won",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "settlement": {
+        "rule": "regulation-time goals against the 0.5 line",
+        "basis": "regulation_time",
+        "goals": 5,
+        "state": "won",
+        "actual": "4-1",
+        "rules_version": "slip-settlement.v1",
+        "actual_outcome": "home"
+      },
+      "updated_at": "2026-10-10T18:07:05.643882"
+    },
+    {
+      "id": "0397b06f-80db-466b-b948-2a9b24aa6c26",
+      "slip_id": "4e0a43fa-d21e-4eb3-b382-3beb29c37a63",
+      "match_id": "932ed462-0bf2-40ff-b275-4a7f936a535d",
+      "market_id": "match_result",
+      "outcome": "home",
+      "line": null,
+      "state": "lost",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "settlement": {
+        "rule": "regulation-time result",
+        "basis": "regulation_time",
+        "state": "lost",
+        "actual": "2-2",
+        "rules_version": "slip-settlement.v1",
+        "actual_outcome": "draw"
+      },
+      "updated_at": "2026-10-10T18:07:05.64388"
+    },
+    {
+      "id": "3d83fcd4-36d0-415b-ac65-3c39b80875be",
+      "slip_id": "4e0a43fa-d21e-4eb3-b382-3beb29c37a63",
+      "match_id": "0c4adb8c-9c43-4abb-8112-ba6780470a0a",
+      "market_id": "total_goals",
+      "outcome": "over",
+      "line": 0.5,
+      "state": "won",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "settlement": {
+        "rule": "regulation-time goals against the 0.5 line",
+        "basis": "regulation_time",
+        "goals": 3,
+        "state": "won",
+        "actual": "2-1",
+        "rules_version": "slip-settlement.v1",
+        "actual_outcome": "home"
+      },
+      "updated_at": "2026-10-10T18:07:05.643881"
+    },
+    {
+      "id": "15494d61-cdb1-4511-8b0b-4360c9fae24b",
+      "slip_id": "5d918730-e0e7-43a5-a4bc-fd5d2657ba34",
+      "match_id": "932ed462-0bf2-40ff-b275-4a7f936a535d",
+      "market_id": "match_result",
+      "outcome": "home",
+      "line": null,
+      "state": "lost",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "settlement": {
+        "rule": "regulation-time result",
+        "basis": "regulation_time",
+        "state": "lost",
+        "actual": "2-2",
+        "rules_version": "slip-settlement.v1",
+        "actual_outcome": "draw"
+      },
+      "updated_at": "2026-10-10T18:07:05.643881"
+    },
+    {
+      "id": "0d01860a-b32a-4a54-809d-ed14df28392d",
+      "slip_id": "5d918730-e0e7-43a5-a4bc-fd5d2657ba34",
+      "match_id": "0c4adb8c-9c43-4abb-8112-ba6780470a0a",
+      "market_id": "total_goals",
+      "outcome": "over",
+      "line": 0.5,
+      "state": "won",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "settlement": {
+        "rule": "regulation-time goals against the 0.5 line",
+        "basis": "regulation_time",
+        "goals": 3,
+        "state": "won",
+        "actual": "2-1",
+        "rules_version": "slip-settlement.v1",
+        "actual_outcome": "home"
+      },
+      "updated_at": "2026-10-10T18:07:05.64388"
+    },
+    {
+      "id": "b01ca27b-9923-46ee-9042-71499e04abd6",
+      "slip_id": "63778783-9c7b-47f4-b152-9f6deaad4eb5",
+      "match_id": "932ed462-0bf2-40ff-b275-4a7f936a535d",
+      "market_id": "match_result",
+      "outcome": "home",
+      "line": null,
+      "state": "lost",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "settlement": {
+        "rule": "regulation-time result",
+        "basis": "regulation_time",
+        "state": "lost",
+        "actual": "2-2",
+        "rules_version": "slip-settlement.v1",
+        "actual_outcome": "draw"
+      },
+      "updated_at": "2026-10-10T18:07:05.643882"
+    },
+    {
+      "id": "324bc80c-a605-4b31-8f58-99395b3c0825",
+      "slip_id": "63778783-9c7b-47f4-b152-9f6deaad4eb5",
+      "match_id": "0c4adb8c-9c43-4abb-8112-ba6780470a0a",
+      "market_id": "total_goals",
+      "outcome": "over",
+      "line": 0.5,
+      "state": "won",
+      "settled_at": "2026-10-10T18:07:05.629277",
+      "settlement": {
+        "rule": "regulation-time goals against the 0.5 line",
+        "basis": "regulation_time",
+        "goals": 3,
+        "state": "won",
+        "actual": "2-1",
+        "rules_version": "slip-settlement.v1",
+        "actual_outcome": "home"
+      },
+      "updated_at": "2026-10-10T18:07:05.643881"
+    },
+    {
+      "id": "212aa608-daed-47cf-b578-b4b458793743",
+      "slip_id": "a0dce8dd-8b7b-466e-b1f2-77b41a860cc9",
+      "match_id": "4e1e2bdc-9ebb-40f0-9309-49352f213f22",
+      "market_id": "away_team_goals",
+      "outcome": "under",
+      "line": 3.5,
+      "state": "pending",
+      "settled_at": null,
+      "settlement": null,
+      "updated_at": "2026-10-17T14:16:16.760355"
+    },
+    {
+      "id": "05973cf7-90b6-4ca1-8bb9-86c2b953def3",
+      "slip_id": "a0dce8dd-8b7b-466e-b1f2-77b41a860cc9",
+      "match_id": "be26cb61-3f69-4856-9846-dd019ed5498d",
+      "market_id": "total_goals",
+      "outcome": "over",
+      "line": 0.5,
+      "state": "pending",
+      "settled_at": null,
+      "settlement": null,
+      "updated_at": "2026-10-17T14:16:16.760355"
+    }
+  ],
+  "hashes": {
+    "slips": "745083a9c14ac1265185913018074976",
+    "legs": "13b54d5466eba374468c14c7b8d3a5f2"
+  }
+}

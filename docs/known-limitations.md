@@ -734,7 +734,7 @@ data and the providers, so they are comparable only together with their skip rea
 grew this round with the new tests, and `npm run e2e:mocked` now includes the mocked-mobile-360
 project, so neither is comparable with earlier figures.
 
-## The journey from fixture to settlement: proven to the stored result on the live database, and through settlement on a copy
+## The journey from fixture to settlement: proven end to end on the live database, through the API
 
 `backend/scripts/prove_journey.py` follows each fixture through five stages, read-only: fixture
 stored, forecast before kickoff, suggestion, stored result, settlement. It reads the database in a
@@ -778,10 +778,15 @@ night ("the live database was not written to") was wrong. The trace is
 `docs/evidence/journey-proof/live-settlement-2026-10-10.md`; the journey proof of 2026-10-11T0126Z
 reads every leg `proven`, and the later sign-ins that evening moved nothing. The suggestion stage can only be observed before kickoff;
 the recorded slips' legs were taken from the forecast markets, and the suggestion service was
-exercised in the same test runs without recording its combination — so the one journey still to
-show on live data is a suggested combination recorded as a slip and carried to settlement, which
-needs the owner's go-ahead for that one new QA record. The re-run procedure is in
-`docs/evidence/journey-proof/README.md`; the latest run is `2026-10-11T0126Z.json`.
+exercised in the same test runs without recording its combination — and on 2026-10-17, with the
+owner's go-ahead, that last journey was shown too: the suggestion service's first combination
+(Strasbourg v PSG, PSG under 3.5; Bologna v Inter, over 0.5) was recorded as a QA slip through the
+API at 14:16 UTC, both regulation-time results arrived through Live Score at full time (1-3 and
+1-3), and one authorized read at 18:08 UTC settled it **won** on both legs, with a second read
+changing nothing — fixture, forecast, suggestion, stored result and settlement all `proven`
+(`docs/evidence/journey-proof/suggested-slip-2026-10-17.md`). It is an API workflow demonstration;
+no browser interaction was demonstrated. The re-run procedure is in
+`docs/evidence/journey-proof/README.md`; the latest run is `2026-10-17T1808Z.json`.
 
 **Every browser test that signs in now runs only against the isolated pair.** Until 2026-10-08
 `parlay-journey.spec.ts` saved and recorded a combination for the QA account on whatever backend it

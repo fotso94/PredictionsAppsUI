@@ -1,0 +1,63 @@
+{
+  "read_at": "2026-10-17T18:08:14.461113+00:00",
+  "slip_before": {
+    "id": "a0dce8dd-8b7b-466e-b1f2-77b41a860cc9",
+    "status": "recorded",
+    "state": "pending",
+    "settled_at": null,
+    "updated_at": "2026-10-17T14:16:16.81808"
+  },
+  "slip_after_first_read": {
+    "id": "a0dce8dd-8b7b-466e-b1f2-77b41a860cc9",
+    "status": "recorded",
+    "state": "won",
+    "settled_at": "2026-10-17T18:08:14.477635",
+    "updated_at": "2026-10-17T18:08:14.488767"
+  },
+  "slip_after_second_read": {
+    "id": "a0dce8dd-8b7b-466e-b1f2-77b41a860cc9",
+    "status": "recorded",
+    "state": "won",
+    "settled_at": "2026-10-17T18:08:14.477635",
+    "updated_at": "2026-10-17T18:08:14.488767"
+  },
+  "legs_after_first_read": [
+    {
+      "leg": "away_team_goals:under@3.5",
+      "stored_state": "won",
+      "stored_actual": "1-3",
+      "expected_from_scores": "won",
+      "basis": "away goals 3 vs line 3.5",
+      "agree": true
+    },
+    {
+      "leg": "total_goals:over@0.5",
+      "stored_state": "won",
+      "stored_actual": "1-3",
+      "expected_from_scores": "won",
+      "basis": "total goals 4 vs line 0.5",
+      "agree": true
+    }
+  ],
+  "other_slips_changed_by_the_read": [],
+  "first_read_changed_rows": true,
+  "second_read_changed_rows": false,
+  "updated_at_moved_on_second_read": [],
+  "single_read_equals_list_entry": true,
+  "stored_scores": {
+    "4e1e2bdc-9ebb-40f0-9309-49352f213f22": [
+      "1",
+      "3",
+      "1",
+      "3",
+      "false"
+    ],
+    "be26cb61-3f69-4856-9846-dd019ed5498d": [
+      "1",
+      "3",
+      "1",
+      "3",
+      "false"
+    ]
+  }
+}
