@@ -789,10 +789,10 @@ The pages were shown the next day on the isolated pair, in a real browser agains
 suggested combination chosen and recorded as a slip through the suggestions page and the dock,
 and the settled slip of 2026-10-17 displaying its results on the slip history, with a reload and a
 return changing nothing (`docs/evidence/journey-proof/browser-journey-2026-10-18/`). Two slips
-rather than one, because the clone receives no results. The captures also show a presentation
-defect: the probability is rendered straight after the selection's line ("Over 0.595%" for
-over 0.5 at 95%), on the suggestions page and the history card alike; not yet fixed. The re-run
-procedure is in `docs/evidence/journey-proof/README.md`; the latest run is `2026-10-17T1808Z.json`.
+rather than one, because the clone receives no results. The text captures read "Over 0.595%" for
+over 0.5 at 95% because `innerText` joins adjacent inline elements without a space; the page
+itself renders the gap, as the screenshots show, so there is no defect there — an earlier version
+of this sentence said otherwise. The re-run procedure is in `docs/evidence/journey-proof/README.md`; the latest run is `2026-10-17T1808Z.json`.
 
 **Every browser test that signs in now runs only against the isolated pair.** Until 2026-10-08
 `parlay-journey.spec.ts` saved and recorded a combination for the QA account on whatever backend it

@@ -62,10 +62,12 @@ live database the day before. The full chain on one slip — suggestion, record,
 settlement — is the API demonstration of 2026-10-17; this run shows what a reader sees at both
 ends of it.
 
-**One thing the captures show that is not right:** the selection line reads "Total goals 0.5:
-Over 0.595%" and "Under 3.595%" — the probability ("95%") is rendered straight after the line
-("0.5", "3.5") with nothing between them, on the suggestions page and on the history card alike.
-The texts are kept as rendered; the join is a presentation defect to fix, not a value.
+**A note on the `.txt` captures.** They are the page's `innerText`, which joins adjacent inline
+elements without a space: "Total goals 0.5: Over 0.595%" in the text files is the line
+"Total goals 0.5: Over 0.5" followed by the probability "95%". The screenshots, and the page
+itself viewed in a browser the same evening, show the gap between them. The text files are kept
+as captured, and the first version of this page wrongly called that join a presentation defect;
+it is the capture's, not the page's.
 
 ## Files
 
