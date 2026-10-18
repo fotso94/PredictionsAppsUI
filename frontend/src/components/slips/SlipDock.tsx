@@ -57,7 +57,8 @@ const LegRow: React.FC<{
   }
   const when = leg.kickoffUtc ? formatDateTime(backendInstant(leg.kickoffUtc).at) : null
   return (
-    <li className="rounded-lg bg-dark-800 px-3 py-2" data-testid="slip-leg" data-match-id={leg.matchId} data-state={leg.state}>
+    <li className="rounded-lg bg-dark-800 px-3 py-2" data-testid="slip-leg" data-match-id={leg.matchId}
+        data-selection-id={leg.selection.selection_id} data-state={leg.state}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm text-white">{leg.home} v {leg.away}</p>

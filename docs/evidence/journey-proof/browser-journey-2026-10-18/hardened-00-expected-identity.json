@@ -1,0 +1,26 @@
+{
+  "query": {
+    "legs": "3",
+    "min_probability": "0.6",
+    "max_probability": "0.95",
+    "markets": "match_result,double_chance,draw_no_bet,total_goals,both_teams_score,home_team_goals,away_team_goals,first_half_result",
+    "to": "2026-10-25T19:52:38.626Z"
+  },
+  "legs": [
+    {
+      "match_id": "875ddac0-a68b-4467-920a-001e7289f085",
+      "selection_id": "total_goals:over@0.5",
+      "snapshot_id": "59bda745-6c7e-4135-93b2-d84099f9e548"
+    },
+    {
+      "match_id": "49bfd499-d221-4c05-8850-e85c84f91fcd",
+      "selection_id": "total_goals:over@0.5",
+      "snapshot_id": "34f7957e-0b31-4ff7-a602-4946f8de95d7"
+    },
+    {
+      "match_id": "17f97a26-2c1b-42e0-b8ff-1ea62eaebf7c",
+      "selection_id": "double_chance:1x",
+      "snapshot_id": "602ccafe-d7f8-4496-a6bc-5220b890eb32"
+    }
+  ]
+}

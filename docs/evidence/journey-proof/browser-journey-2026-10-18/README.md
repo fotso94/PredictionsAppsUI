@@ -69,6 +69,31 @@ itself viewed in a browser the same evening, show the gap between them. The text
 as captured, and the first version of this page wrongly called that join a presentation defect;
 it is the capture's, not the page's.
 
+## Hardened the same evening (19:51–19:53 UTC)
+
+Three improvements to the spec, each verified against the isolated pair:
+
+1. **Selection identity, not leg count.** The spec now waits for the suggestions request the page
+   itself makes and reads the first combination's identity from that response — every leg's
+   fixture id, selection id and forecast snapshot id (`hardened-00-expected-identity.json`) — then
+   follows it: the rendered combination must list the same fixtures in the same order, the slip
+   dock's legs (which now carry `data-selection-id` beside `data-match-id`) must hold the same
+   fixtures and selections, and the recorded slip read back from the API must hold the same
+   fixtures, selections and snapshots exactly (`hardened-04-recorded-slip-from-the-api.json`). A
+   first version of the check failed because it read the API's leg as `match_id` where the API
+   nests `match.id`; the recorded snapshots were in fact the page's, and the fix was the spec's.
+   A unit test in the same file feeds the comparison a wrong selection, a wrong snapshot, a wrong
+   fixture and a leg short, and asserts each is reported — three wrong selections on the right
+   fixtures cannot pass on their count.
+2. **Availability as the page sees it.** The old probe asked the API for two legs at 50%; the page
+   asks for three at 60% (`hardened-00-page-request.txt`). The spec now uses the page's own
+   request: a non-200 is a failure, a 200 with no combination is the only skip.
+3. **Unique names.** `Browser journey <UTC to the millisecond>-<random>`; two runs five seconds
+   apart recorded `…195237.673-jvyc58` and `…195242.965-507wri`, each found exactly once on the
+   history page and the API (`hardened-run-1.txt`, `hardened-run-2.txt`: `3 passed` each).
+
+The description stands: one pending slip created, another already-settled slip displayed.
+
 ## Files
 
 | File | What |
@@ -80,3 +105,4 @@ it is the capture's, not the page's.
 | `md5-of-the-paired-captures.txt` | the screenshot and the API answer after the views: identical to the ones before |
 | `clone-slip-rows-before-and-after.txt` | the clone's slip tables hashed around the run |
 | `playwright-run.txt` | the runner's own output |
+| `hardened-*` | the hardened spec's two runs and captures (section above) |

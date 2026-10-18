@@ -1,0 +1,5 @@
+Running 3 tests using 1 worker
+[1/3] [live-isolated] › e2e/live-isolated/suggestion-journey.spec.ts:108:1 › the identity check rejects a wrong selection, a wrong snapshot and a wrong fixture
+[2/3] [live-isolated] › e2e/live-isolated/suggestion-journey.spec.ts:125:1 › a suggested combination becomes a recorded slip through the page, selection for selection
+[3/3] [live-isolated] › e2e/live-isolated/suggestion-journey.spec.ts:196:1 › a settled slip shows its results, and viewing it again changes nothing
+  3 passed (4.6s)

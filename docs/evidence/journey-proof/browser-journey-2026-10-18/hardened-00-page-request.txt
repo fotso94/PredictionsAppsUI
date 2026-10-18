@@ -1,0 +1,2 @@
+GET http://localhost:8001/api/v1/suggestions?legs=3&min_probability=0.6&max_probability=0.95&markets=match_result,double_chance,draw_no_bet,total_goals,both_teams_score,home_team_goals,away_team_goals,first_half_result&to=2026-10-25T19:52:38.626Z
+status 200
