@@ -808,6 +808,17 @@ sign in as the QA account moved too; `e2e/live/` keeps the two anonymous specs, 
 `e2e/support/isolated.ts` refuses any backend whose `/health` names the live database
 (`docs/isolated-dev-environment.md`). The five slips stay, settled; they are the QA account's own.
 
+## Coverage and freshness with the providers we have
+
+Measured on 2026-10-18 in `docs/evidence/coverage-and-freshness-2026-10-18.md`: the actual limits
+per provider (configured ceiling against what each provider's own headers report), a
+per-competition table of upcoming fixtures, forecasts and their age, data arrival and overdue
+results with each gap's measured reason, where capacity is lost and whether by design, three
+improvements that cost no request (fetch forecasts after the provider's daily run; spend nothing
+on competitions without fixtures and add two missing name aliases; a fallback-answered live poll is
+a success), the configuration to re-base only after the owner verifies the plan's allowance, and
+what genuinely needs a paid plan. None of it has been applied yet.
+
 ## Selections and slips
 
 The markets panel, the slip and the suggested combinations (docs/markets-capability-matrix.md
