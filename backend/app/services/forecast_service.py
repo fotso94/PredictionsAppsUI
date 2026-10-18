@@ -16,7 +16,7 @@ import uuid
 from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -441,6 +441,19 @@ class ForecastService:
                     # Forecasts can only be attached to fixtures we know about: fill the calendar first
                     # (cached, one provider request per competition at most every few hours).
                     fixture_errors = self._ensure_fixtures(key, days_ahead)
+                    if self.fixtures is not None and not fixture_errors and self._dormant(key, days_ahead):
+                        # Nothing to forecast: the calendar this turn has just refreshed holds no
+                        # fixture inside the window, so the request would buy an empty page - on
+                        # 2026-10-18 two of the day's eight went to Nations Leagues with no match
+                        # until November. The turn is taken, so the key waits its interval like any
+                        # other and re-enters the day its calendar lists a fixture; it costs nothing.
+                        # Only after a fixture sync that ran and succeeded: without one, the empty
+                        # window says nothing, and a forecast fetched before its fixture is stored
+                        # is exactly what the pending store exists to attach later.
+                        report["competitions"][key] = {"skipped": "no fixture in window", "fetched": 0, "attached": 0}
+                        report.setdefault("dormant", []).append(key)
+                        self._mark_synced(key)
+                        continue
                     report["competitions"][key] = self.sync_competition(
                         key, self.now.date(), self.now.date() + timedelta(days=days_ahead))
                     if fixture_errors:
@@ -525,6 +538,16 @@ class ForecastService:
                 client.delete(key)
         except Exception:  # pragma: no cover
             pass
+
+    def _dormant(self, key: str, days_ahead: int) -> bool:
+        """True when the competition has no fixture still to be played inside the forecast window."""
+        league = self.registry.ensure_canonical_league(key)
+        count = self.registry.fixtures_in_window(league.id, self.now, self.now + timedelta(days=days_ahead))
+        return isinstance(count, int) and count == 0
+
+    def dormant_keys(self, keys: Iterable[str], days_ahead: int) -> List[str]:
+        """The keys among `keys` a pass would take without a request: no fixture inside the window."""
+        return [key for key in keys if self._dormant(key, days_ahead)]
 
     def _ensure_fixtures(self, key: str, days_ahead: int) -> List[str]:
         fixtures = self.fixtures
@@ -656,6 +679,12 @@ class ForecastService:
         counts = {"pending": len(pending), "attached": 0}
         still_pending: List[Dict[str, Any]] = []
         for item in pending:
+            if self._kickoff_long_past(item):
+                # Re-storing a pending forecast renews its 48 h life, so one for a match played days
+                # ago was retried daily for ever; a kick-off further past than the live window can
+                # attach to nothing a reader still waits on.
+                counts["expired"] = counts.get("expired", 0) + 1
+                continue
             forecast = _forecast_from_dict(item)
             outcome = self.attach_forecast(forecast, key, league.id)
             if outcome["result"] == "attached":
@@ -666,6 +695,18 @@ class ForecastService:
         # `still_pending` is the full remaining set, so this call replaces rather than merges
         self._store_pending(key, still_pending, replace=True)
         return counts
+
+    def _kickoff_long_past(self, item: Dict[str, Any]) -> bool:
+        raw = item.get("kickoff_utc")
+        if not raw:
+            return False
+        try:
+            kickoff = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        if kickoff.tzinfo is None:
+            kickoff = kickoff.replace(tzinfo=timezone.utc)
+        return kickoff < self.now - timedelta(minutes=150)
 
     def attach_forecast(self, forecast: ProviderForecast, key: str, league_id) -> Dict[str, Any]:
         if not forecast.has_any_market():

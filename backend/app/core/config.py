@@ -198,13 +198,20 @@ class Settings(BaseSettings):
     GAMEFORECAST_API_KEY: Optional[str] = None
     GAMEFORECAST_API_HOST: str = "game-forecast-api.p.rapidapi.com"
     GAMEFORECAST_API_BASE_URL: str = "https://game-forecast-api.p.rapidapi.com"
-    # Free plan allows 10 requests/day (10/hour); Pro 5,000/month. Keep a small margin.
+    # The provider's own rate-limit headers report a limit of 10 per window, and its window resets
+    # at about 03:12 UTC, not at midnight (measured 2026-10-18,
+    # docs/evidence/coverage-and-freshness-2026-10-18.md). This counter is keyed to the UTC day, so
+    # 8 is a margin against the two provider windows a UTC day straddles - our figure, not the
+    # provider's entitlement. Pro: 5,000/month.
     GAMEFORECAST_DAILY_REQUEST_BUDGET: int = 8
     # Optional override of league ids, e.g. "premier_league=15"; otherwise resolved by name (1 request per league)
     GAMEFORECAST_LEAGUE_IDS: Optional[str] = None
     GAMEFORECAST_SYNC_DAYS_AHEAD: int = 7
-    # Minimum hours between two forecast syncs of the same competition
-    GAMEFORECAST_SYNC_INTERVAL_HOURS: int = 24
+    # Minimum hours between two forecast syncs of the same competition. 22 rather than 24: the
+    # forecasts task runs on a 6 h cadence that drifts, and at 24 a competition that came due
+    # seconds after a pass waited for the next one - gaps of 28-43 h were measured in October
+    # 2026. At 22 the pass a day later is always the one that refreshes, so the gap is 24 h.
+    GAMEFORECAST_SYNC_INTERVAL_HOURS: int = 22
 
     # Forecasts older than this (since the provider generated them) are reported as stale, never as current
     FORECAST_MAX_AGE_HOURS: int = 72
@@ -339,6 +346,12 @@ class Settings(BaseSettings):
     # Forecasts: ForecastService already enforces its own per-competition interval (24 h) and its own
     # daily allowance, so this only controls how often it is offered the chance to rotate.
     SYNC_FORECASTS_INTERVAL_SECONDS: int = 6 * 3600
+    # The provider publishes one dated model run a day, visible by 12:00 UTC and not at 00:27: of
+    # the 495 snapshots fetched in the week to 2026-10-18, every one of the 306 fetched at the
+    # first pass after UTC midnight carried the previous day's run. No forecasts pass runs before
+    # this hour (UTC); 0 disables the rule. It also keeps every request inside the provider's own
+    # allowance window, which starts at about 03:12 UTC.
+    SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR: int = 12
 
     # Cache TTLs (seconds) for provider data
     MATCH_CACHE_TTL_FIXTURES: int = 1800

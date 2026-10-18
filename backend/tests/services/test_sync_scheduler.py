@@ -1169,3 +1169,15 @@ def test_scoring_costs_no_provider_request_and_no_allowance_can_block_it():
     assert module.SyncScheduler._providers_for(services, module.TASK_SETTLE) == []
     scheduler = module.SyncScheduler(tasks=[module.TASK_SETTLE])
     assert scheduler._budget_block(services, module.TASK_SETTLE) is None
+
+
+def test_the_forecasts_task_waits_for_the_providers_daily_run(cache):
+    """The provider publishes one dated run a day, after the first pass of the UTC day and by noon;
+    a pass before it buys yesterday's forecasts with today's request. No other task waits."""
+    early = Clock(datetime(2026, 10, 19, 3, 0, tzinfo=timezone.utc))
+    scheduler, _, _, _ = build(cache, early)
+    due, why = scheduler.due(TASK_FORECASTS)
+    assert due is False and "12:00 UTC" in why
+    assert scheduler.due(TASK_FIXTURES) == (True, None)
+    early.tick(9 * 3600)
+    assert scheduler.due(TASK_FORECASTS) == (True, None)

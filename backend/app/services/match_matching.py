@@ -116,6 +116,11 @@ _ALIASES = {
     "athletic club bilbao": "athletic bilbao",
     "om": "marseille", "olympique marseille": "marseille", "ol": "lyon", "olympique lyonnais": "lyon",
     "losc": "lille", "losc lille": "lille", "ogc nice": "nice", "monaco": "monaco", "as monaco": "monaco",
+    # Two spellings that met in October 2026: GameForecast writes "Lask Linz" where Live Score
+    # writes "LASK", and the API-Football live feed wrote "Estac Troyes" where Live Score writes
+    # "Troyes". Without these one forecast sat in the pending store and a second fixture row was
+    # asked about thirty times (docs/evidence/coverage-and-freshness-2026-10-18.md).
+    "lask linz": "lask", "estac troyes": "troyes",
     "stade rennais": "rennes", "rennais": "rennes", "stade brestois": "brest", "brestois": "brest",
     "rc lens": "lens", "rc strasbourg": "strasbourg", "fc nantes": "nantes", "toulouse fc": "toulouse",
     "bayern": "bayern munich", "bayern munchen": "bayern munich", "fc bayern munchen": "bayern munich",

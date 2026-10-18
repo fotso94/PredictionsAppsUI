@@ -259,11 +259,19 @@ class SyncScheduler:
         self.cache.set(STATE_KEY.format(name=name), state, ttl=STATE_TTL_SECONDS, stale_ttl=STATE_TTL_SECONDS)
 
     def due(self, name: str) -> Tuple[bool, Optional[str]]:
-        """(due now, why not). A task that has never run on this installation is due."""
+        """(due now, why not). A task that has never run on this installation is due - except the
+        forecasts task before `SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR`: the provider publishes one dated
+        model run a day, after the first pass of the UTC day and by noon, and a pass before it buys
+        yesterday's forecasts with today's request."""
+        now = self.now
+        if name == TASK_FORECASTS:
+            not_before = int(settings.SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR or 0)
+            if not_before and now.astimezone(timezone.utc).hour < not_before:
+                return False, (f"forecasts are not fetched before {not_before:02d}:00 UTC: the provider's "
+                               f"daily model run is not published yet, and a pass before it buys yesterday's")
         next_due = _parse(self.state(name).get("next_due_at"))
         if next_due is None:
             return True, None
-        now = self.now
         if now >= next_due:
             return True, None
         return False, f"next due at {next_due.isoformat()}"
@@ -1083,7 +1091,12 @@ class SyncScheduler:
             now = forecast.now
             due_keys = [k for k in forecast.sync_order()
                         if not forecast._last_sync(k) or now - forecast._last_sync(k) >= interval]
-            cost, assumed = self._forecast_pass_cost(forecast.provider, due_keys)
+            # A competition with no fixture inside the window takes its turn without a request
+            # (ForecastService.ensure_synced), so it is priced at nothing here too.
+            dormant = set(forecast.dormant_keys(due_keys, settings.GAMEFORECAST_SYNC_DAYS_AHEAD)) \
+                if isinstance(forecast, ForecastService) else set()
+            priced = [k for k in due_keys if k not in dormant]
+            cost, assumed = self._forecast_pass_cost(forecast.provider, priced)
             budget = getattr(forecast.provider, "budget", None)
             capped = min(cost, budget.remaining()) if budget is not None and budget.daily_limit else cost
             # Count only what this task bills to the FORECAST allowance. Each competition also
@@ -1092,7 +1105,8 @@ class SyncScheduler:
             # forecast plan, which is the one figure that has to be read exactly.
             return (capped,
                     f"{len(due_keys)} competition(s) past their {settings.GAMEFORECAST_SYNC_INTERVAL_HOURS}h "
-                    f"interval ({assumed}): {cost} request(s), capped at {capped} by the remaining "
+                    f"interval, {len(dormant)} of them with no fixture in the window and priced at 0 "
+                    f"({assumed}): {cost} request(s), capped at {capped} by the remaining "
                     f"{getattr(budget, 'provider', 'forecast')} allowance. Assumes one page of "
                     f"events per fetch; a competition with more than one page pays one more "
                     f"request per extra page. Each one also syncs fixtures, billed to the "

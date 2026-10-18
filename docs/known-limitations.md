@@ -817,7 +817,12 @@ results with each gap's measured reason, where capacity is lost and whether by d
 improvements that cost no request (fetch forecasts after the provider's daily run; spend nothing
 on competitions without fixtures and add two missing name aliases; a fallback-answered live poll is
 a success), the configuration to re-base only after the owner verifies the plan's allowance, and
-what genuinely needs a paid plan. None of it has been applied yet.
+what genuinely needs a paid plan. Changes 1 and 2 were applied on 2026-10-18 (the forecasts task
+waits for 12:00 UTC and refreshes each competition every 22 h; a competition whose freshly synced
+calendar holds no fixture in the window takes its turn without a request; the two aliases; pending
+forecasts for matches long played are dropped) — the Champions League id stays a proposal, since
+eight tests document provider-id discovery with it as the example. Change 3 and the ceilings are
+still proposals. The first pass under the new rule is the one after 12:00 UTC on 2026-10-19.
 
 ## Selections and slips
 

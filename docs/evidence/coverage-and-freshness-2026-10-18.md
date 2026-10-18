@@ -102,6 +102,20 @@ provider already has, for the same request.
 - **Cost and trade-offs.** 0 requests; a transient primary error becomes visible in the report instead of the failure counter, so the status page must still show it (it does, as the provider's `last_error`).
 - **Acceptance.** Unit test: primary timeout + fallback answer → `ok` true, no backoff; live: `tasks.live.consecutive_failures` stays 0 across a primary timeout, `backoff_seconds` unset, polls every 120 s through it.
 
+### Applied on 2026-10-18 (changes 1 and 2)
+
+Committed the same evening, with the backend suite at 1,691 passed: `SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR = 12`
+read in the scheduler's `due()` for the forecasts task; `GAMEFORECAST_SYNC_INTERVAL_HOURS` 24 → 22;
+in `ensure_synced`, a turn whose fixture sync ran and succeeded and whose window holds no fixture is
+taken without a request (`dormant` in the report; the scheduler's cost estimate prices it at 0) —
+narrowed after two database-backed tests showed why: with no fixture sync, an empty window says
+nothing, and a forecast fetched before its fixture is stored is what the pending store exists to
+attach; the aliases `lask linz → lask` and `estac troyes → troyes`; and a pending forecast whose
+kick-off is more than 150 minutes past is dropped instead of re-stored. The Champions League id
+was pinned and then withdrawn: eight tests document provider-id discovery with the Champions
+League as their example, and the pin is not what these changes are for; it stays a proposal.
+Verification: the first forecasts pass after 12:00 UTC on 2026-10-19.
+
 ### Configuration to re-base only after the owner verifies the allowance
 
 - **GameForecast ceiling 8 → 10.** The provider's own headers say 10 on every answered response, and the budget already refuses before the network once the provider's remaining runs short. Worth doing with change 1 (which keeps every request inside the provider's window); without it, a day straddling the 03:12 reset can over-count.

@@ -343,3 +343,12 @@ def test_the_shared_word_does_no_work_in_either_direction():
     assert match_matching.normalize_team_name("N.Ireland") == "northern ireland"
     assert match_matching.normalize_team_name("Rep. Of Ireland") == "republic of ireland"
     assert match_matching.normalize_team_name("Ireland") == "ireland"
+
+
+def test_the_lask_and_troyes_spellings_meet():
+    """Met in October 2026: GameForecast's "Lask Linz" against Live Score's "LASK", and the API-Football
+    live feed's "Estac Troyes" against Live Score's "Troyes"."""
+    assert normalize_team_name("Lask Linz") == normalize_team_name("LASK")
+    assert normalize_team_name("Estac Troyes") == normalize_team_name("Troyes")
+    d = find_match("Sporting CP", "Lask Linz", KICKOFF, "champions_league", [cand("m1", "Sporting CP", "LASK", key="champions_league")])
+    assert d.attached and d.match_id == "m1"

@@ -836,3 +836,57 @@ def test_reattaching_with_no_pending_forecasts_is_a_no_op(cache):
     report = service.reattach_pending()
     assert provider.calls == []
     assert report == {"competitions": {}, "attached": 0, "still_pending": 0}
+
+
+# --------------------------------------------------------------------- a turn with nothing to forecast
+def test_a_competition_with_no_fixture_in_the_window_is_not_fetched(cache):
+    """Two of eight daily requests went to Nations Leagues with no match for weeks (2026-10-18). A turn
+    whose freshly synced calendar holds nothing inside the window is taken without a request."""
+    provider = StubForecastProvider()
+    service = build(cache, provider=provider)
+    service._fixtures, service._sync_fixtures = MagicMock(), True      # a fixture sync that runs and succeeds
+    service._fixtures.sync_upcoming.return_value = MagicMock(errors=[])
+    service.registry.fixtures_in_window.return_value = 0
+    report = service.ensure_synced(force=True)
+    assert provider.calls == []
+    assert report["dormant"] == list(KEYS)
+    assert all(report["competitions"][k]["skipped"] == "no fixture in window" for k in KEYS)
+    assert all(service._last_sync(k) is not None for k in KEYS), "the turn was taken, so the key waits its interval"
+
+
+def test_a_competition_with_a_fixture_in_the_window_is_fetched(cache):
+    provider = StubForecastProvider()
+    service = build(cache, provider=provider)
+    service._fixtures, service._sync_fixtures = MagicMock(), True
+    service._fixtures.sync_upcoming.return_value = MagicMock(errors=[])
+    service.registry.fixtures_in_window.return_value = 3
+    report = service.ensure_synced(force=True)
+    assert set(provider.calls) == set(KEYS)
+    assert "dormant" not in report
+
+
+def test_an_empty_window_without_a_fixture_sync_still_fetches(cache):
+    """With no fixture sync (or a failed one) the empty window says nothing: a forecast fetched before
+    its fixture is stored is exactly what the pending store exists to attach later."""
+    provider = StubForecastProvider()
+    service = build(cache, provider=provider)                        # sync_fixtures=False
+    service.registry.fixtures_in_window.return_value = 0
+    report = service.ensure_synced(force=True)
+    assert set(provider.calls) == set(KEYS)
+    assert "dormant" not in report
+
+
+def test_a_pending_forecast_for_a_match_played_long_ago_is_dropped(cache, monkeypatch):
+    """Re-storing a pending forecast renews its 48 h life, so one for a match played days ago was
+    retried for ever. Past the live window it is dropped; one still to come is kept."""
+    import app.services.forecast_service as module
+    service = build(cache)
+    monkeypatch.setattr(module, "_forecast_from_dict", lambda item: MagicMock())
+    service.attach_forecast = lambda forecast, key, league_id: {"result": "unmatched"}
+    service._store_pending("serie_a", [
+        {"external_event_id": "old", "kickoff_utc": (NOW - timedelta(days=4)).isoformat()},
+        {"external_event_id": "soon", "kickoff_utc": (NOW + timedelta(days=1)).isoformat()},
+    ])
+    counts = service._retry_pending("serie_a")
+    assert counts == {"pending": 2, "attached": 0, "expired": 1}
+    assert [i["external_event_id"] for i in cache.get(service._pending_key("serie_a"))] == ["soon"]

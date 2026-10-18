@@ -1067,6 +1067,15 @@ class MatchRegistry:
     def _has_result(self, match_id: uuid.UUID) -> bool:
         return self.db.query(MatchResult.id).filter(MatchResult.match_id == match_id).first() is not None
 
+    def fixtures_in_window(self, league_id, start: datetime, end: datetime) -> int:
+        """How many fixtures of a competition kick off inside [start, end) and are still to be played."""
+        return int(self.db.query(func.count(Match.id)).filter(
+            Match.league_id == league_id,
+            Match.match_date >= _naive_utc(_aware_utc(start)),
+            Match.match_date < _naive_utc(_aware_utc(end)),
+            Match.status.in_((MatchStatus.SCHEDULED, MatchStatus.LIVE)),
+        ).scalar() or 0)
+
     def relisting_of(self, match: Match, now: Optional[datetime] = None) -> Optional[Match]:
         """
         The played row this fixture turned out to be a second listing of, or None. Read-only.
