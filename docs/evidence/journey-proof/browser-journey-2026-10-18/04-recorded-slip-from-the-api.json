@@ -1,0 +1,276 @@
+{
+  "id": "73612451-468b-4284-8f1e-a76708b9746d",
+  "name": "Browser journey 2026-10-18T19:34",
+  "status": "recorded",
+  "note": null,
+  "currency": null,
+  "stake": null,
+  "price": null,
+  "price_source": null,
+  "price_missing_legs": 3,
+  "price_note": "no combined price: at least one selection has no price for exactly that selection",
+  "effective_price": null,
+  "effective_price_source": null,
+  "effective_price_note": null,
+  "potential": null,
+  "potential_withheld_reason": null,
+  "recorded_at": "2026-10-18T19:34:38.683626Z",
+  "recorded_reference": "browser journey on the isolated pair",
+  "recorded_note": "the reader's own statement that this was placed elsewhere; nothing here is confirmed by any bookmaker",
+  "state": "pending",
+  "settled_at": null,
+  "counts": {
+    "pending": 3,
+    "won": 0,
+    "lost": 0,
+    "void": 0,
+    "unresolved": 0,
+    "legs": 3
+  },
+  "created_at": "2026-10-18T19:34:38.248348Z",
+  "updated_at": "2026-10-18T19:34:38.689205Z",
+  "legs": [
+    {
+      "id": "7e543ea6-3c9e-461d-9555-9fff522e954d",
+      "position": 0,
+      "match": {
+        "id": "875ddac0-a68b-4467-920a-001e7289f085",
+        "home": {
+          "id": "ae7397f5-9e07-4434-bbf9-f1eb51e5458e",
+          "name": "Monza",
+          "short_name": "Monza",
+          "logo": "https://cdn.live-score-api.com/teams/2573.png",
+          "country": "Italy",
+          "team_scope": "club_senior_men"
+        },
+        "away": {
+          "id": "6a9c33e1-b8c7-49ec-a118-f7f09298cb9d",
+          "name": "Cagliari",
+          "short_name": "Cagliari",
+          "logo": "https://cdn.live-score-api.com/teams/93.png",
+          "country": "Italy",
+          "team_scope": "club_senior_men"
+        },
+        "competition": {
+          "id": "a4a90e51-2a1d-4b69-977a-ae41cc0f386e",
+          "key": "serie_a",
+          "name": "Serie A",
+          "country": "Italy",
+          "country_code": "ITA",
+          "logo": "/leagues/default.svg",
+          "is_cup": false,
+          "providers": {},
+          "is_national_team": false,
+          "confederation": "UEFA",
+          "squad_category": "senior_men"
+        },
+        "kickoff_utc": "2026-10-19T16:30:00Z",
+        "status": "scheduled",
+        "minute": null,
+        "score": null
+      },
+      "selection": {
+        "selection_id": "total_goals:over@0.5",
+        "market_id": "total_goals",
+        "outcome": "over",
+        "line": 0.5,
+        "period": "regulation"
+      },
+      "probability": 0.95,
+      "probability_source": "provider",
+      "calculation": null,
+      "provider": "gameforecast",
+      "snapshot_id": "59bda745-6c7e-4135-93b2-d84099f9e548",
+      "model_run_at": "2026-10-17T00:00:00Z",
+      "forecast_fetched_at": "2026-10-18T00:27:52.349751Z",
+      "normalisation_version": "markets.v1",
+      "odds": null,
+      "kickoff_utc": "2026-10-19T16:30:00Z",
+      "started": false,
+      "result_expected_by": "2026-10-19T19:00:00Z",
+      "current": {
+        "probability": 0.95,
+        "available": true,
+        "forecast_changed": false,
+        "state": "available"
+      },
+      "state": "pending",
+      "settled_at": null,
+      "settlement": {
+        "state": "pending",
+        "rule": "the fixture has not finished",
+        "basis": "fixture",
+        "rules_version": "slip-settlement.v1"
+      },
+      "settlement_capability": {
+        "capable": true,
+        "basis": "regulation_time",
+        "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+      }
+    },
+    {
+      "id": "936aacdb-204f-4f38-9bdc-9f77f2260aed",
+      "position": 1,
+      "match": {
+        "id": "49bfd499-d221-4c05-8850-e85c84f91fcd",
+        "home": {
+          "id": "b4382212-efa2-4432-98ba-4eeb4983fe65",
+          "name": "Parma Calcio 1913",
+          "short_name": "Parma Calcio 1913",
+          "logo": "https://cdn.live-score-api.com/teams/1135.png",
+          "country": "Italy",
+          "team_scope": "club_senior_men"
+        },
+        "away": {
+          "id": "3fd114bf-3822-4f30-81ad-077223d34296",
+          "name": "Torino",
+          "short_name": "Torino",
+          "logo": "https://cdn.live-score-api.com/teams/83.png",
+          "country": "Italy",
+          "team_scope": "club_senior_men"
+        },
+        "competition": {
+          "id": "a4a90e51-2a1d-4b69-977a-ae41cc0f386e",
+          "key": "serie_a",
+          "name": "Serie A",
+          "country": "Italy",
+          "country_code": "ITA",
+          "logo": "/leagues/default.svg",
+          "is_cup": false,
+          "providers": {},
+          "is_national_team": false,
+          "confederation": "UEFA",
+          "squad_category": "senior_men"
+        },
+        "kickoff_utc": "2026-10-19T18:45:00Z",
+        "status": "scheduled",
+        "minute": null,
+        "score": null
+      },
+      "selection": {
+        "selection_id": "total_goals:over@0.5",
+        "market_id": "total_goals",
+        "outcome": "over",
+        "line": 0.5,
+        "period": "regulation"
+      },
+      "probability": 0.95,
+      "probability_source": "provider",
+      "calculation": null,
+      "provider": "gameforecast",
+      "snapshot_id": "34f7957e-0b31-4ff7-a602-4946f8de95d7",
+      "model_run_at": "2026-10-17T00:00:00Z",
+      "forecast_fetched_at": "2026-10-18T00:27:52.349751Z",
+      "normalisation_version": "markets.v1",
+      "odds": null,
+      "kickoff_utc": "2026-10-19T18:45:00Z",
+      "started": false,
+      "result_expected_by": "2026-10-19T21:15:00Z",
+      "current": {
+        "probability": 0.95,
+        "available": true,
+        "forecast_changed": false,
+        "state": "available"
+      },
+      "state": "pending",
+      "settled_at": null,
+      "settlement": {
+        "state": "pending",
+        "rule": "the fixture has not finished",
+        "basis": "fixture",
+        "rules_version": "slip-settlement.v1"
+      },
+      "settlement_capability": {
+        "capable": true,
+        "basis": "regulation_time",
+        "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+      }
+    },
+    {
+      "id": "e9df24df-8c6d-4726-95ee-671ce28fb338",
+      "position": 2,
+      "match": {
+        "id": "17f97a26-2c1b-42e0-b8ff-1ea62eaebf7c",
+        "home": {
+          "id": "b14d66f0-05a3-4aef-b06b-3a238a176268",
+          "name": "Tottenham Hotspur",
+          "short_name": "Tottenham Hotspur",
+          "logo": "https://cdn.live-score-api.com/teams/15.png",
+          "country": "England",
+          "team_scope": "club_senior_men"
+        },
+        "away": {
+          "id": "aed48f7f-f37b-4fe0-af4a-2247a76ea373",
+          "name": "Coventry City",
+          "short_name": "Coventry City",
+          "logo": "https://cdn.live-score-api.com/teams/537.png",
+          "country": "England",
+          "team_scope": "club_senior_men"
+        },
+        "competition": {
+          "id": "6a327af8-6d2e-4bc4-b325-0e7106884f35",
+          "key": "premier_league",
+          "name": "Premier League",
+          "country": "England",
+          "country_code": "ENG",
+          "logo": "/leagues/default.svg",
+          "is_cup": false,
+          "providers": {},
+          "is_national_team": false,
+          "confederation": "UEFA",
+          "squad_category": "senior_men"
+        },
+        "kickoff_utc": "2026-10-19T19:00:00Z",
+        "status": "scheduled",
+        "minute": null,
+        "score": null
+      },
+      "selection": {
+        "selection_id": "double_chance:1x",
+        "market_id": "double_chance",
+        "outcome": "1x",
+        "line": null,
+        "period": "regulation"
+      },
+      "probability": 0.95,
+      "probability_source": "calculated",
+      "calculation": {
+        "note": "calculated from provider probabilities",
+        "inputs": {
+          "draw": 0.1,
+          "home": 0.85
+        },
+        "formula": "P(1X) = P(home) + P(draw)",
+        "source_market": "match_result"
+      },
+      "provider": "gameforecast",
+      "snapshot_id": "602ccafe-d7f8-4496-a6bc-5220b890eb32",
+      "model_run_at": "2026-10-17T00:00:00Z",
+      "forecast_fetched_at": "2026-10-18T00:27:46.337626Z",
+      "normalisation_version": "markets.v1",
+      "odds": null,
+      "kickoff_utc": "2026-10-19T19:00:00Z",
+      "started": false,
+      "result_expected_by": "2026-10-19T21:30:00Z",
+      "current": {
+        "probability": 0.95,
+        "available": true,
+        "forecast_changed": false,
+        "state": "available"
+      },
+      "state": "pending",
+      "settled_at": null,
+      "settlement": {
+        "state": "pending",
+        "rule": "the fixture has not finished",
+        "basis": "fixture",
+        "rules_version": "slip-settlement.v1"
+      },
+      "settlement_capability": {
+        "capable": true,
+        "basis": "regulation_time",
+        "rule": "Settles on the regulation-time score (90 minutes plus stoppage). Extra time and penalties settle nothing; a fixture never played to a result is void."
+      }
+    }
+  ]
+}

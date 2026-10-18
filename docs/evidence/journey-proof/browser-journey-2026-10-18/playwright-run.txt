@@ -1,0 +1,4 @@
+Running 2 tests using 1 worker
+[1/2] [live-isolated] › e2e/live-isolated/suggestion-journey.spec.ts:59:1 › a suggested combination becomes a recorded slip through the page
+[2/2] [live-isolated] › e2e/live-isolated/suggestion-journey.spec.ts:113:1 › a settled slip shows its results, and viewing it again changes nothing
+  2 passed (6.5s)

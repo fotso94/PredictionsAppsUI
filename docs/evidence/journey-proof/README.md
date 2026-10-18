@@ -113,6 +113,15 @@ What `2026-10-07T0155Z.json` shows:
 - 58 fixtures carry attempt counts that cannot be trusted. Congo v Uganda and Kazakhstan v Moldova
   still read LIVE five days on.
 
+## The pages, shown on the isolated pair
+
+`browser-journey-2026-10-18/` holds the user-experience half: through the real pages in a real
+browser against the clone, a suggested combination chosen and recorded as a slip, and the
+suggestion-born slip of 2026-10-17 displaying its results, with a reload and a return changing
+nothing — the card text for text, the API's answer byte for byte, the clone's settled rows hash
+for hash. It added one slip to the clone and nothing to the live database. The spec is
+`frontend/e2e/live-isolated/suggestion-journey.spec.ts`, and it runs with every live-isolated run.
+
 ## Settlement, proven on the isolated copy
 
 `settlement-isolated-2026-10-10/` holds the one stage no run above can reach without a write: the

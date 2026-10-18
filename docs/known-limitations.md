@@ -784,9 +784,15 @@ owner's go-ahead, that last journey was shown too: the suggestion service's firs
 API at 14:16 UTC, both regulation-time results arrived through Live Score at full time (1-3 and
 1-3), and one authorized read at 18:08 UTC settled it **won** on both legs, with a second read
 changing nothing — fixture, forecast, suggestion, stored result and settlement all `proven`
-(`docs/evidence/journey-proof/suggested-slip-2026-10-17.md`). It is an API workflow demonstration;
-no browser interaction was demonstrated. The re-run procedure is in
-`docs/evidence/journey-proof/README.md`; the latest run is `2026-10-17T1808Z.json`.
+(`docs/evidence/journey-proof/suggested-slip-2026-10-17.md`). That was an API workflow demonstration.
+The pages were shown the next day on the isolated pair, in a real browser against the clone: a
+suggested combination chosen and recorded as a slip through the suggestions page and the dock,
+and the settled slip of 2026-10-17 displaying its results on the slip history, with a reload and a
+return changing nothing (`docs/evidence/journey-proof/browser-journey-2026-10-18/`). Two slips
+rather than one, because the clone receives no results. The captures also show a presentation
+defect: the probability is rendered straight after the selection's line ("Over 0.595%" for
+over 0.5 at 95%), on the suggestions page and the history card alike; not yet fixed. The re-run
+procedure is in `docs/evidence/journey-proof/README.md`; the latest run is `2026-10-17T1808Z.json`.
 
 **Every browser test that signs in now runs only against the isolated pair.** Until 2026-10-08
 `parlay-journey.spec.ts` saved and recorded a combination for the QA account on whatever backend it
