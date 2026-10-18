@@ -890,3 +890,5 @@ def test_a_pending_forecast_for_a_match_played_long_ago_is_dropped(cache, monkey
     counts = service._retry_pending("serie_a")
     assert counts == {"pending": 2, "attached": 0, "expired": 1}
     assert [i["external_event_id"] for i in cache.get(service._pending_key("serie_a"))] == ["soon"]
+    summary = service.reattach_pending("serie_a")
+    assert (summary["expired"], summary["still_pending"]) == (0, 1), "the dropped item is gone, the live one still waits"

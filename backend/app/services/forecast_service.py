@@ -667,7 +667,8 @@ class ForecastService:
                 continue
             report["competitions"][competition] = counts
             report["attached"] += counts.get("attached", 0)
-            report["still_pending"] += counts.get("pending", 0) - counts.get("attached", 0)
+            report["expired"] = report.get("expired", 0) + counts.get("expired", 0)
+            report["still_pending"] += counts.get("pending", 0) - counts.get("attached", 0) - counts.get("expired", 0)
         return report
 
     def _retry_pending(self, key: str) -> Optional[Dict[str, int]]:
