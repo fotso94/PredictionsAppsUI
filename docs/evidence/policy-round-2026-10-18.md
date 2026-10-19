@@ -355,12 +355,163 @@ is `related-suites-after-race-fix.txt`. The isolated browser journeys were not r
 is inside the provider sync, which the isolated backend never reaches because it has no provider
 credentials and its scheduler is off.
 
-**Residual.** The lock expires after 300 seconds (`SYNC_LOCK_TTL_SECONDS`). A pass that outlived it
-could overlap with the next holder; compare-and-delete stops it from releasing the other holder's
-lock. Not changed here.
+**Residual, since closed.** The lock then expired after 300 seconds and was never renewed, so a
+pass that outlived it could overlap the next holder. Sections 8 and 9 replace it with a renewed,
+owner-checked lease and close the takeover gaps that remained.
 
 **5. Live services untouched.** No live or isolated service was restarted, stopped or reconfigured
 in this follow-up. `/health`, read unauthenticated at 02:13 UTC, shows the live backend on
 `soccer_predictions`, commit `310470a9`, tree `f0ecfef8d3f2`, started 2026-10-18T20:28:24Z, as
 before. No live record or Redis key was written, no provider request was made, and no limit was
 changed. Nothing is merged or deployed.
+
+## 8. Follow-up of 2026-10-19: the five-minute expiry - a renewed lease
+
+Branch `policy-round` only; fix `a5aeec0e`, proof `d0c00a47`. Module `backend/app/services/sync_lease.py`.
+
+**How it behaves.**
+- **Renewal.** The pass takes a lease of one 300-second term and a daemon thread renews it every
+  100 seconds, so a healthy pass keeps exclusive ownership however long it runs. Renewal and
+  release are Lua scripts that compare the owner's random token, so a worker can extend or delete
+  only its own lease, never a successor's.
+- **Ownership loss.** A renewal that is refused, or that Redis cannot confirm, marks the lease lost
+  for good. From then on the worker sends nothing, reserves nothing and writes nothing (section 9
+  makes each of those checks indivisible from the act it guards), and the pass stops with
+  `lease_lost` in its report.
+- **Crash recovery.** A worker that dies leaves its key with nobody renewing it. The key lapses
+  after one term and the next worker takes over.
+- **Late responses.** A provider answer is applied only after the lease is confirmed again on its
+  arrival; a late one is dropped. Writes made after that check are fenced (section 9), and the
+  database never replaces a newer retrieval with an older one.
+- **Clean stop.** The renewal thread stops and the lease is released on success, on any exception,
+  on cancellation (a `BaseException` raised into the pass), on `SystemExit` and on
+  `KeyboardInterrupt`.
+- **Unchanged.** Forced refresh, both refresh policies, cache-only re-attachment, the fallback
+  verdict, budget enforcement. The term stays 300 s; GameForecast stays at 8 requests a day.
+
+**Proof.** The decisive test holds A inside its request, ticks one renewal at 200 s and starts B at
+400 s, past the old expiry. On the previous code (`050d6f3e`) B fetched while A was still working,
+under both refresh rules; on the fix both pass. Logs: `lease-proof-old.txt`, `lease-proof-fixed.txt`.
+
+## 9. Follow-up of 2026-10-19: the remaining takeover gaps
+
+Branch `policy-round` only. Fix `ad06218b`; this section and its logs in the commit after it.
+Starting head `d0c00a47`, verified against `origin/policy-round` before editing.
+
+### What changed, and why
+
+1. **Ownership check and reservation, made indivisible.** `RequestBudget.consume` checked the lease
+   and then reserved: a worker paused between the two could resume after a takeover and reserve,
+   and send, one more request. Under a lease the reservation now runs `FENCED_RESERVE_LUA`, which
+   reads the lease in its own Redis database and moves the counter in the budget's, in one script
+   (the lease lives in the match-data database and the counter in the rate-limit database of the
+   same server; the script selects each in turn). A stale owner is refused with `LeaseLost` and the
+   counter does not move. Under a lease there is no unmetered or counting fallback: a reservation
+   whose ownership cannot be established is not made.
+2. **The provider's own bookkeeping.** Traced every shared write reachable from a pass and sorted it.
+   - *Control state, only the lease's holder may change it, fenced in the same script as the token
+     check:* GameForecast's page count (prices the next turn), its league-id map and its
+     negative-discovery marker, the provider-reported rate-limit reading (refuses requests before
+     they leave), and, as before, the forecast service's slots, last-sync times, pending and
+     retained forecasts, per-competition status, pause, calendar evidence, publication observation
+     and pass status. The provider writes through `control_set`, which fences under the active lease.
+   - *Factual records, always written:* the usage counter, which only the owner-checked reservation
+     moves; refusal counts, attribution and the scheduler ledger; the HTTP client's transmission
+     records. A lost lease never erases evidence of a request that was reserved or sent.
+   - *Not forecast state, left to their own pipeline:* what the calendar sync writes for match data
+     (fixtures, the fixture cache, provider status and cool-downs, Live Score competition ids). The
+     match-data pipeline writes these outside any forecast lease as well.
+3. **Redis failure is not permission.** A cache whose Redis failed to initialise used to yield an
+   unmanaged lease and an uncoordinated fetch. Now no Redis, or a Redis that fails while the lease
+   is taken, refuses the provider-fetching pass, automatic or forced, with
+   `coordination_unavailable` in the report. Cached data stays readable, and free re-attachment
+   still runs as far as the cache can be read. Loss during execution stops the pass as in section 8.
+4. **Concurrent first insertion.** `SELECT ... FOR UPDATE` cannot lock a row that does not exist. The
+   forecast row is now claimed with `INSERT ... ON CONFLICT DO NOTHING` on
+   `uq_provider_forecasts_match_provider`, then read back under `FOR UPDATE`. A second writer waits
+   for the first's transaction and inserts nothing, then compares against the committed row: newer
+   replaces it, older never does (kept in the snapshot history), and an equal retrieval applies in
+   the order the lock serialises them, matching the creation-order tie-break of `SNAPSHOT_ORDER`
+   used by repairs. The match's provider reference had the same race on
+   `uq_provider_entity_refs_provider_external` and gets the same treatment in `MatchRegistry.set_ref`.
+
+### Regression proof
+
+The two new test files were run in disposable worktrees: once with the previous application code
+(`d0c00a47`), once with the fix (`ad06218b`). Logs: `takeover-gaps-against-previous-code.txt` and
+`takeover-gaps-against-fixed-code.txt`.
+
+| Test | Previous code | Fix |
+|---|---|---|
+| A paused after its check, before reserving; B takes over and finishes | fails: counter 2, not 1 | passes |
+| The same while B still holds the lease | fails: counter 2, not 1 | passes |
+| A's late answer against B's page count and window reading | fails: page count 1 replaced B's 2 | passes |
+| A's late empty discovery answer after B found the league | fails: league marked unresolved | passes |
+| Cache Redis fails at start-up, automatic and forced pass | fails: an uncoordinated fetch was made | passes |
+| First forecast row, older-first, newer-first and tied | fails: unique violation on the forecast row | passes |
+| Same new event attached by two workers, both orders | fails: unique violation on the provider reference | passes |
+| Redis fails while the lease is taken | fails only on the new report field: the old code also refused to fetch | passes |
+| Reservation script fails; budget store on another server | not applicable: new machinery, cannot import on the old code | passes |
+
+### Verification on the committed code
+
+| Run | Code | Result |
+|---|---|---|
+| Full backend suite, `pytest tests` | `ad06218b`, clean tree | 1,811 passed, 0 failed, 0 skipped, exit 0 |
+| Lease and concurrency group, five files, 30 repeats | `ad06218b`, clean tree | 30 of 30 runs: 48 passed, 0 failed, 0 skipped, exit 0 |
+| Service, provider and simulation suites | the same code before its commit | 1,292 passed, 0 skipped |
+
+Every run had the real-Redis and real-PostgreSQL cases enabled and the defaults pointed at isolated
+targets (`test-targets-identity.txt`):
+- The app's fallback Redis was the throwaway server on 127.0.0.1:6390 (Redis 7.4.11). The lease
+  tests used its databases 9 to 11. No key remained in any of its databases after the full suite.
+- The app's fallback database was `soccer_predictions_test`, the suite's own test database.
+- The independent-session tests used a throwaway PostgreSQL 15 on 127.0.0.1:5440, database
+  `forecast_race_test`. Each test refuses the application's databases and ports.
+- Provider networking was closed in every new test: sockets except the isolated Redis, and HTTP
+  transports, raise on contact.
+- Time was controlled throughout: a fake clock for expiry, a ticker for renewal, and real Redis
+  expiry produced by `PEXPIRE 1` rather than waiting five minutes.
+
+### Remaining limitations
+
+- **Not exactly-once.** What is protected: no request is reserved except by the lease's holder at
+  the instant of the reservation script, none is sent without a reservation, and no answer is
+  applied without a fresh ownership check. What remains uncertain:
+  - A worker that stalls for longer than a term after its reservation succeeds, and then sends,
+    sends one request after a takeover. It was counted, so the daily ceiling still holds, and its
+    answer is discarded.
+  - A worker that dies after reserving and before sending has counted a request nothing sent. That
+    over-counts, which is the safe direction.
+  - A connection that fails after the request left, by timeout or reset, leaves unknown whether the
+    provider processed and charged it. The HTTP layer never retries, but a later pass that re-asks
+    for the same competition may duplicate a request the provider did process.
+  - A request in flight when its worker loses the lease is paid for and discarded, and the new
+    holder fetches that competition again. That is at most one extra request per loss.
+- **One Redis server.** Fencing needs every fenced store on the lease's Redis server. That holds in
+  deployment, where everything comes from one `REDIS_URL`; otherwise the write or reservation is
+  refused, never made unfenced. The scripts use `SELECT` inside Lua, which standalone Redis allows
+  and Redis Cluster does not.
+- **Match-data writes during the calendar sync** are not fenced by the forecast lease, as listed
+  above. A stale worker's late Live Score answer can still update fixtures, idempotently by provider
+  id, or set a Live Score cool-down.
+- **Pending store.** The free re-attachment a worker runs without the lease (busy or refused path)
+  can still race the holder's pending-store write: a lost update of the pending list. This existed
+  before and is not changed here.
+- **Not validated:**
+  - separate processes, which these tests approximate with threads in one process;
+  - real network partitions and slow providers, which are injected as errors and holds;
+  - Redis 6 or earlier, though the scripts end in the target database for that reason;
+  - Redis Cluster;
+  - the isolated browser journeys, not re-run because no frontend or API surface changed.
+
+### Live untouched, limits unchanged
+
+`/health` on the live backend, read unauthenticated at the end of this round, shows
+`soccer_predictions`, commit `310470a9`, tree `f0ecfef8d3f2`, started 2026-10-18T20:28:24Z, as at the
+start of every round. `main` and `progress` are at `310470a9` on the remote. No live service was
+restarted, stopped or reconfigured. No live database row or live Redis key was written, and no
+provider request was made. The isolated pair was not touched this round. `backend/app/core/config.py`
+differs from `310470a9` only in the refresh-policy switch and comments: no numeric limit changed,
+and GameForecast stays at 8 requests a day. The two throwaway containers were stopped at the end.
+Nothing is merged or deployed.

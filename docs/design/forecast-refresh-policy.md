@@ -92,6 +92,16 @@ previous holder has made untrue; the lock is released on every path that took it
 review on 2026-10-19: the plan used to be built before the lock. The overlap is reproduced with
 two threads in `tests/services/test_forecast_sync_concurrency.py`.)
 
+The lock is a lease (`backend/app/services/sync_lease.py`, corrected after review on 2026-10-19):
+one 300-second term, renewed every 100 seconds while the pass runs, renewed and released only by its
+owner's token, and lapsing after one term when nobody renews it, as after a crash. Without Redis
+there is no lease and no fetching pass. Under the lease every budget reservation, every forecast
+control-state write and the provider's own bookkeeping (page counts, league ids, discovery
+markers, rate-limit reading) check the owner inside the same Redis script that acts. A provider
+answer is applied only after ownership is confirmed again on its arrival. The first forecast row and
+the match's provider reference are claimed with INSERT ... ON CONFLICT and then locked. What remains
+uncertain about external requests is in docs/evidence/policy-round-2026-10-18.md, section 9.
+
 ## Compatibility switch
 
 `GAMEFORECAST_REFRESH_POLICY = "daily-slot" | "elapsed-interval"`. `elapsed-interval` is the

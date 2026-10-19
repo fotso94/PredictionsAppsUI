@@ -1,0 +1,1470 @@
+== previous implementation: app code at d0c00a47; test files from ad06218b
+2026-10-19T12:07:37Z
+d0c00a47 docs: lease expiry proof - the decisive test fails on 050d6f3e and passes on a5aeec0e; related suites 339 passed
+?? backend/tests/services/test_forecast_first_insert_pg.py
+?? backend/tests/services/test_forecast_takeover_gaps.py
+REDIS_HOST=127.0.0.1 REDIS_PORT=6390 POSTGRES_DB=soccer_predictions_test RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test
+FFFFFFFFFFFFFF                                                           [100%]
+=================================== FAILURES ===================================
+_ test_a_worker_paused_between_its_check_and_its_reservation_reserves_nothing_after_takeover _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10bcb2b10>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10bcb2910>
+
+    def test_a_worker_paused_between_its_check_and_its_reservation_reserves_nothing_after_takeover(clock, redis):
+        """A passes its ownership check for premier_league and is paused before reserving. Its lease
+        lapses; B takes over, fetches premier_league and leaves. A resumes. A's reservation must be
+        refused and the counter must not move: one request in all, B's."""
+        h = harness(clock, redis, ["premier_league"])
+        paused, resume = pause_between_check_and_reservation(h.budget, "caller A")
+        a = service(h)
+        a.lease_waiter = Ticker()                        # never ticked: A's renewer has stalled too
+        first = InThread(lambda: a.ensure_synced(force=False), "caller A")
+        wait(paused, "A to have checked ownership and not yet reserved")
+    
+        clock.now = LAPSED
+        report_b = InThread(lambda: service(h).ensure_synced(force=False), "caller B").join()
+        assert report_b["competitions"]["premier_league"]["fetched"] == 1
+        assert h.budget.used_today() == 1
+    
+        resume.set()
+        report_a = first.join()
+>       assert h.budget.used_today() == 1, "A's stale reservation moved the counter"
+E       AssertionError: A's stale reservation moved the counter
+E       assert 2 == 1
+E        +  where 2 = <bound method RequestBudget.used_today of <app.services.providers.budget.RequestBudget object at 0x10b980f10>>()
+E        +    where <bound method RequestBudget.used_today of <app.services.providers.budget.RequestBudget object at 0x10b980f10>> = <app.services.providers.budget.RequestBudget object at 0x10b980f10>.used_today
+E        +      where <app.services.providers.budget.RequestBudget object at 0x10b980f10> = <tests.services.test_forecast_refresh_policy.Harness object at 0x10bcb2410>.budget
+
+tests/services/test_forecast_takeover_gaps.py:97: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:38.280668", "level": "WARNING", "logger": "app.services.sync_lease", "message": "stub forecast sync lease lost: the lease is no longer this worker's: it expired or another worker holds it", "module": "sync_lease", "function": "_lose", "line": 161}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:161 stub forecast sync lease lost: the lease is no longer this worker's: it expired or another worker holds it
+___ test_the_same_pause_while_the_successor_is_still_working_is_refused_too ____
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10baa3110>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10baa0190>
+
+    def test_the_same_pause_while_the_successor_is_still_working_is_refused_too(clock, redis):
+        """As above, but B is still inside its own request when A resumes: the lease A checks against
+        now carries B's token."""
+        h = harness(clock, redis, ["premier_league"])
+        paused, resume = pause_between_check_and_reservation(h.budget, "caller A")
+        b_inside, b_release = hold_inside_the_fetch(h, "caller B")
+        a = service(h)
+        a.lease_waiter = Ticker()
+        first = InThread(lambda: a.ensure_synced(force=False), "caller A")
+        wait(paused, "A to have checked ownership and not yet reserved")
+    
+        clock.now = LAPSED
+        second = InThread(lambda: service(h).ensure_synced(force=False), "caller B")
+        wait(b_inside, "B to be inside its request, holding the lease")
+        assert h.budget.used_today() == 1
+    
+        resume.set()
+        report_a = first.join()
+>       assert h.budget.used_today() == 1, "A reserved while B held the lease"
+E       AssertionError: A reserved while B held the lease
+E       assert 2 == 1
+E        +  where 2 = <bound method RequestBudget.used_today of <app.services.providers.budget.RequestBudget object at 0x10baa2a50>>()
+E        +    where <bound method RequestBudget.used_today of <app.services.providers.budget.RequestBudget object at 0x10baa2a50>> = <app.services.providers.budget.RequestBudget object at 0x10baa2a50>.used_today
+E        +      where <app.services.providers.budget.RequestBudget object at 0x10baa2a50> = <tests.services.test_forecast_refresh_policy.Harness object at 0x10baa2550>.budget
+
+tests/services/test_forecast_takeover_gaps.py:121: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:38.314802", "level": "WARNING", "logger": "app.services.sync_lease", "message": "stub forecast sync lease lost: the lease is no longer this worker's: it expired or another worker holds it", "module": "sync_lease", "function": "_lose", "line": 161}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:161 stub forecast sync lease lost: the lease is no longer this worker's: it expired or another worker holds it
+_ test_a_late_answer_cannot_replace_the_page_count_or_window_reading_its_successor_recorded _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10ba5fd90>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10ba5c250>
+
+    def test_a_late_answer_cannot_replace_the_page_count_or_window_reading_its_successor_recorded(clock, redis):
+        """A asks for premier_league's events; its answer - one page, provider says 9 left - is held on
+        the network while A's lease lapses. B takes over: two pages, provider says 8 then 7. Then A's
+        answer arrives. The page count must stay B's 2 and the window reading B's 7; A's request stays
+        on record as spent."""
+        store = MatchCache(client=redis)
+        a_inside, a_release = threading.Event(), threading.Event()
+    
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path != "/events":
+                raise AssertionError(f"unexpected request {request.url.path}")
+            if threading.current_thread().name == "caller A":
+                a_inside.set()
+                assert a_release.wait(WAIT_SECONDS)
+                return httpx.Response(200, json={"data": [event(901)], "pagination": {"hasMore": False}},
+                                      headers=rate_limit_headers(9))
+            page = int(dict(request.url.params).get("page", "1"))
+            return httpx.Response(200, json={"data": [event(500 + page)], "pagination": {"hasMore": page == 1}},
+                                  headers=rate_limit_headers(9 - page))
+    
+        a = gameforecast_worker(clock, redis, store, handler, ["premier_league"])
+        a.service.lease_waiter = Ticker()
+        first = InThread(lambda: a.service.ensure_synced(force=False), "caller A")
+        wait(a_inside, "A's request to be on the network")
+    
+        clock.now = LAPSED
+        b = gameforecast_worker(clock, redis, store, handler, ["premier_league"])
+        report_b = InThread(lambda: b.service.ensure_synced(force=False), "caller B").join()
+        assert report_b["competitions"]["premier_league"]["fetched"] == 2
+        assert store.get(gf.PAGES_KEY.format(key="premier_league"))["pages"] == 2
+    
+        a_release.set()
+        report_a = first.join()
+>       assert store.get(gf.PAGES_KEY.format(key="premier_league"))["pages"] == 2, "A's late page count replaced B's"
+E       AssertionError: A's late page count replaced B's
+E       assert 1 == 2
+
+tests/services/test_forecast_takeover_gaps.py:186: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:38.319467", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:38.319745", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=2&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:38.320361", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:38.320449", "level": "WARNING", "logger": "app.services.sync_lease", "message": "gameforecast forecast sync lease lost: the lease is no longer this worker's: it expired or another worker holds it", "module": "sync_lease", "function": "_lose", "line": 161}
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=2&page_size=50 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 "HTTP/1.1 200 OK"
+WARNING  app.services.sync_lease:sync_lease.py:161 gameforecast forecast sync lease lost: the lease is no longer this worker's: it expired or another worker holds it
+_ test_a_late_discovery_answer_cannot_mark_a_league_unresolved_that_its_successor_found _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10bc8bdd0>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10bc88e50>
+
+    def test_a_late_discovery_answer_cannot_mark_a_league_unresolved_that_its_successor_found(clock, redis):
+        """A asks /leagues for the Champions League; its answer - nothing found - is held while A's lease
+        lapses. B takes over, finds the league (id 22), records it and fetches. Then A's answer arrives.
+        No "unresolved" marker may appear - it would stop discovery for six hours - and B's league id
+        must stand."""
+        store = MatchCache(client=redis)
+        a_inside, a_release = threading.Event(), threading.Event()
+    
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/leagues":
+                if threading.current_thread().name == "caller A":
+                    a_inside.set()
+                    assert a_release.wait(WAIT_SECONDS)
+                    return httpx.Response(200, json={"data": []})
+                return httpx.Response(200, json={"data": [{"id": 22, "name": "UEFA Champions League",
+                                                           "type": "cup", "women": False}]})
+            if request.url.path == "/events":
+                return httpx.Response(200, json={"data": [event(701)], "pagination": {"hasMore": False}})
+            raise AssertionError(f"unexpected request {request.url.path}")
+    
+        a = gameforecast_worker(clock, redis, store, handler, ["champions_league"])
+        a.service.lease_waiter = Ticker()
+        first = InThread(lambda: a.service.ensure_synced(force=False), "caller A")
+        wait(a_inside, "A's /leagues request to be on the network")
+    
+        clock.now = LAPSED
+        b = gameforecast_worker(clock, redis, store, handler, ["champions_league"])
+        report_b = InThread(lambda: b.service.ensure_synced(force=False), "caller B").join()
+        assert report_b["competitions"]["champions_league"]["fetched"] == 1
+    
+        a_release.set()
+        report_a = first.join()
+>       assert store.get(GameForecastProvider.unresolved_key("champions_league")) is None, \
+            "A's late empty answer marked the league unresolved"
+E       AssertionError: A's late empty answer marked the league unresolved
+E       assert {'at': '2026-10-19T12:07:38.325505+00:00', 'key': 'champions_league'} is None
+E        +  where {'at': '2026-10-19T12:07:38.325505+00:00', 'key': 'champions_league'} = <bound method MatchCache.get of <app.services.match_cache.MatchCache object at 0x10baa3b90>>('provider:gameforecast:leagues:unresolved:champions_league')
+E        +    where <bound method MatchCache.get of <app.services.match_cache.MatchCache object at 0x10baa3b90>> = <app.services.match_cache.MatchCache object at 0x10baa3b90>.get
+E        +    and   'provider:gameforecast:leagues:unresolved:champions_league' = <function GameForecastProvider.unresolved_key at 0x10b46f9c0>('champions_league')
+E        +      where <function GameForecastProvider.unresolved_key at 0x10b46f9c0> = GameForecastProvider.unresolved_key
+
+tests/services/test_forecast_takeover_gaps.py:226: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:38.324633", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/leagues?name=champions%20league&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:38.324887", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/events?league_id=22&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:38.325459", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/leagues?name=champions%20league&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:38.325531", "level": "WARNING", "logger": "app.services.providers.gameforecast", "message": "GameForecastAPI: league id for champions_league could not be resolved; not retrying for 6h", "module": "gameforecast", "function": "resolve_league", "line": 454}
+{"timestamp": "2026-10-19T12:07:38.325565", "level": "WARNING", "logger": "app.services.sync_lease", "message": "gameforecast forecast sync lease lost: the lease is no longer this worker's: it expired or another worker holds it", "module": "sync_lease", "function": "_lose", "line": 161}
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/leagues?name=champions%20league&page_size=50 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/events?league_id=22&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/leagues?name=champions%20league&page_size=50 "HTTP/1.1 200 OK"
+WARNING  app.services.providers.gameforecast:gameforecast.py:454 GameForecastAPI: league id for champions_league could not be resolved; not retrying for 6h
+WARNING  app.services.sync_lease:sync_lease.py:161 gameforecast forecast sync lease lost: the lease is no longer this worker's: it expired or another worker holds it
+_ test_a_cache_whose_redis_failed_to_initialise_refuses_the_fetching_pass[automatic] _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10baa1950>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10baa0410>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10baa2510>
+force = False
+
+    @pytest.mark.parametrize("force", [False, True], ids=["automatic", "forced"])
+    def test_a_cache_whose_redis_failed_to_initialise_refuses_the_fetching_pass(clock, redis, monkeypatch, force):
+        """The forecast cache cannot reach Redis at start-up. Neither an automatic nor a forced pass may
+        fetch: no coordination, no fetch. The request budget is untouched."""
+        import app.core.redis as core_redis
+    
+        def down():
+            raise ConnectionError("isolated test: Redis unreachable at start-up")
+    
+        monkeypatch.setattr(core_redis, "get_match_data_redis", down)
+        h = harness(clock, redis, ["premier_league"])
+        report = plain_service(h, MatchCache()).ensure_synced(force=force)
+>       assert h.provider.calls == [], "an uncoordinated fetch was made"
+E       AssertionError: an uncoordinated fetch was made
+E       assert [('premier_le...imezone.utc))] == []
+E         Left contains one more item: ('premier_league', datetime.datetime(2026, 10, 19, 13, 0, tzinfo=datetime.timezone.utc))
+E         Use -v to get more diff
+
+tests/services/test_forecast_takeover_gaps.py:257: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:38.330129", "level": "WARNING", "logger": "app.services.match_cache", "message": "Match cache disabled, Redis unavailable: isolated test: Redis unreachable at start-up", "module": "match_cache", "function": "_redis", "line": 28}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.match_cache:match_cache.py:28 Match cache disabled, Redis unavailable: isolated test: Redis unreachable at start-up
+_ test_a_cache_whose_redis_failed_to_initialise_refuses_the_fetching_pass[forced] _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10ba4c190>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10ba4d1d0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10baa36d0>
+force = True
+
+    @pytest.mark.parametrize("force", [False, True], ids=["automatic", "forced"])
+    def test_a_cache_whose_redis_failed_to_initialise_refuses_the_fetching_pass(clock, redis, monkeypatch, force):
+        """The forecast cache cannot reach Redis at start-up. Neither an automatic nor a forced pass may
+        fetch: no coordination, no fetch. The request budget is untouched."""
+        import app.core.redis as core_redis
+    
+        def down():
+            raise ConnectionError("isolated test: Redis unreachable at start-up")
+    
+        monkeypatch.setattr(core_redis, "get_match_data_redis", down)
+        h = harness(clock, redis, ["premier_league"])
+        report = plain_service(h, MatchCache()).ensure_synced(force=force)
+>       assert h.provider.calls == [], "an uncoordinated fetch was made"
+E       AssertionError: an uncoordinated fetch was made
+E       assert [('premier_le...imezone.utc))] == []
+E         Left contains one more item: ('premier_league', datetime.datetime(2026, 10, 19, 13, 0, tzinfo=datetime.timezone.utc))
+E         Use -v to get more diff
+
+tests/services/test_forecast_takeover_gaps.py:257: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:38.333884", "level": "WARNING", "logger": "app.services.match_cache", "message": "Match cache disabled, Redis unavailable: isolated test: Redis unreachable at start-up", "module": "match_cache", "function": "_redis", "line": 28}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.match_cache:match_cache.py:28 Match cache disabled, Redis unavailable: isolated test: Redis unreachable at start-up
+______ test_a_redis_that_fails_while_the_lease_is_taken_refuses_the_pass _______
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10bd7b990>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10bd78f10>
+
+    def test_a_redis_that_fails_while_the_lease_is_taken_refuses_the_pass(clock, redis):
+        class FailingLease(LockingFakeRedis):
+            def set(self, key, value, nx=False, ex=None, **kwargs):
+                if nx:
+                    raise ConnectionError("isolated test: SET NX failed")
+                return super().set(key, value, nx=nx, ex=ex, **kwargs)
+    
+        h = harness(clock, redis, ["premier_league"])
+        report = plain_service(h, MatchCache(client=FailingLease(clock=clock))).ensure_synced(force=True)
+        assert h.provider.calls == [] and h.budget.used_today() == 0, "a fetch started without the lease"
+        # Reported as what it is, not as "another worker is running":
+>       assert report.get("coordination_unavailable") is True and "could not be taken" in report["error"]
+E       AssertionError: assert (None is True)
+E        +  where None = <built-in method get of dict object at 0x10be5af40>('coordination_unavailable')
+E        +    where <built-in method get of dict object at 0x10be5af40> = {'competitions': {}, 'deferred': [], 'error': 'a stub sync is already running', 'policy': 'daily-slot', ...}.get
+
+tests/services/test_forecast_takeover_gaps.py:273: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:38.337531", "level": "WARNING", "logger": "app.services.sync_lease", "message": "stub forecast sync lease could not be taken (isolated test: SET NX failed); not proceeding", "module": "sync_lease", "function": "acquire", "line": 184}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:184 stub forecast sync lease could not be taken (isolated test: SET NX failed); not proceeding
+____ test_a_reservation_whose_owner_check_cannot_run_is_refused_not_counted ____
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10c0004d0>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10c0034d0>
+
+    def test_a_reservation_whose_owner_check_cannot_run_is_refused_not_counted(clock, redis):
+        """The lease renews fine, but the owner-checked reservation itself fails (the budget store errors
+        on the script). Nothing may be reserved by any other path, and nothing is sent."""
+>       from app.services.providers.budget import FENCED_RESERVE_LUA
+E       ImportError: cannot import name 'FENCED_RESERVE_LUA' from 'app.services.providers.budget' (<disposable-worktree>/backend/app/services/providers/budget.py)
+
+tests/services/test_forecast_takeover_gaps.py:279: ImportError
+_ test_a_budget_store_on_another_redis_server_cannot_be_owner_checked_and_is_refused _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10c071bd0>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10c072650>
+
+    def test_a_budget_store_on_another_redis_server_cannot_be_owner_checked_and_is_refused(clock, redis):
+>       from app.services.sync_lease import LeaseLost, SyncLease, lease_scope
+E       ImportError: cannot import name 'lease_scope' from 'app.services.sync_lease' (<disposable-worktree>/backend/app/services/sync_lease.py)
+
+tests/services/test_forecast_takeover_gaps.py:295: ImportError
+_ test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands[older-first] _
+
+self = <sqlalchemy.engine.base.Connection object at 0x10c0f1510>
+dialect = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10c10b590>
+statement = <sqlalchemy.dialects.postgresql.base.PGCompiler object at 0x10c101490>
+parameters = [{'anomalies': 'null', 'away_win_prob': Decimal('0.3'), 'btts_no_prob': None, 'btts_yes_prob': None, ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+cursor = <cursor object at 0x10bf35c60; closed: -1>
+statement = 'INSERT INTO predictions.provider_forecasts (match_id, provider, external_event_id, home_win_prob, draw_prob, away_win...odel_run_at)s, %(provider_updated_at)s, %(fetched_at)s, %(raw_payload)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)'
+parameters = {'anomalies': 'null', 'away_win_prob': Decimal('0.3'), 'btts_no_prob': None, 'btts_yes_prob': None, ...}
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10c10b590>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "uq_provider_forecasts_match_provider"
+E       DETAIL:  Key (match_id, provider)=(84140daa-7867-483c-9fce-c72929f4d86d, stub) already exists.
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/default.py:922: UniqueViolation
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test)
+world = namespace(Session=sessionmaker(class_='Session', bind=Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test),...t=True), match_id=UUID('84140daa-7867-483c-9fce-c72929f4d86d'), league_id=UUID('75e2ab6a-87c1-4ed6-b6b2-2a1cd4200e05'))
+order = 'older-first'
+
+    @pytest.mark.parametrize("order", list(ORDERS))
+    def test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands(engine, world, order):
+        (t1, p1), (t2, p2) = ORDERS[order]
+>       interleave(engine, world, "provider_forecasts", forecast(t1, p1), forecast(t2, p2), "upsert")
+
+tests/services/test_forecast_first_insert_pg.py:186: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/services/test_forecast_first_insert_pg.py:153: in interleave
+    two.join()
+tests/services/test_forecast_sync_concurrency.py:133: in join
+    raise self.error
+tests/services/test_forecast_sync_concurrency.py:125: in _run
+    self.result = fn()
+tests/services/test_forecast_first_insert_pg.py:148: in <lambda>
+    two = InThread(lambda: run_worker(world, second, step), "worker 2")
+tests/services/test_forecast_first_insert_pg.py:129: in run_worker
+    svc._upsert_record(session.get(Match, world.match_id), payload, "exact", "provider_id")
+app/services/forecast_service.py:1166: in _upsert_record
+    self._record_snapshot(match, forecast, confidence, matched_by)
+app/services/forecast_service.py:1183: in _record_snapshot
+    latest = choose_snapshots(
+app/services/forecast_service.py:147: in choose_snapshots
+    for row in order_snapshots(query).all():
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/query.py:2693: in all
+    return self._iter().all()  # type: ignore
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/query.py:2847: in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:2308: in execute
+    return self._execute_internal(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:2169: in _execute_internal
+    ) = compile_state_cls.orm_pre_session_exec(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/context.py:551: in orm_pre_session_exec
+    session._autoflush()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:3021: in _autoflush
+    raise e.with_traceback(sys.exc_info()[2])
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:3010: in _autoflush
+    self.flush()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4312: in flush
+    self._flush(objects)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4447: in _flush
+    with util.safe_reraise():
+venv311/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4408: in _flush
+    flush_context.execute()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py:466: in execute
+    rec.execute(self)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py:93: in save_obj
+    _emit_insert_statements(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py:1043: in _emit_insert_statements
+    result = connection.execute(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1416: in execute
+    return meth(
+venv311/lib/python3.11/site-packages/sqlalchemy/sql/elements.py:516: in _execute_on_connection
+    return connection._execute_clauseelement(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1639: in _execute_clauseelement
+    ret = self._execute_context(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:2343: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+cursor = <cursor object at 0x10bf35c60; closed: -1>
+statement = 'INSERT INTO predictions.provider_forecasts (match_id, provider, external_event_id, home_win_prob, draw_prob, away_win...odel_run_at)s, %(provider_updated_at)s, %(fetched_at)s, %(raw_payload)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)'
+parameters = {'anomalies': 'null', 'away_win_prob': Decimal('0.3'), 'btts_no_prob': None, 'btts_yes_prob': None, ...}
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10c10b590>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.IntegrityError: (raised as a result of Query-invoked autoflush; consider using a session.no_autoflush block if this flush is occurring prematurely)
+E       (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "uq_provider_forecasts_match_provider"
+E       DETAIL:  Key (match_id, provider)=(84140daa-7867-483c-9fce-c72929f4d86d, stub) already exists.
+E       
+E       [SQL: INSERT INTO predictions.provider_forecasts (match_id, provider, external_event_id, home_win_prob, draw_prob, away_win_prob, btts_yes_prob, btts_no_prob, total_goals_over_25_prob, total_goals_under_25_prob, total_goals_over_35_prob, total_goals_under_35_prob, exact_score, exact_score_other_prob, recommended_bets, reasoning, confidence, anomalies, match_confidence, matched_by, model_run_at, provider_updated_at, fetched_at, raw_payload, id, created_at, updated_at) VALUES (%(match_id)s::UUID, %(provider)s, %(external_event_id)s, %(home_win_prob)s, %(draw_prob)s, %(away_win_prob)s, %(btts_yes_prob)s, %(btts_no_prob)s, %(total_goals_over_25_prob)s, %(total_goals_under_25_prob)s, %(total_goals_over_35_prob)s, %(total_goals_under_35_prob)s, %(exact_score)s, %(exact_score_other_prob)s, %(recommended_bets)s, %(reasoning)s, %(confidence)s, %(anomalies)s, %(match_confidence)s, %(matched_by)s, %(model_run_at)s, %(provider_updated_at)s, %(fetched_at)s, %(raw_payload)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)]
+E       [parameters: {'match_id': UUID('84140daa-7867-483c-9fce-c72929f4d86d'), 'provider': 'stub', 'external_event_id': 'evt-27378', 'home_win_prob': Decimal('0.4'), 'draw_prob': Decimal('0.3'), 'away_win_prob': Decimal('0.3'), 'btts_yes_prob': None, 'btts_no_prob': None, 'total_goals_over_25_prob': None, 'total_goals_under_25_prob': None, 'total_goals_over_35_prob': None, 'total_goals_under_35_prob': None, 'exact_score': 'null', 'exact_score_other_prob': None, 'recommended_bets': 'null', 'reasoning': None, 'confidence': None, 'anomalies': 'null', 'match_confidence': 'exact', 'matched_by': 'provider_id', 'model_run_at': datetime.datetime(2026, 9, 24, 6, 0), 'provider_updated_at': None, 'fetched_at': datetime.datetime(2026, 9, 24, 13, 5), 'raw_payload': '{"id": 27415, "odds": [{"key": "match_winner", "type": "3_ways", "run_at": "2026-09-24", "values": {"Away": 5, "Draw": 3.6, "Home": 1.7}}], "round":  ... (3070 characters truncated) ... t_half_winner": {"away": 15, "draw": 50, "home": 35}, "team_to_score_first": {"away": 25, "home": 60, "neither": 15}}], "status_code": "NOT_STARTED"}', 'id': UUID('bf620386-b6c8-4d96-a618-6a54468d6779'), 'created_at': datetime.datetime(2026, 10, 19, 12, 7, 38, 517918), 'updated_at': datetime.datetime(2026, 10, 19, 12, 7, 38, 517920)}]
+E       (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/default.py:922: IntegrityError
+_ test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands[newer-first] _
+
+self = <sqlalchemy.engine.base.Connection object at 0x114844fd0>
+dialect = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x1148467d0>
+statement = <sqlalchemy.dialects.postgresql.base.PGCompiler object at 0x10c101490>
+parameters = [{'anomalies': 'null', 'away_win_prob': Decimal('0.32'), 'btts_no_prob': None, 'btts_yes_prob': None, ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+cursor = <cursor object at 0x10c01c220; closed: -1>
+statement = 'INSERT INTO predictions.provider_forecasts (match_id, provider, external_event_id, home_win_prob, draw_prob, away_win...odel_run_at)s, %(provider_updated_at)s, %(fetched_at)s, %(raw_payload)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)'
+parameters = {'anomalies': 'null', 'away_win_prob': Decimal('0.32'), 'btts_no_prob': None, 'btts_yes_prob': None, ...}
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x1148467d0>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "uq_provider_forecasts_match_provider"
+E       DETAIL:  Key (match_id, provider)=(ceb8a0e2-5be3-4aa0-a3ac-6d8692d252fa, stub) already exists.
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/default.py:922: UniqueViolation
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test)
+world = namespace(Session=sessionmaker(class_='Session', bind=Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test),...t=True), match_id=UUID('ceb8a0e2-5be3-4aa0-a3ac-6d8692d252fa'), league_id=UUID('88041221-ffe6-46df-b89d-be07a438a958'))
+order = 'newer-first'
+
+    @pytest.mark.parametrize("order", list(ORDERS))
+    def test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands(engine, world, order):
+        (t1, p1), (t2, p2) = ORDERS[order]
+>       interleave(engine, world, "provider_forecasts", forecast(t1, p1), forecast(t2, p2), "upsert")
+
+tests/services/test_forecast_first_insert_pg.py:186: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/services/test_forecast_first_insert_pg.py:153: in interleave
+    two.join()
+tests/services/test_forecast_sync_concurrency.py:133: in join
+    raise self.error
+tests/services/test_forecast_sync_concurrency.py:125: in _run
+    self.result = fn()
+tests/services/test_forecast_first_insert_pg.py:148: in <lambda>
+    two = InThread(lambda: run_worker(world, second, step), "worker 2")
+tests/services/test_forecast_first_insert_pg.py:129: in run_worker
+    svc._upsert_record(session.get(Match, world.match_id), payload, "exact", "provider_id")
+app/services/forecast_service.py:1166: in _upsert_record
+    self._record_snapshot(match, forecast, confidence, matched_by)
+app/services/forecast_service.py:1183: in _record_snapshot
+    latest = choose_snapshots(
+app/services/forecast_service.py:147: in choose_snapshots
+    for row in order_snapshots(query).all():
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/query.py:2693: in all
+    return self._iter().all()  # type: ignore
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/query.py:2847: in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:2308: in execute
+    return self._execute_internal(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:2169: in _execute_internal
+    ) = compile_state_cls.orm_pre_session_exec(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/context.py:551: in orm_pre_session_exec
+    session._autoflush()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:3021: in _autoflush
+    raise e.with_traceback(sys.exc_info()[2])
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:3010: in _autoflush
+    self.flush()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4312: in flush
+    self._flush(objects)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4447: in _flush
+    with util.safe_reraise():
+venv311/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4408: in _flush
+    flush_context.execute()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py:466: in execute
+    rec.execute(self)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py:93: in save_obj
+    _emit_insert_statements(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py:1043: in _emit_insert_statements
+    result = connection.execute(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1416: in execute
+    return meth(
+venv311/lib/python3.11/site-packages/sqlalchemy/sql/elements.py:516: in _execute_on_connection
+    return connection._execute_clauseelement(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1639: in _execute_clauseelement
+    ret = self._execute_context(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:2343: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+cursor = <cursor object at 0x10c01c220; closed: -1>
+statement = 'INSERT INTO predictions.provider_forecasts (match_id, provider, external_event_id, home_win_prob, draw_prob, away_win...odel_run_at)s, %(provider_updated_at)s, %(fetched_at)s, %(raw_payload)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)'
+parameters = {'anomalies': 'null', 'away_win_prob': Decimal('0.32'), 'btts_no_prob': None, 'btts_yes_prob': None, ...}
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x1148467d0>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.IntegrityError: (raised as a result of Query-invoked autoflush; consider using a session.no_autoflush block if this flush is occurring prematurely)
+E       (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "uq_provider_forecasts_match_provider"
+E       DETAIL:  Key (match_id, provider)=(ceb8a0e2-5be3-4aa0-a3ac-6d8692d252fa, stub) already exists.
+E       
+E       [SQL: INSERT INTO predictions.provider_forecasts (match_id, provider, external_event_id, home_win_prob, draw_prob, away_win_prob, btts_yes_prob, btts_no_prob, total_goals_over_25_prob, total_goals_under_25_prob, total_goals_over_35_prob, total_goals_under_35_prob, exact_score, exact_score_other_prob, recommended_bets, reasoning, confidence, anomalies, match_confidence, matched_by, model_run_at, provider_updated_at, fetched_at, raw_payload, id, created_at, updated_at) VALUES (%(match_id)s::UUID, %(provider)s, %(external_event_id)s, %(home_win_prob)s, %(draw_prob)s, %(away_win_prob)s, %(btts_yes_prob)s, %(btts_no_prob)s, %(total_goals_over_25_prob)s, %(total_goals_under_25_prob)s, %(total_goals_over_35_prob)s, %(total_goals_under_35_prob)s, %(exact_score)s, %(exact_score_other_prob)s, %(recommended_bets)s, %(reasoning)s, %(confidence)s, %(anomalies)s, %(match_confidence)s, %(matched_by)s, %(model_run_at)s, %(provider_updated_at)s, %(fetched_at)s, %(raw_payload)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)]
+E       [parameters: {'match_id': UUID('ceb8a0e2-5be3-4aa0-a3ac-6d8692d252fa'), 'provider': 'stub', 'external_event_id': 'evt-27378', 'home_win_prob': Decimal('0.38'), 'draw_prob': Decimal('0.3'), 'away_win_prob': Decimal('0.32'), 'btts_yes_prob': None, 'btts_no_prob': None, 'total_goals_over_25_prob': None, 'total_goals_under_25_prob': None, 'total_goals_over_35_prob': None, 'total_goals_under_35_prob': None, 'exact_score': 'null', 'exact_score_other_prob': None, 'recommended_bets': 'null', 'reasoning': None, 'confidence': None, 'anomalies': 'null', 'match_confidence': 'exact', 'matched_by': 'provider_id', 'model_run_at': datetime.datetime(2026, 9, 24, 6, 0), 'provider_updated_at': None, 'fetched_at': datetime.datetime(2026, 9, 24, 13, 0), 'raw_payload': '{"id": 27415, "odds": [{"key": "match_winner", "type": "3_ways", "run_at": "2026-09-24", "values": {"Away": 5, "Draw": 3.6, "Home": 1.7}}], "round":  ... (3070 characters truncated) ... t_half_winner": {"away": 15, "draw": 50, "home": 35}, "team_to_score_first": {"away": 25, "home": 60, "neither": 15}}], "status_code": "NOT_STARTED"}', 'id': UUID('67b09667-63df-4605-9051-3f407c6cf692'), 'created_at': datetime.datetime(2026, 10, 19, 12, 7, 38, 812183), 'updated_at': datetime.datetime(2026, 10, 19, 12, 7, 38, 812183)}]
+E       (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/default.py:922: IntegrityError
+_ test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands[tied] _
+
+self = <sqlalchemy.engine.base.Connection object at 0x10c251a10>
+dialect = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10bbdf710>
+statement = <sqlalchemy.dialects.postgresql.base.PGCompiler object at 0x10c101490>
+parameters = [{'anomalies': 'null', 'away_win_prob': Decimal('0.29'), 'btts_no_prob': None, 'btts_yes_prob': None, ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+cursor = <cursor object at 0x10bf35d50; closed: -1>
+statement = 'INSERT INTO predictions.provider_forecasts (match_id, provider, external_event_id, home_win_prob, draw_prob, away_win...odel_run_at)s, %(provider_updated_at)s, %(fetched_at)s, %(raw_payload)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)'
+parameters = {'anomalies': 'null', 'away_win_prob': Decimal('0.29'), 'btts_no_prob': None, 'btts_yes_prob': None, ...}
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10bbdf710>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "uq_provider_forecasts_match_provider"
+E       DETAIL:  Key (match_id, provider)=(c4ccd5ac-92dc-40c2-acc3-06bf15c6dbb8, stub) already exists.
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/default.py:922: UniqueViolation
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test)
+world = namespace(Session=sessionmaker(class_='Session', bind=Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test),...t=True), match_id=UUID('c4ccd5ac-92dc-40c2-acc3-06bf15c6dbb8'), league_id=UUID('1c536b6e-c692-4c38-897b-c5b8b8619a6a'))
+order = 'tied'
+
+    @pytest.mark.parametrize("order", list(ORDERS))
+    def test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands(engine, world, order):
+        (t1, p1), (t2, p2) = ORDERS[order]
+>       interleave(engine, world, "provider_forecasts", forecast(t1, p1), forecast(t2, p2), "upsert")
+
+tests/services/test_forecast_first_insert_pg.py:186: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/services/test_forecast_first_insert_pg.py:153: in interleave
+    two.join()
+tests/services/test_forecast_sync_concurrency.py:133: in join
+    raise self.error
+tests/services/test_forecast_sync_concurrency.py:125: in _run
+    self.result = fn()
+tests/services/test_forecast_first_insert_pg.py:148: in <lambda>
+    two = InThread(lambda: run_worker(world, second, step), "worker 2")
+tests/services/test_forecast_first_insert_pg.py:129: in run_worker
+    svc._upsert_record(session.get(Match, world.match_id), payload, "exact", "provider_id")
+app/services/forecast_service.py:1166: in _upsert_record
+    self._record_snapshot(match, forecast, confidence, matched_by)
+app/services/forecast_service.py:1183: in _record_snapshot
+    latest = choose_snapshots(
+app/services/forecast_service.py:147: in choose_snapshots
+    for row in order_snapshots(query).all():
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/query.py:2693: in all
+    return self._iter().all()  # type: ignore
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/query.py:2847: in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:2308: in execute
+    return self._execute_internal(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:2169: in _execute_internal
+    ) = compile_state_cls.orm_pre_session_exec(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/context.py:551: in orm_pre_session_exec
+    session._autoflush()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:3021: in _autoflush
+    raise e.with_traceback(sys.exc_info()[2])
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:3010: in _autoflush
+    self.flush()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4312: in flush
+    self._flush(objects)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4447: in _flush
+    with util.safe_reraise():
+venv311/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4408: in _flush
+    flush_context.execute()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py:466: in execute
+    rec.execute(self)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py:93: in save_obj
+    _emit_insert_statements(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py:1043: in _emit_insert_statements
+    result = connection.execute(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1416: in execute
+    return meth(
+venv311/lib/python3.11/site-packages/sqlalchemy/sql/elements.py:516: in _execute_on_connection
+    return connection._execute_clauseelement(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1639: in _execute_clauseelement
+    ret = self._execute_context(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:2343: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+cursor = <cursor object at 0x10bf35d50; closed: -1>
+statement = 'INSERT INTO predictions.provider_forecasts (match_id, provider, external_event_id, home_win_prob, draw_prob, away_win...odel_run_at)s, %(provider_updated_at)s, %(fetched_at)s, %(raw_payload)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)'
+parameters = {'anomalies': 'null', 'away_win_prob': Decimal('0.29'), 'btts_no_prob': None, 'btts_yes_prob': None, ...}
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10bbdf710>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.IntegrityError: (raised as a result of Query-invoked autoflush; consider using a session.no_autoflush block if this flush is occurring prematurely)
+E       (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "uq_provider_forecasts_match_provider"
+E       DETAIL:  Key (match_id, provider)=(c4ccd5ac-92dc-40c2-acc3-06bf15c6dbb8, stub) already exists.
+E       
+E       [SQL: INSERT INTO predictions.provider_forecasts (match_id, provider, external_event_id, home_win_prob, draw_prob, away_win_prob, btts_yes_prob, btts_no_prob, total_goals_over_25_prob, total_goals_under_25_prob, total_goals_over_35_prob, total_goals_under_35_prob, exact_score, exact_score_other_prob, recommended_bets, reasoning, confidence, anomalies, match_confidence, matched_by, model_run_at, provider_updated_at, fetched_at, raw_payload, id, created_at, updated_at) VALUES (%(match_id)s::UUID, %(provider)s, %(external_event_id)s, %(home_win_prob)s, %(draw_prob)s, %(away_win_prob)s, %(btts_yes_prob)s, %(btts_no_prob)s, %(total_goals_over_25_prob)s, %(total_goals_under_25_prob)s, %(total_goals_over_35_prob)s, %(total_goals_under_35_prob)s, %(exact_score)s, %(exact_score_other_prob)s, %(recommended_bets)s, %(reasoning)s, %(confidence)s, %(anomalies)s, %(match_confidence)s, %(matched_by)s, %(model_run_at)s, %(provider_updated_at)s, %(fetched_at)s, %(raw_payload)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)]
+E       [parameters: {'match_id': UUID('c4ccd5ac-92dc-40c2-acc3-06bf15c6dbb8'), 'provider': 'stub', 'external_event_id': 'evt-27378', 'home_win_prob': Decimal('0.41'), 'draw_prob': Decimal('0.3'), 'away_win_prob': Decimal('0.29'), 'btts_yes_prob': None, 'btts_no_prob': None, 'total_goals_over_25_prob': None, 'total_goals_under_25_prob': None, 'total_goals_over_35_prob': None, 'total_goals_under_35_prob': None, 'exact_score': 'null', 'exact_score_other_prob': None, 'recommended_bets': 'null', 'reasoning': None, 'confidence': None, 'anomalies': 'null', 'match_confidence': 'exact', 'matched_by': 'provider_id', 'model_run_at': datetime.datetime(2026, 9, 24, 6, 0), 'provider_updated_at': None, 'fetched_at': datetime.datetime(2026, 9, 24, 13, 0), 'raw_payload': '{"id": 27415, "odds": [{"key": "match_winner", "type": "3_ways", "run_at": "2026-09-24", "values": {"Away": 5, "Draw": 3.6, "Home": 1.7}}], "round":  ... (3070 characters truncated) ... t_half_winner": {"away": 15, "draw": 50, "home": 35}, "team_to_score_first": {"away": 25, "home": 60, "neither": 15}}], "status_code": "NOT_STARTED"}', 'id': UUID('949356eb-96d6-4e8a-9b86-28d363d3842e'), 'created_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 139155), 'updated_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 139156)}]
+E       (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/default.py:922: IntegrityError
+_ test_two_workers_attaching_the_same_new_event_meet_at_its_provider_reference_and_both_succeed[older-first] _
+
+self = <sqlalchemy.engine.base.Connection object at 0x10c70de10>
+dialect = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10c785950>
+statement = <sqlalchemy.dialects.postgresql.base.PGCompiler object at 0x10ba76a10>
+parameters = [{'created_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 483907), 'entity_id': UUID('b4237500-8805-41f4-af24-f688c1d8bd8a'), 'entity_type': 'match', 'external_id': 'evt-27378', ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+cursor = <cursor object at 0x10bc962f0; closed: -1>
+statement = 'INSERT INTO predictions.provider_entity_refs (entity_type, entity_id, provider, external_id, match_confidence, matche...%(external_id)s, %(match_confidence)s, %(matched_by)s, %(ref_metadata)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)'
+parameters = {'created_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 483907), 'entity_id': UUID('b4237500-8805-41f4-af24-f688c1d8bd8a'), 'entity_type': 'match', 'external_id': 'evt-27378', ...}
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10c785950>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "uq_provider_entity_refs_provider_external"
+E       DETAIL:  Key (entity_type, provider, external_id)=(match, stub, evt-27378) already exists.
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/default.py:922: UniqueViolation
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test)
+world = namespace(Session=sessionmaker(class_='Session', bind=Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test),...t=True), match_id=UUID('b4237500-8805-41f4-af24-f688c1d8bd8a'), league_id=UUID('65812da7-4848-42d2-be3c-a35b887a9a89'))
+order = 'older-first'
+
+    @pytest.mark.parametrize("order", ["older-first", "newer-first"])
+    def test_two_workers_attaching_the_same_new_event_meet_at_its_provider_reference_and_both_succeed(engine, world, order):
+        """The whole attachment: both workers find no reference for the new provider event and both
+        would insert it. Neither may fail; one reference, one current row, the newer retrieval."""
+        (t1, p1), (t2, p2) = ORDERS[order]
+>       interleave(engine, world, "provider_entity_refs", forecast(t1, p1), forecast(t2, p2), "attach")
+
+tests/services/test_forecast_first_insert_pg.py:208: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/services/test_forecast_first_insert_pg.py:153: in interleave
+    two.join()
+tests/services/test_forecast_sync_concurrency.py:133: in join
+    raise self.error
+tests/services/test_forecast_sync_concurrency.py:125: in _run
+    self.result = fn()
+tests/services/test_forecast_first_insert_pg.py:148: in <lambda>
+    two = InThread(lambda: run_worker(world, second, step), "worker 2")
+tests/services/test_forecast_first_insert_pg.py:131: in run_worker
+    outcome = svc.attach_forecast(payload, KEY, world.league_id)
+app/services/forecast_service.py:1093: in attach_forecast
+    self.registry.set_ref("match", match.id, forecast.provider, forecast.external_event_id, confidence=confidence,
+app/services/match_registry.py:496: in set_ref
+    self.db.flush()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4312: in flush
+    self._flush(objects)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4447: in _flush
+    with util.safe_reraise():
+venv311/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4408: in _flush
+    flush_context.execute()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py:466: in execute
+    rec.execute(self)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py:93: in save_obj
+    _emit_insert_statements(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py:1043: in _emit_insert_statements
+    result = connection.execute(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1416: in execute
+    return meth(
+venv311/lib/python3.11/site-packages/sqlalchemy/sql/elements.py:516: in _execute_on_connection
+    return connection._execute_clauseelement(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1639: in _execute_clauseelement
+    ret = self._execute_context(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:2343: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+cursor = <cursor object at 0x10bc962f0; closed: -1>
+statement = 'INSERT INTO predictions.provider_entity_refs (entity_type, entity_id, provider, external_id, match_confidence, matche...%(external_id)s, %(match_confidence)s, %(matched_by)s, %(ref_metadata)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)'
+parameters = {'created_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 483907), 'entity_id': UUID('b4237500-8805-41f4-af24-f688c1d8bd8a'), 'entity_type': 'match', 'external_id': 'evt-27378', ...}
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10c785950>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "uq_provider_entity_refs_provider_external"
+E       DETAIL:  Key (entity_type, provider, external_id)=(match, stub, evt-27378) already exists.
+E       
+E       [SQL: INSERT INTO predictions.provider_entity_refs (entity_type, entity_id, provider, external_id, match_confidence, matched_by, ref_metadata, id, created_at, updated_at) VALUES (%(entity_type)s, %(entity_id)s::UUID, %(provider)s, %(external_id)s, %(match_confidence)s, %(matched_by)s, %(ref_metadata)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)]
+E       [parameters: {'entity_type': 'match', 'entity_id': UUID('b4237500-8805-41f4-af24-f688c1d8bd8a'), 'provider': 'stub', 'external_id': 'evt-27378', 'match_confidence': 'exact', 'matched_by': 'name_kickoff', 'ref_metadata': '{"home": "Rep. Of Ireland", "away": "Kosovo", "kickoff_utc": "2026-09-25T16:00:00+00:00"}', 'id': UUID('9f8fe474-65b3-4c75-a69b-e673249f802a'), 'created_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 483907), 'updated_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 483908)}]
+E       (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/default.py:922: IntegrityError
+_ test_two_workers_attaching_the_same_new_event_meet_at_its_provider_reference_and_both_succeed[newer-first] _
+
+self = <sqlalchemy.engine.base.Connection object at 0x114db28d0>
+dialect = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10c08fd50>
+statement = <sqlalchemy.dialects.postgresql.base.PGCompiler object at 0x10ba76a10>
+parameters = [{'created_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 748423), 'entity_id': UUID('5f69e3a5-fb7c-4376-9e80-1942d104c90b'), 'entity_type': 'match', 'external_id': 'evt-27378', ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+cursor = <cursor object at 0x10c05c130; closed: -1>
+statement = 'INSERT INTO predictions.provider_entity_refs (entity_type, entity_id, provider, external_id, match_confidence, matche...%(external_id)s, %(match_confidence)s, %(matched_by)s, %(ref_metadata)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)'
+parameters = {'created_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 748423), 'entity_id': UUID('5f69e3a5-fb7c-4376-9e80-1942d104c90b'), 'entity_type': 'match', 'external_id': 'evt-27378', ...}
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10c08fd50>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "uq_provider_entity_refs_provider_external"
+E       DETAIL:  Key (entity_type, provider, external_id)=(match, stub, evt-27378) already exists.
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/default.py:922: UniqueViolation
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test)
+world = namespace(Session=sessionmaker(class_='Session', bind=Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test),...t=True), match_id=UUID('5f69e3a5-fb7c-4376-9e80-1942d104c90b'), league_id=UUID('05fe2b61-5ebe-4ef4-a7fc-96e18d8cb870'))
+order = 'newer-first'
+
+    @pytest.mark.parametrize("order", ["older-first", "newer-first"])
+    def test_two_workers_attaching_the_same_new_event_meet_at_its_provider_reference_and_both_succeed(engine, world, order):
+        """The whole attachment: both workers find no reference for the new provider event and both
+        would insert it. Neither may fail; one reference, one current row, the newer retrieval."""
+        (t1, p1), (t2, p2) = ORDERS[order]
+>       interleave(engine, world, "provider_entity_refs", forecast(t1, p1), forecast(t2, p2), "attach")
+
+tests/services/test_forecast_first_insert_pg.py:208: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/services/test_forecast_first_insert_pg.py:153: in interleave
+    two.join()
+tests/services/test_forecast_sync_concurrency.py:133: in join
+    raise self.error
+tests/services/test_forecast_sync_concurrency.py:125: in _run
+    self.result = fn()
+tests/services/test_forecast_first_insert_pg.py:148: in <lambda>
+    two = InThread(lambda: run_worker(world, second, step), "worker 2")
+tests/services/test_forecast_first_insert_pg.py:131: in run_worker
+    outcome = svc.attach_forecast(payload, KEY, world.league_id)
+app/services/forecast_service.py:1093: in attach_forecast
+    self.registry.set_ref("match", match.id, forecast.provider, forecast.external_event_id, confidence=confidence,
+app/services/match_registry.py:496: in set_ref
+    self.db.flush()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4312: in flush
+    self._flush(objects)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4447: in _flush
+    with util.safe_reraise():
+venv311/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/session.py:4408: in _flush
+    flush_context.execute()
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py:466: in execute
+    rec.execute(self)
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py:93: in save_obj
+    _emit_insert_statements(
+venv311/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py:1043: in _emit_insert_statements
+    result = connection.execute(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1416: in execute
+    return meth(
+venv311/lib/python3.11/site-packages/sqlalchemy/sql/elements.py:516: in _execute_on_connection
+    return connection._execute_clauseelement(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1639: in _execute_clauseelement
+    ret = self._execute_context(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:2343: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.postgresql.psycopg2.PGDialect_psycopg2 object at 0x10c024d10>
+cursor = <cursor object at 0x10c05c130; closed: -1>
+statement = 'INSERT INTO predictions.provider_entity_refs (entity_type, entity_id, provider, external_id, match_confidence, matche...%(external_id)s, %(match_confidence)s, %(matched_by)s, %(ref_metadata)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)'
+parameters = {'created_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 748423), 'entity_id': UUID('5f69e3a5-fb7c-4376-9e80-1942d104c90b'), 'entity_type': 'match', 'external_id': 'evt-27378', ...}
+context = <sqlalchemy.dialects.postgresql.psycopg2.PGExecutionContext_psycopg2 object at 0x10c08fd50>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "uq_provider_entity_refs_provider_external"
+E       DETAIL:  Key (entity_type, provider, external_id)=(match, stub, evt-27378) already exists.
+E       
+E       [SQL: INSERT INTO predictions.provider_entity_refs (entity_type, entity_id, provider, external_id, match_confidence, matched_by, ref_metadata, id, created_at, updated_at) VALUES (%(entity_type)s, %(entity_id)s::UUID, %(provider)s, %(external_id)s, %(match_confidence)s, %(matched_by)s, %(ref_metadata)s, %(id)s::UUID, %(created_at)s, %(updated_at)s)]
+E       [parameters: {'entity_type': 'match', 'entity_id': UUID('5f69e3a5-fb7c-4376-9e80-1942d104c90b'), 'provider': 'stub', 'external_id': 'evt-27378', 'match_confidence': 'exact', 'matched_by': 'name_kickoff', 'ref_metadata': '{"home": "Rep. Of Ireland", "away": "Kosovo", "kickoff_utc": "2026-09-25T16:00:00+00:00"}', 'id': UUID('1fcf45b8-efa5-4732-b12d-c691b23d25ed'), 'created_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 748423), 'updated_at': datetime.datetime(2026, 10, 19, 12, 7, 39, 748424)}]
+E       (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+venv311/lib/python3.11/site-packages/sqlalchemy/engine/default.py:922: IntegrityError
+=========================== short test summary info ============================
+FAILED tests/services/test_forecast_takeover_gaps.py::test_a_worker_paused_between_its_check_and_its_reservation_reserves_nothing_after_takeover
+FAILED tests/services/test_forecast_takeover_gaps.py::test_the_same_pause_while_the_successor_is_still_working_is_refused_too
+FAILED tests/services/test_forecast_takeover_gaps.py::test_a_late_answer_cannot_replace_the_page_count_or_window_reading_its_successor_recorded
+FAILED tests/services/test_forecast_takeover_gaps.py::test_a_late_discovery_answer_cannot_mark_a_league_unresolved_that_its_successor_found
+FAILED tests/services/test_forecast_takeover_gaps.py::test_a_cache_whose_redis_failed_to_initialise_refuses_the_fetching_pass[automatic]
+FAILED tests/services/test_forecast_takeover_gaps.py::test_a_cache_whose_redis_failed_to_initialise_refuses_the_fetching_pass[forced]
+FAILED tests/services/test_forecast_takeover_gaps.py::test_a_redis_that_fails_while_the_lease_is_taken_refuses_the_pass
+FAILED tests/services/test_forecast_takeover_gaps.py::test_a_reservation_whose_owner_check_cannot_run_is_refused_not_counted
+FAILED tests/services/test_forecast_takeover_gaps.py::test_a_budget_store_on_another_redis_server_cannot_be_owner_checked_and_is_refused
+FAILED tests/services/test_forecast_first_insert_pg.py::test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands[older-first]
+FAILED tests/services/test_forecast_first_insert_pg.py::test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands[newer-first]
+FAILED tests/services/test_forecast_first_insert_pg.py::test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands[tied]
+FAILED tests/services/test_forecast_first_insert_pg.py::test_two_workers_attaching_the_same_new_event_meet_at_its_provider_reference_and_both_succeed[older-first]
+FAILED tests/services/test_forecast_first_insert_pg.py::test_two_workers_attaching_the_same_new_event_meet_at_its_provider_reference_and_both_succeed[newer-first]
+14 failed in 1.94s
+exit=1

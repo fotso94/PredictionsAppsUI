@@ -1,0 +1,82 @@
+== fixed implementation: app code at ad06218b; test files from ad06218b
+2026-10-19T12:07:26Z
+ad06218b fix: close the remaining lease-takeover gaps - owner-checked reservations, fenced provider bookkeeping, no fetch without Redis, safe first insert
+REDIS_HOST=127.0.0.1 REDIS_PORT=6390 POSTGRES_DB=soccer_predictions_test RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test
+..............                                                           [100%]
+==================================== PASSES ====================================
+_ test_a_worker_paused_between_its_check_and_its_reservation_reserves_nothing_after_takeover _
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:27.284164", "level": "WARNING", "logger": "app.services.sync_lease", "message": "stub forecast sync lease lost: refused at the stub reservation: the lease is no longer this worker's", "module": "sync_lease", "function": "lose", "line": 221}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: refused at the stub reservation: the lease is no longer this worker's
+___ test_the_same_pause_while_the_successor_is_still_working_is_refused_too ____
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:27.286341", "level": "WARNING", "logger": "app.services.sync_lease", "message": "stub forecast sync lease lost: refused at the stub reservation: the lease is no longer this worker's", "module": "sync_lease", "function": "lose", "line": 221}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: refused at the stub reservation: the lease is no longer this worker's
+_ test_a_late_answer_cannot_replace_the_page_count_or_window_reading_its_successor_recorded _
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:27.288739", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:27.289043", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=2&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:27.289739", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:27.289813", "level": "WARNING", "logger": "app.services.sync_lease", "message": "gameforecast forecast sync lease lost: a write was refused: the lease is no longer this worker's", "module": "sync_lease", "function": "lose", "line": 221}
+{"timestamp": "2026-10-19T12:07:27.289846", "level": "INFO", "logger": "app.services.providers.budget", "message": "gameforecast: a rate-limit reading from a worker without the lease was not stored (a write was refused: the lease is no longer this worker's)", "module": "budget", "function": "record", "line": 386}
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=2&page_size=50 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/events?league_id=15&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 "HTTP/1.1 200 OK"
+WARNING  app.services.sync_lease:sync_lease.py:221 gameforecast forecast sync lease lost: a write was refused: the lease is no longer this worker's
+INFO     app.services.providers.budget:budget.py:386 gameforecast: a rate-limit reading from a worker without the lease was not stored (a write was refused: the lease is no longer this worker's)
+_ test_a_late_discovery_answer_cannot_mark_a_league_unresolved_that_its_successor_found _
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:27.291699", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/leagues?name=champions%20league&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:27.291946", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/events?league_id=22&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:27.292472", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET https://gf.test/leagues?name=champions%20league&page_size=50 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request", "line": 1013}
+{"timestamp": "2026-10-19T12:07:27.292529", "level": "WARNING", "logger": "app.services.sync_lease", "message": "gameforecast forecast sync lease lost: a write was refused: the lease is no longer this worker's", "module": "sync_lease", "function": "lose", "line": 221}
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/leagues?name=champions%20league&page_size=50 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/events?league_id=22&start_at_start=2026-10-19&start_at_end=2026-10-26&page=1&page_size=50 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://gf.test/leagues?name=champions%20league&page_size=50 "HTTP/1.1 200 OK"
+WARNING  app.services.sync_lease:sync_lease.py:221 gameforecast forecast sync lease lost: a write was refused: the lease is no longer this worker's
+_ test_a_cache_whose_redis_failed_to_initialise_refuses_the_fetching_pass[automatic] _
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:27.293574", "level": "WARNING", "logger": "app.services.match_cache", "message": "Match cache disabled, Redis unavailable: isolated test: Redis unreachable at start-up", "module": "match_cache", "function": "_redis", "line": 28}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.match_cache:match_cache.py:28 Match cache disabled, Redis unavailable: isolated test: Redis unreachable at start-up
+_ test_a_cache_whose_redis_failed_to_initialise_refuses_the_fetching_pass[forced] _
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:27.294515", "level": "WARNING", "logger": "app.services.match_cache", "message": "Match cache disabled, Redis unavailable: isolated test: Redis unreachable at start-up", "module": "match_cache", "function": "_redis", "line": 28}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.match_cache:match_cache.py:28 Match cache disabled, Redis unavailable: isolated test: Redis unreachable at start-up
+______ test_a_redis_that_fails_while_the_lease_is_taken_refuses_the_pass _______
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:27.295440", "level": "WARNING", "logger": "app.services.sync_lease", "message": "stub forecast sync lease could not be taken (isolated test: SET NX failed); not proceeding", "module": "sync_lease", "function": "acquire", "line": 247}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:247 stub forecast sync lease could not be taken (isolated test: SET NX failed); not proceeding
+____ test_a_reservation_whose_owner_check_cannot_run_is_refused_not_counted ____
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:27.296566", "level": "WARNING", "logger": "app.services.sync_lease", "message": "stub forecast sync lease lost: the stub reservation could not be owner-checked: isolated test: the reservation script failed", "module": "sync_lease", "function": "lose", "line": 221}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: the stub reservation could not be owner-checked: isolated test: the reservation script failed
+_ test_a_budget_store_on_another_redis_server_cannot_be_owner_checked_and_is_refused _
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T12:07:27.297018", "level": "WARNING", "logger": "app.services.sync_lease", "message": "sync lease lost: the store to be written is not on the lease's Redis server; the write cannot be fenced", "module": "sync_lease", "function": "lose", "line": 221}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 sync lease lost: the store to be written is not on the lease's Redis server; the write cannot be fenced
+=========================== short test summary info ============================
+PASSED tests/services/test_forecast_takeover_gaps.py::test_a_worker_paused_between_its_check_and_its_reservation_reserves_nothing_after_takeover
+PASSED tests/services/test_forecast_takeover_gaps.py::test_the_same_pause_while_the_successor_is_still_working_is_refused_too
+PASSED tests/services/test_forecast_takeover_gaps.py::test_a_late_answer_cannot_replace_the_page_count_or_window_reading_its_successor_recorded
+PASSED tests/services/test_forecast_takeover_gaps.py::test_a_late_discovery_answer_cannot_mark_a_league_unresolved_that_its_successor_found
+PASSED tests/services/test_forecast_takeover_gaps.py::test_a_cache_whose_redis_failed_to_initialise_refuses_the_fetching_pass[automatic]
+PASSED tests/services/test_forecast_takeover_gaps.py::test_a_cache_whose_redis_failed_to_initialise_refuses_the_fetching_pass[forced]
+PASSED tests/services/test_forecast_takeover_gaps.py::test_a_redis_that_fails_while_the_lease_is_taken_refuses_the_pass
+PASSED tests/services/test_forecast_takeover_gaps.py::test_a_reservation_whose_owner_check_cannot_run_is_refused_not_counted
+PASSED tests/services/test_forecast_takeover_gaps.py::test_a_budget_store_on_another_redis_server_cannot_be_owner_checked_and_is_refused
+PASSED tests/services/test_forecast_first_insert_pg.py::test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands[older-first]
+PASSED tests/services/test_forecast_first_insert_pg.py::test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands[newer-first]
+PASSED tests/services/test_forecast_first_insert_pg.py::test_two_workers_writing_the_first_forecast_row_both_succeed_and_the_newer_retrieval_stands[tied]
+PASSED tests/services/test_forecast_first_insert_pg.py::test_two_workers_attaching_the_same_new_event_meet_at_its_provider_reference_and_both_succeed[older-first]
+PASSED tests/services/test_forecast_first_insert_pg.py::test_two_workers_attaching_the_same_new_event_meet_at_its_provider_reference_and_both_succeed[newer-first]
+14 passed in 0.76s
+exit=0

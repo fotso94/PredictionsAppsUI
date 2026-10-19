@@ -1,0 +1,7 @@
+checked at 2026-10-19T12:09:27+00:00
+default Redis the app would fall back to: 127.0.0.1 6390 db 0
+default PostgreSQL the app would fall back to: localhost 5432 soccer_predictions_test
+suite test database (TEST_DATABASE_URL default): localhost 5432 soccer_predictions_test
+isolated Redis: port 6390 run_id 338452bf46877557 version 7.4.11 keys per db none
+isolated PostgreSQL: ('forecast_race_test', 5440)
+suite test database: ('soccer_predictions_test', 5432)
