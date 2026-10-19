@@ -444,6 +444,10 @@ class ForecastService:
 
         `force` bypasses eligibility and nothing else. Re-attaching forecasts already paid for
         runs on every path, for every competition, and never consults the policy or the budget.
+
+        Eligibility is decided after the sync lock is taken, from the shared state at that moment,
+        so a worker that waited for the lock never acts on a plan another worker has since made
+        untrue; the lock is released on every path that took it.
         """
         report: Dict[str, Any] = {"provider": self.provider.name if self.provider else None, "competitions": {}, "skipped": []}
         if not self.provider:
@@ -467,25 +471,36 @@ class ForecastService:
             report["synced_at"] = self.now.isoformat()
             self._record_status(report)
             return report
-        plan = self._plan(force)
-        # Every competition, the ones the pass walks first: the free re-attachment below covers
-        # all of them, and a reader of "order" sees every competition the pass considered.
-        order = plan.order + [key for key in self.keys if key not in plan.order]
-        report["order"] = order
-        report["skipped"] = list(plan.ineligible)
-        report["plan"] = plan.to_dict()
         if not self._acquire_sync_lock():
             # Another worker is already spending the allowance. Attaching cached forecasts is free,
             # so that still runs; nothing is fetched twice.
             report["error"] = f"a {self.provider.name} sync is already running"
-            self._retry_all_pending(order, report)
+            self._retry_all_pending(list(self.keys), report)
             report["synced_at"] = self.now.isoformat()
             return report
         stop_reason: Optional[str] = None
         deferred_now: Dict[str, str] = {}
         succeeded: set = set()
+        plan: Optional[RefreshPlan] = None
+        order: List[str] = list(self.keys)
         try:
-            for key in plan.order:
+            # Decide under the lock, from what the shared store says now. A plan made before the
+            # lock goes stale while this worker waits for it: another worker can take the lock,
+            # fetch a competition this one judged due, record its slot and let go, and the outdated
+            # plan would then pay for the same competition twice out of an allowance other
+            # competitions need. The pause is re-read for the same reason: the worker that held
+            # the lock may have been refused and paused the provider since the check above.
+            self._cooldown_cache = _UNSET
+            cooling = self._cooldown_reason()
+            if not cooling:
+                plan = self._plan(force)
+                # Every competition, the ones the pass walks first: the free re-attachment below
+                # covers all of them, and a reader of "order" sees every competition considered.
+                order = plan.order + [key for key in self.keys if key not in plan.order]
+                report["order"] = order
+                report["skipped"] = list(plan.ineligible)
+                report["plan"] = plan.to_dict()
+            for key in (plan.order if plan is not None else []):
                 recheck = key in plan.recheck
                 try:
                     # 1. The calendar, before the allowance is even read. Forecasts can only be
@@ -561,7 +576,18 @@ class ForecastService:
                     self._pause(stop_reason, seconds)
                     break
         finally:
+            # Every path that took the lock gives it back: planning errors, provider errors,
+            # unexpected exceptions, a pause found under the lock, and the normal end of the pass.
             self._release_sync_lock()
+        if plan is None:
+            # The provider was paused while this worker waited for the lock: nothing is asked of
+            # it, and forecasts already paid for are still attached.
+            self._retry_all_pending(order, report)
+            report["error"] = f"skipped (recent failure: {cooling})"
+            report["paused"] = True
+            report["synced_at"] = self.now.isoformat()
+            self._record_status(report)
+            return report
         # Whatever stopped the run, forecasts already paid for can still be attached to fixtures that
         # exist now. This costs no provider request, so it must happen on every path - especially the
         # path where the allowance ran out, which is exactly when the cache is all there is.

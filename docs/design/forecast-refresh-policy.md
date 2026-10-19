@@ -85,7 +85,12 @@ the policy or the budget.
 
 State lives in Redis, so a restart neither repeats nor forgets a day's fetch. A pass that fails
 leaves the slot unfetched; the next pass of the same day retries under the same budget and the
-existing pause rules. The sync lock stays as it is (one worker spends; the others only re-attach).
+existing pause rules. The sync lock serialises spending: one worker spends, and a worker that
+finds the lock taken only re-attaches. A worker that waited decides what to fetch only after it
+has taken the lock, from the shared slots and pause at that moment, so it never acts on a plan the
+previous holder has made untrue; the lock is released on every path that took it. (Corrected after
+review on 2026-10-19: the plan used to be built before the lock. The overlap is reproduced with
+two threads in `tests/services/test_forecast_sync_concurrency.py`.)
 
 ## Compatibility switch
 

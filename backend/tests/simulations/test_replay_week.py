@@ -51,11 +51,14 @@ def test_no_automatic_fetch_happens_before_the_observed_publication_hour(replay)
         assert r["at"].hour >= 12, r
 
 
-def test_a_restart_and_two_concurrent_callers_spend_nothing_extra(replay):
+def test_a_restart_and_two_back_to_back_callers_spend_nothing_extra(replay):
+    """Two callers run one after the other at the same simulated minute: the second reads the
+    first's slot. Sequential calls are not a concurrency test; overlapping callers are interleaved
+    deliberately in tests/services/test_forecast_sync_concurrency.py."""
     module, _, runs, _ = replay
     for name, run in runs.items():
-        concurrent = [p for p in run.passes if p["kind"] == "concurrent"]
-        assert concurrent and concurrent[0]["requests"] == 0, name
+        back_to_back = [p for p in run.passes if p["kind"] == "back-to-back"]
+        assert back_to_back and back_to_back[0]["requests"] == 0, name
         by_day = run.requests_by_day()
         assert by_day["2026-10-22"] <= 6, (name, by_day)      # the restart day: no double fetch
 

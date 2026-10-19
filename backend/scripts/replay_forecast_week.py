@@ -84,7 +84,7 @@ class Scenario:
     calendar_failures: Dict[tuple, str] = field(default_factory=dict)   # (key, day) -> "raise"|"stale"
     late_evening_refresh: Optional[tuple] = None                        # (key, datetime)
     restart_at: Optional[datetime] = None
-    concurrent_call_at: Optional[datetime] = None
+    back_to_back_call_at: Optional[datetime] = None
 
     def listed(self, key: str, now: datetime, start: datetime, end: datetime) -> List[Fixture]:
         return [f for f in self.fixtures if f.key == key and f.listed_at <= now and start <= f.kickoff < end]
@@ -132,7 +132,7 @@ def build_scenario() -> Scenario:
     scenario.calendar_failures = {("serie_a", d[2]): "raise", ("bundesliga", d[2]): "stale"}
     scenario.late_evening_refresh = ("serie_a", datetime(d[1].year, d[1].month, d[1].day, 20, 1, tzinfo=UTC))
     scenario.restart_at = datetime(d[3].year, d[3].month, d[3].day, 6, 0, tzinfo=UTC)
-    scenario.concurrent_call_at = datetime(d[4].year, d[4].month, d[4].day, 12, 30, tzinfo=UTC)
+    scenario.back_to_back_call_at = datetime(d[4].year, d[4].month, d[4].day, 12, 30, tzinfo=UTC)
     return scenario
 
 
@@ -298,7 +298,7 @@ def forecast_replay(policy: str, scenario: Scenario) -> ForecastReplay:
     passes: List[dict] = []
     end = START + timedelta(days=DAYS)
     restarted = False
-    concurrent_done = False
+    back_to_back_done = False
     late_done = False
     while clock() < end:
         now = clock()
@@ -316,14 +316,17 @@ def forecast_replay(policy: str, scenario: Scenario) -> ForecastReplay:
             passes.append({"at": now, "kind": "forced-refresh", "key": key, "requests": len(requests) - before,
                            "report": _trim(report)})
             late_done = True
-        if scenario.concurrent_call_at and not concurrent_done and now >= scenario.concurrent_call_at:
+        if scenario.back_to_back_call_at and not back_to_back_done and now >= scenario.back_to_back_call_at:
             before = len(requests)
+            # Two instances called ONE AFTER THE OTHER at the same simulated minute: a check that
+            # the second reads the first's slot, not a concurrency test. Overlapping callers are
+            # interleaved deliberately in tests/services/test_forecast_sync_concurrency.py.
             a, b = service_factory(), service_factory()
             ra = a.ensure_synced(force=False)
             rb = b.ensure_synced(force=False)
-            passes.append({"at": now, "kind": "concurrent", "requests": len(requests) - before,
+            passes.append({"at": now, "kind": "back-to-back", "requests": len(requests) - before,
                            "report": {"first": _trim(ra), "second": _trim(rb)}})
-            concurrent_done = True
+            back_to_back_done = True
         out = scheduler.run_once(only=[TASK_FORECASTS])
         task = (out.get("tasks") or {}).get(TASK_FORECASTS)
         if task and task.get("ran"):
@@ -445,17 +448,17 @@ def render(scenario: Scenario, replays: Dict[str, ForecastReplay], live: Dict[st
              "|---|---|---|---|"]
     d = [START.date() + timedelta(days=i) for i in range(DAYS)]
     extras = {d[1]: "page-load refresh of serie_a at 20:01", d[2]: "serie_a calendar sync raises; bundesliga calendar stale; no run published",
-              d[3]: "restart at 06:00", d[4]: "two callers at 12:30; ligue_1 listed at noon of day 4", d[5]: "ligue_1 plays"}
+              d[3]: "restart at 06:00", d[4]: "two callers one after the other at 12:30; ligue_1 listed at noon of day 4", d[5]: "ligue_1 plays"}
     for i, day in enumerate(d):
         pub = scenario.publication[day]
         kicks = sorted({f"{f.key} {f.kickoff:%H:%M}" for f in scenario.fixtures if f.kickoff.date() == day})
         lines.append(f"| {i+1} ({day}) | {'none' if pub is None else f'{pub[0]:02d}:{pub[1]:02d}'} | {', '.join(kicks) or '—'} | {extras.get(day, '')} |")
     for name, r in replays.items():
-        events = [p for p in r.passes if p["kind"] in ("forced-refresh", "concurrent", "restart")]
+        events = [p for p in r.passes if p["kind"] in ("forced-refresh", "back-to-back", "restart")]
         lines += ["", f"## Policy `{name}`", "",
                   "Out-of-band events: " + "; ".join(
                       f"{p['kind']} at {p['at']:%d %H:%M}" + (f" ({p.get('key')}, {p.get('requests')} request(s))" if p['kind'] == 'forced-refresh'
-                                                            else f" ({p.get('requests')} request(s) by the two callers together)" if p['kind'] == 'concurrent' else "")
+                                                            else f" ({p.get('requests')} request(s) by two callers run one after the other, not concurrently)" if p['kind'] == 'back-to-back' else "")
                       for p in events) + ".",
                   f"Requests: **{sum(r.requests_by_day().values())}** in the week — by day {json.dumps(r.requests_by_day())}; "
                   f"by competition {json.dumps(r.requests_by_key())}; by provider window (03:12→03:12) {json.dumps(r.requests_by_provider_window())}.",

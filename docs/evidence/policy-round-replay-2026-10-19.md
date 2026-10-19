@@ -10,13 +10,13 @@
 | 2 (2026-10-20) | 14:00 | bundesliga 20:00, la_liga 11:00, premier_league 11:00, serie_a 20:00 | page-load refresh of serie_a at 20:01 |
 | 3 (2026-10-21) | none | bundesliga 20:00, champions_league 20:00, la_liga 20:00, premier_league 20:00, serie_a 20:00 | serie_a calendar sync raises; bundesliga calendar stale; no run published |
 | 4 (2026-10-22) | 09:00 | bundesliga 20:00, champions_league 20:00, la_liga 20:00, premier_league 20:00, serie_a 20:00 | restart at 06:00 |
-| 5 (2026-10-23) | 11:30 | bundesliga 20:00, la_liga 11:00, ligue_1 20:00, premier_league 11:00, serie_a 20:00 | two callers at 12:30; ligue_1 listed at noon of day 4 |
+| 5 (2026-10-23) | 11:30 | bundesliga 20:00, la_liga 11:00, ligue_1 20:00, premier_league 11:00, serie_a 20:00 | two callers one after the other at 12:30; ligue_1 listed at noon of day 4 |
 | 6 (2026-10-24) | 03:30 | bundesliga 20:00, la_liga 20:00, ligue_1 20:00, premier_league 20:00, serie_a 20:00 | ligue_1 plays |
 | 7 (2026-10-25) | 12:00 | bundesliga 20:00, la_liga 20:00, premier_league 20:00, serie_a 20:00 |  |
 
 ## Policy `elapsed-interval`
 
-Out-of-band events: forced-refresh at 20 20:05 (serie_a, 1 request(s)); restart at 22 06:00; concurrent at 23 12:30 (0 request(s) by the two callers together).
+Out-of-band events: forced-refresh at 20 20:05 (serie_a, 1 request(s)); restart at 22 06:00; back-to-back at 23 12:30 (0 request(s) by two callers run one after the other, not concurrently).
 Requests: **38** in the week — by day {"2026-10-19": 6, "2026-10-20": 7, "2026-10-21": 5, "2026-10-22": 6, "2026-10-23": 5, "2026-10-24": 5, "2026-10-25": 4}; by competition {"premier_league": 7, "la_liga": 7, "serie_a": 7, "bundesliga": 7, "champions_league": 8, "ligue_1": 2}; by provider window (03:12→03:12) {"2026-10-19T03:12": 6, "2026-10-20T03:12": 7, "2026-10-21T03:12": 5, "2026-10-22T03:12": 6, "2026-10-23T03:12": 5, "2026-10-24T03:12": 5, "2026-10-25T03:12": 4}.
 Deferrals 0, re-checks 0, dormant turns 22, forecasts fetched before their fixture was listed 12.
 Longest gap between two fetches of a competition (hours): {"premier_league": 24.0, "la_liga": 24.0, "serie_a": 39.9, "bundesliga": 24.0, "champions_league": 24.0, "ligue_1": 24.0}.
@@ -60,7 +60,7 @@ Served 32 of 32 fixtures; missing 0. Model age at kick-off: median 20.0 h, max 4
 
 ## Policy `daily-slot`
 
-Out-of-band events: forced-refresh at 20 20:05 (serie_a, 0 request(s)); restart at 22 06:00; concurrent at 23 12:30 (0 request(s) by the two callers together).
+Out-of-band events: forced-refresh at 20 20:05 (serie_a, 0 request(s)); restart at 22 06:00; back-to-back at 23 12:30 (0 request(s) by two callers run one after the other, not concurrently).
 Requests: **42** in the week — by day {"2026-10-19": 6, "2026-10-20": 8, "2026-10-21": 8, "2026-10-22": 6, "2026-10-23": 5, "2026-10-24": 5, "2026-10-25": 4}; by competition {"premier_league": 8, "la_liga": 8, "serie_a": 8, "bundesliga": 8, "champions_league": 8, "ligue_1": 2}; by provider window (03:12→03:12) {"2026-10-19T03:12": 6, "2026-10-20T03:12": 8, "2026-10-21T03:12": 8, "2026-10-22T03:12": 6, "2026-10-23T03:12": 5, "2026-10-24T03:12": 5, "2026-10-25T03:12": 4}.
 Deferrals 0, re-checks 4, dormant turns 22, forecasts fetched before their fixture was listed 12.
 Longest gap between two fetches of a competition (hours): {"premier_league": 24.0, "la_liga": 24.0, "serie_a": 24.0, "bundesliga": 24.0, "champions_league": 24.0, "ligue_1": 24.0}.
