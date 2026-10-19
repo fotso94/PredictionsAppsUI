@@ -476,6 +476,10 @@ def _task_view(task: Dict[str, Any]) -> Dict[str, Any]:
         "days_answered": last.get("days_answered"),
         "days_from_stale_cache": last.get("days_from_stale_cache"),
         "days_unanswered": last.get("days_unanswered"),
+        # The results task's own account of who answered each competition-day of its last pass
+        # (`call_outcomes`, kept since 2026-10-18), reduced to the providers that answered fresh.
+        # None for a pass recorded without it, whose success did mean that no error was recorded.
+        "results_answered_by": _results_answered_by(last),
     }
 
 
@@ -591,11 +595,16 @@ def scheduler_pass_counts(name: str, task: Dict[str, Any], primary: str, since: 
     when that pass asked the primary - `last_requests_sent`, what each provider was granted - and,
     for fixtures, a provider answered at least one day's forward list in the pass itself.
 
-    For results that is enough: the pass succeeds only with no error recorded, and a request to
-    the primary that went out and got no answer records one, so a success that asked the primary
-    was answered by it. For fixtures it is not: the pass succeeds on any day's data, so the answer
-    may be a fallback's after the primary refused. Signal (a) says whether the primary itself
-    answers, and `returned` needs both.
+    For results that was enough until 2026-10-18, when the pass stopped being judged by its error
+    list: it now succeeds when a fallback answered after the primary's request went out and got
+    no answer, and keeps that failure under `last_result.diagnostics`. So for results the pass's
+    own account of who answered each competition-day (`last_result.call_outcomes`) is read, and
+    a success counts only when the primary answered one of them fresh. A pass recorded before
+    that carries no `call_outcomes`, and for it the old inference still holds: it succeeded only
+    with no error recorded, so a success that asked the primary was answered by it. For fixtures
+    it is not enough either way: the pass succeeds on any day's data, so the answer may be a
+    fallback's after the primary refused. Signal (a) says whether the primary itself answers, and
+    `returned` needs both.
     """
     if not _after(task.get("last_success_at"), since):
         return False, f"no success after {_iso(since)}"
@@ -618,7 +627,25 @@ def scheduler_pass_counts(name: str, task: Dict[str, Any], primary: str, since: 
                        f"{task.get('days_from_stale_cache') or 0} from the stale copy, "
                        f"{task.get('days_unanswered') or 0} unanswered); a day served from the stale copy "
                        "alone makes a fixtures pass succeed")
+    if name == "results":
+        answered_by = task.get("results_answered_by")
+        if answered_by is not None and primary not in answered_by:
+            return False, (f"its last successful pass sent {primary} a request, but no competition-day of it "
+                           f"was answered by {primary} (answered by: {', '.join(sorted(answered_by)) or 'nobody'}); "
+                           f"since 2026-10-18 a results pass succeeds when a fallback answers after the primary's "
+                           f"request went out and got no answer, keeping that failure under diagnostics")
     return True, None
+
+
+def _results_answered_by(last_result: Any) -> Optional[List[str]]:
+    """The providers that answered a competition-day of a results pass fresh, read off the pass's
+    own `call_outcomes` - or None for a pass recorded before those were kept (before 2026-10-18),
+    whose success did mean that no error was recorded."""
+    outcomes = last_result.get("call_outcomes") if isinstance(last_result, dict) else None
+    if not isinstance(outcomes, dict):
+        return None
+    return sorted({str(entry.get("provider")) for entry in outcomes.values()
+                   if isinstance(entry, dict) and entry.get("outcome") == "fresh" and entry.get("provider")})
 
 
 def _scheduler_evidence(name: str, task: Dict[str, Any], judged: Tuple[bool, Optional[str]]) -> Dict[str, Any]:

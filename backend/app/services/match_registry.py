@@ -1076,6 +1076,19 @@ class MatchRegistry:
             Match.status.in_((MatchStatus.SCHEDULED, MatchStatus.LIVE)),
         ).scalar() or 0)
 
+    def next_kickoff(self, league_id, start: datetime) -> Optional[datetime]:
+        """When the competition's next fixture still to be played kicks off, at or after `start`.
+
+        UTC, aware; None when no such fixture is stored. The forecast refresh order reads this:
+        the competition that plays soonest is fetched first.
+        """
+        value = self.db.query(func.min(Match.match_date)).filter(
+            Match.league_id == league_id,
+            Match.match_date >= _naive_utc(_aware_utc(start)),
+            Match.status.in_((MatchStatus.SCHEDULED, MatchStatus.LIVE)),
+        ).scalar()
+        return _aware_utc(value) if isinstance(value, datetime) else None
+
     def relisting_of(self, match: Match, now: Optional[datetime] = None) -> Optional[Match]:
         """
         The played row this fixture turned out to be a second listing of, or None. Read-only.

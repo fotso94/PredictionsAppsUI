@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 import uuid
 from dataclasses import replace
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -90,6 +90,10 @@ def sample_settings(monkeypatch, redis):
     # these tests are about a provider switch over a known two-competition set, so both halves are
     # named here rather than one being left to the shipped default.
     monkeypatch.setattr(settings, "COVERED_NATIONAL_TEAM_COMPETITIONS", "")
+    # The endpoint tests run on the wall clock, and the sample provider publishes at any hour:
+    # without this the page's forecast refresh is not eligible before the observed publication
+    # hour (daily-slot), and the test would pass only in the afternoon.
+    monkeypatch.setattr(settings, "SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR", 0)
     # every service gets the same in-memory cache; nothing leaks between tests or into the real Redis
     monkeypatch.setattr("app.services.match_data_service.MatchCache", lambda client=None: MatchCache(client=redis))
     monkeypatch.setattr("app.services.forecast_service.MatchCache", lambda client=None: MatchCache(client=redis))

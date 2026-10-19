@@ -645,6 +645,32 @@ def test_a_results_success_that_asked_the_primary_holds():
     assert "scheduler.tasks.results.last_success_at" not in {e["signal"] for e in access["ignored_signals"]}
 
 
+def test_a_results_success_a_fallback_answered_after_the_primary_failed_is_not_the_primary_answering():
+    """Since 2026-10-18 a results pass is judged by what answered: the primary's request can go out,
+    fail, and be answered by a fallback on a pass that records a success, with the failure kept
+    under `diagnostics`. What the pass sent no longer says who answered; its `call_outcomes` do."""
+    day = "premier_league@2026-10-09"
+    answered_by_fallback = {
+        "errors": [LIVESCORE_401], "requests": 1, "outcome": "fresh",
+        "call_outcomes": {day: {"outcome": "fresh", "provider": "api_football",
+                                "detail": f"answered by api_football after a request that got no answer: {LIVESCORE_401}"}},
+        "diagnostics": {"provider_errors": [LIVESCORE_401], "not_sent": [], "declined": [], "request_failed": True}}
+    access = detect(task_succeeded("results", last_result=answered_by_fallback,
+                                   last_requests_sent={"livescore": 1, "api_football": 1}))
+    scheduler = signal(access, "scheduler_fixtures_or_results_succeeding")
+    assert scheduler["holds"] is False and scheduler["evidence"]["results"]["counts"] is False
+    assert "answered by: api_football" in scheduler["evidence"]["results"]["why_not"]
+    assert "scheduler.tasks.results.last_success_at" in {e["signal"] for e in access["ignored_signals"]}
+
+    # The same pass answered by the primary itself still counts.
+    answered_by_the_primary = dict(
+        answered_by_fallback, errors=[],
+        call_outcomes={day: {"outcome": "fresh", "provider": "livescore", "detail": None}},
+        diagnostics={"provider_errors": [], "not_sent": [], "declined": [], "request_failed": False})
+    access = detect(task_succeeded("results", last_result=answered_by_the_primary, last_requests_sent={"livescore": 1}))
+    assert signal(access, "scheduler_fixtures_or_results_succeeding")["holds"] is True
+
+
 def fixtures_pass(*forward_sources) -> dict:
     """A fixtures pass's `last_result`: one day per forward source, counted as the task counts them."""
     days = {f"2026-10-{9 + i:02d}": {"source": "database" if s is None else s, "forward_source": s}

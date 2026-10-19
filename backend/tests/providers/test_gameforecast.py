@@ -181,6 +181,39 @@ def test_a_new_fetch_replaces_the_previous_report():
     assert empty.last_fetch["events_returned"] == 0
 
 
+def test_a_competition_whose_last_fetch_needed_two_pages_is_priced_at_two():
+    """Pagination is part of the price: a turn quoted at one page with one request left would buy
+    half a listing. One page is assumed until a fetch has shown more; the count is kept in the
+    store, so a fresh provider quotes it too."""
+    store = MatchCache(client=FakeRedis())
+    pages = [{"data": [event(600)], "pagination": {"hasMore": True}},
+             {"data": [event(601)], "pagination": {"hasMore": False}}]
+    p, recorder = provider(_route(pages), store=store)
+    assert p.request_cost("premier_league") == 1, "one page is assumed until a fetch has shown more"
+
+    p.get_forecasts("premier_league", FROM, TO)
+
+    assert len(recorder.requests) == 2
+    assert p.request_cost("premier_league") == 2
+    fresh, fresh_recorder = provider(_route(pages), store=store)
+    assert fresh.request_cost("premier_league") == 2 and fresh_recorder.requests == []
+    assert fresh.request_cost("champions_league") == 2, "discovery, then one page: never seen, so one"
+
+
+def test_a_later_single_page_fetch_brings_the_price_back_to_one():
+    store = MatchCache(client=FakeRedis())
+    two = [{"data": [event(600)], "pagination": {"hasMore": True}},
+           {"data": [event(601)], "pagination": {"hasMore": False}}]
+    p, _ = provider(_route(two), store=store)
+    p.get_forecasts("premier_league", FROM, TO)
+    assert p.request_cost("premier_league") == 2
+
+    one, _ = provider(_route([{"data": [event(600)], "pagination": {"hasMore": False}}]), store=store)
+    one.get_forecasts("premier_league", FROM, TO)
+
+    assert one.request_cost("premier_league") == 1
+
+
 @pytest.mark.parametrize("key", ["premier_league", "la_liga", "serie_a", "bundesliga", "ligue_1"])
 def test_every_domestic_competition_is_priced_without_a_request(key):
     """Pricing reads recorded ids only; it must never be the thing that spends the allowance."""

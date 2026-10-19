@@ -207,10 +207,24 @@ class Settings(BaseSettings):
     # Optional override of league ids, e.g. "premier_league=15"; otherwise resolved by name (1 request per league)
     GAMEFORECAST_LEAGUE_IDS: Optional[str] = None
     GAMEFORECAST_SYNC_DAYS_AHEAD: int = 7
-    # Minimum hours between two forecast syncs of the same competition. 22 rather than 24: the
-    # forecasts task runs on a 6 h cadence that drifts, and at 24 a competition that came due
-    # seconds after a pass waited for the next one - gaps of 28-43 h were measured in October
-    # 2026. At 22 the pass a day later is always the one that refreshes, so the gap is 24 h.
+    # Which rule decides when a competition's forecasts are refreshed
+    # (app/services/forecast_refresh_policy.py, docs/design/forecast-refresh-policy.md):
+    #   daily-slot        one refresh slot per competition per UTC day, taken once the OBSERVED
+    #                     publication hour is reached (SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR until fetch
+    #                     history observes an earlier one); unfetched competitions nearest kick-off
+    #                     first, then one re-check a day for a fetch that returned an older run; a
+    #                     turn that cannot be paid for is deferred and the pass moves on.
+    #   elapsed-interval  the earlier rule: GAMEFORECAST_SYNC_INTERVAL_HOURS since the last sync,
+    #                     least recently synced first, the whole task gated by the scheduler until
+    #                     SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR, and a turn that cannot be paid for
+    #                     stops the pass. Kept for the replay comparison and for rollback.
+    GAMEFORECAST_REFRESH_POLICY: str = "daily-slot"
+    # elapsed-interval only. Minimum hours between two forecast syncs of the same competition. 22
+    # rather than 24: the forecasts task runs on a 6 h cadence that drifts, and at 24 a competition
+    # that came due seconds after a pass waited for the next one - gaps of 28-43 h were measured in
+    # October 2026. At 22 the pass a day later is always the one that refreshes, so the gap is 24 h
+    # - unless the refresh was late in the evening: refreshed at 20:01, a competition misses the
+    # noon pass (16 h) and the evening pass (21 h 58 min) and waits for noon the day after, 40 h.
     GAMEFORECAST_SYNC_INTERVAL_HOURS: int = 22
 
     # Forecasts older than this (since the provider generated them) are reported as stale, never as current
@@ -346,11 +360,14 @@ class Settings(BaseSettings):
     # Forecasts: ForecastService already enforces its own per-competition interval (24 h) and its own
     # daily allowance, so this only controls how often it is offered the chance to rotate.
     SYNC_FORECASTS_INTERVAL_SECONDS: int = 6 * 3600
-    # The provider publishes one dated model run a day, visible by 12:00 UTC and not at 00:27: of
-    # the 495 snapshots fetched in the week to 2026-10-18, every one of the 306 fetched at the
-    # first pass after UTC midnight carried the previous day's run. No forecasts pass runs before
-    # this hour (UTC); 0 disables the rule. It also keeps every request inside the provider's own
-    # allowance window, which starts at about 03:12 UTC.
+    # An OBSERVED hour, not anything the provider promises: of the 495 snapshots fetched in the
+    # week to 2026-10-18, every one of the 306 fetched at the first pass after UTC midnight carried
+    # the previous day's run, and the same-day runs were obtained at 12:xx and 18:xx UTC. Under
+    # elapsed-interval no forecasts pass runs before this hour (UTC). Under daily-slot it is the
+    # publication hour assumed until fetch history observes an earlier one (every fetch whose run
+    # is dated the fetch's own UTC day is an observation; the earliest over a fortnight is kept).
+    # 0 disables it. Either way every automatic request lands inside the provider's own allowance
+    # window, observed to start at about 03:12 UTC.
     SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR: int = 12
 
     # Cache TTLs (seconds) for provider data

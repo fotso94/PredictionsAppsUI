@@ -23,6 +23,7 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
+from app.core.config import settings
 from app.services.forecast_service import COOLDOWN_KEY, LAST_SYNC_KEY, ForecastService
 from app.services.match_cache import MatchCache
 from app.services.providers.budget import RequestBudget, budget_key
@@ -82,6 +83,14 @@ def seed_last_sync(cache: MatchCache, synced: dict) -> None:
 
 def paths(recorder) -> List[str]:
     return [r.url.path for r in recorder.requests]
+
+
+@pytest.fixture(autouse=True)
+def elapsed_interval(monkeypatch):
+    """These tests pin the earlier rule - least recently synced first, the interval, a pass that
+    stops at the first turn it cannot pay for - kept as `elapsed-interval` for the replay
+    comparison and for rollback. The daily-slot rule is pinned in test_forecast_refresh_policy.py."""
+    monkeypatch.setattr(settings, "GAMEFORECAST_REFRESH_POLICY", "elapsed-interval")
 
 
 @pytest.fixture

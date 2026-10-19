@@ -52,6 +52,13 @@ UNRESOLVED_TTL = 6 * 3600
 #: being refused the fetch buys a league id and no forecast.
 DISCOVERY_COST = 1
 FETCH_COST = 1
+#: How many pages the last /events fetch of a competition needed, kept so the NEXT turn is priced
+#: with them: a window holding more than fifty events pays one request per page, and a turn
+#: quoted at one page with one request left would buy half a listing. One page is assumed until a
+#: fetch has shown more - the first fetch of such a competition costs one more than quoted, and
+#: the quote is right from then on - and a later fetch that needed fewer brings the price back.
+PAGES_KEY = "provider:gameforecast:pages:{key}"
+PAGES_TTL = 14 * 24 * 3600
 
 #: How many discarded events one fetch report may name. The report exists to evidence "the provider
 #: returned this fixture with nothing usable in it", so it carries identifiers and a reason per
@@ -367,18 +374,38 @@ class GameForecastProvider(ForecastProvider):
             return False
         return canonical.gameforecast_id is not None
 
+    @staticmethod
+    def pages_key(key: str) -> str:
+        return PAGES_KEY.format(key=key)
+
+    def pages_last_seen(self, key: str) -> int:
+        """Pages the last /events fetch of `key` read, 1 until a fetch has shown more. No request."""
+        record = self._store.get(self.pages_key(key))
+        pages = record.get("pages") if isinstance(record, dict) else None
+        if isinstance(pages, int) and not isinstance(pages, bool):
+            return max(min(pages, MAX_PAGES), 1)
+        return 1
+
+    def _remember_pages(self, key: str, pages: int, complete: bool) -> None:
+        self._store.set(self.pages_key(key),
+                        {"key": key, "pages": int(pages), "complete": bool(complete),
+                         "at": datetime.now(timezone.utc).isoformat()},
+                        ttl=PAGES_TTL, stale_ttl=PAGES_TTL)
+
     def request_cost(self, key: str) -> int:
         """Outbound requests one turn for `key` will cost, quoted before the turn is started.
 
-        A competition whose league id is already recorded costs one /events request. One that still
-        needs discovery costs a /leagues lookup FIRST and then the fetch, so its turn cannot be
-        afforded with a single request left: that was how a day ended with a league id bought and
-        no forecast fetched. A competition already marked unresolvable makes no request at all, so
-        its turn is free - the fetch is short-circuited before any HTTP call.
+        A competition whose league id is already recorded costs one /events request per page the
+        last fetch needed (one until shown otherwise). One that still needs discovery costs a
+        /leagues lookup FIRST and then the fetch, so its turn cannot be afforded with a single
+        request left: that was how a day ended with a league id bought and no forecast fetched. A
+        competition already marked unresolvable makes no request at all, so its turn is free - the
+        fetch is short-circuited before any HTTP call.
         """
         if self._store.get(self.unresolved_key(key)):
             return 0
-        return FETCH_COST if self.league_id_is_known(key) else DISCOVERY_COST + FETCH_COST
+        fetch = FETCH_COST * self.pages_last_seen(key)
+        return fetch if self.league_id_is_known(key) else DISCOVERY_COST + fetch
 
     def _get(self, path: str, reason: str = "fetch", **params: Any) -> Dict[str, Any]:
         if not self.is_configured():
@@ -474,6 +501,8 @@ class GameForecastProvider(ForecastProvider):
                 complete = True
                 break
             page += 1
+        # What this listing cost in pages is what the next turn for this competition is quoted.
+        self._remember_pages(key, pages_read, complete)
         self.last_fetch = {
             "provider": PROVIDER_NAME,
             "key": key,

@@ -5,7 +5,7 @@ No database and no network. The forecast provider is a stub that counts calls, s
 asserts something about how the small daily allowance is spent and about what is stored as evidence.
 """
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import List
 from unittest.mock import MagicMock
@@ -13,10 +13,14 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
+from app.core.config import settings
 from app.models.predictions import Match, MatchStatus
 from app.models.provider_data import ProviderForecastRecord
-from app.services.forecast_service import STATUS_KEY, ForecastService, content_hash
+from app.services.forecast_service import (
+    PENDING_TTL_SECONDS, STATUS_KEY, ForecastService, _forecast_to_dict, content_hash,
+)
 from app.services.match_cache import MatchCache
+from app.services.match_data_service import SyncMeta
 from app.services.providers.base import ForecastProvider, ProviderForecast, ProviderQuotaError
 from app.services.providers.budget import ProviderRateLimit, RequestBudget
 from app.services.providers.gameforecast import GameForecastProvider
@@ -315,8 +319,10 @@ class PricedStubProvider(StubForecastProvider):
         super().__init__(**kwargs)
         self.costs = costs
         self.budget = SimpleNamespace(daily_limit=8, remaining=lambda: remaining)
+        self.priced: List[str] = []
 
     def request_cost(self, key):
+        self.priced.append(key)
         return self.costs.get(key, 1)
 
 
@@ -379,13 +385,15 @@ def test_a_turn_that_fits_in_what_is_left_is_still_started():
     assert provider.calls == ["premier_league"]
 
 
-def test_a_starved_competition_is_not_skipped_for_a_cheaper_one_behind_it(cache):
-    """Stopping is correct; reordering by price is not, because it starves the dear one forever.
+def test_a_starved_competition_is_not_skipped_for_a_cheaper_one_behind_it(cache, monkeypatch):
+    """The elapsed-interval rule: stopping is correct, reordering by price is not, because it
+    starves the dear one forever.
 
     One request is left, the competition at the head of the order needs two and the one behind it
     needs one. Spending the unit on the cheaper competition would make the expensive one cheaper
     than nothing to skip again tomorrow, and the day after, and it would never be fetched.
     """
+    monkeypatch.setattr(settings, "GAMEFORECAST_REFRESH_POLICY", "elapsed-interval")
     provider = PricedStubProvider({"champions_league": 2, "premier_league": 1}, remaining=1)
     service = build(cache, provider=provider, keys=["champions_league", "premier_league"])
 
@@ -399,6 +407,27 @@ def test_a_starved_competition_is_not_skipped_for_a_cheaper_one_behind_it(cache)
     later = build(cache, provider=PricedStubProvider({}, remaining=8),
                   keys=["champions_league", "premier_league"], now=NOW + timedelta(days=1))
     assert later.sync_order()[0] == "champions_league", "the starved competition keeps the head"
+
+
+def test_under_the_daily_slot_a_dear_competition_is_deferred_and_the_affordable_one_behind_it_is_fetched(cache, monkeypatch):
+    """The daily-slot rule answers the same starvation differently: the turn that cannot be paid
+    for is deferred and the pass moves on, and the deferred competition leads the next pass - so
+    the cheaper one is served today without the dear one being permanently last."""
+    monkeypatch.setattr(settings, "GAMEFORECAST_REFRESH_POLICY", "daily-slot")
+    provider = PricedStubProvider({"champions_league": 2, "premier_league": 1}, remaining=1)
+    service = build(cache, provider=provider, keys=["champions_league", "premier_league"])
+
+    report = service.ensure_synced(force=True)
+
+    assert provider.calls == ["premier_league"]
+    assert report["deferred"] == ["champions_league"]
+    assert "champions_league costs 2 request(s)" in report["error"] and "leads the next pass" in report["error"]
+    assert service.policy.slot("champions_league")["outcome"] == "deferred"
+
+    service.clear_cooldown()
+    later = build(cache, provider=PricedStubProvider({"champions_league": 2}, remaining=8),
+                  keys=["premier_league", "champions_league"], now=NOW + timedelta(days=1))
+    assert later._plan().fetch[0] == "champions_league", "the deferred competition leads the next pass"
 
 
 def test_the_gate_charges_one_request_to_a_provider_that_does_not_price_its_turns():
@@ -835,31 +864,59 @@ def test_reattaching_with_no_pending_forecasts_is_a_no_op(cache):
     service = build(cache, provider=provider, keys=["uefa_nations_league"])
     report = service.reattach_pending()
     assert provider.calls == []
-    assert report == {"competitions": {}, "attached": 0, "still_pending": 0}
+    assert report == {"competitions": {}, "attached": 0, "still_pending": 0, "retained": 0}
 
 
 # --------------------------------------------------------------------- a turn with nothing to forecast
+def _calendar(service, meta, count):
+    """A fixture sync that answers `meta` for every competition, over a database holding `count`."""
+    service._fixtures, service._sync_fixtures = MagicMock(), True
+    service._fixtures.sync_upcoming.return_value = meta
+    service.registry.fixtures_in_window.return_value = count
+
+
 def test_a_competition_with_no_fixture_in_the_window_is_not_fetched(cache):
     """Two of eight daily requests went to Nations Leagues with no match for weeks (2026-10-18). A turn
-    whose freshly synced calendar holds nothing inside the window is taken without a request."""
+    whose calendar - answered from the provider, with no error, for the whole window - holds nothing
+    inside the window is taken without a request."""
     provider = StubForecastProvider()
     service = build(cache, provider=provider)
-    service._fixtures, service._sync_fixtures = MagicMock(), True      # a fixture sync that runs and succeeds
-    service._fixtures.sync_upcoming.return_value = MagicMock(errors=[])
-    service.registry.fixtures_in_window.return_value = 0
+    _calendar(service, SyncMeta(source="provider", provider="livescore"), count=0)
     report = service.ensure_synced(force=True)
     assert provider.calls == []
     assert report["dormant"] == list(KEYS)
     assert all(report["competitions"][k]["skipped"] == "no fixture in window" for k in KEYS)
-    assert all(service._last_sync(k) is not None for k in KEYS), "the turn was taken, so the key waits its interval"
+    assert all(service._last_sync(k) is not None for k in KEYS), "the turn was taken"
+    assert all(service.policy.slot(k)["outcome"] == "dormant" for k in KEYS), "and the day's slot with it"
+
+
+def test_a_fresh_cache_copy_of_the_calendar_is_the_providers_answer(cache):
+    provider = StubForecastProvider()
+    service = build(cache, provider=provider)
+    _calendar(service, SyncMeta(source="cache", provider="livescore"), count=0)
+    assert service.ensure_synced(force=True)["dormant"] == list(KEYS) and provider.calls == []
 
 
 def test_a_competition_with_a_fixture_in_the_window_is_fetched(cache):
+    """An empty database before the turn, a calendar discovery that finds fixtures: fetched."""
     provider = StubForecastProvider()
     service = build(cache, provider=provider)
-    service._fixtures, service._sync_fixtures = MagicMock(), True
-    service._fixtures.sync_upcoming.return_value = MagicMock(errors=[])
-    service.registry.fixtures_in_window.return_value = 3
+    _calendar(service, SyncMeta(source="provider", provider="livescore"), count=3)
+    report = service.ensure_synced(force=True)
+    assert set(provider.calls) == set(KEYS)
+    assert "dormant" not in report
+
+
+@pytest.mark.parametrize("meta", [
+    SyncMeta(source="database", errors=["livescore: upstream is down"]),
+    SyncMeta(source="stale-cache", provider="livescore", stale=True),
+    SyncMeta(source="database"),
+], ids=["failed", "stale", "unanswered"])
+def test_a_calendar_that_is_not_evidence_leaves_the_competition_active(cache, meta):
+    """A failed, stale or unanswered calendar says nothing about the window: the fetch goes ahead."""
+    provider = StubForecastProvider()
+    service = build(cache, provider=provider)
+    _calendar(service, meta, count=0)
     report = service.ensure_synced(force=True)
     assert set(provider.calls) == set(KEYS)
     assert "dormant" not in report
@@ -876,19 +933,98 @@ def test_an_empty_window_without_a_fixture_sync_still_fetches(cache):
     assert "dormant" not in report
 
 
-def test_a_pending_forecast_for_a_match_played_long_ago_is_dropped(cache, monkeypatch):
-    """Re-storing a pending forecast renews its 48 h life, so one for a match played days ago was
-    retried for ever. Past the live window it is dropped; one still to come is kept."""
-    import app.services.forecast_service as module
+def test_a_dormant_competition_that_becomes_active_is_fetched_next_turn(cache):
+    """The fixture sync keeps running on every turn, so the day the calendar lists a match the
+    competition resumes by itself."""
+    provider = StubForecastProvider()
+    service = build(cache, provider=provider, keys=["serie_a"])
+    _calendar(service, SyncMeta(source="provider", provider="livescore"), count=0)
+    assert service.ensure_synced()["dormant"] == ["serie_a"] and provider.calls == []
+
+    later = build(cache, provider=provider, keys=["serie_a"], now=NOW + timedelta(days=1))
+    _calendar(later, SyncMeta(source="provider", provider="livescore"), count=2)
+    report = later.ensure_synced()
+    assert provider.calls == ["serie_a"] and "dormant" not in report
+
+
+@pytest.mark.parametrize("policy", ["daily-slot", "elapsed-interval"])
+def test_a_dormant_competition_never_blocks_an_affordable_active_one_behind_it(cache, monkeypatch, policy):
+    """One request left, a dormant competition at the head of the order and an active one behind
+    it. Dormancy is decided before the allowance is read, so the active one gets the request under
+    either rule, and the dormant turn is never priced."""
+    monkeypatch.setattr(settings, "GAMEFORECAST_REFRESH_POLICY", policy)
+    provider = PricedStubProvider({"uefa_nations_league": 1, "premier_league": 1}, remaining=1)
+    service = build(cache, provider=provider, keys=["uefa_nations_league", "premier_league"])
+    service.registry.ensure_canonical_league.side_effect = lambda key: SimpleNamespace(id=key)
+    _calendar(service, SyncMeta(source="provider", provider="livescore"), count=None)
+    service.registry.fixtures_in_window.side_effect = lambda league_id, start, end: 0 if league_id == "uefa_nations_league" else 3
+
+    report = service.ensure_synced(force=True)
+
+    assert provider.calls == ["premier_league"]
+    assert report["dormant"] == ["uefa_nations_league"]
+    assert report.get("error") is None and report["deferred"] == []
+    assert provider.priced == ["premier_league"], "the dormant turn never reached the allowance"
+
+
+# --------------------------------------------------------------------- forecasts nobody could place
+def test_a_pending_forecast_past_the_retry_window_is_retained_not_deleted(cache):
+    """Nothing pending is ever deleted. Inside the retry window an item is tried on every pass
+    whatever its kick-off - a fixture can arrive days after the match - and past it the item moves,
+    payload untouched, under a retention record that says why it is no longer retried."""
     service = build(cache)
-    monkeypatch.setattr(module, "_forecast_from_dict", lambda item: MagicMock())
-    service.attach_forecast = lambda forecast, key, league_id: {"result": "unmatched"}
-    service._store_pending("serie_a", [
-        {"external_event_id": "old", "kickoff_utc": (NOW - timedelta(days=4)).isoformat()},
-        {"external_event_id": "soon", "kickoff_utc": (NOW + timedelta(days=1)).isoformat()},
-    ])
+    service.attach_forecast = lambda forecast, key, league_id: {"result": "unmatched", "reason": "no candidate"}
+    old = _forecast_to_dict(_forecast(external_event_id="old", kickoff_utc=NOW - timedelta(days=40),
+                                      fetched_at=NOW - timedelta(days=41), model_run_at=NOW - timedelta(days=41, hours=3)))
+    played = _forecast_to_dict(_forecast(external_event_id="played", kickoff_utc=NOW - timedelta(days=4),
+                                         fetched_at=NOW - timedelta(days=5)))
+    soon = _forecast_to_dict(_forecast(external_event_id="soon", kickoff_utc=NOW + timedelta(days=1), fetched_at=NOW))
+    service._store_pending("serie_a", [old, played, soon])
+
     counts = service._retry_pending("serie_a")
-    assert counts == {"pending": 2, "attached": 0, "expired": 1}
-    assert [i["external_event_id"] for i in cache.get(service._pending_key("serie_a"))] == ["soon"]
+
+    assert counts == {"pending": 3, "attached": 0, "retained": 1}
+    assert [i["external_event_id"] for i in cache.get(service._pending_key("serie_a"))] == ["played", "soon"], \
+        "inside the window a forecast is still retried, however long ago the match was played"
+    [kept] = service.retained("serie_a")
+    assert kept["forecast"] == old, "the payload, retrieval time and run time included, is untouched"
+    assert kept["retention"]["retry"] is False and "30 days" in kept["retention"]["reason"]
+    assert (kept["retention"]["last_refusal"], kept["retention"]["fetched_at"]) == ("no candidate", old["fetched_at"])
+
     summary = service.reattach_pending("serie_a")
-    assert (summary["expired"], summary["still_pending"]) == (0, 1), "the dropped item is gone, the live one still waits"
+    assert (summary["retained"], summary["still_pending"], summary["attached"]) == (0, 2, 0)
+    assert service.retained("serie_a") == [kept], "a later pass leaves the retained record where it is"
+
+
+def test_a_retained_forecast_attaches_on_request_and_spends_nothing(cache):
+    provider = StubForecastProvider()
+    service = build(cache, provider=provider)
+    outcomes = iter([{"result": "unmatched", "reason": "no candidate"}, {"result": "attached", "match_id": "m-1"}])
+    service.attach_forecast = lambda forecast, key, league_id: next(outcomes)
+    old = _forecast(external_event_id="old", kickoff_utc=NOW - timedelta(days=40), fetched_at=NOW - timedelta(days=41))
+    service._store_pending("serie_a", [_forecast_to_dict(old)])
+    assert service.reattach_pending("serie_a")["retained"] == 1
+
+    report = service.reattach_pending("serie_a", include_retained=True)
+
+    assert (report["attached"], report["retained_attached"], report["retained_kept"]) == (1, 1, 0)
+    assert service.retained("serie_a") == []
+    assert provider.calls == []
+
+
+def test_re_storing_a_pending_forecast_keeps_its_retrieval_and_run_times(cache):
+    """Every pass re-stores what is still pending; the stored payload is the original, to the field,
+    and its life is renewed to the whole retry window rather than shortened."""
+    service = build(cache)
+    service.attach_forecast = lambda forecast, key, league_id: {"result": "unmatched", "reason": "no candidate"}
+    item = _forecast_to_dict(_forecast(external_event_id="kept", kickoff_utc=NOW + timedelta(days=1),
+                                       fetched_at=NOW - timedelta(hours=3), model_run_at=NOW - timedelta(hours=5)))
+    service._store_pending("serie_a", [item])
+
+    for offset in (1, 2, 3):
+        service._now = NOW + timedelta(days=offset)
+        service._retry_pending("serie_a")
+
+    [stored] = cache.get(service._pending_key("serie_a"))
+    assert stored == item
+    assert cache._redis().ttls[service._pending_key("serie_a")] == PENDING_TTL_SECONDS

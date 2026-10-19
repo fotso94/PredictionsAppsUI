@@ -48,7 +48,8 @@ from app.core.config import settings
 from app.services.forecast_service import ForecastService
 from app.services.match_cache import MatchCache
 from app.services.match_data_service import (
-    COVERAGE_CALENDAR_KEY, MatchDataService, SyncMeta, live_polls_today, note_live_poll,
+    CALL_CACHE, CALL_DEFERRED, CALL_FAILED, CALL_FRESH, CALL_STALE, COVERAGE_CALENDAR_KEY,
+    MatchDataService, SyncMeta, call_outcome, live_polls_today, note_live_poll,
     recovery_requests_left_today, recovery_requests_today,
 )
 from app.services.providers import budget as request_budget
@@ -156,6 +157,94 @@ def _next_budget_reset(now: datetime) -> datetime:
     return midnight + timedelta(minutes=1)
 
 
+# ------------------------------------------------- what a pass is judged by: what answered
+#: The live and results passes are judged by what each of their calls was actually SERVED
+#: (`match_data_service.CALL_*`, classified from the answer's source), never by the chain's error
+#: list: `_call_chain` records every provider it gave up on before the one that answered, so a
+#: fallback's answer arrives with the primary's error beside it. Judged by "any error", the pass
+#: that was served failed - on 2026-10-18 a Live Score timeout answered by API-Football, live
+#: scores stored, still failed the live task and backed it off BACKOFF_MIN_SECONDS: a five-minute
+#: live gap on a matchday over an answer that had arrived.
+#:
+#: Three outcomes fail a pass. `failed`: a request went out, nobody answered, nothing was served.
+#: `stale`: nothing answered and the stale copy stood in - the outage is as real and backing off
+#: from it is as right. `deferred`: a call the pass wanted was held back by an allowance or a
+#: provider's cool-down, so the pass did not get what it came for; that keeps the verdict such a
+#: pass always had, and `_record` already clamps its backoff to the next budget reset. What does
+#: NOT fail a pass: `fresh` and `cache`, which are the pass being served (an empty answer is an
+#: answer); `not_asked`, a question no provider in the chain can take - a gap in coverage that the
+#: next pass cannot change, which the chain already keeps out of `errors` for that reason; and a
+#: pass with no call to judge (nothing due, no live window, the ceiling reached), which is a
+#: success with nothing to say. The verdict is over EVERY call of the pass, so one competition
+#: answered cannot hide another that was not, and the report says which ended how.
+PASS_FAILING_OUTCOMES: FrozenSet[str] = frozenset({CALL_FAILED, CALL_STALE, CALL_DEFERRED})
+#: The pass-level words beside the per-call ones: `partial` when its calls ended differently
+#: (`by_outcome` says which ended how), `skipped` when there was no call to judge.
+PASS_PARTIAL = "partial"
+PASS_SKIPPED = "skipped"
+
+
+def _pass_outcome(calls: Dict[str, Dict[str, Any]]) -> str:
+    ended = {str(record.get("outcome")) for record in calls.values()}
+    if not ended:
+        return PASS_SKIPPED
+    return ended.pop() if len(ended) == 1 else PASS_PARTIAL
+
+
+def _by_outcome(calls: Dict[str, Dict[str, Any]]) -> Dict[str, List[str]]:
+    """Which calls ended which way, so one answered competition cannot hide another's failure."""
+    grouped: Dict[str, List[str]] = {}
+    for name, record in calls.items():
+        grouped.setdefault(str(record.get("outcome")), []).append(name)
+    return grouped
+
+
+def _verdict(calls: Dict[str, Dict[str, Any]]) -> Tuple[bool, Optional[str]]:
+    """(ok, why not) over every call of the pass: ok unless one ended in PASS_FAILING_OUTCOMES."""
+    failing = [(name, record) for name, record in calls.items()
+               if record.get("outcome") in PASS_FAILING_OUTCOMES]
+    if not failing:
+        return True, None
+    said = []
+    for name, record in failing[:MAX_STORED_ERRORS]:
+        detail = record.get("detail")
+        said.append(f"{name}: {record['outcome']}" + (f" ({detail})" if detail else ""))
+    return False, "; ".join(said)
+
+
+def _diagnostics(metas: Iterable[SyncMeta]) -> Dict[str, Any]:
+    """What the chain met on the way, kept beside the verdict and never inside it.
+
+    `provider_errors` is every request that went out and got no usable answer - the primary's
+    timeout on a pass the fallback answered lives here, and on that provider's own status record
+    (`MatchDataService._record_status`), not in the task's failure verdict. `not_sent` and
+    `declined` are why providers were passed over without a request. The report's `errors` keeps
+    the chain's flat list exactly as it always was.
+    """
+    provider_errors: List[str] = []
+    not_sent: List[str] = []
+    declined: List[str] = []
+    request_failed = False
+    for meta in metas:
+        for failure in meta.failed_requests:
+            if failure not in provider_errors:
+                provider_errors.append(failure)
+        not_sent.extend(meta.not_sent)
+        for decline in meta.declined:
+            if decline not in declined:
+                declined.append(decline)
+        request_failed = request_failed or meta.request_failed
+    return {"provider_errors": _clip(provider_errors), "not_sent": not_sent[:MAX_STORED_ERRORS],
+            "declined": _clip(declined), "request_failed": request_failed}
+
+
+def _clipped_call(record: Dict[str, Any]) -> Dict[str, Any]:
+    """A call's record with its detail cut to MAX_ERROR_CHARS, like every message the stored
+    summary carries: the status endpoint reads it on every call."""
+    detail = record.get("detail")
+    return {**record, "detail": str(detail)[:MAX_ERROR_CHARS] if detail else None}
+
+
 class _Services:
     """The two services a pass needs, built at most once per pass and only when actually used.
 
@@ -260,15 +349,19 @@ class SyncScheduler:
 
     def due(self, name: str) -> Tuple[bool, Optional[str]]:
         """(due now, why not). A task that has never run on this installation is due - except the
-        forecasts task before `SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR`: the provider publishes one dated
-        model run a day, after the first pass of the UTC day and by noon, and a pass before it buys
-        yesterday's forecasts with today's request."""
+        forecasts task under the `elapsed-interval` refresh policy before
+        `SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR`: one dated model run a day has been OBSERVED from the
+        provider, obtained at 12:xx and 18:xx UTC and never at 00:xx, and a pass before it buys
+        yesterday's forecasts with today's request. Under `daily-slot` the task is offered every
+        pass and the policy decides inside it, from the hour it has observed, whether anything is
+        eligible (`ForecastService.ensure_synced`)."""
         now = self.now
-        if name == TASK_FORECASTS:
+        if name == TASK_FORECASTS and settings.GAMEFORECAST_REFRESH_POLICY == "elapsed-interval":
             not_before = int(settings.SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR or 0)
             if not_before and now.astimezone(timezone.utc).hour < not_before:
                 return False, (f"forecasts are not fetched before {not_before:02d}:00 UTC: the provider's "
-                               f"daily model run is not published yet, and a pass before it buys yesterday's")
+                               f"daily model run has not been observed that early, and a pass before it "
+                               f"buys yesterday's")
         next_due = _parse(self.state(name).get("next_due_at"))
         if next_due is None:
             return True, None
@@ -702,6 +795,9 @@ class SyncScheduler:
         turn = int(self.state(TASK_RESULTS).get("runs") or 0)
         out: Dict[str, Any] = {"days": {}, "errors": [], "polled": False,
                                "requests": 0, "deferred": []}
+        #: Every competition-day the pass asked about, as "<key>@<day>" -> what it was served.
+        calls: Dict[str, Dict[str, Any]] = {}
+        metas: List[SyncMeta] = []
         spent = 0
         # EVERY DAY GETS A SHARE, because a cap spent in day order is a cap that starves the older
         # days entirely. Walking today first with one running budget means a busy today - and 35
@@ -724,23 +820,42 @@ class SyncScheduler:
             take = wanted[:max(allowance, 0)] if cap else []
             out["deferred"].extend(f"{key}@{day.isoformat()}" for key in wanted[len(take):])
             meta = SyncMeta()
+            outcomes: Dict[str, Dict[str, Any]] = {}
             if take:
                 service._sync_results(day, meta, keys=take)
                 spent += len(take)
-            out["days"][day.isoformat()] = {**meta.to_dict(), "competitions": len(take)}
+                # Per competition, what THIS call was served - a fresh answer, the cache, the stale
+                # copy, a failed request, or nothing - with who answered and why not.
+                outcomes = {key: _clipped_call(record)
+                            for key, record in service.results_call_outcomes(day, take).items()}
+            out["days"][day.isoformat()] = {**meta.to_dict(), "competitions": len(take),
+                                            "call_outcomes": outcomes}
             out["errors"].extend(meta.errors)
             out["polled"] = out["polled"] or meta.results_polled
+            metas.append(meta)
+            calls.update({f"{key}@{day.isoformat()}": record for key, record in outcomes.items()})
         out["requests"] = spent
         out["deferred"] = out["deferred"][:MAX_STORED_ERRORS]
         out["errors"] = _clip(out["errors"])
-        ok = not out["errors"]
-        return out, ok, "; ".join(out["errors"]) or None
+        # JUDGED BY WHAT EACH COMPETITION-DAY WAS SERVED, not by `errors` (see PASS_FAILING_OUTCOMES):
+        # a primary that failed before the fallback answered is in `diagnostics`, not in the
+        # verdict. The verdict is over every competition the pass asked about, so a club
+        # competition answered cannot hide a national-team one whose request went out and got
+        # nothing; `by_outcome` and the error name which. An empty answer for a day with nothing
+        # to report is `fresh`, and ok.
+        out["call_outcomes"] = calls
+        out["outcome"] = _pass_outcome(calls)
+        out["by_outcome"] = _by_outcome(calls)
+        out["diagnostics"] = _diagnostics(metas)
+        ok, error = _verdict(calls)
+        return out, ok, error
 
     def _run_live(self, services: _Services) -> Tuple[Dict[str, Any], bool, Optional[str]]:
         service = services.match
         if not service._live_window_open():
             # The single most expensive mistake available here is polling live scores all night.
             return ({"live_window_open": False, "live_polled": False, "polls_today": self._live_polls_today(),
+                     "outcome": PASS_SKIPPED, "call_outcomes": {}, "by_outcome": {},
                      "note": "no covered match is in its live window; no provider request made"},
                     True, None)
         # The second expensive mistake is polling all day. One poll answers for every competition
@@ -751,6 +866,7 @@ class SyncScheduler:
         polled_today = self._live_polls_today()
         if cap and polled_today >= cap:
             return ({"live_window_open": True, "live_polled": False, "polls_today": polled_today,
+                     "outcome": PASS_SKIPPED, "call_outcomes": {}, "by_outcome": {},
                      "note": f"the day's live-poll ceiling is reached ({polled_today}/{cap}); "
                              f"polling resumes at the UTC reset"},
                     True, None)
@@ -764,8 +880,36 @@ class SyncScheduler:
             self._note_live_poll()
         out = {"live_window_open": True, **meta.to_dict(), "polls_today": self._live_polls_today()}
         out["errors"] = _clip(out["errors"])
-        ok = not out["errors"]
-        return out, ok, "; ".join(out["errors"]) or None
+        # JUDGED BY WHAT THE POLL WAS SERVED, not by `errors` (see PASS_FAILING_OUTCOMES): a timeout
+        # at the primary answered by the fallback is a poll that was answered, with the timeout kept
+        # in `diagnostics` and on the primary's own status record rather than in the verdict.
+        call = self._live_call_record(meta)
+        out["call_outcomes"] = {"live": call}
+        out["outcome"] = call["outcome"]
+        out["by_outcome"] = _by_outcome(out["call_outcomes"])
+        out["diagnostics"] = _diagnostics([meta])
+        ok, error = _verdict(out["call_outcomes"])
+        return out, ok, error
+
+    @staticmethod
+    def _chain_account(meta: SyncMeta) -> str:
+        """Why the poll was not served, in the chain's own words: each provider's failure, skip or
+        refusal and each decline, without the one-line summary `_sync_live` adds after them."""
+        account = [e for e in meta.errors if not e.startswith("live: ")] + list(meta.declined)
+        return "; ".join(account or meta.errors)
+
+    def _live_call_record(self, meta: SyncMeta) -> Dict[str, Any]:
+        """The one live poll as a `call_outcomes` entry: what it was served, by whom, and why not."""
+        outcome = call_outcome(meta)
+        if outcome in (CALL_FRESH, CALL_CACHE):
+            detail = (f"answered by {meta.provider} after a request that got no answer: "
+                      + "; ".join(meta.failed_requests)) if meta.failed_requests else None
+        elif outcome == CALL_STALE:
+            detail = (f"served from the stale copy {meta.provider} fetched at {meta.fetched_at}; "
+                      + self._chain_account(meta))
+        else:
+            detail = self._chain_account(meta) or None
+        return _clipped_call({"outcome": outcome, "provider": meta.provider, "detail": detail})
 
     def _run_recovery(self, services: _Services) -> Tuple[Dict[str, Any], bool, Optional[str]]:
         """Go and get the final scores nothing else will, unattended and inside a stated bound.
@@ -1046,35 +1190,103 @@ class SyncScheduler:
         Prices are read from the provider's caches (Redis and in-memory). No request is made and
         nothing is written.
         """
-        price = getattr(provider, "request_cost", None)
         costs: List[int] = []
         unpriced = 0
         for key in due_keys:
-            cost = None
-            if callable(price):
-                try:
-                    cost = max(int(price(key)), 0)
-                except Exception as exc:  # pragma: no cover - pricing must never break an estimate
-                    logger.debug("Could not price the %s turn for %s: %s",
-                                 getattr(provider, "name", "provider"), key, exc)
-            if cost is None:
-                cost, unpriced = UNPRICED_TURN_COST, unpriced + 1
+            cost, priced = SyncScheduler._price_turn(provider, key)
+            if not priced:
+                unpriced += 1
             costs.append(cost)
+        return sum(costs), SyncScheduler._describe_costs(provider, costs, unpriced, due_keys) or "nothing is due"
 
-        wording = {
-            0: "costing nothing (a remembered discovery failure short-circuits the turn)",
-            1: "costing 1 request (the provider league id is already recorded)",
-            2: "costing 2 (a league-id discovery, then the fetch)",
-        }
+    @staticmethod
+    def _price_turn(provider: Any, key: str) -> Tuple[int, bool]:
+        """(what one turn for `key` is expected to cost, whether the provider itself priced it).
+
+        Through the provider's `request_cost`, the same seam `ForecastService` prices a turn with
+        before starting it, so discovery and the pages the last fetch needed are counted alike by
+        the gate and by the estimate. A provider that will not price a turn is charged the
+        expensive case: an estimate that cannot know rounds UP.
+        """
+        price = getattr(provider, "request_cost", None)
+        if callable(price):
+            try:
+                return max(int(price(key)), 0), True
+            except Exception as exc:  # pragma: no cover - pricing must never break an estimate
+                logger.debug("Could not price the %s turn for %s: %s",
+                             getattr(provider, "name", "provider"), key, exc)
+        return UNPRICED_TURN_COST, False
+
+    @staticmethod
+    def _describe_costs(provider: Any, costs: Sequence[int], unpriced: int,
+                        keys: Optional[Sequence[str]] = None) -> str:
+        """The pricing in words. A turn costing 2 is a discovery and then a fetch, unless the
+        provider says the league id is already recorded - then the last fetch needed two pages."""
+        known = getattr(provider, "league_id_is_known", None)
+        paged_at_two = 0
+        if keys is not None and callable(known):
+            for key, cost in zip(keys, costs):
+                if cost == 2:
+                    try:
+                        paged_at_two += 1 if known(key) else 0
+                    except Exception:  # pragma: no cover - wording is never worth an exception
+                        pass
         parts = []
         for cost in sorted(set(costs), reverse=True):
-            count = costs.count(cost)
-            parts.append(f"{count} {wording.get(cost) or f'costing {cost} request(s)'}")
+            count = list(costs).count(cost)
+            if cost == 0:
+                wording = "costing nothing (a remembered discovery failure short-circuits the turn)"
+            elif cost == 1:
+                wording = "costing 1 request (the provider league id is already recorded)"
+            elif cost == 2 and paged_at_two == count:
+                wording = "costing 2 (the last fetch needed two pages)"
+            elif cost == 2 and paged_at_two:
+                wording = (f"costing 2 (a league-id discovery, then the fetch, for {count - paged_at_two}; "
+                           f"two pages last time for {paged_at_two})")
+            elif cost == 2:
+                wording = "costing 2 (a league-id discovery, then the fetch)"
+            else:
+                wording = (f"costing {cost} request(s) (the pages the last fetch needed, plus a "
+                           f"league-id discovery where the id is not recorded)")
+            parts.append(f"{count} {wording}")
         if unpriced:
             parts.append(f"{unpriced} of them not priced by "
                          f"{getattr(provider, 'name', 'the provider')!r}, so charged the "
                          f"expensive case rather than assumed cheap")
-        return sum(costs), "; ".join(parts) or "nothing is due"
+        return "; ".join(parts)
+
+    def _forecast_estimate(self, forecast: Any) -> Tuple[int, str]:
+        """The forecasts task's estimate from the service's own dry run of a pass.
+
+        `ForecastService.estimate_pass` walks the SAME plan the pass walks - the refresh policy's
+        eligibility and order, dormancy from the last recorded calendar evidence, the all-or-
+        nothing affordability of each turn against the allowance left right now - with this
+        scheduler's pricing (`_price_turn`, which rounds an unpriced provider up). So the number
+        here is what the pass is about to spend, and the basis says what it assumed.
+        """
+        provider = forecast.provider
+        plan = forecast.estimate_pass(days_ahead=settings.GAMEFORECAST_SYNC_DAYS_AHEAD,
+                                      price=lambda key: self._price_turn(provider, key)[0])
+        walked = list(plan["fetch"]) + list(plan["recheck"])
+        costs = [int(plan["costs"][key]) for key in walked]
+        unpriced = sum(1 for key in walked if not self._price_turn(provider, key)[1])
+        pricing = self._describe_costs(provider, costs, unpriced, walked) or "nothing to fetch"
+        budget = getattr(provider, "budget", None)
+        basis = (f"{plan['policy']}: {len(plan['fetch'])} competition(s) to fetch and "
+                 f"{len(plan['recheck'])} to re-check ({pricing}), {len(plan['dormant'])} dormant on "
+                 f"recorded calendar evidence and priced at 0, {len(plan['deferred'])} deferred by "
+                 f"the remaining {getattr(budget, 'provider', 'forecast')} allowance "
+                 f"({plan['remaining_before']} before, {plan['remaining_after']} after), "
+                 f"{len(plan['ineligible'])} not eligible")
+        if plan.get("publication_hour") is not None:
+            basis += (f"; observed publication hour {plan['publication_hour']:02d}:00 UTC, "
+                      f"{'reached' if plan.get('hour_reached') else 'not reached'}")
+        basis += (". Assumes a dormant competition's calendar answer is still the one the fixture "
+                  "cache holds and the database still has no fixture in its window (re-counted "
+                  "now); prices each competition's pages from its last fetch, so the first fetch "
+                  "of a competition with more than one page costs one more than quoted. Each one "
+                  "also syncs fixtures, billed to the match-data providers, not to this allowance")
+        return int(plan["requests"]), basis
 
     def _estimate_cost(self, name: str, services: _Services) -> Tuple[int, str]:
         """What this task is expected to spend, before caching. Reads the database, never a provider.
@@ -1087,16 +1299,17 @@ class SyncScheduler:
             forecast = services.forecast
             if forecast.provider is None:
                 return 0, "no prediction provider is configured"
+            if callable(getattr(forecast, "estimate_pass", None)):
+                # The real service: the refresh policy's own dry run of the pass, so the estimate
+                # and the pass decide eligibility, dormancy and affordability the same way.
+                return self._forecast_estimate(forecast)
+            # A service that cannot dry-run itself (the stubs in the test suite): the interval
+            # rule over its rotation, every competition priced, capped by the allowance.
             interval = timedelta(hours=settings.GAMEFORECAST_SYNC_INTERVAL_HOURS)
             now = forecast.now
             due_keys = [k for k in forecast.sync_order()
                         if not forecast._last_sync(k) or now - forecast._last_sync(k) >= interval]
-            # A competition with no fixture inside the window takes its turn without a request
-            # (ForecastService.ensure_synced), so it is priced at nothing here too.
-            dormant = set(forecast.dormant_keys(due_keys, settings.GAMEFORECAST_SYNC_DAYS_AHEAD)) \
-                if isinstance(forecast, ForecastService) else set()
-            priced = [k for k in due_keys if k not in dormant]
-            cost, assumed = self._forecast_pass_cost(forecast.provider, priced)
+            cost, assumed = self._forecast_pass_cost(forecast.provider, due_keys)
             budget = getattr(forecast.provider, "budget", None)
             capped = min(cost, budget.remaining()) if budget is not None and budget.daily_limit else cost
             # Count only what this task bills to the FORECAST allowance. Each competition also
@@ -1105,8 +1318,7 @@ class SyncScheduler:
             # forecast plan, which is the one figure that has to be read exactly.
             return (capped,
                     f"{len(due_keys)} competition(s) past their {settings.GAMEFORECAST_SYNC_INTERVAL_HOURS}h "
-                    f"interval, {len(dormant)} of them with no fixture in the window and priced at 0 "
-                    f"({assumed}): {cost} request(s), capped at {capped} by the remaining "
+                    f"interval ({assumed}): {cost} request(s), capped at {capped} by the remaining "
                     f"{getattr(budget, 'provider', 'forecast')} allowance. Assumes one page of "
                     f"events per fetch; a competition with more than one page pays one more "
                     f"request per extra page. Each one also syncs fixtures, billed to the "

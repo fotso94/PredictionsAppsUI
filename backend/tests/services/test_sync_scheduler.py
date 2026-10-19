@@ -1171,13 +1171,24 @@ def test_scoring_costs_no_provider_request_and_no_allowance_can_block_it():
     assert scheduler._budget_block(services, module.TASK_SETTLE) is None
 
 
-def test_the_forecasts_task_waits_for_the_providers_daily_run(cache):
-    """The provider publishes one dated run a day, after the first pass of the UTC day and by noon;
-    a pass before it buys yesterday's forecasts with today's request. No other task waits."""
+def test_the_forecasts_task_waits_for_the_providers_daily_run(cache, monkeypatch):
+    """Under the elapsed-interval rule the scheduler gates the task: one dated run a day has been
+    observed from the provider, never at the first pass after midnight, and a pass before it buys
+    yesterday's forecasts with today's request. No other task waits."""
+    monkeypatch.setattr(settings, "GAMEFORECAST_REFRESH_POLICY", "elapsed-interval")
     early = Clock(datetime(2026, 10, 19, 3, 0, tzinfo=timezone.utc))
     scheduler, _, _, _ = build(cache, early)
     due, why = scheduler.due(TASK_FORECASTS)
     assert due is False and "12:00 UTC" in why
     assert scheduler.due(TASK_FIXTURES) == (True, None)
     early.tick(9 * 3600)
+    assert scheduler.due(TASK_FORECASTS) == (True, None)
+
+
+def test_under_the_daily_slot_policy_the_forecasts_task_is_offered_every_pass(cache, monkeypatch):
+    """The policy decides inside the pass whether the observed publication hour is reached, so the
+    scheduler applies no hour of its own: a 03:00 pass runs, finds nothing eligible, and re-attaches."""
+    monkeypatch.setattr(settings, "GAMEFORECAST_REFRESH_POLICY", "daily-slot")
+    early = Clock(datetime(2026, 10, 19, 3, 0, tzinfo=timezone.utc))
+    scheduler, _, _, _ = build(cache, early)
     assert scheduler.due(TASK_FORECASTS) == (True, None)

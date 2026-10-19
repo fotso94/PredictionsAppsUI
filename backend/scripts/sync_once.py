@@ -233,6 +233,13 @@ def _summarise(name, result):
             lines.append(result.get("note", "the live window is open but nothing was polled"))
         else:
             lines.append(f"{result.get('polls_today')} live poll(s) made today")
+    if name in ("results", "live") and result.get("outcome") is not None:
+        # What the pass was served, which is what it is judged by: a primary that failed before a
+        # fallback answered is an ok pass. Its failure is still printed below, from `errors`, and
+        # kept under `diagnostics` - it is not the verdict.
+        ended = result.get("by_outcome") or {}
+        detail = ", ".join(f"{outcome}: {len(names)}" for outcome, names in ended.items())
+        lines.append(f"outcome={result['outcome']}" + (f" ({detail})" if detail else ""))
     if name == "forecasts":
         synced = [k for k, v in (result.get("competitions") or {}).items()
                   if not (isinstance(v, dict) and v.get("error"))]

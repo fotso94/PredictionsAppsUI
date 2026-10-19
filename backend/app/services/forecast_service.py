@@ -16,7 +16,7 @@ import uuid
 from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,9 @@ from app.core.config import settings
 from app.models.predictions import Match, MatchStatus, Team
 from app.models.provider_data import ProviderForecastRecord, ProviderForecastSnapshot
 from app.services import match_matching
+from app.services.forecast_refresh_policy import (
+    CalendarEvidence, RefreshPlan, RefreshPolicy, judge_calendar,
+)
 from app.services.match_cache import MatchCache
 from app.services.match_registry import MatchRegistry, _aware_utc
 from app.services.providers import competitions as comps
@@ -66,7 +69,29 @@ UNAVAILABLE_COOLDOWN_SECONDS = 2 * 60
 def _seconds_until_utc_midnight(now: datetime) -> int:
     tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     return max(int((tomorrow - now).total_seconds()), 60)
-PENDING_TTL_SECONDS = 48 * 3600
+
+
+# ------------------------------------------------------------- what happens to a forecast nobody could place
+#: A pending forecast - paid for, not yet attachable - is retried on every pass while its kick-off
+#: is no further past than this. A fixture that arrives late, an alias added for a club spelled two
+#: ways, a re-listed match: each of those binds it for nothing, and each can happen well after the
+#: match was played. The retrieval time travels with the payload, so a forecast retrieved before
+#: kick-off and bound weeks later is still prematch evidence (`captured_before_kickoff`), and one
+#: retrieved after kick-off never is, however soon it binds.
+PENDING_RETRY_DAYS = 30
+#: The pending store lives at least as long as the retry window, with a week in hand for a stopped
+#: scheduler; it is renewed on every pass. 48 h, which it used to be, would have let the key expire
+#: - a deletion nobody recorded - long before the retry window closed.
+PENDING_TTL_SECONDS = (PENDING_RETRY_DAYS + 7) * 24 * 3600
+#: Past the retry window a forecast is RETAINED, not deleted: its full payload, original
+#: `fetched_at`, `model_run_at` and provenance move under an explicit retention record that says it
+#: is no longer retried automatically and why. `reattach_pending(include_retained=True)` still
+#: attaches it on request - after an alias correction, say - for nothing. Six months, so a match
+#: whose identity is only sorted out at the end of a season can still be scored.
+RETAINED_KEY = "forecast:retained:{provider}:{key}"
+RETAINED_TTL_SECONDS = 180 * 24 * 3600
+RETENTION_REASON_KICKOFF_PAST = "kick-off more than {days} days past; kept, not retried automatically"
+RETENTION_REASON_NO_MARKET = "no usable market in the payload; kept for the record, never attachable"
 
 _DATETIME_FIELDS = ("kickoff_utc", "model_run_at", "provider_updated_at", "fetched_at")
 
@@ -185,7 +210,8 @@ def _naive(dt: Optional[datetime]) -> Optional[datetime]:
 class ForecastService:
     def __init__(self, db: Session, provider: Optional[ForecastProvider] = None, cache: Optional[MatchCache] = None,
                  now: Optional[datetime] = None, keys: Optional[List[str]] = None, use_default_provider: bool = True,
-                 fixtures: Optional["MatchDataService"] = None, sync_fixtures: bool = True):
+                 fixtures: Optional["MatchDataService"] = None, sync_fixtures: bool = True,
+                 policy: Optional[RefreshPolicy] = None):
         self.db = db
         self.registry = MatchRegistry(db)
         self.cache = cache or MatchCache()
@@ -197,6 +223,20 @@ class ForecastService:
         self._sync_fixtures = sync_fixtures
         self._lock_token = uuid.uuid4().hex
         self._cooldown_cache: Any = _UNSET
+        self._policy = policy
+
+    @property
+    def policy(self) -> RefreshPolicy:
+        """The refresh rule this service follows (`GAMEFORECAST_REFRESH_POLICY`), built on first use.
+
+        One object for the whole service: `ensure_synced` asks it which competitions to walk and
+        in what order, `estimate_pass` asks it the same question for the dry run, and both read
+        and write the same per-day state in Redis.
+        """
+        if self._policy is None:
+            name = self.provider.name if self.provider else "none"
+            self._policy = RefreshPolicy.from_settings(self.cache, name, lambda: self.now)
+        return self._policy
 
     @property
     def fixtures(self) -> Optional["MatchDataService"]:
@@ -285,12 +325,10 @@ class ForecastService:
         The turn is all-or-nothing. Starting one whose discovery fits but whose fetch does not
         spends the last unit on a league id and returns no forecast at all, which is worse than
         not starting: the allowance is gone and the competition is no better off. So the whole
-        cost has to fit, and when it does not the pass stops here rather than half-spending.
-
-        It stops rather than moving on to a cheaper competition behind it. Letting price decide
-        the order would put an expensive competition permanently last, and permanently last with
-        a small daily allowance means never fetched. The starved competition keeps its place at
-        the head of the next run, which is the only thing that eventually feeds it.
+        cost has to fit - discovery and every page the provider last needed - and when it does
+        not, what happens next is the refresh policy's call (`ensure_synced`): the earlier rule
+        stops the pass here rather than half-spending; the daily-slot rule defers this
+        competition, which then leads the next pass, and moves on to the next affordable one.
         """
         if remaining is None:
             return None
@@ -299,9 +337,7 @@ class ForecastService:
             return None
         detail = "a league-id discovery and then a fetch" if cost > 1 else "a fetch"
         return (f"{self.provider.name}'s remaining daily allowance ({remaining}{self._remaining_source()}) "
-                f"cannot cover the next competition's turn: {key} costs {cost} request(s) ({detail}). Stopped "
-                f"rather than spending part of it, and rather than reordering by price, which "
-                f"would starve {key} permanently")
+                f"cannot cover the next competition's turn: {key} costs {cost} request(s) ({detail})")
 
     def _remaining_source(self) -> str:
         """Which side that remaining figure came from, as a clause for the stop reason.
@@ -387,14 +423,35 @@ class ForecastService:
         return max(int(reset), 60), ("the provider's own reset, which outlasts our counter's UTC "
                                      f"day in {midnight}s")
 
+    def _plan(self, force: bool = False) -> RefreshPlan:
+        """What a pass would walk now, from the refresh policy. Reads Redis and the database only."""
+        return self.policy.plan(list(self.keys), kickoff_of=self._next_kickoff,
+                                last_sync_of=self._last_sync, force=force)
+
     def ensure_synced(self, days_ahead: Optional[int] = None, force: bool = False) -> Dict[str, Any]:
-        """Sync every covered competition whose last sync is older than the configured interval."""
+        """Refresh every covered competition the refresh policy says is eligible, in its order.
+
+        Each competition's turn is decided in a fixed order, and the order is the point:
+
+          1. the calendar - the fixture sync runs, and only sufficient evidence (see
+             `judge_calendar`) makes the competition dormant, in which case the turn is taken for
+             nothing BEFORE the allowance is so much as read, so a dormant competition can never
+             stand between the allowance and an active one behind it;
+          2. the allowance - the whole turn must be affordable (`_unaffordable`); what happens
+             when it is not depends on the policy: stop (elapsed-interval) or defer and move on
+             (daily-slot);
+          3. the fetch, then the policy records what it bought.
+
+        `force` bypasses eligibility and nothing else. Re-attaching forecasts already paid for
+        runs on every path, for every competition, and never consults the policy or the budget.
+        """
         report: Dict[str, Any] = {"provider": self.provider.name if self.provider else None, "competitions": {}, "skipped": []}
         if not self.provider:
             report["error"] = "no prediction provider configured"
             return report
-        interval = timedelta(hours=settings.GAMEFORECAST_SYNC_INTERVAL_HOURS)
         days_ahead = days_ahead or settings.GAMEFORECAST_SYNC_DAYS_AHEAD
+        policy = self.policy
+        report["policy"] = policy.name
         report["retried"] = {}
         report["deferred"] = []
         # The memo exists so one page render does not ask Redis the same question thirty times.
@@ -410,8 +467,13 @@ class ForecastService:
             report["synced_at"] = self.now.isoformat()
             self._record_status(report)
             return report
-        order = self.sync_order()
+        plan = self._plan(force)
+        # Every competition, the ones the pass walks first: the free re-attachment below covers
+        # all of them, and a reader of "order" sees every competition the pass considered.
+        order = plan.order + [key for key in self.keys if key not in plan.order]
         report["order"] = order
+        report["skipped"] = list(plan.ineligible)
+        report["plan"] = plan.to_dict()
         if not self._acquire_sync_lock():
             # Another worker is already spending the allowance. Attaching cached forecasts is free,
             # so that still runs; nothing is fetched twice.
@@ -420,51 +482,72 @@ class ForecastService:
             report["synced_at"] = self.now.isoformat()
             return report
         stop_reason: Optional[str] = None
+        deferred_now: Dict[str, str] = {}
+        succeeded: set = set()
         try:
-            for key in order:
-                last = self._last_sync(key)
-                if not force and last and self.now - last < interval:
-                    report["skipped"].append(key)
-                    continue
-                unaffordable = self._unaffordable(key, self._budget_remaining())
-                if unaffordable:
-                    # Stop before reserving anything: what is left cannot pay for this turn in
-                    # full, and the competitions that did not get their turn - this one first -
-                    # keep their place at the head of tomorrow's order.
-                    # The pause runs to whichever window actually has to turn: ours when our
-                    # ceiling is the binding number, the provider's when its own count is.
-                    seconds, decided_by = self._quota_cooldown_seconds()
-                    stop_reason = f"{unaffordable}. Paused for {seconds}s, per {decided_by}"
-                    self._pause(stop_reason, seconds)
-                    break
+            for key in plan.order:
+                recheck = key in plan.recheck
                 try:
-                    # Forecasts can only be attached to fixtures we know about: fill the calendar first
-                    # (cached, one provider request per competition at most every few hours).
-                    fixture_errors = self._ensure_fixtures(key, days_ahead)
-                    if self.fixtures is not None and not fixture_errors and self._dormant(key, days_ahead):
-                        # Nothing to forecast: the calendar this turn has just refreshed holds no
-                        # fixture inside the window, so the request would buy an empty page - on
-                        # 2026-10-18 two of the day's eight went to Nations Leagues with no match
-                        # until November. The turn is taken, so the key waits its interval like any
-                        # other and re-enters the day its calendar lists a fixture; it costs nothing.
-                        # Only after a fixture sync that ran and succeeded: without one, the empty
-                        # window says nothing, and a forecast fetched before its fixture is stored
-                        # is exactly what the pending store exists to attach later.
-                        report["competitions"][key] = {"skipped": "no fixture in window", "fetched": 0, "attached": 0}
+                    # 1. The calendar, before the allowance is even read. Forecasts can only be
+                    #    attached to fixtures we know about, so the fixture sync fills the calendar
+                    #    first (cached, one match-data request per competition at most every few
+                    #    hours), and the same sync is the evidence dormancy is judged on: on
+                    #    2026-10-18 two of the day's eight requests went to Nations Leagues with
+                    #    no match until November. A dormant turn is taken for nothing.
+                    evidence = self._calendar_evidence(key, days_ahead)
+                    if evidence.dormant:
+                        report["competitions"][key] = {"skipped": "no fixture in window", "fetched": 0,
+                                                       "attached": 0, "calendar": evidence.reason}
                         report.setdefault("dormant", []).append(key)
                         self._mark_synced(key)
+                        policy.record_dormant(key, evidence)
+                        succeeded.add(key)
                         continue
-                    report["competitions"][key] = self.sync_competition(
+                    # 2. The allowance. Nothing is reserved before the whole turn is known to fit.
+                    unaffordable = self._unaffordable(key, self._budget_remaining())
+                    if unaffordable:
+                        if policy.stops_when_unaffordable:
+                            # The earlier rule: stop here rather than half-spending, and rather
+                            # than reordering by price, which would put an expensive competition
+                            # permanently last - and permanently last on a small allowance means
+                            # never fetched. The starved competition keeps the head of the next
+                            # order. The pause runs to whichever window actually has to turn.
+                            seconds, decided_by = self._quota_cooldown_seconds()
+                            stop_reason = (f"{unaffordable}. Stopped rather than spending part of it, and "
+                                           f"rather than reordering by price, which would starve {key} "
+                                           f"permanently. Paused for {seconds}s, per {decided_by}")
+                            self._pause(stop_reason, seconds)
+                            break
+                        if recheck:
+                            # A re-check is paid from what is left over and nothing is left: it is
+                            # not owed, so it is neither deferred nor recorded as a failure.
+                            report.setdefault("recheck_skipped", {})[key] = unaffordable
+                            continue
+                        # Daily slot: this competition is deferred - it leads the next pass - and
+                        # the pass moves on to the next competition the allowance can serve.
+                        deferred_now[key] = unaffordable
+                        policy.record_deferred(key, unaffordable)
+                        continue
+                    # 3. The fetch.
+                    stats = self.sync_competition(
                         key, self.now.date(), self.now.date() + timedelta(days=days_ahead))
-                    if fixture_errors:
-                        report["competitions"][key]["fixture_errors"] = fixture_errors
+                    if evidence.errors:
+                        stats["fixture_errors"] = list(evidence.errors)
+                    report["competitions"][key] = stats
                     self._mark_synced(key)
+                    latest_run = parse_utc(stats["model_run_at"]) if stats.get("model_run_at") else None
+                    policy.record_fetch(key, fetched_at=self.now, model_run_at=latest_run,
+                                        forecasts=int(stats.get("fetched") or 0), recheck=recheck)
+                    succeeded.add(key)
+                    if recheck:
+                        report.setdefault("rechecked", []).append(key)
                 except ProviderNotConfiguredError as exc:
                     stop_reason = str(exc)
                     break
                 except ProviderError as exc:
                     report["competitions"][key] = {"error": str(exc)}
                     logger.warning("Forecast sync for %s failed: %s", key, exc)
+                    policy.record_failed(key, str(exc))
                     # quota/auth failures affect every competition: stop here and back off
                     stop_reason = str(exc)
                     if isinstance(exc, ProviderQuotaError):
@@ -483,17 +566,81 @@ class ForecastService:
         # exist now. This costs no provider request, so it must happen on every path - especially the
         # path where the allowance ran out, which is exactly when the cache is all there is.
         self._retry_all_pending(order, report)
+        if deferred_now and not stop_reason:
+            # The allowance could not pay for every turn the pass owed. Nothing more can be bought
+            # until whichever window refused it turns, so the pause runs to that reset: ours when
+            # our ceiling is the binding number, the provider's when its own count is.
+            seconds, decided_by = self._quota_cooldown_seconds()
+            first, why = next(iter(deferred_now.items()))
+            stop_reason = (f"{why}. Deferred rather than spending part of it; the pass moved on to the "
+                           f"next competition the allowance could serve, and {first} leads the next pass. "
+                           f"Paused for {seconds}s, per {decided_by}")
+            self._pause(stop_reason, seconds)
         if stop_reason:
             # A competition whose own request failed was not synced either: it belongs at the head of
-            # the next run just like the ones that were never reached.
-            succeeded = {k for k, v in report["competitions"].items() if not (isinstance(v, dict) and v.get("error"))}
-            deferred = [k for k in order if k not in succeeded and k not in report["skipped"]]
+            # the next run just like the ones that were never reached. Re-checks are not owed, so
+            # one that was not made is not deferred.
+            deferred = [k for k in plan.fetch if k not in succeeded]
             report["deferred"] = deferred
             report["error"] = stop_reason + (
                 f"; {len(deferred)} competition(s) deferred to the next reset" if deferred else "")
         report["synced_at"] = self.now.isoformat()
         self._record_status(report)
         return report
+
+    def estimate_pass(self, days_ahead: Optional[int] = None, force: bool = False,
+                      price: Optional[Any] = None) -> Dict[str, Any]:
+        """What `ensure_synced` would walk and spend now. Reads Redis and the database; never a provider.
+
+        The same plan, the same dormancy decision and the same affordability rule as the pass,
+        walked against the allowance that is left right now, so the number here is the number
+        the pass is about to spend - the only figure that has to be read exactly on a plan of
+        eight requests a day. Two things the pass knows that this cannot: a calendar answer the
+        fixture cache no longer holds (priced active, the expensive way), and a page the
+        provider has not shown before (priced from the last fetch's page count; the first fetch
+        of a competition with more than one page costs one more than quoted).
+
+        `price` prices one turn; the scheduler passes its own, which rounds an unpriced provider
+        UP, so an estimate that cannot know errs towards over-reporting.
+        """
+        days_ahead = days_ahead or settings.GAMEFORECAST_SYNC_DAYS_AHEAD
+        price = price or self._turn_cost
+        plan = self._plan(force)
+        remaining = self._budget_remaining()
+        out: Dict[str, Any] = {"policy": plan.policy, "publication_hour": plan.publication_hour,
+                               "hour_reached": plan.hour_reached, "ineligible": dict(plan.ineligible),
+                               "fetch": [], "recheck": [], "dormant": {}, "deferred": [], "recheck_skipped": [],
+                               "costs": {}, "requests": 0, "remaining_before": remaining}
+        stopped = False
+        for key in plan.order:
+            kind = "recheck" if key in plan.recheck else "fetch"
+            if stopped:
+                if kind == "fetch":
+                    out["deferred"].append(key)
+                continue
+            dormant, why = self.policy.calendar_still_dormant(
+                key, window_days=days_ahead, valid_for_seconds=settings.MATCH_CACHE_TTL_FIXTURES * 4,
+                count=lambda key=key: self._fixture_count(key, days_ahead))
+            if dormant:
+                out["dormant"][key] = why
+                out["costs"][key] = 0
+                continue
+            cost = max(int(price(key)), 0)
+            out["costs"][key] = cost
+            if remaining is not None and cost > 0 and remaining < cost:
+                if kind == "fetch":
+                    out["deferred"].append(key)
+                else:
+                    out["recheck_skipped"].append(key)
+                if self.policy.stops_when_unaffordable:
+                    stopped = True
+                continue
+            out[kind].append(key)
+            out["requests"] += cost
+            if remaining is not None:
+                remaining -= cost
+        out["remaining_after"] = remaining
+        return out
 
     def _retry_all_pending(self, keys: List[str], report: Dict[str, Any]) -> None:
         """Attach every cached unmatched forecast we already paid for. Makes no provider request."""
@@ -539,26 +686,49 @@ class ForecastService:
         except Exception:  # pragma: no cover
             pass
 
-    def _dormant(self, key: str, days_ahead: int) -> bool:
-        """True when the competition has no fixture still to be played inside the forecast window."""
+    # ------------------------------------------------------------------ the calendar
+    def _fixture_count(self, key: str, days_ahead: int) -> Optional[int]:
+        """Fixtures of `key` still to be played inside the forecast window, or None when unreadable."""
         league = self.registry.ensure_canonical_league(key)
         count = self.registry.fixtures_in_window(league.id, self.now, self.now + timedelta(days=days_ahead))
-        return isinstance(count, int) and count == 0
+        return count if isinstance(count, int) and not isinstance(count, bool) else None
 
-    def dormant_keys(self, keys: Iterable[str], days_ahead: int) -> List[str]:
-        """The keys among `keys` a pass would take without a request: no fixture inside the window."""
-        return [key for key in keys if self._dormant(key, days_ahead)]
-
-    def _ensure_fixtures(self, key: str, days_ahead: int) -> List[str]:
-        fixtures = self.fixtures
-        if fixtures is None:
-            return []
+    def _next_kickoff(self, key: str) -> Optional[datetime]:
+        """When `key` next plays, for the order of a pass; None when unknown, which sorts last."""
         try:
-            meta = fixtures.sync_upcoming(key, days_ahead)
-            return list(meta.errors)
-        except Exception as exc:  # fixture problems must not block forecast handling
-            logger.warning("Fixture sync before forecasts failed for %s: %s", key, exc)
-            return [str(exc)]
+            league = self.registry.ensure_canonical_league(key)
+            value = self.registry.next_kickoff(league.id, self.now)
+        except Exception as exc:  # the order is a preference, never worth failing a sync over
+            logger.debug("Could not read the next kick-off for %s: %s", key, exc)
+            return None
+        return value if isinstance(value, datetime) else None
+
+    def _calendar_evidence(self, key: str, days_ahead: int) -> CalendarEvidence:
+        """Run this turn's fixture sync and judge what it established about the forecast window.
+
+        The verdict and the evidence it rests on are recorded under the competition's own key, so
+        the dry run can tell a competition that was found dormant from one that was never checked.
+        Fixture problems never block forecast handling: a sync that raises is evidence of nothing,
+        and the competition stays active.
+        """
+        fixtures = self.fixtures
+        ran, source, stale, errors, asked = False, None, False, [], None
+        if fixtures is not None:
+            ran, asked = True, days_ahead
+            try:
+                meta = fixtures.sync_upcoming(key, days_ahead)
+                source = getattr(meta, "source", None)
+                stale = bool(getattr(meta, "stale", False))
+                errors = [str(e) for e in (getattr(meta, "errors", None) or [])]
+            except Exception as exc:
+                logger.warning("Fixture sync before forecasts failed for %s: %s", key, exc)
+                errors = [str(exc)]
+        evidence = judge_calendar(key, self.now, days_ahead, ran=ran,
+                                  source=source if isinstance(source, str) else None, stale=stale,
+                                  errors=errors, asked_days=asked,
+                                  count=lambda: self._fixture_count(key, days_ahead))
+        self.policy.record_calendar(evidence)
+        return evidence
 
     def sync_competition(self, key: str, date_from: date, date_to: date) -> Dict[str, Any]:
         assert self.provider is not None
@@ -569,6 +739,10 @@ class ForecastService:
         league = self.registry.ensure_canonical_league(key)
         stats: Dict[str, Any] = {"fetched": len(forecasts), "attached": 0, "ambiguous": 0, "unmatched": 0,
                                  "without_markets": 0, "details": []}
+        # The newest run date in the response: what the refresh policy reads to tell a fetch that
+        # bought the day's run from one that bought the previous day's, and the hour it learns from.
+        runs = [_aware_utc(f.model_run_at) for f in forecasts if isinstance(f.model_run_at, datetime)]
+        stats["model_run_at"] = max(runs).isoformat() if runs else None
         if retried:
             stats["retried"] = retried
         pending: List[Dict[str, Any]] = []
@@ -644,7 +818,7 @@ class ForecastService:
         else:
             self.cache.delete(pending_key)
 
-    def reattach_pending(self, key: Optional[str] = None) -> Dict[str, Any]:
+    def reattach_pending(self, key: Optional[str] = None, include_retained: bool = False) -> Dict[str, Any]:
         """Re-attach forecasts ALREADY PAID FOR, spending nothing.
 
         A forecast the provider gave us but whose fixture we could not identify is kept, so that a
@@ -655,59 +829,136 @@ class ForecastService:
         is the difference between fixing a mis-attachment and not being able to.
 
         `key` narrows it to one competition; omitted, it covers every competition in the rotation.
+        `include_retained` also tries the forecasts past the retry window (`PENDING_RETRY_DAYS`),
+        which are kept but not retried on their own: the call to make after an alias correction.
         Nothing here touches the provider - `_retry_pending` reads the stored payloads and the
         database only - and `test_reattaching_pending_forecasts_spends_nothing` asserts the request
         counter is unmoved rather than trusting this sentence.
+
+        The summary adds up: `still_pending` is what was pending minus what attached minus what
+        moved into retention; `retained` counts the moves; `retained_attached` what an explicit
+        retained attempt bound.
         """
         keys = [key] if key else list(self.keys)
-        report: Dict[str, Any] = {"competitions": {}, "attached": 0, "still_pending": 0}
+        report: Dict[str, Any] = {"competitions": {}, "attached": 0, "still_pending": 0, "retained": 0}
         for competition in keys:
-            counts = self._retry_pending(competition)
+            counts = dict(self._retry_pending(competition) or {})
+            if include_retained:
+                counts.update(self._reattach_retained(competition) or {})
             if not counts:
                 continue
             report["competitions"][competition] = counts
-            report["attached"] += counts.get("attached", 0)
-            report["expired"] = report.get("expired", 0) + counts.get("expired", 0)
-            report["still_pending"] += counts.get("pending", 0) - counts.get("attached", 0) - counts.get("expired", 0)
+            report["attached"] += counts.get("attached", 0) + counts.get("retained_attached", 0)
+            report["retained"] += counts.get("retained", 0)
+            report["still_pending"] += (counts.get("pending", 0) - counts.get("attached", 0)
+                                        - counts.get("retained", 0))
+            if include_retained:
+                report["retained_attached"] = report.get("retained_attached", 0) + counts.get("retained_attached", 0)
+                report["retained_kept"] = report.get("retained_kept", 0) + counts.get("retained_kept", 0)
         return report
 
     def _retry_pending(self, key: str) -> Optional[Dict[str, int]]:
-        """Attach previously unmatched forecasts to fixtures that exist now. No provider request is made."""
+        """Attach previously unmatched forecasts to fixtures that exist now. No provider request is made.
+
+        Every item is tried, whatever its kick-off: attaching reads the database only, and a
+        forecast retrieved before kick-off that binds weeks later is prematch evidence the match
+        page and settlement can still use. What its kick-off decides is only what happens to an
+        item that STILL does not bind: inside `PENDING_RETRY_DAYS` it stays pending and is tried
+        again next pass; past that it moves into retention with the reason, where it waits for an
+        explicit `reattach_pending(include_retained=True)`. Nothing is deleted, and the stored
+        payload - `fetched_at` and `model_run_at` included - is re-stored exactly as it was.
+        """
         pending = self.cache.get(self._pending_key(key)) or []
         if not pending:
             return None
         league = self.registry.ensure_canonical_league(key)
         counts = {"pending": len(pending), "attached": 0}
         still_pending: List[Dict[str, Any]] = []
+        retired: List[Dict[str, Any]] = []
         for item in pending:
-            if self._kickoff_long_past(item):
-                # Re-storing a pending forecast renews its 48 h life, so one for a match played days
-                # ago was retried daily for ever; a kick-off further past than the live window can
-                # attach to nothing a reader still waits on.
-                counts["expired"] = counts.get("expired", 0) + 1
-                continue
             forecast = _forecast_from_dict(item)
             outcome = self.attach_forecast(forecast, key, league.id)
             if outcome["result"] == "attached":
                 counts["attached"] += 1
-            elif outcome["result"] in ("unmatched", "ambiguous"):
+            elif outcome["result"] == "without_markets":
+                retired.append(self._retention_record(item, RETENTION_REASON_NO_MARKET, outcome))
+            elif self._past_retry_window(item):
+                retired.append(self._retention_record(
+                    item, RETENTION_REASON_KICKOFF_PAST.format(days=PENDING_RETRY_DAYS), outcome))
+            else:
                 still_pending.append(item)
         self.db.commit()
+        if retired:
+            counts["retained"] = len(retired)
+            self._store_retained(key, retired)
         # `still_pending` is the full remaining set, so this call replaces rather than merges
         self._store_pending(key, still_pending, replace=True)
         return counts
 
-    def _kickoff_long_past(self, item: Dict[str, Any]) -> bool:
-        raw = item.get("kickoff_utc")
-        if not raw:
+    def _past_retry_window(self, item: Dict[str, Any]) -> bool:
+        """Is this forecast's kick-off further past than the automatic retry window reaches?"""
+        kickoff = parse_utc(item.get("kickoff_utc")) if item.get("kickoff_utc") else None
+        if kickoff is None:
             return False
-        try:
-            kickoff = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
-        except ValueError:
-            return False
-        if kickoff.tzinfo is None:
-            kickoff = kickoff.replace(tzinfo=timezone.utc)
-        return kickoff < self.now - timedelta(minutes=150)
+        return kickoff < self.now - timedelta(days=PENDING_RETRY_DAYS)
+
+    def _retention_record(self, item: Dict[str, Any], reason: str, outcome: Dict[str, Any]) -> Dict[str, Any]:
+        """The payload, untouched, under a record that says why it is no longer retried."""
+        return {"forecast": dict(item),
+                "retention": {"retry": False, "reason": reason, "retired_at": self.now.isoformat(),
+                              "kickoff_utc": item.get("kickoff_utc"),
+                              "fetched_at": item.get("fetched_at"), "model_run_at": item.get("model_run_at"),
+                              "last_refusal": outcome.get("reason"), "last_result": outcome.get("result")}}
+
+    def _retained_key(self, key: str) -> str:
+        return RETAINED_KEY.format(provider=self.provider.name if self.provider else "none", key=key)
+
+    def retained(self, key: str) -> List[Dict[str, Any]]:
+        """The forecasts of `key` kept past the retry window, each under its retention record."""
+        stored = self.cache.get(self._retained_key(key)) or []
+        return [record for record in stored if isinstance(record, dict) and isinstance(record.get("forecast"), dict)]
+
+    def _store_retained(self, key: str, records: List[Dict[str, Any]], replace: bool = False) -> None:
+        """Keep retention records, merged by provider event id so nothing already kept is lost."""
+        merged: Dict[str, Dict[str, Any]] = {}
+        if not replace:
+            for record in self.retained(key):
+                event = record["forecast"].get("external_event_id")
+                if event:
+                    merged[str(event)] = record
+        for record in records:
+            event = record["forecast"].get("external_event_id")
+            if event:
+                merged[str(event)] = record
+        if merged:
+            self.cache.set(self._retained_key(key), list(merged.values()),
+                           ttl=RETAINED_TTL_SECONDS, stale_ttl=RETAINED_TTL_SECONDS)
+        else:
+            self.cache.delete(self._retained_key(key))
+
+    def _reattach_retained(self, key: str) -> Optional[Dict[str, int]]:
+        """Try every retained forecast of `key` once, on request. No provider request is made."""
+        records = self.retained(key)
+        if not records:
+            return None
+        league = self.registry.ensure_canonical_league(key)
+        counts = {"retained_tried": len(records), "retained_attached": 0, "retained_kept": 0}
+        kept: List[Dict[str, Any]] = []
+        for record in records:
+            outcome = self.attach_forecast(_forecast_from_dict(record["forecast"]), key, league.id)
+            if outcome["result"] == "attached":
+                counts["retained_attached"] += 1
+                continue
+            record = dict(record)
+            record["retention"] = dict(record.get("retention") or {})
+            record["retention"]["last_attempt_at"] = self.now.isoformat()
+            record["retention"]["last_refusal"] = outcome.get("reason")
+            record["retention"]["last_result"] = outcome.get("result")
+            kept.append(record)
+            counts["retained_kept"] += 1
+        self.db.commit()
+        self._store_retained(key, kept, replace=True)
+        return counts
 
     def attach_forecast(self, forecast: ProviderForecast, key: str, league_id) -> Dict[str, Any]:
         if not forecast.has_any_market():
@@ -975,4 +1226,8 @@ class ForecastService:
             payload["budget"] = budget.snapshot() if budget else None
             payload["last_sync"] = self.cache.get(STATUS_KEY.format(provider=provider.name))
             payload["cooling_down"] = self._cooldown_reason()
+            try:
+                payload["refresh_policy"] = self.policy.describe()
+            except Exception as exc:  # pragma: no cover - a status payload is never worth an exception
+                payload["refresh_policy"] = {"error": str(exc)}
         return payload
