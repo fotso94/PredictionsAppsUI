@@ -304,6 +304,35 @@ def test_upcoming_stops_paginating_after_the_window():
     assert [f.external_id for f in fixtures] == ["1"] and len(recorder.requests) == 1
 
 
+def test_a_calendar_cut_off_at_the_page_cap_is_never_empty_so_it_cannot_read_as_dormant():
+    """The pager stops at MAX_PAGES only after that many non-empty pages lying wholly inside the
+    window, so a cut-off answer always holds fixtures. The forecast policy's dormancy verdict needs
+    zero fixtures in the window from a complete calendar, and SyncMeta carries no completeness
+    flag; this pins the property that makes the missing flag harmless for that verdict
+    (docs/design/forecast-refresh-policy-decisions.md, item 12)."""
+    from unittest.mock import patch
+    from datetime import datetime as real_datetime
+    from app.services.providers.livescore_api import MAX_PAGES
+
+    def calendar(request):
+        page = int(dict(request.url.params).get("page") or 1)
+        assert page <= MAX_PAGES, "a page past the cap must not be requested"
+        return json_response({"success": True, "data": {"fixtures": [
+            {"id": str(page), "date": "2026-09-19", "time": "14:00:00", "home": {"id": "1", "name": "A"},
+             "away": {"id": "2", "name": "B"}, "competition": {"id": "2", "name": "Premier League"}},
+        ], "next_page": "yes"}})
+    p, recorder = provider(calendar, overrides={"premier_league": "2"})
+
+    class FrozenDate(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2026, 9, 18, 12, 0, tzinfo=tz)
+    with patch("app.services.providers.livescore_api.datetime", FrozenDate):
+        fixtures = p.get_upcoming("premier_league", days_ahead=7)
+    assert len(recorder.requests) == MAX_PAGES
+    assert [f.external_id for f in fixtures] == [str(n) for n in range(1, MAX_PAGES + 1)]
+
+
 # ------------------------------------------------------- competition id persistence (A6)
 
 def test_stale_competition_store_is_read_when_the_fresh_copy_has_expired():

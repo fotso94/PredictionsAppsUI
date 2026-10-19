@@ -78,28 +78,29 @@ provider already has, for the same request.
 
 ## D. The three highest-value improvements with the providers we have
 
-### 1. Fetch forecasts after the provider publishes its daily run, and pin the refresh to a day
+### 1. Fetch forecasts after the provider's run has been observed, with one refresh slot per day
 
-- **Evidence and root cause.** GameForecast's run is a date stamp; the same day's run is visible by 12:00 UTC and not at 00:27 (306 of 495 snapshots this week carried a day-old run; at kick-off the median model age over the last 21 days is 37.5 h, maximum 43). The club competitions all come due at the first pass after our UTC-midnight allowance reset, because the per-competition interval is 24 h and the task runs on a 6 h cadence that drifts — so the day's one refresh happens at the worst hour and sometimes slips to 28–36 h.
-- **Change.** `backend/app/core/config.py`: a new `SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR = 12`, read in the scheduler's `due()` for the forecasts task (`sync_scheduler.py:262-270`): not due while the UTC hour is below it; and `GAMEFORECAST_SYNC_INTERVAL_HOURS` 24 → 22, so the daily pass is always the one that refreshes. No request-count change.
-- **Benefit.** Forecasts about 12 h old at retrieval instead of 24; at kick-off roughly a day younger for afternoon and evening fixtures; every request lands inside the provider's own window (which starts 03:12 UTC), so our counter and theirs finally describe the same day.
-- **Cost and trade-offs.** 0 requests. A one-off delay of up to 12 h on the day it is switched on. Morning kick-offs keep yesterday's run, as today.
-- **Acceptance.** Unit test on `due()`; after a week: every club `forecast:status` fetched at or after 12:00 UTC, new snapshots' `first_fetched_at − model_run_at` median ≈ 12–13 h, per-competition gaps 24–24.5 h, `deferred` empty, `used_today` ≤ 8.
+- **Evidence and root cause.** GameForecast's run is a date stamp. In the week to 18 October, every fetch made at the first pass after UTC midnight (306 of 495 snapshots) carried the previous day's run, and every fetch at 12:xx–20:xx UTC carried the same day's; at kick-off the median model age over 21 days was 37.5 h, maximum 43. That is an **observation of one week, not a publication time the provider promises**. The club competitions all came due at the first pass after our UTC-midnight allowance reset, because eligibility was elapsed time (24 h) on a 6 h cadence that drifts.
+- **What was first applied, and why it was not enough.** A noon gate plus a 22 h interval (commit `ca9c0584`). The reviewer showed it does not guarantee a daily refresh: a competition refreshed at 20:01 is not eligible at the next noon (16 h), narrowly misses an evening pass at 17:59 (21 h 58 min), and waits for the following noon — a 40-hour gap from elapsed-time scheduling. "Noon" was also written up as the provider's publication time, which the evidence does not establish.
+- **Change (branch `policy-round`, not deployed).** One refresh slot per competition per UTC day, with eligibility from an **observed** earliest publication hour, re-checks of an older run paid only from spare allowance, and the elapsed-interval rule kept behind a switch for comparison and rollback — `docs/design/forecast-refresh-policy.md`.
+- **Expected benefit.** Forecasts fetched after the run is observed to exist rather than before it; no missed days from elapsed time. Nothing guarantees newer predictions when the provider has not published.
+- **Cost and trade-offs.** No more than the 8-a-day ceiling; a re-check costs one request and happens at most once per competition per day; spare allowance stays unspent by design.
+- **Acceptance.** The replayed week in the handoff, then, after a rollout the owner approves, a week of `forecast:refresh` records showing one fetch per competition per day with same-day runs where the provider published.
 
 ### 2. Spend no forecast request on a competition with nothing to forecast, and close the identity gaps
 
 - **Evidence and root cause.** Two of today's eight requests went to the UEFA and CONCACAF Nations Leagues, which have no fixture until November (both answered 0 events); the rotation admits any national key with a verified id and never looks at the calendar first. Separately, one Champions League fixture has no forecast because the provider writes "Lask Linz" where the fixture says "LASK", and one Ligue 1 match is counted overdue because the fallback wrote "Estac Troyes" beside Live Score's "Troyes".
-- **Change.** `forecast_service.py:443-448`: after `_ensure_fixtures` returns without error, count the league's `Match` rows with `match_date` inside the window; if none, record `skipped: no fixture in window`, mark the key synced and continue — no fetch; keep fetching when the fixture sync itself failed. Mirror it in the scheduler's cost estimate. In `match_matching.py` `_ALIASES`: `"lask linz": "lask"` and `"estac troyes": "troyes"`. Pin `gameforecast_id=8` for `champions_league` in `competitions.py`. Drop a pending item whose kick-off is more than 150 min past instead of re-storing it.
-- **Benefit.** The two freed requests go to the club competitions nearest kick-off (a second daily refresh for two of them); the LASK fixture's forecast attaches at the next free re-try; the Troyes duplicate stops being asked about once its twin is recognised (closing the row itself is a live-data decision, the owner's — `relisting_of` closes only swapped pairings by design, so either extend it to same-way duplicates with a finished twin, or run the repair script the module names).
-- **Cost and trade-offs.** 0 requests. Forecasts for fixtures our calendar lacks are not pre-cached — they could not attach anyway. The dormant keys resume by themselves the day their calendar lists a fixture (the national calendar is refreshed at most 14 days apart; its 36 h lead catches a break).
+- **Change (as applied on 2026-10-18; the branch replaces its dormancy test and its pending drop, see the trade-offs below and the correction after section D).** `forecast_service.py:443-448`: after `_ensure_fixtures` returns without error, count the league's `Match` rows with `match_date` inside the window; if none, record `skipped: no fixture in window`, mark the key synced and continue — no fetch; keep fetching when the fixture sync itself failed. Mirror it in the scheduler's cost estimate. In `match_matching.py` `_ALIASES`: `"lask linz": "lask"` and `"estac troyes": "troyes"`. Pin `gameforecast_id=8` for `champions_league` in `competitions.py`. Drop a pending item whose kick-off is more than 150 min past instead of re-storing it.
+- **Benefit.** The two requests are not spent; under the refresh policy they stay unspent as margin unless a re-check of an older run needs them — they do not become a second daily refresh, which would buy price changes, not fresher probabilities. The LASK fixture's forecast attaches at the next free re-try; the Troyes duplicate stops being asked about once its twin is recognised (closing the row itself is a live-data decision, the owner's — `relisting_of` closes only swapped pairings by design, so either extend it to same-way duplicates with a finished twin, or run the repair script the module names).
+- **Cost and trade-offs.** No request is spent on a dormant turn. A competition is dormant only on sufficient calendar evidence — a fixture sync this turn that answered fresh or from a non-stale cache, without error, covering the window — never merely because the database holds no fixture; a failed, disabled or stale discovery keeps the competition active, and a forecast fetched before its fixture is stored is kept for later attachment. The dormant keys resume by themselves the day their calendar lists a fixture.
 - **Acceptance.** `forecasts.last_sync` shows no `fetched: 0` fetch; `by_reason.fetch` ≤ 6 on a club-only day; `forecasts_waiting_for_fixtures` 0 after the next pass; matcher tests for both aliases; the UEFA Nations League refreshes unaided before its 12 November fixtures.
 
 ### 3. A live poll answered by a fallback is a success
 
 - **Evidence and root cause.** `_run_live` fails the task whenever any provider in the chain errored, even when the fallback then answered and the scores were stored, and backs off five minutes; today's 17:38 timeout cost exactly that on a Sunday afternoon with five matches in play.
-- **Change.** In `_run_live` and `_run_results` (`sync_scheduler.py:759` and the results equivalent), judge the pass by whether it was answered (`meta.request_failed` false, or rows written), and keep the primary's error as a note in the report rather than as the verdict; a pass nobody answered still fails and backs off.
+- **Change (branch `policy-round`, not deployed).** In `_run_live` and `_run_results`, classify every call by what answered it — fresh from a provider, a valid cache, only the stale copy, a failed request, a request deferred by quota or cool-down, or a competition no provider can take — and judge the pass on all of its calls: it fails only when a call was answered by nobody, by the stale copy alone, or was deferred. A primary error the fallback covered stays in the report as a diagnostic. The verdict does not rest on `request_failed` alone or on rows written: an empty answer is an answer, and one competition answered does not hide another whose request failed.
 - **Benefit.** No five-minute live gap on a single Live Score timeout; the fallback already covers the poll, and the primary is asked again two minutes later as normal.
-- **Cost and trade-offs.** 0 requests; a transient primary error becomes visible in the report instead of the failure counter, so the status page must still show it (it does, as the provider's `last_error`).
+- **Cost and trade-offs.** No new kind of request, but not zero: the polls a five-minute backoff would have skipped are now made, about two per avoided backoff at the two-minute cadence, and they count against the same live ceiling, which still binds. A transient primary error becomes visible in the report instead of the failure counter, so the status page must still show it (it does, as the provider's `last_error`). A poll that only the stale copy answered still fails and backs off.
 - **Acceptance.** Unit test: primary timeout + fallback answer → `ok` true, no backoff; live: `tasks.live.consecutive_failures` stays 0 across a primary timeout, `backoff_seconds` unset, polls every 120 s through it.
 
 ### Applied on 2026-10-18 (changes 1 and 2)
@@ -116,6 +117,17 @@ was pinned and then withdrawn: eight tests document provider-id discovery with t
 League as their example, and the pin is not what these changes are for; it stays a proposal.
 Verification: the first forecasts pass after 12:00 UTC on 2026-10-19.
 
+**Corrected on the `policy-round` branch (2026-10-18, isolated, not deployed).** The reviewer's
+findings on the applied version: the noon gate was described as the provider's publication time,
+which only one week of observation supports; the 22 h interval can still miss a day; the 150-minute
+drop destroyed pending forecasts that a delayed fixture or a later alias could still attach as
+genuine prematch evidence; a competition was priced dormant on the database alone, and the
+affordability check ran before the dormant decision. The branch replaces each of these — a daily
+refresh slot with an observed publication hour, retention instead of deletion, dormancy only on
+sufficient calendar evidence decided before affordability — and adds the fallback-success fix for
+live polling and results. The live scheduler keeps running `310470a9` until the owner approves a
+rollout; the handoff is `docs/evidence/policy-round-2026-10-18.md`.
+
 ### Configuration to re-base only after the owner verifies the allowance
 
 - **GameForecast ceiling 8 → 10.** The provider's own headers say 10 on every answered response, and the budget already refuses before the network once the provider's remaining runs short. Worth doing with change 1 (which keeps every request inside the provider's window); without it, a day straddling the 03:12 reset can over-count.
@@ -130,9 +142,13 @@ Verification: the first forecasts pass after 12:00 UTC on 2026-10-19.
 
 ## F. Recommendation, in plain words
 
-Do change 1 first: fetch forecasts after noon UTC with a 22-hour refresh. It costs nothing, cannot
-spend more, and makes every forecast about a day fresher — the largest improvement available, and
-the one readers would notice. Do change 2 with it: stop paying for competitions that have no
+Do change 1 first, in its corrected form on the `policy-round` branch: one refresh slot per
+competition per UTC day, taken after the provider's run has been observed (12:00 UTC until earlier
+evidence; an observation of one week, not a promised publication time). It stays inside the same
+8-a-day ceiling, may spend spare requests on one re-check of an older run per competition per day,
+and buys a fresher run only where the provider has published by then; nothing guarantees newer
+predictions. In the replayed week (a simulation) the median model age at kick-off was 20 h,
+against 37.5 h measured over the 21 days to 18 October. Do change 2 with it: stop paying for competitions that have no
 matches and add the two missing name aliases; that frees a quarter of the daily forecast allowance
 and fills the one uncovered Champions League fixture. Then change 3, so a single Live Score
 timeout no longer costs five minutes of live scores. Verify each over a week with the acceptance

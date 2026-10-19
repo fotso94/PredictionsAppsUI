@@ -28,8 +28,8 @@ def test_neither_policy_ever_exceeds_the_daily_ceiling(replay):
 
 
 def test_the_elapsed_interval_rule_misses_a_day_after_a_late_evening_refresh(replay):
-    """A competition refreshed at 20:05 is not eligible at the next noon (16 h) and falls one minute
-    short of 22 h at the evening pass: the reviewer's regression, reproduced."""
+    """A competition refreshed at 20:05 is not eligible at the next noon (16 h) and falls short of 22 h
+    at the 18:00 pass by five minutes: the reviewer's regression, reproduced."""
     module, _, runs, _ = replay
     gaps = runs[module.POLICY_ELAPSED_INTERVAL].refresh_gaps_hours()
     assert gaps["serie_a"] > 36

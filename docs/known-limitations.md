@@ -814,15 +814,21 @@ Measured on 2026-10-18 in `docs/evidence/coverage-and-freshness-2026-10-18.md`: 
 per provider (configured ceiling against what each provider's own headers report), a
 per-competition table of upcoming fixtures, forecasts and their age, data arrival and overdue
 results with each gap's measured reason, where capacity is lost and whether by design, three
-improvements that cost no request (fetch forecasts after the provider's daily run; spend nothing
+improvements that stay inside the current limits (fetch forecasts after the provider's daily run; spend nothing
 on competitions without fixtures and add two missing name aliases; a fallback-answered live poll is
 a success), the configuration to re-base only after the owner verifies the plan's allowance, and
 what genuinely needs a paid plan. Changes 1 and 2 were applied on 2026-10-18 (the forecasts task
 waits for 12:00 UTC and refreshes each competition every 22 h; a competition whose freshly synced
 calendar holds no fixture in the window takes its turn without a request; the two aliases; pending
-forecasts for matches long played are dropped) — the Champions League id stays a proposal, since
-eight tests document provider-id discovery with it as the example. Change 3 and the ceilings are
-still proposals. The first pass under the new rule is the one after 12:00 UTC on 2026-10-19.
+forecasts for matches long played are dropped) — the Champions League id stays a proposal. The
+reviewer then found the applied version wanting: "noon" is an observation of one week, not a
+publication time the provider promises; the 22 h interval can still miss a day; the drop destroys
+pending forecasts that a late fixture or alias could still attach; dormancy was decided on the
+database alone and after the affordability check. The corrections — a daily refresh slot with an
+observed publication hour, retention instead of deletion, dormancy only on sufficient calendar
+evidence, and the fallback-success fix for live polling and results — are on the `policy-round`
+branch, verified in isolation and **not deployed**: the live scheduler runs `310470a9` until the
+owner approves a rollout (`docs/evidence/policy-round-2026-10-18.md`).
 
 ## Selections and slips
 
