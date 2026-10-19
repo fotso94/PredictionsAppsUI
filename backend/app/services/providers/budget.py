@@ -56,7 +56,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterator, Optional, Tuple
 
 from app.services.providers.base import ProviderQuotaError, ProviderRequestNotSent
-from app.services.sync_lease import check_spend_guard
+from app.services.sync_lease import LeaseLost, active_lease, check_spend_guard
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +80,33 @@ if limit > 0 and (used + amount) > limit then
   return {used, 0}
 end
 if KEYS[3] then redis.call('HINCRBY', KEYS[3], ARGV[4], amount) end
+local newv = redis.call('INCRBY', KEYS[1], amount)
+if newv == amount then redis.call('EXPIRE', KEYS[1], ttl) end
+return {newv, 1}
+"""
+
+#: The reserve above, for a pass that runs under a sync lease (`sync_lease.lease_scope`): the
+#: lease is read in its own database and the reservation made in this one, inside ONE script, so a
+#: worker that lost its lease between checking it and reserving is refused here and the counter
+#: does not move. ARGV[1..4] are the lease's fence (lease database, lease key, owner token, this
+#: database); ARGV[5..8] are the reserve's own arguments. {-1, -1} means "not the owner".
+FENCED_RESERVE_LUA = """
+redis.call('select', ARGV[1])
+local owner = redis.call('get', ARGV[2])
+redis.call('select', ARGV[4])
+if owner ~= ARGV[3] then
+  return {-1, -1}
+end
+local used = tonumber(redis.call('GET', KEYS[1]) or '0')
+local amount = tonumber(ARGV[5])
+local limit = tonumber(ARGV[6])
+local ttl = tonumber(ARGV[7])
+if limit > 0 and (used + amount) > limit then
+  local refused = redis.call('INCRBY', KEYS[2], amount)
+  if refused == amount then redis.call('EXPIRE', KEYS[2], ttl) end
+  return {used, 0}
+end
+if KEYS[3] then redis.call('HINCRBY', KEYS[3], ARGV[8], amount) end
 local newv = redis.call('INCRBY', KEYS[1], amount)
 if newv == amount then redis.call('EXPIRE', KEYS[1], ttl) end
 return {newv, 1}
@@ -348,6 +375,17 @@ class ProviderRateLimit:
             ttl = (int(reset_seconds) + RATE_LIMIT_GRACE_SECONDS) if isinstance(reset_seconds, int) \
                 else RATE_LIMIT_DEFAULT_TTL_SECONDS
             ttl = max(min(ttl, RATE_LIMIT_MAX_TTL_SECONDS), 60)
+            lease = active_lease()
+            if lease is not None:
+                # Control state: the reading decides whether the next request is refused before it
+                # leaves. Under a lease only the holder may replace it, so a stale worker's late
+                # answer cannot put back a window count its successor has already moved past. The
+                # request itself stays on record either way: the usage counter was moved by the
+                # owner-checked reservation and the transmission was noted by the HTTP client.
+                if not lease.fenced_set_on(self._client, [self.key], json.dumps(payload), [ttl]):
+                    logger.info("%s: a rate-limit reading from a worker without the lease was not "
+                                "stored (%s)", self.provider, lease.lost_reason)
+                return
             self._client.setex(self.key, ttl, json.dumps(payload))
         except Exception as exc:  # pragma: no cover - bookkeeping never fails a request
             logger.debug("Could not record the rate-limit reading for %s: %s", self.provider, exc)
@@ -687,11 +725,15 @@ class RequestBudget:
         window is spent while our counter still shows room" are different facts, and on
         2026-09-19 only the second one was true.
 
-        Before either, the spending guard of the work in progress runs (`sync_lease.guard_spending`):
-        a forecast pass that has lost its lease raises `LeaseLost` here, so it neither reserves
-        allowance nor sends a request, whichever provider or page it was about to ask.
+        Inside a pass that runs under a sync lease (`sync_lease.lease_scope`) the reservation is
+        owner-checked: the lease and the counter are read and moved by one script
+        (`FENCED_RESERVE_LUA`), so a worker that lost its lease anywhere before that script runs -
+        even after the early check below - is refused with `LeaseLost` and the counter does not
+        move. There is no unmetered or non-atomic fallback under a lease: a reservation whose
+        ownership cannot be established is refused, never made.
         """
         check_spend_guard()
+        lease = active_lease()
         provider_refusal = self._provider_refusal(amount)
         if provider_refusal is not None:
             # Refused by the provider's own accounting, not by our ceiling. Nothing is sent, so
@@ -701,6 +743,9 @@ class RequestBudget:
             raise ProviderRequestNotSent(provider_refusal, provider=self.provider,
                                          refused_by="provider")
         if self._client is None:
+            if lease is not None:
+                raise LeaseLost(f"no {self.provider} budget store to reserve against; a pass under a "
+                                f"lease never spends unmetered")
             if self.fail_open:
                 self._note_unmetered(amount)
                 self._note_granted(amount)
@@ -708,7 +753,7 @@ class RequestBudget:
             raise ProviderRequestNotSent("budget store unavailable; refusing outbound request",
                                          provider=self.provider)
         key = self._usage_key()
-        used, allowed, metered = self._reserve(key, amount)
+        used, allowed, metered = self._reserve(key, amount, lease)
         if not allowed:
             raise ProviderRequestNotSent(
                 f"Daily request budget for {self.provider} exhausted "
@@ -796,7 +841,7 @@ class RequestBudget:
                                          provider=self.provider) from exc
         return 0, True
 
-    def _reserve(self, key: str, amount: int):
+    def _reserve(self, key: str, amount: int, lease=None):
         """Returns (usage_after_or_current, allowed, metered).
 
         `metered` is False only when the request is being let out without the counter recording
@@ -827,6 +872,8 @@ class RequestBudget:
         if spend is not None:
             keys.append(SCHEDULER_SENT_KEY)
             args.append(scheduler_ledger_field(self.provider, spend.task))
+        if lease is not None:
+            return self._reserve_fenced(keys, args, lease)
         evaluate = getattr(self._client, "eval", None)
         if callable(evaluate):
             try:
@@ -840,6 +887,30 @@ class RequestBudget:
                                self.provider, exc)
         # A client with no EVAL at all - the simple fakes in the test suite - lands here directly.
         return self._reserve_by_counting(key, amount)
+
+    def _reserve_fenced(self, keys, args, lease):
+        """Reserve only if `lease` is still its holder's, in one script. Returns (usage, allowed, True).
+
+        Every way this can fail - the lease not this worker's any more, the budget store on another
+        Redis server than the lease, a script error, a dead connection - raises `LeaseLost` with
+        the counter untouched. Nothing here falls back to the counting path: a reservation that
+        cannot be shown to belong to the lease's holder is not made.
+        """
+        fence = lease.fence_args(self._client)          # raises LeaseLost: not held, or not co-located
+        try:
+            script = getattr(self, "_fenced_reserve", None)
+            if script is None:
+                script = self._fenced_reserve = self._client.register_script(FENCED_RESERVE_LUA)
+            ledger = list(args[3:4]) or [""]
+            result = script(keys=list(keys), args=[*fence, *args[:3], *ledger])
+        except Exception as exc:
+            lease.lose(f"the {self.provider} reservation could not be owner-checked: {exc}")
+            raise LeaseLost(lease.lost_reason) from exc
+        used, allowed = int(result[0]), int(result[1])
+        if allowed == -1:
+            lease.lose(f"refused at the {self.provider} reservation: the lease is no longer this worker's")
+            raise LeaseLost(lease.lost_reason)
+        return used, bool(allowed), True
 
     def _reserve_by_counting(self, key: str, amount: int):
         """Check the limit, then increment. Returns (usage, allowed, metered).

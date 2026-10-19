@@ -32,7 +32,9 @@ import httpx
 import pytest
 
 from app.services.forecast_refresh_policy import OUTCOME_SAME_DAY_RUN
-from app.services.sync_lease import SyncLease
+from app.services.match_cache import MatchCache
+from app.services.providers.budget import RequestBudget
+from app.services.sync_lease import LeaseLost, SyncLease, control_set, lease_scope
 from tests.services.test_forecast_sync_concurrency import (  # noqa: F401 - shared fixtures
     LOCK, START, InThread, daily_slot, service, wait,
 )
@@ -66,17 +68,30 @@ def only_the_isolated_redis(monkeypatch):
     monkeypatch.setattr(httpx.HTTPTransport, "handle_request", refuse)
 
 
+#: The lease lives in the URL's database; the budget and the provider's store in the next two, as
+#: the application keeps the match-data cache (lease, provider store) and the request budget in
+#: different databases of one server.
+def database_of(offset: int) -> int:
+    return (int((urlparse(URL).path or "/0").lstrip("/") or 0) + offset) % 16
+
+
 @pytest.fixture(scope="module")
 def identity():
     """Connect, and refuse anything that is not an empty, isolated server."""
-    client = redis_lib.Redis.from_url(URL, socket_connect_timeout=2, socket_timeout=5)
+    parsed = urlparse(URL)
+    # Explicit host, port and database: `from_url` lets the URL's own database win over `db=`.
+    clients = {offset: redis_lib.Redis(host=parsed.hostname, port=parsed.port, db=database_of(offset),
+                                       socket_connect_timeout=2, socket_timeout=5) for offset in (0, 1, 2)}
+    assert [c.connection_pool.connection_kwargs["db"] for c in clients.values()] == \
+        [database_of(0), database_of(1), database_of(2)]
+    client = clients[0]
     info = client.info("server")
     port = int(info["tcp_port"])
     if port == APPLICATION_PORT or port != (urlparse(URL).port or APPLICATION_PORT):
         pytest.fail(f"refusing Redis on port {port}: the lease tests run only on an isolated server")
-    if client.dbsize() != 0:
-        pytest.fail("refusing a Redis that already holds keys: the lease tests empty the database they use")
-    return {"client": client, "run_id": info["run_id"], "port": port}
+    if any(c.dbsize() != 0 for c in clients.values()):
+        pytest.fail("refusing a Redis that already holds keys: the lease tests empty the databases they use")
+    return {"client": client, "clients": clients, "run_id": info["run_id"], "port": port}
 
 
 @pytest.fixture
@@ -86,7 +101,18 @@ def real(identity):
     info = client.info("server")
     assert info["run_id"] == identity["run_id"] and int(info["tcp_port"]) == identity["port"], \
         "the server changed under the tests; not emptying it"
-    client.flushdb()
+    for each in identity["clients"].values():
+        each.flushdb()
+
+
+@pytest.fixture
+def budget_db(identity, real):
+    return identity["clients"][1]
+
+
+@pytest.fixture
+def store_db(identity, real):
+    return identity["clients"][2]
 
 
 def lapse(client, key: str) -> None:
@@ -213,3 +239,52 @@ def test_on_a_real_redis_a_late_answer_after_expiry_writes_nothing(real):
     assert [item["fetched_at"] for item in pending] == [taken_over.isoformat()]
     assert not real.exists(LOCK)
     assert not [t for t in threading.enumerate() if t.name.endswith("lease-renewal") and t.is_alive()]
+
+
+# ------------------------------------------------------------------ across databases, as deployed
+def test_on_a_real_redis_a_reservation_is_owner_checked_across_databases(real, budget_db):
+    """The lease in one database, the budget counter in another: the reservation script reads the
+    first and moves the second in one step, and refuses a stale owner without moving anything."""
+    clock = Clock(START)
+    budget = RequestBudget("gameforecast", 8, client=budget_db, now=clock)
+    owner = SyncLease(real, LOCK, 300)
+    assert owner.acquire()
+    with lease_scope(owner):
+        budget.consume(reason="fetch")
+    assert budget.used_today() == 1 and real.get(budget._usage_key()) is None, "counted in the budget's database"
+
+    lapse(real, LOCK)
+    successor = SyncLease(real, LOCK, 300)
+    assert successor.acquire()
+    stale = SyncLease(real, LOCK, 300)
+    stale.token, stale.held = owner.token, True
+    with pytest.raises(LeaseLost):
+        budget._reserve(budget._usage_key(), 1, stale)        # the script itself, past any early check
+    assert budget.used_today() == 1, "the stale reservation moved the counter"
+    with lease_scope(successor):
+        budget.consume(reason="fetch")
+    assert budget.used_today() == 2
+    assert successor.release()
+
+
+def test_on_a_real_redis_provider_bookkeeping_is_fenced_across_databases(real, store_db):
+    store = MatchCache(client=store_db)
+    key = "provider:gameforecast:pages:premier_league"
+    owner = SyncLease(real, LOCK, 300)
+    assert owner.acquire()
+    with lease_scope(owner):
+        control_set(store, key, {"pages": 2, "by": "owner"}, 60, 60)
+    assert store.get(key) == {"pages": 2, "by": "owner"} and real.get(key) is None
+
+    lapse(real, LOCK)
+    successor = SyncLease(real, LOCK, 300)
+    assert successor.acquire()
+    stale = SyncLease(real, LOCK, 300)
+    stale.token, stale.held = owner.token, True
+    with lease_scope(stale), pytest.raises(LeaseLost):
+        control_set(store, key, {"pages": 1, "by": "stale"}, 60, 60)
+    assert store.get(key) == {"pages": 2, "by": "owner"}, "the stale worker replaced the page count"
+    with lease_scope(successor):
+        control_set(store, key, {"pages": 3, "by": "successor"}, 60, 60)
+    assert store.get(key)["by"] == "successor"
+    assert successor.release()

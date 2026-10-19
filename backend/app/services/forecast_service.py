@@ -37,7 +37,7 @@ from app.services.providers.base import (
     ForecastProvider, ProviderError, ProviderForecast, ProviderNotConfiguredError,
 )
 from app.services.providers.registry import forecast_provider as default_forecast_provider
-from app.services.sync_lease import FencedCache, LeaseLost, SyncLease, guard_spending
+from app.services.sync_lease import HOLDER_REFUSAL, FencedCache, LeaseLost, SyncLease, lease_scope
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.services.match_data_service import MatchDataService
@@ -231,6 +231,7 @@ class ForecastService:
         self._fixtures = fixtures
         self._sync_fixtures = sync_fixtures
         self._lease: Optional[SyncLease] = None
+        self._lock_refusal: Optional[str] = None
         self._cooldown_cache: Any = _UNSET
         self._policy = policy
 
@@ -481,23 +482,31 @@ class ForecastService:
             self._record_status(report)
             return report
         if not self._acquire_sync_lock():
-            # Another worker is already spending the allowance. Attaching cached forecasts is free,
-            # so that still runs; nothing is fetched twice.
-            report["error"] = f"a {self.provider.name} sync is already running"
+            # Either another worker holds the lease and is spending the allowance, or the lease
+            # could not be taken at all (no Redis, or Redis failing) - and a provider-fetching pass
+            # that cannot coordinate does not fetch. Attaching what is already cached is free and
+            # still runs, as far as the cache can be read; nothing is fetched.
+            refusal = self._lock_refusal or "the lease could not be taken"
+            if refusal == HOLDER_REFUSAL:
+                report["error"] = f"a {self.provider.name} sync is already running"
+            else:
+                report["error"] = f"forecast sync refused: {refusal}"
+                report["coordination_unavailable"] = True
             self._retry_all_pending(list(self.keys), report)
             report["synced_at"] = self.now.isoformat()
             return report
         lease = self._lease
         plain_cache = self.cache
-        fenced = FencedCache(plain_cache, lease) if lease is not None else plain_cache
+        fenced = FencedCache(plain_cache, lease)
         # One policy object per service instance (see `policy`), so swapping its store for the
         # length of the pass affects this pass only.
         self.cache = fenced
         policy.cache = fenced
         try:
-            if lease is not None:
-                lease.start_renewing()
-            with guard_spending(self._confirm_lease):
+            lease.start_renewing()
+            # Under the lease scope every budget reservation is owner-checked inside its own script,
+            # and the providers' control-state writes (page counts, league ids) are fenced.
+            with lease_scope(lease):
                 return self._leased_pass(report, policy, days_ahead, force)
         except LeaseLost as exc:
             # Another worker may be running the pass now. This one has sent nothing since it noticed
@@ -734,10 +743,11 @@ class ForecastService:
     def _acquire_sync_lock(self) -> bool:
         """Take the provider's sync lease, so one worker spends the allowance at a time.
 
-        Without Redis there is nothing to coordinate through and the lease is unmanaged: the sync
-        proceeds, as it always did. A Redis that fails while the lease is being taken is not
-        proceeded past - ownership that cannot be established cannot be fenced either.
+        A provider-fetching pass needs coordination: with no Redis behind the cache (it failed to
+        initialise) or a Redis that fails while the lease is being taken, the lease is not taken
+        and the pass does not fetch. `_lock_refusal` says which. Cached data stays readable.
         """
+        self._lock_refusal = None
         if not self.provider:
             self._lease = None
             return True
@@ -747,6 +757,7 @@ class ForecastService:
                           name=f"{self.provider.name} forecast sync")
         if not lease.acquire():
             self._lease = None
+            self._lock_refusal = lease.refusal
             return False
         self._lease = lease
         return True
@@ -1120,13 +1131,38 @@ class ForecastService:
                 and match_matching.team_names_match(forecast.away_name, away.name))
 
     def _upsert_record(self, match: Match, forecast: ProviderForecast, confidence: str, matched_by: str) -> ProviderForecastRecord:
+        """Make `forecast` the current row for (match, provider), unless the row holds a newer retrieval.
+
+        One current row per (match, provider) - `uq_provider_forecasts_match_provider`. Two writers can
+        reach a match that has no row yet at the same moment; a plain "read, then insert if absent"
+        lets both insert, and the second one's unique-constraint failure rolls back its transaction
+        and with it the newer forecast. So the row is first claimed with INSERT ... ON CONFLICT DO
+        NOTHING - the second writer waits for the first's transaction and then inserts nothing -
+        and then read back under FOR UPDATE, which every writer of the row holds until it commits.
+        The comparison and the write below therefore always happen against the latest committed row:
+        newer retrieval replaces it, older never does (kept as history), and an equal retrieval is
+        the same retrieval re-read, applied in the order the lock serialises them, as
+        `SNAPSHOT_ORDER` breaks the same tie.
+        """
         retrieved = _naive(_retrieved_at(forecast, self.now))
+        claimed_id = uuid.uuid4()
+        bind = self.db.get_bind()
+        if getattr(getattr(bind, "dialect", None), "name", None) == "postgresql":
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            self.db.execute(
+                pg_insert(ProviderForecastRecord.__table__)
+                .values(id=claimed_id, match_id=match.id, provider=forecast.provider,
+                        external_event_id=forecast.external_event_id, match_confidence=confidence,
+                        matched_by=matched_by, fetched_at=retrieved)
+                .on_conflict_do_nothing(constraint="uq_provider_forecasts_match_provider"))
         # Locked for the rest of the transaction, so the "is this retrieval newer?" comparison below
         # and the write that follows it cannot be split by another writer of the same row.
         record = self.db.query(ProviderForecastRecord).filter(
             ProviderForecastRecord.match_id == match.id,
-            ProviderForecastRecord.provider == forecast.provider).with_for_update().first()
-        if (record is not None and record.fetched_at is not None and retrieved is not None
+            ProviderForecastRecord.provider == forecast.provider,
+        ).with_for_update().populate_existing().first()
+        claimed = record is not None and record.id == claimed_id
+        if (record is not None and not claimed and record.fetched_at is not None and retrieved is not None
                 and retrieved < record.fetched_at):
             # An older retrieval never replaces a newer current row. Two ways one arrives: a worker
             # that lost its sync lease after confirming it and before writing (the window the lease
@@ -1136,10 +1172,10 @@ class ForecastService:
             self.db.flush()
             return record
         if record is None:
-            record = ProviderForecastRecord(id=uuid.uuid4(), match_id=match.id, provider=forecast.provider,
+            # Not PostgreSQL (no ON CONFLICT here): the plain insert, as before.
+            record = ProviderForecastRecord(id=claimed_id, match_id=match.id, provider=forecast.provider,
                                             external_event_id=forecast.external_event_id, match_confidence=confidence,
-                                            matched_by=matched_by,
-                                            fetched_at=_naive(_retrieved_at(forecast, self.now)))
+                                            matched_by=matched_by, fetched_at=retrieved)
             self.db.add(record)
         record.external_event_id = forecast.external_event_id
         record.home_win_prob = _dec(forecast.home_prob)

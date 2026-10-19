@@ -33,6 +33,7 @@ from app.services.providers.base import to_probability as _to_probability
 from app.services.providers.budget import RequestBudget
 from app.services.providers.http import ProviderHttpClient
 from app.services.match_cache import MatchCache
+from app.services.sync_lease import control_set
 
 logger = logging.getLogger(__name__)
 
@@ -329,7 +330,9 @@ class GameForecastProvider(ForecastProvider):
         data = {key: {"external_id": c.external_id, "name": c.name, "country_code": c.country_code, "is_cup": c.is_cup}
                 for key, c in self._league_cache.items()}
         if data:
-            self._store.set(LEAGUE_STORE_KEY, data, ttl=LEAGUE_STORE_TTL, stale_ttl=LEAGUE_STORE_TTL)
+            # Control state, written through `control_set`: fenced under a forecast pass's lease,
+            # so a worker that lost the lease cannot replace the league ids its successor recorded.
+            control_set(self._store, LEAGUE_STORE_KEY, data, LEAGUE_STORE_TTL, LEAGUE_STORE_TTL)
 
     # -------------------------------------------------- negative league-discovery cache
     @staticmethod
@@ -347,9 +350,9 @@ class GameForecastProvider(ForecastProvider):
         return True
 
     def _mark_unresolved(self, key: str) -> None:
-        self._store.set(self.unresolved_key(key),
-                        {"key": key, "at": datetime.now(timezone.utc).isoformat()},
-                        ttl=UNRESOLVED_TTL, stale_ttl=UNRESOLVED_TTL)
+        # Control state (it stops discovery for UNRESOLVED_TTL): fenced under a pass's lease.
+        control_set(self._store, self.unresolved_key(key),
+                    {"key": key, "at": datetime.now(timezone.utc).isoformat()}, UNRESOLVED_TTL, UNRESOLVED_TTL)
 
     def is_configured(self) -> bool:
         return bool(self.api_key)
@@ -387,10 +390,12 @@ class GameForecastProvider(ForecastProvider):
         return 1
 
     def _remember_pages(self, key: str, pages: int, complete: bool) -> None:
-        self._store.set(self.pages_key(key),
-                        {"key": key, "pages": int(pages), "complete": bool(complete),
-                         "at": datetime.now(timezone.utc).isoformat()},
-                        ttl=PAGES_TTL, stale_ttl=PAGES_TTL)
+        # Control state (it prices the next turn): fenced under a pass's lease. A late answer from a
+        # worker that lost the lease raises `LeaseLost` here instead of replacing the page count its
+        # successor recorded; the pages it read were still reserved and noted as sent.
+        control_set(self._store, self.pages_key(key),
+                    {"key": key, "pages": int(pages), "complete": bool(complete),
+                     "at": datetime.now(timezone.utc).isoformat()}, PAGES_TTL, PAGES_TTL)
 
     def request_cost(self, key: str) -> int:
         """Outbound requests one turn for `key` will cost, quoted before the turn is started.

@@ -50,35 +50,55 @@ class FakeRedis:
         return run
 
     def _run_lease_script(self, script, keys, args):
+        """One store stands for the whole server here, so the database numbers in a fence are not
+        needed: the lease key is read from this store. That is why the lease refuses to fence a
+        stand-in other than its own (`SyncLease.fence_args`) - the emulation would be wrong."""
         from app.services import sync_lease
+        from app.services.providers import budget
         with self._atomic:
             if self.lease_error is not None:
                 raise self.lease_error
-            held = self.get(keys[0])
-            if isinstance(held, (bytes, bytearray)):
-                held = held.decode("utf-8")
-            mine = held is not None and held == str(args[0])
+
+            def owner(key):
+                held = self.get(key)
+                return held.decode("utf-8") if isinstance(held, (bytes, bytearray)) else held
+
             if script == sync_lease.RENEW_SCRIPT:
-                if not mine:
+                if owner(keys[0]) != str(args[0]):
                     return 0
                 self._set_expiry_ms(keys[0], int(args[1]))
                 return 1
             if script == sync_lease.RELEASE_SCRIPT:
-                if not mine:
+                if owner(keys[0]) != str(args[0]):
                     return 0
                 self.delete(keys[0])
                 return 1
             if script == sync_lease.FENCED_SET_SCRIPT:
-                if not mine:
+                if owner(args[1]) != str(args[2]):
                     return 0
-                for key, ttl in zip(keys[1:], args[2:]):
-                    self.setex(key, int(ttl), args[1])
+                for key, ttl in zip(keys, args[5:]):
+                    self.setex(key, int(ttl), args[4])
                 return 1
             if script == sync_lease.FENCED_DELETE_SCRIPT:
-                if not mine:
+                if owner(args[1]) != str(args[2]):
                     return 0
-                self.delete(*keys[1:])
+                self.delete(*keys)
                 return 1
+            if script == budget.FENCED_RESERVE_LUA:
+                if owner(args[1]) != str(args[2]):
+                    return [-1, -1]
+                used = int(self.get(keys[0]) or 0)
+                amount, limit, ttl = int(args[4]), int(args[5]), int(args[6])
+                if limit > 0 and used + amount > limit:
+                    if self.incrby(keys[1], amount) == amount:
+                        self.expire(keys[1], ttl)
+                    return [used, 0]
+                if len(keys) > 2:
+                    self.hincrby(keys[2], args[7], amount)
+                new = self.incrby(keys[0], amount)
+                if new == amount:
+                    self.expire(keys[0], ttl)
+                return [new, 1]
         raise NotImplementedError("FakeRedis emulates only the sync lease scripts")
 
     def setex(self, key, ttl, value):

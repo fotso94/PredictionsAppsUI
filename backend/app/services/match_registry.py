@@ -483,6 +483,11 @@ class MatchRegistry:
                 confidence: str = "exact", matched_by: str = "provider_id", metadata: Optional[dict] = None) -> ProviderEntityRef:
         ref = self.get_ref(entity_type, provider, external_id)
         if ref is None:
+            ref = self._claim_ref(entity_type, entity_id, provider, external_id, confidence, matched_by, metadata)
+            if ref is not None:
+                return ref
+            ref = self.get_ref(entity_type, provider, external_id)
+        if ref is None:
             ref = ProviderEntityRef(id=uuid.uuid4(), entity_type=entity_type, entity_id=entity_id, provider=provider,
                                     external_id=str(external_id), match_confidence=confidence, matched_by=matched_by,
                                     ref_metadata=metadata or {})
@@ -495,6 +500,35 @@ class MatchRegistry:
                 ref.ref_metadata = metadata
         self.db.flush()
         return ref
+
+    def _claim_ref(self, entity_type: str, entity_id: uuid.UUID, provider: str, external_id: str,
+                   confidence: str, matched_by: str, metadata: Optional[dict]) -> Optional[ProviderEntityRef]:
+        """Insert the ref if nobody has; return it when THIS call inserted it, else None.
+
+        Two writers can both find no ref for a new provider id - two forecast workers binding the same
+        new event, say - and a plain insert lets the second one fail on
+        `uq_provider_entity_refs_provider_external` and roll back everything else in its transaction.
+        INSERT ... ON CONFLICT DO NOTHING makes the second writer wait for the first and insert
+        nothing; it then updates the existing ref like any other caller, under a row lock. PostgreSQL
+        only: elsewhere this returns None and the caller's plain insert stands.
+        """
+        bind = self.db.get_bind()
+        if getattr(getattr(bind, "dialect", None), "name", None) != "postgresql":
+            return None
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        claimed_id = uuid.uuid4()
+        self.db.execute(
+            pg_insert(ProviderEntityRef.__table__)
+            .values(id=claimed_id, entity_type=entity_type, entity_id=entity_id, provider=provider,
+                    external_id=str(external_id), match_confidence=confidence, matched_by=matched_by,
+                    ref_metadata=metadata or {})
+            .on_conflict_do_nothing(constraint="uq_provider_entity_refs_provider_external"))
+        ref = self.db.query(ProviderEntityRef).filter(
+            ProviderEntityRef.entity_type == entity_type,
+            ProviderEntityRef.provider == provider,
+            ProviderEntityRef.external_id == str(external_id),
+        ).with_for_update().populate_existing().first()
+        return ref if ref is not None and ref.id == claimed_id else None
 
     # ------------------------------------------------------------------ leagues
     def league_for_key(self, key: str) -> Optional[League]:
