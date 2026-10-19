@@ -1,0 +1,88 @@
+== old
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_a_pass_that_outlives_the_original_five_minutes_keeps_the_lock_and_nobody_overlaps[daily-slot] _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d64b910>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10d649750>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d64a890>
+policy = 'daily-slot'
+
+    @pytest.mark.parametrize("policy", [POLICY_DAILY_SLOT, POLICY_ELAPSED_INTERVAL])
+    def test_a_pass_that_outlives_the_original_five_minutes_keeps_the_lock_and_nobody_overlaps(
+            clock, redis, monkeypatch, policy):
+        """
+        A takes the lock at 13:00 and is held inside its provider call. At 13:03:20 its renewal interval
+        elapses. At 13:06:40 - past the moment the old lock expired - caller B starts a pass. B must find
+        the lock taken and fetch nothing; A then finishes. One fetch, one request charged, in all.
+        """
+        monkeypatch.setattr(settings, "GAMEFORECAST_REFRESH_POLICY", policy)
+        h = harness(clock, redis, ["premier_league"])
+        inside, release = hold_inside_the_fetch(h, "caller A")
+        ticker = Ticker()
+        a = service(h)
+        a.lease_waiter = ticker                 # an attribute the previous implementation never reads
+    
+        first = InThread(lambda: a.ensure_synced(force=False), "caller A")
+        wait(inside, "A to be inside its provider call, holding the lock")
+    
+        clock.now = START + timedelta(seconds=200)
+        ticker.tick()                           # one renewal interval; nothing asserted on it here
+        clock.now = START + timedelta(seconds=400)
+        assert clock.now > START + TERM, "this is past the old lock's expiry"
+    
+        b = service(h)
+        report_b = InThread(lambda: b.ensure_synced(force=False), "caller B").join()
+>       assert "already running" in (report_b.get("error") or ""), (
+            f"B ran a pass while A was still working: {report_b.get('competitions')}")
+E       AssertionError: B ran a pass while A was still working: {'premier_league': {'fetched': 1, 'attached': 0, 'ambiguous': 0, 'unmatched': 1, 'without_markets': 0, 'details': [{'reason': 'no fixtures in this harness', 'result': 'unmatched'}], 'model_run_at': '2026-10-19T06:00:00+00:00'}}
+E       assert 'already running' in ((None or ''))
+E        +  where None = <built-in method get of dict object at 0x10d63e840>('error')
+E        +    where <built-in method get of dict object at 0x10d63e840> = {'competitions': {'premier_league': {'ambiguous': 0, 'attached': 0, 'details': [{'reason': 'no fixtures in this harnes...eague'], 'plan': {'deferred_first': [], 'fetch': ['premier_league'], 'hour_reached': True, 'ineligible': {}, ...}, ...}.get
+
+tests/services/test_forecast_sync_lease.py:179: AssertionError
+_ test_a_pass_that_outlives_the_original_five_minutes_keeps_the_lock_and_nobody_overlaps[elapsed-interval] _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10bca6850>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10d64be90>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d633790>
+policy = 'elapsed-interval'
+
+    @pytest.mark.parametrize("policy", [POLICY_DAILY_SLOT, POLICY_ELAPSED_INTERVAL])
+    def test_a_pass_that_outlives_the_original_five_minutes_keeps_the_lock_and_nobody_overlaps(
+            clock, redis, monkeypatch, policy):
+        """
+        A takes the lock at 13:00 and is held inside its provider call. At 13:03:20 its renewal interval
+        elapses. At 13:06:40 - past the moment the old lock expired - caller B starts a pass. B must find
+        the lock taken and fetch nothing; A then finishes. One fetch, one request charged, in all.
+        """
+        monkeypatch.setattr(settings, "GAMEFORECAST_REFRESH_POLICY", policy)
+        h = harness(clock, redis, ["premier_league"])
+        inside, release = hold_inside_the_fetch(h, "caller A")
+        ticker = Ticker()
+        a = service(h)
+        a.lease_waiter = ticker                 # an attribute the previous implementation never reads
+    
+        first = InThread(lambda: a.ensure_synced(force=False), "caller A")
+        wait(inside, "A to be inside its provider call, holding the lock")
+    
+        clock.now = START + timedelta(seconds=200)
+        ticker.tick()                           # one renewal interval; nothing asserted on it here
+        clock.now = START + timedelta(seconds=400)
+        assert clock.now > START + TERM, "this is past the old lock's expiry"
+    
+        b = service(h)
+        report_b = InThread(lambda: b.ensure_synced(force=False), "caller B").join()
+>       assert "already running" in (report_b.get("error") or ""), (
+            f"B ran a pass while A was still working: {report_b.get('competitions')}")
+E       AssertionError: B ran a pass while A was still working: {'premier_league': {'fetched': 1, 'attached': 0, 'ambiguous': 0, 'unmatched': 1, 'without_markets': 0, 'details': [{'reason': 'no fixtures in this harness', 'result': 'unmatched'}], 'model_run_at': '2026-10-19T06:00:00+00:00'}}
+E       assert 'already running' in ((None or ''))
+E        +  where None = <built-in method get of dict object at 0x10d723600>('error')
+E        +    where <built-in method get of dict object at 0x10d723600> = {'competitions': {'premier_league': {'ambiguous': 0, 'attached': 0, 'details': [{'reason': 'no fixtures in this harnes...eague'], 'plan': {'deferred_first': [], 'fetch': ['premier_league'], 'hour_reached': None, 'ineligible': {}, ...}, ...}.get
+
+tests/services/test_forecast_sync_lease.py:179: AssertionError
+=========================== short test summary info ============================
+FAILED tests/services/test_forecast_sync_lease.py::test_a_pass_that_outlives_the_original_five_minutes_keeps_the_lock_and_nobody_overlaps[daily-slot]
+FAILED tests/services/test_forecast_sync_lease.py::test_a_pass_that_outlives_the_original_five_minutes_keeps_the_lock_and_nobody_overlaps[elapsed-interval]
+2 failed in 4.25s
+exit=1
