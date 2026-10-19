@@ -1,0 +1,260 @@
+== OLD implementation: forecast_service.py from 0149c89e, test file from d7425d61
+2026-10-19T02:13:17Z
+d7425d61 fix: a forecast pass decides what to fetch only after taking the sync lock
+M  backend/app/services/forecast_service.py
+FFFF.F..F                                                                [100%]
+=================================== FAILURES ===================================
+_ test_a_caller_that_planned_before_the_lock_does_not_refetch_what_another_caller_just_fetched[daily-slot] _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10b524f90>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10b524d10>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b526990>
+policy = 'daily-slot'
+
+    @pytest.mark.parametrize("policy", [POLICY_DAILY_SLOT, POLICY_ELAPSED_INTERVAL])
+    def test_a_caller_that_planned_before_the_lock_does_not_refetch_what_another_caller_just_fetched(
+            clock, redis, monkeypatch, policy):
+        """
+        1. A (force=False) is held at the point before it takes the lock; at that instant its view says
+           premier_league is due.
+        2. B (force=False) runs its whole pass: takes the lock, fetches premier_league (today's run),
+           records the slot, releases the lock.
+        3. A is released, takes the now-free lock, and must decide again from what B left behind.
+        """
+        monkeypatch.setattr(settings, "GAMEFORECAST_REFRESH_POLICY", policy)
+        h = harness(clock, redis, ["premier_league"])
+        a = service(h)
+        gate = pause_before_the_lock(a)
+    
+        first = InThread(lambda: a.ensure_synced(force=False), "caller A")
+        wait(gate.at_lock, "A to reach the point before the lock")
+        assert gate.stale.fetch == ["premier_league"], "A's view before the lock: premier_league is due"
+        assert redis.get(LOCK) is None and h.provider.calls == []
+    
+        clock.now = START + timedelta(seconds=5)
+        b = service(h)
+        second = InThread(lambda: b.ensure_synced(force=False), "caller B")
+        report_b = second.join()
+        assert report_b["competitions"]["premier_league"]["fetched"] == 1
+        assert redis.get(LOCK) is None, "B released the lock"
+    
+        clock.now = START + timedelta(seconds=10)
+        gate.go.set()
+        report_a = first.join()
+    
+        # Exactly one provider fetch and one request charged, both B's.
+>       assert h.provider.calls == [("premier_league", START + timedelta(seconds=5))]
+E       AssertionError: assert [('premier_le...imezone.utc))] == [('premier_le...imezone.utc))]
+E         Left contains one more item: ('premier_league', datetime.datetime(2026, 10, 19, 13, 0, 10, tzinfo=datetime.timezone.utc))
+E         Use -v to get more diff
+
+tests/services/test_forecast_sync_concurrency.py:194: AssertionError
+_ test_a_caller_that_planned_before_the_lock_does_not_refetch_what_another_caller_just_fetched[elapsed-interval] _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10b5acb10>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10b5ac4d0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b525510>
+policy = 'elapsed-interval'
+
+    @pytest.mark.parametrize("policy", [POLICY_DAILY_SLOT, POLICY_ELAPSED_INTERVAL])
+    def test_a_caller_that_planned_before_the_lock_does_not_refetch_what_another_caller_just_fetched(
+            clock, redis, monkeypatch, policy):
+        """
+        1. A (force=False) is held at the point before it takes the lock; at that instant its view says
+           premier_league is due.
+        2. B (force=False) runs its whole pass: takes the lock, fetches premier_league (today's run),
+           records the slot, releases the lock.
+        3. A is released, takes the now-free lock, and must decide again from what B left behind.
+        """
+        monkeypatch.setattr(settings, "GAMEFORECAST_REFRESH_POLICY", policy)
+        h = harness(clock, redis, ["premier_league"])
+        a = service(h)
+        gate = pause_before_the_lock(a)
+    
+        first = InThread(lambda: a.ensure_synced(force=False), "caller A")
+        wait(gate.at_lock, "A to reach the point before the lock")
+        assert gate.stale.fetch == ["premier_league"], "A's view before the lock: premier_league is due"
+        assert redis.get(LOCK) is None and h.provider.calls == []
+    
+        clock.now = START + timedelta(seconds=5)
+        b = service(h)
+        second = InThread(lambda: b.ensure_synced(force=False), "caller B")
+        report_b = second.join()
+        assert report_b["competitions"]["premier_league"]["fetched"] == 1
+        assert redis.get(LOCK) is None, "B released the lock"
+    
+        clock.now = START + timedelta(seconds=10)
+        gate.go.set()
+        report_a = first.join()
+    
+        # Exactly one provider fetch and one request charged, both B's.
+>       assert h.provider.calls == [("premier_league", START + timedelta(seconds=5))]
+E       AssertionError: assert [('premier_le...imezone.utc))] == [('premier_le...imezone.utc))]
+E         Left contains one more item: ('premier_league', datetime.datetime(2026, 10, 19, 13, 0, 10, tzinfo=datetime.timezone.utc))
+E         Use -v to get more diff
+
+tests/services/test_forecast_sync_concurrency.py:194: AssertionError
+_______ test_the_duplicate_no_longer_costs_another_competition_its_turn ________
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10ac73c90>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10ac73b10>
+
+    def test_the_duplicate_no_longer_costs_another_competition_its_turn(clock, redis):
+        """The waste the defect caused, measured on a two-request allowance. B refreshes la_liga alone
+        (a page asking for one competition); A, the scheduler's pass over both, was held before the lock
+        with la_liga and premier_league due. Re-deciding under the lock, A spends the request la_liga no
+        longer needs on premier_league instead of fetching la_liga twice and deferring premier_league."""
+        h = harness(clock, redis, ["la_liga", "premier_league"], limit=2)
+        a = service(h)
+        gate = pause_before_the_lock(a)
+    
+        first = InThread(lambda: a.ensure_synced(force=False), "caller A")
+        wait(gate.at_lock, "A to reach the point before the lock")
+        assert gate.stale.fetch == ["la_liga", "premier_league"]
+    
+        clock.now = START + timedelta(seconds=5)
+        b = service(h, keys=["la_liga"])
+        InThread(lambda: b.ensure_synced(force=False), "caller B").join()
+    
+        clock.now = START + timedelta(seconds=10)
+        gate.go.set()
+        report_a = first.join()
+    
+>       assert [key for key, _ in h.provider.calls] == ["la_liga", "premier_league"]
+E       AssertionError: assert ['la_liga', 'la_liga'] == ['la_liga', 'premier_league']
+E         At index 1 diff: 'la_liga' != 'premier_league'
+E         Use -v to get more diff
+
+tests/services/test_forecast_sync_concurrency.py:233: AssertionError
+____ test_a_pause_the_lock_holder_set_is_honoured_by_the_caller_that_waited ____
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10acc8490>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10acc80d0>
+
+    def test_a_pause_the_lock_holder_set_is_honoured_by_the_caller_that_waited(clock, redis):
+        """B's fetch is refused for quota and B pauses the provider. A, held before the lock with its
+        cool-down check already passed, must read the pause after taking the lock and ask nothing."""
+        h = harness(clock, redis, ["premier_league"])
+        a = service(h)
+        gate = pause_before_the_lock(a)
+    
+        def refused(key):
+            raise ProviderQuotaError("daily quota reached", provider=PROVIDER, status_code=429)
+    
+        first = InThread(lambda: a.ensure_synced(force=False), "caller A")
+        wait(gate.at_lock, "A to reach the point before the lock")
+    
+        h.provider.during_fetch = refused
+        b = service(h)
+        report_b = InThread(lambda: b.ensure_synced(force=False), "caller B").join()
+        assert "quota" in report_b["error"] and h.paused()
+        h.provider.during_fetch = None
+    
+        gate.go.set()
+        report_a = first.join()
+    
+>       assert h.provider.calls == [], "A asked a provider that B had just paused"
+E       AssertionError: A asked a provider that B had just paused
+E       assert [('premier_le...imezone.utc))] == []
+E         Left contains one more item: ('premier_league', datetime.datetime(2026, 10, 19, 13, 0, tzinfo=datetime.timezone.utc))
+E         Use -v to get more diff
+
+tests/services/test_forecast_sync_concurrency.py:263: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T02:13:18.143037", "level": "WARNING", "logger": "app.services.forecast_service", "message": "Forecast sync for premier_league failed: daily quota reached", "module": "forecast_service", "function": "ensure_synced", "line": 549}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.forecast_service:forecast_service.py:549 Forecast sync for premier_league failed: daily quota reached
+___________ test_an_error_while_planning_under_the_lock_releases_it ____________
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10b638350>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10b5c55d0>
+
+    def test_an_error_while_planning_under_the_lock_releases_it(clock, redis):
+        h = harness(clock, redis, ["premier_league"])
+        broken = service(h)
+    
+        def failing_plan(force=False):
+            assert redis.get(LOCK) is not None, "planning happens while the lock is held"
+            raise RuntimeError("the policy could not read its state")
+    
+        broken._plan = failing_plan
+        with pytest.raises(RuntimeError, match="could not read its state"):
+>           broken.ensure_synced(force=False)
+
+tests/services/test_forecast_sync_concurrency.py:314: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/services/forecast_service.py:470: in ensure_synced
+    plan = self._plan(force)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+force = False
+
+    def failing_plan(force=False):
+>       assert redis.get(LOCK) is not None, "planning happens while the lock is held"
+E       AssertionError: planning happens while the lock is held
+E       assert None is not None
+E        +  where None = <bound method LockingFakeRedis.get of <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10b5c55d0>>('forecast:sync_lock:stub')
+E        +    where <bound method LockingFakeRedis.get of <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10b5c55d0>> = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10b5c55d0>.get
+
+tests/services/test_forecast_sync_concurrency.py:309: AssertionError
+_ test_against_the_real_registry_the_overlap_stores_one_forecast_retrieved_once _
+
+db = <sqlalchemy.orm.session.Session object at 0x10b15bf10>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b186cd0>
+
+    def test_against_the_real_registry_the_overlap_stores_one_forecast_retrieved_once(db, monkeypatch):
+        """The same interleaving over the test database: the fixture is real, the forecast binds to it,
+        and the evidence tables say the forecast was retrieved once, by B. Both instances share the
+        session; the events guarantee only one thread uses it at a time."""
+        start = datetime(2026, 9, 24, 13, 0, tzinfo=timezone.utc)
+        clock = Clock(start)
+        redis = LockingFakeRedis(clock=clock)
+        cache = MatchCache(client=redis)
+        budget = RequestBudget(PROVIDER, 8, client=redis, now=clock)
+        provider = OneForecastProvider(budget, clock, expected=[DB_KEY])
+        registry = MatchRegistry(db)
+        match = _store_the_fixture(registry)
+        db.flush()
+    
+        def build() -> ForecastService:
+            svc = ForecastService(db, provider=provider, cache=cache, now=clock(), keys=[DB_KEY],
+                                  sync_fixtures=False)
+            svc.registry = registry
+            return svc
+    
+        a = build()
+        gate = pause_before_the_lock(a)
+        first = InThread(lambda: a.ensure_synced(force=False), "caller A")
+        wait(gate.at_lock, "A to reach the point before the lock")
+        assert gate.stale.fetch == [DB_KEY]
+    
+        clock.now = start + timedelta(seconds=5)
+        b = build()
+        report_b = InThread(lambda: b.ensure_synced(force=False), "caller B").join()
+        assert report_b["competitions"][DB_KEY]["attached"] == 1
+    
+        clock.now = start + timedelta(seconds=10)
+        gate.go.set()
+        report_a = first.join()
+        db.flush()
+    
+        retrieved = start + timedelta(seconds=5)
+>       assert provider.calls == [(DB_KEY, retrieved)] and budget.used_today() == 1
+E       AssertionError: assert ([('uefa_natio...imezone.utc))] == [('uefa_natio...imezone.utc))]
+E         Left contains one more item: ('uefa_nations_league', datetime.datetime(2026, 9, 24, 13, 0, 10, tzinfo=datetime.timezone.utc))
+E         Use -v to get more diff)
+
+tests/services/test_forecast_sync_concurrency.py:406: AssertionError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/services/test_forecast_sync_concurrency.py::test_a_second_caller_arriving_while_the_first_holds_the_lock_fetches_nothing
+PASSED tests/services/test_forecast_sync_concurrency.py::test_an_unexpected_error_mid_pass_releases_the_lock
+PASSED tests/services/test_forecast_sync_concurrency.py::test_a_forced_refresh_still_fetches_after_another_callers_automatic_fetch
+FAILED tests/services/test_forecast_sync_concurrency.py::test_a_caller_that_planned_before_the_lock_does_not_refetch_what_another_caller_just_fetched[daily-slot]
+FAILED tests/services/test_forecast_sync_concurrency.py::test_a_caller_that_planned_before_the_lock_does_not_refetch_what_another_caller_just_fetched[elapsed-interval]
+FAILED tests/services/test_forecast_sync_concurrency.py::test_the_duplicate_no_longer_costs_another_competition_its_turn
+FAILED tests/services/test_forecast_sync_concurrency.py::test_a_pause_the_lock_holder_set_is_honoured_by_the_caller_that_waited
+FAILED tests/services/test_forecast_sync_concurrency.py::test_an_error_while_planning_under_the_lock_releases_it
+FAILED tests/services/test_forecast_sync_concurrency.py::test_against_the_real_registry_the_overlap_stores_one_forecast_retrieved_once
+6 failed, 3 passed in 1.02s
+exit=1

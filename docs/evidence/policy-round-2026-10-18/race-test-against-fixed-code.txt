@@ -1,0 +1,22 @@
+== FIXED implementation: everything from d7425d61
+2026-10-19T02:13:27Z
+d7425d61 fix: a forecast pass decides what to fetch only after taking the sync lock
+.........                                                                [100%]
+==================================== PASSES ====================================
+____ test_a_pause_the_lock_holder_set_is_honoured_by_the_caller_that_waited ____
+----------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-10-19T02:13:28.279945", "level": "WARNING", "logger": "app.services.forecast_service", "message": "Forecast sync for premier_league failed: daily quota reached", "module": "forecast_service", "function": "ensure_synced", "line": 564}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.forecast_service:forecast_service.py:564 Forecast sync for premier_league failed: daily quota reached
+=========================== short test summary info ============================
+PASSED tests/services/test_forecast_sync_concurrency.py::test_a_caller_that_planned_before_the_lock_does_not_refetch_what_another_caller_just_fetched[daily-slot]
+PASSED tests/services/test_forecast_sync_concurrency.py::test_a_caller_that_planned_before_the_lock_does_not_refetch_what_another_caller_just_fetched[elapsed-interval]
+PASSED tests/services/test_forecast_sync_concurrency.py::test_the_duplicate_no_longer_costs_another_competition_its_turn
+PASSED tests/services/test_forecast_sync_concurrency.py::test_a_pause_the_lock_holder_set_is_honoured_by_the_caller_that_waited
+PASSED tests/services/test_forecast_sync_concurrency.py::test_a_second_caller_arriving_while_the_first_holds_the_lock_fetches_nothing
+PASSED tests/services/test_forecast_sync_concurrency.py::test_an_error_while_planning_under_the_lock_releases_it
+PASSED tests/services/test_forecast_sync_concurrency.py::test_an_unexpected_error_mid_pass_releases_the_lock
+PASSED tests/services/test_forecast_sync_concurrency.py::test_a_forced_refresh_still_fetches_after_another_callers_automatic_fetch
+PASSED tests/services/test_forecast_sync_concurrency.py::test_against_the_real_registry_the_overlap_stores_one_forecast_retrieved_once
+9 passed in 0.33s
+exit=0
