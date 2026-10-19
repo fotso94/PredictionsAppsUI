@@ -85,6 +85,18 @@ class LockingFakeRedis(FakeRedis):
     def expire(self, key, ttl):
         self._schedule(key, ttl)
 
+    def _set_expiry_ms(self, key, ms):
+        """PEXPIRE against the fake clock: what the sync lease's renewal script does."""
+        self.ttls[key] = ms / 1000
+        if self.clock is not None:
+            self.expires[key] = self.clock() + timedelta(milliseconds=int(ms))
+
+    def delete(self, *keys):
+        for key in keys:
+            self.store.pop(key, None)
+            self.ttls.pop(key, None)
+            self.expires.pop(key, None)
+
     def scan_iter(self, match=None, count=None):
         self._expire_due()
         prefix = (match or "*").rstrip("*")

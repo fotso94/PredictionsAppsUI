@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from typing import Callable, List
 
 import httpx
@@ -14,6 +15,9 @@ class FakeRedis:
     def __init__(self):
         self.store = {}
         self.ttls = {}
+        self._atomic = threading.RLock()
+        #: Test hook: raised by every sync-lease script while set, as an unreachable Redis would.
+        self.lease_error = None
 
     def ping(self):
         return True
@@ -21,8 +25,61 @@ class FakeRedis:
     def get(self, key):
         return self.store.get(key)
 
-    def set(self, key, value):
-        self.store[key] = value
+    def set(self, key, value, nx=False, ex=None, px=None, **kwargs):
+        with self._atomic:
+            if nx and self.get(key) is not None:
+                return None
+            self.store[key] = value
+            if ex is not None:
+                self._set_expiry_ms(key, int(ex) * 1000)
+            elif px is not None:
+                self._set_expiry_ms(key, int(px))
+            return True
+
+    def _set_expiry_ms(self, key, ms):
+        self.ttls[key] = ms // 1000 if ms % 1000 == 0 else ms / 1000
+
+    def register_script(self, script):
+        """The sync lease's scripts (app.services.sync_lease), emulated atomically; nothing else.
+
+        Deliberately not `eval`: RequestBudget probes for `eval` to pick its reservation path, and
+        these fakes must keep sending it down the path the budget tests expect.
+        """
+        def run(keys=(), args=(), client=None):
+            return self._run_lease_script(script, list(keys), list(args))
+        return run
+
+    def _run_lease_script(self, script, keys, args):
+        from app.services import sync_lease
+        with self._atomic:
+            if self.lease_error is not None:
+                raise self.lease_error
+            held = self.get(keys[0])
+            if isinstance(held, (bytes, bytearray)):
+                held = held.decode("utf-8")
+            mine = held is not None and held == str(args[0])
+            if script == sync_lease.RENEW_SCRIPT:
+                if not mine:
+                    return 0
+                self._set_expiry_ms(keys[0], int(args[1]))
+                return 1
+            if script == sync_lease.RELEASE_SCRIPT:
+                if not mine:
+                    return 0
+                self.delete(keys[0])
+                return 1
+            if script == sync_lease.FENCED_SET_SCRIPT:
+                if not mine:
+                    return 0
+                for key, ttl in zip(keys[1:], args[2:]):
+                    self.setex(key, int(ttl), args[1])
+                return 1
+            if script == sync_lease.FENCED_DELETE_SCRIPT:
+                if not mine:
+                    return 0
+                self.delete(*keys[1:])
+                return 1
+        raise NotImplementedError("FakeRedis emulates only the sync lease scripts")
 
     def setex(self, key, ttl, value):
         self.store[key] = value

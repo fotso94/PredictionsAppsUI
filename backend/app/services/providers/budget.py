@@ -56,6 +56,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterator, Optional, Tuple
 
 from app.services.providers.base import ProviderQuotaError, ProviderRequestNotSent
+from app.services.sync_lease import check_spend_guard
 
 logger = logging.getLogger(__name__)
 
@@ -685,7 +686,12 @@ class RequestBudget:
         which of the two stopped the request: "our counter is spent" and "the provider says its
         window is spent while our counter still shows room" are different facts, and on
         2026-09-19 only the second one was true.
+
+        Before either, the spending guard of the work in progress runs (`sync_lease.guard_spending`):
+        a forecast pass that has lost its lease raises `LeaseLost` here, so it neither reserves
+        allowance nor sends a request, whichever provider or page it was about to ask.
         """
+        check_spend_guard()
         provider_refusal = self._provider_refusal(amount)
         if provider_refusal is not None:
             # Refused by the provider's own accounting, not by our ceiling. Nothing is sent, so

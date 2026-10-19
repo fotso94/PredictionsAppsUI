@@ -37,6 +37,7 @@ from app.services.providers.base import (
     ForecastProvider, ProviderError, ProviderForecast, ProviderNotConfiguredError,
 )
 from app.services.providers.registry import forecast_provider as default_forecast_provider
+from app.services.sync_lease import FencedCache, LeaseLost, SyncLease, guard_spending
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.services.match_data_service import MatchDataService
@@ -59,7 +60,11 @@ COMPETITION_STATUS_TTL_SECONDS = 7 * 24 * 3600
 PENDING_KEY = "forecast:pending:{provider}:{key}"
 COOLDOWN_KEY = "forecast:cooldown:{provider}"
 SYNC_LOCK_KEY = "forecast:sync_lock:{provider}"
+#: One term of the sync lease. A pass is not limited to it: the lease is renewed every
+#: `SYNC_LOCK_RENEW_SECONDS` while the pass runs, and lapses after one term only when nobody renews
+#: it - a crashed worker, or one cut off from Redis - so another worker can then take over.
 SYNC_LOCK_TTL_SECONDS = 300
+SYNC_LOCK_RENEW_SECONDS = 100
 
 _UNSET = object()
 AUTH_COOLDOWN_SECONDS = 30 * 60
@@ -208,6 +213,10 @@ def _naive(dt: Optional[datetime]) -> Optional[datetime]:
 
 
 class ForecastService:
+    #: Paces the sync lease's renewal worker (see `SyncLease`); None waits on real time. Tests set
+    #: a controlled one to make renewals happen exactly when they say.
+    lease_waiter = None
+
     def __init__(self, db: Session, provider: Optional[ForecastProvider] = None, cache: Optional[MatchCache] = None,
                  now: Optional[datetime] = None, keys: Optional[List[str]] = None, use_default_provider: bool = True,
                  fixtures: Optional["MatchDataService"] = None, sync_fixtures: bool = True,
@@ -221,7 +230,7 @@ class ForecastService:
         self.keys = keys or comps.covered_keys(settings.COVERED_COMPETITIONS)
         self._fixtures = fixtures
         self._sync_fixtures = sync_fixtures
-        self._lock_token = uuid.uuid4().hex
+        self._lease: Optional[SyncLease] = None
         self._cooldown_cache: Any = _UNSET
         self._policy = policy
 
@@ -478,107 +487,142 @@ class ForecastService:
             self._retry_all_pending(list(self.keys), report)
             report["synced_at"] = self.now.isoformat()
             return report
+        lease = self._lease
+        plain_cache = self.cache
+        fenced = FencedCache(plain_cache, lease) if lease is not None else plain_cache
+        # One policy object per service instance (see `policy`), so swapping its store for the
+        # length of the pass affects this pass only.
+        self.cache = fenced
+        policy.cache = fenced
+        try:
+            if lease is not None:
+                lease.start_renewing()
+            with guard_spending(self._confirm_lease):
+                return self._leased_pass(report, policy, days_ahead, force)
+        except LeaseLost as exc:
+            # Another worker may be running the pass now. This one has sent nothing since it noticed
+            # and every write it attempted after the loss was refused by the fence; it records
+            # nothing more, not even its status, and leaves the store to the lease's holder.
+            report["lease_lost"] = True
+            report["error"] = (f"stopped: this worker lost the {self.provider.name} sync lease ({exc}); "
+                               "no further request was started and nothing more was written")
+            report["synced_at"] = self.now.isoformat()
+            return report
+        finally:
+            # Every path that took the lease gives it back and stops renewing it: success, planning
+            # and provider errors, a lost lease, any other exception, cancellation and shutdown.
+            self.cache = plain_cache
+            policy.cache = plain_cache
+            self._release_sync_lock()
+
+    def _leased_pass(self, report: Dict[str, Any], policy: RefreshPolicy, days_ahead: int,
+                     force: bool) -> Dict[str, Any]:
+        """The pass proper, run only while this worker holds the sync lease.
+
+        Every shared write below goes through the fenced cache `ensure_synced` installed, so it
+        lands only while the lease is still this worker's; every budget reservation runs the
+        lease check first; and each competition's turn re-confirms the lease before it starts and
+        again before it applies what the provider answered. A lost lease raises `LeaseLost`, which
+        `ensure_synced` turns into a clean stop.
+        """
         stop_reason: Optional[str] = None
         deferred_now: Dict[str, str] = {}
         succeeded: set = set()
         plan: Optional[RefreshPlan] = None
         order: List[str] = list(self.keys)
-        try:
-            # Decide under the lock, from what the shared store says now. A plan made before the
-            # lock goes stale while this worker waits for it: another worker can take the lock,
-            # fetch a competition this one judged due, record its slot and let go, and the outdated
-            # plan would then pay for the same competition twice out of an allowance other
-            # competitions need. The pause is re-read for the same reason: the worker that held
-            # the lock may have been refused and paused the provider since the check above.
-            self._cooldown_cache = _UNSET
-            cooling = self._cooldown_reason()
-            if not cooling:
-                plan = self._plan(force)
-                # Every competition, the ones the pass walks first: the free re-attachment below
-                # covers all of them, and a reader of "order" sees every competition considered.
-                order = plan.order + [key for key in self.keys if key not in plan.order]
-                report["order"] = order
-                report["skipped"] = list(plan.ineligible)
-                report["plan"] = plan.to_dict()
-            for key in (plan.order if plan is not None else []):
-                recheck = key in plan.recheck
-                try:
-                    # 1. The calendar, before the allowance is even read. Forecasts can only be
-                    #    attached to fixtures we know about, so the fixture sync fills the calendar
-                    #    first (cached, one match-data request per competition at most every few
-                    #    hours), and the same sync is the evidence dormancy is judged on: on
-                    #    2026-10-18 two of the day's eight requests went to Nations Leagues with
-                    #    no match until November. A dormant turn is taken for nothing.
-                    evidence = self._calendar_evidence(key, days_ahead)
-                    if evidence.dormant:
-                        report["competitions"][key] = {"skipped": "no fixture in window", "fetched": 0,
-                                                       "attached": 0, "calendar": evidence.reason}
-                        report.setdefault("dormant", []).append(key)
-                        self._mark_synced(key)
-                        policy.record_dormant(key, evidence)
-                        succeeded.add(key)
-                        continue
-                    # 2. The allowance. Nothing is reserved before the whole turn is known to fit.
-                    unaffordable = self._unaffordable(key, self._budget_remaining())
-                    if unaffordable:
-                        if policy.stops_when_unaffordable:
-                            # The earlier rule: stop here rather than half-spending, and rather
-                            # than reordering by price, which would put an expensive competition
-                            # permanently last - and permanently last on a small allowance means
-                            # never fetched. The starved competition keeps the head of the next
-                            # order. The pause runs to whichever window actually has to turn.
-                            seconds, decided_by = self._quota_cooldown_seconds()
-                            stop_reason = (f"{unaffordable}. Stopped rather than spending part of it, and "
-                                           f"rather than reordering by price, which would starve {key} "
-                                           f"permanently. Paused for {seconds}s, per {decided_by}")
-                            self._pause(stop_reason, seconds)
-                            break
-                        if recheck:
-                            # A re-check is paid from what is left over and nothing is left: it is
-                            # not owed, so it is neither deferred nor recorded as a failure.
-                            report.setdefault("recheck_skipped", {})[key] = unaffordable
-                            continue
-                        # Daily slot: this competition is deferred - it leads the next pass - and
-                        # the pass moves on to the next competition the allowance can serve.
-                        deferred_now[key] = unaffordable
-                        policy.record_deferred(key, unaffordable)
-                        continue
-                    # 3. The fetch.
-                    stats = self.sync_competition(
-                        key, self.now.date(), self.now.date() + timedelta(days=days_ahead))
-                    if evidence.errors:
-                        stats["fixture_errors"] = list(evidence.errors)
-                    report["competitions"][key] = stats
+        # Decide under the lock, from what the shared store says now. A plan made before the
+        # lock goes stale while this worker waits for it: another worker can take the lock,
+        # fetch a competition this one judged due, record its slot and let go, and the outdated
+        # plan would then pay for the same competition twice out of an allowance other
+        # competitions need. The pause is re-read for the same reason: the worker that held
+        # the lock may have been refused and paused the provider since the check above.
+        self._cooldown_cache = _UNSET
+        cooling = self._cooldown_reason()
+        if not cooling:
+            plan = self._plan(force)
+            # Every competition, the ones the pass walks first: the free re-attachment below
+            # covers all of them, and a reader of "order" sees every competition considered.
+            order = plan.order + [key for key in self.keys if key not in plan.order]
+            report["order"] = order
+            report["skipped"] = list(plan.ineligible)
+            report["plan"] = plan.to_dict()
+        for key in (plan.order if plan is not None else []):
+            recheck = key in plan.recheck
+            # Still this worker's? Asked again before every turn, renewing the lease as it does.
+            self._confirm_lease()
+            try:
+                # 1. The calendar, before the allowance is even read. Forecasts can only be
+                #    attached to fixtures we know about, so the fixture sync fills the calendar
+                #    first (cached, one match-data request per competition at most every few
+                #    hours), and the same sync is the evidence dormancy is judged on: on
+                #    2026-10-18 two of the day's eight requests went to Nations Leagues with
+                #    no match until November. A dormant turn is taken for nothing.
+                evidence = self._calendar_evidence(key, days_ahead)
+                if evidence.dormant:
+                    report["competitions"][key] = {"skipped": "no fixture in window", "fetched": 0,
+                                                   "attached": 0, "calendar": evidence.reason}
+                    report.setdefault("dormant", []).append(key)
                     self._mark_synced(key)
-                    latest_run = parse_utc(stats["model_run_at"]) if stats.get("model_run_at") else None
-                    policy.record_fetch(key, fetched_at=self.now, model_run_at=latest_run,
-                                        forecasts=int(stats.get("fetched") or 0), recheck=recheck)
+                    policy.record_dormant(key, evidence)
                     succeeded.add(key)
+                    continue
+                # 2. The allowance. Nothing is reserved before the whole turn is known to fit.
+                unaffordable = self._unaffordable(key, self._budget_remaining())
+                if unaffordable:
+                    if policy.stops_when_unaffordable:
+                        # The earlier rule: stop here rather than half-spending, and rather
+                        # than reordering by price, which would put an expensive competition
+                        # permanently last - and permanently last on a small allowance means
+                        # never fetched. The starved competition keeps the head of the next
+                        # order. The pause runs to whichever window actually has to turn.
+                        seconds, decided_by = self._quota_cooldown_seconds()
+                        stop_reason = (f"{unaffordable}. Stopped rather than spending part of it, and "
+                                       f"rather than reordering by price, which would starve {key} "
+                                       f"permanently. Paused for {seconds}s, per {decided_by}")
+                        self._pause(stop_reason, seconds)
+                        break
                     if recheck:
-                        report.setdefault("rechecked", []).append(key)
-                except ProviderNotConfiguredError as exc:
-                    stop_reason = str(exc)
-                    break
-                except ProviderError as exc:
-                    report["competitions"][key] = {"error": str(exc)}
-                    logger.warning("Forecast sync for %s failed: %s", key, exc)
-                    policy.record_failed(key, str(exc))
-                    # quota/auth failures affect every competition: stop here and back off
-                    stop_reason = str(exc)
-                    if isinstance(exc, ProviderQuotaError):
-                        # The provider's own window, when it published one, decides how long this
-                        # is - not our assumption about when its day turns.
-                        seconds, decided_by = self._quota_cooldown_seconds(exc)
-                        stop_reason = f"{stop_reason} (paused for {seconds}s, per {decided_by})"
-                    else:
-                        seconds = AUTH_COOLDOWN_SECONDS if isinstance(exc, ProviderAuthError) \
-                            else UNAVAILABLE_COOLDOWN_SECONDS
-                    self._pause(stop_reason, seconds)
-                    break
-        finally:
-            # Every path that took the lock gives it back: planning errors, provider errors,
-            # unexpected exceptions, a pause found under the lock, and the normal end of the pass.
-            self._release_sync_lock()
+                        # A re-check is paid from what is left over and nothing is left: it is
+                        # not owed, so it is neither deferred nor recorded as a failure.
+                        report.setdefault("recheck_skipped", {})[key] = unaffordable
+                        continue
+                    # Daily slot: this competition is deferred - it leads the next pass - and
+                    # the pass moves on to the next competition the allowance can serve.
+                    deferred_now[key] = unaffordable
+                    policy.record_deferred(key, unaffordable)
+                    continue
+                # 3. The fetch.
+                stats = self.sync_competition(
+                    key, self.now.date(), self.now.date() + timedelta(days=days_ahead))
+                if evidence.errors:
+                    stats["fixture_errors"] = list(evidence.errors)
+                report["competitions"][key] = stats
+                self._mark_synced(key)
+                latest_run = parse_utc(stats["model_run_at"]) if stats.get("model_run_at") else None
+                policy.record_fetch(key, fetched_at=self.now, model_run_at=latest_run,
+                                    forecasts=int(stats.get("fetched") or 0), recheck=recheck)
+                succeeded.add(key)
+                if recheck:
+                    report.setdefault("rechecked", []).append(key)
+            except ProviderNotConfiguredError as exc:
+                stop_reason = str(exc)
+                break
+            except ProviderError as exc:
+                report["competitions"][key] = {"error": str(exc)}
+                logger.warning("Forecast sync for %s failed: %s", key, exc)
+                policy.record_failed(key, str(exc))
+                # quota/auth failures affect every competition: stop here and back off
+                stop_reason = str(exc)
+                if isinstance(exc, ProviderQuotaError):
+                    # The provider's own window, when it published one, decides how long this
+                    # is - not our assumption about when its day turns.
+                    seconds, decided_by = self._quota_cooldown_seconds(exc)
+                    stop_reason = f"{stop_reason} (paused for {seconds}s, per {decided_by})"
+                else:
+                    seconds = AUTH_COOLDOWN_SECONDS if isinstance(exc, ProviderAuthError) \
+                        else UNAVAILABLE_COOLDOWN_SECONDS
+                self._pause(stop_reason, seconds)
+                break
         if plan is None:
             # The provider was paused while this worker waited for the lock: nothing is asked of
             # it, and forecasts already paid for are still attached.
@@ -673,6 +717,8 @@ class ForecastService:
         for key in keys:
             try:
                 retried = self._retry_pending(key)
+            except LeaseLost:
+                raise  # not a broken entry: this worker's writes are no longer accepted
             except Exception as exc:  # a broken cache entry must not abort the whole run
                 logger.warning("Retrying pending forecasts for %s failed: %s", key, exc)
                 continue
@@ -686,31 +732,40 @@ class ForecastService:
 
     # ------------------------------------------------------------------ concurrency
     def _acquire_sync_lock(self) -> bool:
-        """Stop two workers both deciding a competition is due and each paying for it.
+        """Take the provider's sync lease, so one worker spends the allowance at a time.
 
-        Best effort: without Redis there is nothing to coordinate through and the sync proceeds.
+        Without Redis there is nothing to coordinate through and the lease is unmanaged: the sync
+        proceeds, as it always did. A Redis that fails while the lease is being taken is not
+        proceeded past - ownership that cannot be established cannot be fenced either.
         """
+        if not self.provider:
+            self._lease = None
+            return True
         client = getattr(self.cache, "_redis", lambda: None)()
-        if client is None or not self.provider:
-            return True
-        try:
-            return bool(client.set(SYNC_LOCK_KEY.format(provider=self.provider.name),
-                                   self._lock_token, nx=True, ex=SYNC_LOCK_TTL_SECONDS))
-        except Exception as exc:  # pragma: no cover - depends on environment
-            logger.debug("Sync lock unavailable (%s); proceeding without it", exc)
-            return True
+        lease = SyncLease(client, SYNC_LOCK_KEY.format(provider=self.provider.name), SYNC_LOCK_TTL_SECONDS,
+                          renew_every=SYNC_LOCK_RENEW_SECONDS, waiter=self.lease_waiter,
+                          name=f"{self.provider.name} forecast sync")
+        if not lease.acquire():
+            self._lease = None
+            return False
+        self._lease = lease
+        return True
 
     def _release_sync_lock(self) -> None:
-        client = getattr(self.cache, "_redis", lambda: None)()
-        if client is None or not self.provider:
-            return
-        key = SYNC_LOCK_KEY.format(provider=self.provider.name)
-        try:
-            # compare-and-delete so a lock that already expired and was retaken is not released here
-            if client.get(key) in (self._lock_token, self._lock_token.encode("utf-8")):
-                client.delete(key)
-        except Exception:  # pragma: no cover
-            pass
+        """Stop renewing and give the lease back, if it is still this worker's. Never raises."""
+        lease, self._lease = self._lease, None
+        if lease is not None:
+            lease.release()
+
+    def _confirm_lease(self) -> None:
+        """Raise `LeaseLost` unless this worker still holds its sync lease; renews it as it checks.
+
+        A no-op outside a pass. Installed as the spending guard for the pass, so it also runs before
+        every budget reservation the pass makes, on any provider.
+        """
+        lease = self._lease
+        if lease is not None:
+            lease.confirm()
 
     # ------------------------------------------------------------------ the calendar
     def _fixture_count(self, key: str, days_ahead: int) -> Optional[int]:
@@ -746,6 +801,10 @@ class ForecastService:
                 source = getattr(meta, "source", None)
                 stale = bool(getattr(meta, "stale", False))
                 errors = [str(e) for e in (getattr(meta, "errors", None) or [])]
+            except LeaseLost:
+                # Raised by the spending guard before the calendar request was reserved: the pass
+                # stops; no provider is blamed, paused or cooled down for it.
+                raise
             except Exception as exc:
                 logger.warning("Fixture sync before forecasts failed for %s: %s", key, exc)
                 errors = [str(exc)]
@@ -762,6 +821,10 @@ class ForecastService:
         # before spending anything. Without this the retry never runs on the path that actually fetches.
         retried = self._retry_pending(key)
         forecasts = self.provider.get_forecasts(key, date_from, date_to)
+        # The request may have been in flight for a while. If this worker lost the lease meanwhile,
+        # another worker may already have fetched this competition and recorded it: the late
+        # answer is dropped here, before it can overwrite anything, and the pass stops.
+        self._confirm_lease()
         league = self.registry.ensure_canonical_league(key)
         stats: Dict[str, Any] = {"fetched": len(forecasts), "attached": 0, "ambiguous": 0, "unmatched": 0,
                                  "without_markets": 0, "details": []}
@@ -1057,8 +1120,21 @@ class ForecastService:
                 and match_matching.team_names_match(forecast.away_name, away.name))
 
     def _upsert_record(self, match: Match, forecast: ProviderForecast, confidence: str, matched_by: str) -> ProviderForecastRecord:
+        retrieved = _naive(_retrieved_at(forecast, self.now))
+        # Locked for the rest of the transaction, so the "is this retrieval newer?" comparison below
+        # and the write that follows it cannot be split by another writer of the same row.
         record = self.db.query(ProviderForecastRecord).filter(
-            ProviderForecastRecord.match_id == match.id, ProviderForecastRecord.provider == forecast.provider).first()
+            ProviderForecastRecord.match_id == match.id,
+            ProviderForecastRecord.provider == forecast.provider).with_for_update().first()
+        if (record is not None and record.fetched_at is not None and retrieved is not None
+                and retrieved < record.fetched_at):
+            # An older retrieval never replaces a newer current row. Two ways one arrives: a worker
+            # that lost its sync lease after confirming it and before writing (the window the lease
+            # cannot close on its own), and a pending forecast re-attached after a newer fetch of the
+            # same event. It is still evidence of what the model said then, so the history keeps it.
+            self._record_snapshot(match, forecast, confidence, matched_by)
+            self.db.flush()
+            return record
         if record is None:
             record = ProviderForecastRecord(id=uuid.uuid4(), match_id=match.id, provider=forecast.provider,
                                             external_event_id=forecast.external_event_id, match_confidence=confidence,
@@ -1112,7 +1188,10 @@ class ForecastService:
         now = _naive(self.now)
         if latest is not None and self._same_content(latest, forecast, digest):
             latest.content_hash = digest  # backfilled rows carry no hash until they are seen again
-            latest.last_fetched_at = retrieved or now
+            seen = retrieved or now
+            # Never backwards: an older retrieval of the same content says nothing newer.
+            if latest.last_fetched_at is None or seen > latest.last_fetched_at:
+                latest.last_fetched_at = seen
             return latest
         kickoff = _naive(_aware_utc(match.match_date)) if match.match_date else None
         snapshot = ProviderForecastSnapshot(
