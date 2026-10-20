@@ -268,6 +268,139 @@ def test_the_boundary_compares_naive_utc_on_both_sides(db):
     assert S.stood_at_kickoff(stored, kickoff) is True
 
 
+# ---------------------------------------------------------------- deleting a prediction twice
+class Clock:
+    """A settable naive-UTC clock, handed to ExpertPredictionService(clock=...)."""
+
+    def __init__(self, now: datetime):
+        self.now = now
+
+    def __call__(self) -> datetime:
+        return self.now
+
+
+def _reread(db, prediction: Prediction) -> Prediction:
+    db.expire_all()
+    return db.query(Prediction).filter(Prediction.id == prediction.id).one()
+
+
+def test_a_delete_retried_after_kickoff_keeps_the_prematch_withdrawal(db):
+    """The profitable direction, through the delete path. This is the test the fix exists for.
+
+    ``deleted_at`` was rewritten on every DELETE. A prediction deleted before kickoff is not
+    scored; a second DELETE sent once the result was in moved ``deleted_at`` past kickoff, which
+    made the row a settlement candidate again, and the next pass scored it - as a win, because a
+    winner is the only prediction worth re-deleting. The first deletion is the fact; a retry must
+    not move it.
+    """
+    match = away_win(db)
+    kickoff = match.match_date
+    user = _expert(db)
+    winner = _prediction(db, match, user, home=0.15, draw=0.25, away=0.6)   # would WIN
+    withdrawn_at = kickoff - timedelta(hours=2)
+    clock = Clock(withdrawn_at)
+    service = ExpertPredictionService(db, clock=clock)
+
+    first = service.delete_prediction(str(winner.id), user)
+    settle(db)
+    assert score_of(db, winner) is None, "withdrawn before kickoff, so nothing to measure"
+
+    clock.now = kickoff + timedelta(hours=3)                 # the result is in
+    retry = service.delete_prediction(str(winner.id), user)
+
+    settle(db)
+    scored = score_of(db, winner)
+    assert scored is None, (
+        f"a win withdrawn before kickoff was scored ({scored.outcome}) after a retried delete")
+    assert measured(db, user) is None, "a win nobody could read at kickoff is not a record"
+
+    stored = _reread(db, winner)
+    assert stored.deleted_at == withdrawn_at, "the retry moved the withdrawal past kickoff"
+    assert S.withdrawn_before_kickoff(stored, kickoff) is True
+
+    assert first.already_deleted is False and first.deleted_at == withdrawn_at
+    assert retry.already_deleted is True and retry.deleted_at == withdrawn_at
+
+
+def test_a_delete_retried_before_kickoff_keeps_the_first_deletion_time(db):
+    """A retry is not a second deletion even while the match is still ahead: nothing is written."""
+    match = away_win(db)
+    kickoff = match.match_date
+    user = _expert(db)
+    prediction = _prediction(db, match, user)
+    clock = Clock(kickoff - timedelta(hours=5))
+    service = ExpertPredictionService(db, clock=clock)
+
+    service.delete_prediction(str(prediction.id), user)
+    after_first = _reread(db, prediction)
+    first_deleted_at, first_updated_at = after_first.deleted_at, after_first.updated_at
+
+    clock.now = kickoff - timedelta(hours=1)
+    retry = service.delete_prediction(str(prediction.id), user)
+
+    stored = _reread(db, prediction)
+    assert stored.deleted_at == first_deleted_at == kickoff - timedelta(hours=5)
+    assert stored.updated_at == first_updated_at, "a retry must write nothing, not even updated_at"
+    assert retry.already_deleted is True and retry.deleted_at == first_deleted_at
+
+
+def test_another_expert_cannot_redelete_a_deleted_prediction(db):
+    """Ownership is checked before anything else, deleted or not, and the refusal changes nothing."""
+    match = away_win(db)
+    kickoff = match.match_date
+    author, intruder = _expert(db, "author"), _expert(db, "intruder")
+    theirs = _prediction(db, match, author)
+    clock = Clock(kickoff - timedelta(hours=2))
+    service = ExpertPredictionService(db, clock=clock)
+    service.delete_prediction(str(theirs.id), author)
+
+    clock.now = kickoff + timedelta(hours=3)
+    with pytest.raises(ValueError, match="You can only delete your own predictions"):
+        service.delete_prediction(str(theirs.id), intruder)
+
+    assert _reread(db, theirs).deleted_at == kickoff - timedelta(hours=2)
+
+
+def test_a_first_delete_after_kickoff_is_still_scored_and_a_retry_changes_nothing(db):
+    """The control: a deletion made once the match had started was always too late to count."""
+    match = away_win(db)
+    kickoff = match.match_date
+    user = _expert(db)
+    loser = _prediction(db, match, user)                   # leans home; the home side lost 0-2
+    clock = Clock(kickoff + timedelta(hours=3))
+    service = ExpertPredictionService(db, clock=clock)
+
+    service.delete_prediction(str(loser.id), user)
+    settle(db)
+    row = score_of(db, loser)
+    assert row is not None and row.outcome == PredictionOutcome.LOST
+
+    clock.now = kickoff + timedelta(days=30)
+    retry = service.delete_prediction(str(loser.id), user)
+
+    stored = _reread(db, loser)
+    assert stored.deleted_at == kickoff + timedelta(hours=3)
+    settle(db)
+    row = score_of(db, loser)
+    assert row is not None and row.outcome == PredictionOutcome.LOST
+    assert measured(db, user)["scored"] == 1
+    assert retry.already_deleted is True
+
+
+def test_without_a_clock_the_deletion_is_stamped_in_naive_utc(db):
+    """The default clock is datetime.utcnow: settlement compares naive UTC on both sides."""
+    match = away_win(db)
+    user = _expert(db)
+    prediction = _prediction(db, match, user)
+    before = datetime.utcnow()
+
+    ExpertPredictionService(db).delete_prediction(str(prediction.id), user)
+
+    stored = _reread(db, prediction)
+    assert stored.deleted_at.tzinfo is None
+    assert before <= stored.deleted_at <= datetime.utcnow()
+
+
 # ------------------------------------------------------------------------------- supersession
 def test_a_supersession_after_kickoff_scores_the_version_that_stood_at_kickoff(db):
     """Superseding is the quietest way to erase a loss, so it gets the same rule as deleting.

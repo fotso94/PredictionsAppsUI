@@ -1,0 +1,22 @@
+# delete-counts AFTER: the two-session DELETE race on the isolated PostgreSQL :5440 (forecast_race_test), 20 separate runs
+# fixed code, uncommitted working tree on expert-fixes at 6cfb1c22; run at 2026-10-20T23:42:26Z
+run 1 exit=0 :: 1 passed, 18 warnings in 0.43s
+run 2 exit=0 :: 1 passed, 18 warnings in 0.45s
+run 3 exit=0 :: 1 passed, 18 warnings in 0.41s
+run 4 exit=0 :: 1 passed, 18 warnings in 0.42s
+run 5 exit=0 :: 1 passed, 18 warnings in 0.43s
+run 6 exit=0 :: 1 passed, 18 warnings in 0.43s
+run 7 exit=0 :: 1 passed, 18 warnings in 0.43s
+run 8 exit=0 :: 1 passed, 18 warnings in 0.44s
+run 9 exit=0 :: 1 passed, 18 warnings in 0.42s
+run 10 exit=0 :: 1 passed, 18 warnings in 0.43s
+run 11 exit=0 :: 1 passed, 18 warnings in 0.43s
+run 12 exit=0 :: 1 passed, 18 warnings in 0.43s
+run 13 exit=0 :: 1 passed, 18 warnings in 0.43s
+run 14 exit=0 :: 1 passed, 18 warnings in 0.43s
+run 15 exit=0 :: 1 passed, 18 warnings in 0.45s
+run 16 exit=0 :: 1 passed, 18 warnings in 0.43s
+run 17 exit=0 :: 1 passed, 18 warnings in 0.44s
+run 18 exit=0 :: 1 passed, 18 warnings in 0.43s
+run 19 exit=0 :: 1 passed, 18 warnings in 0.44s
+run 20 exit=0 :: 1 passed, 18 warnings in 0.43s

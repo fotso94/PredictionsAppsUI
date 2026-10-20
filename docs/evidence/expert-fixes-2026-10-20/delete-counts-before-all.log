@@ -1,0 +1,822 @@
+# delete-counts BEFORE: the new regression tests against the unchanged product code
+# branch expert-fixes at 6cfb1c22; product code unchanged (git diff --stat -- backend/app is empty: '')
+# run at 2026-10-20T23:38:52Z; -rfEs (a superset of -rs) so every failure is named with its reason
+FFFF.FF..FFFF.FFFFFFFFF                                                  [100%]
+=================================== FAILURES ===================================
+______ test_a_delete_retried_after_kickoff_keeps_the_prematch_withdrawal _______
+
+db = <sqlalchemy.orm.session.Session object at 0x10f8464d0>
+
+    def test_a_delete_retried_after_kickoff_keeps_the_prematch_withdrawal(db):
+        """The profitable direction, through the delete path. This is the test the fix exists for.
+    
+        ``deleted_at`` was rewritten on every DELETE. A prediction deleted before kickoff is not
+        scored; a second DELETE sent once the result was in moved ``deleted_at`` past kickoff, which
+        made the row a settlement candidate again, and the next pass scored it - as a win, because a
+        winner is the only prediction worth re-deleting. The first deletion is the fact; a retry must
+        not move it.
+        """
+        match = away_win(db)
+        kickoff = match.match_date
+        user = _expert(db)
+        winner = _prediction(db, match, user, home=0.15, draw=0.25, away=0.6)   # would WIN
+        withdrawn_at = kickoff - timedelta(hours=2)
+        clock = Clock(withdrawn_at)
+>       service = ExpertPredictionService(db, clock=clock)
+E       TypeError: ExpertPredictionService.__init__() got an unexpected keyword argument 'clock'
+
+tests/services/test_expert_history.py:302: TypeError
+______ test_a_delete_retried_before_kickoff_keeps_the_first_deletion_time ______
+
+db = <sqlalchemy.orm.session.Session object at 0x10f856510>
+
+    def test_a_delete_retried_before_kickoff_keeps_the_first_deletion_time(db):
+        """A retry is not a second deletion even while the match is still ahead: nothing is written."""
+        match = away_win(db)
+        kickoff = match.match_date
+        user = _expert(db)
+        prediction = _prediction(db, match, user)
+        clock = Clock(kickoff - timedelta(hours=5))
+>       service = ExpertPredictionService(db, clock=clock)
+E       TypeError: ExpertPredictionService.__init__() got an unexpected keyword argument 'clock'
+
+tests/services/test_expert_history.py:332: TypeError
+___________ test_another_expert_cannot_redelete_a_deleted_prediction ___________
+
+db = <sqlalchemy.orm.session.Session object at 0x10f857e50>
+
+    def test_another_expert_cannot_redelete_a_deleted_prediction(db):
+        """Ownership is checked before anything else, deleted or not, and the refusal changes nothing."""
+        match = away_win(db)
+        kickoff = match.match_date
+        author, intruder = _expert(db, "author"), _expert(db, "intruder")
+        theirs = _prediction(db, match, author)
+        clock = Clock(kickoff - timedelta(hours=2))
+>       service = ExpertPredictionService(db, clock=clock)
+E       TypeError: ExpertPredictionService.__init__() got an unexpected keyword argument 'clock'
+
+tests/services/test_expert_history.py:354: TypeError
+_ test_a_first_delete_after_kickoff_is_still_scored_and_a_retry_changes_nothing _
+
+db = <sqlalchemy.orm.session.Session object at 0x10fb68e10>
+
+    def test_a_first_delete_after_kickoff_is_still_scored_and_a_retry_changes_nothing(db):
+        """The control: a deletion made once the match had started was always too late to count."""
+        match = away_win(db)
+        kickoff = match.match_date
+        user = _expert(db)
+        loser = _prediction(db, match, user)                   # leans home; the home side lost 0-2
+        clock = Clock(kickoff + timedelta(hours=3))
+>       service = ExpertPredictionService(db, clock=clock)
+E       TypeError: ExpertPredictionService.__init__() got an unexpected keyword argument 'clock'
+
+tests/services/test_expert_history.py:371: TypeError
+___ test_deleting_twice_answers_200_both_times_with_the_first_deletion_time ____
+
+client = <starlette.testclient.TestClient object at 0x10f81c890>
+db = <sqlalchemy.orm.session.Session object at 0x10f641850>
+
+    def test_deleting_twice_answers_200_both_times_with_the_first_deletion_time(client, db):
+        """A retry is a success (the frontend and the QA cleanup both count on 2xx), and it says
+        truthfully that the prediction was already gone, and since when."""
+        expert = _expert(db)
+        prediction = _prediction(db, _match(db), expert)
+        signed_in(expert)
+    
+        first = client.delete(f"/api/v1/expert/predictions/{prediction.id}")
+        second = client.delete(f"/api/v1/expert/predictions/{prediction.id}")
+    
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200, second.text
+        one, two = first.json(), second.json()
+        assert one["message"] == two["message"] == "Prediction deleted successfully"
+        assert one["prediction_id"] == two["prediction_id"] == str(prediction.id)
+    
+        stored = _reread(db, prediction).deleted_at
+>       assert one["deleted_at"] == two["deleted_at"], "the retry reported a different deletion time"
+E       KeyError: 'deleted_at'
+
+tests/api/test_expert_manage_db.py:189: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Deleted prediction b28ceabc-9d17-48b0-acf3-c59b1935e11f by expert 76c9ae07-7a06-4e7b-88b3-42c62c7dcd3e
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:free:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:premium:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:pro:match_winner
+2026-10-20 19:38:53 - app.services.prediction_audit - INFO - Created audit log: delete on prediction b28ceabc-9d17-48b0-acf3-c59b1935e11f
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: DELETE http://testserver/api/v1/expert/predictions/b28ceabc-9d17-48b0-acf3-c59b1935e11f "HTTP/1.1 200 OK"
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Deleted prediction b28ceabc-9d17-48b0-acf3-c59b1935e11f by expert 76c9ae07-7a06-4e7b-88b3-42c62c7dcd3e
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:free:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:premium:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:pro:match_winner
+2026-10-20 19:38:53 - app.services.prediction_audit - INFO - Created audit log: delete on prediction b28ceabc-9d17-48b0-acf3-c59b1935e11f
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: DELETE http://testserver/api/v1/expert/predictions/b28ceabc-9d17-48b0-acf3-c59b1935e11f "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction b28ceabc-9d17-48b0-acf3-c59b1935e11f by expert 76c9ae07-7a06-4e7b-88b3-42c62c7dcd3e
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: delete on prediction b28ceabc-9d17-48b0-acf3-c59b1935e11f
+INFO     httpx:_client.py:1013 HTTP Request: DELETE http://testserver/api/v1/expert/predictions/b28ceabc-9d17-48b0-acf3-c59b1935e11f "HTTP/1.1 200 OK"
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction b28ceabc-9d17-48b0-acf3-c59b1935e11f by expert 76c9ae07-7a06-4e7b-88b3-42c62c7dcd3e
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:341bf6ab-6dbc-4c97-a367-f8362d0dc29f:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: delete on prediction b28ceabc-9d17-48b0-acf3-c59b1935e11f
+INFO     httpx:_client.py:1013 HTTP Request: DELETE http://testserver/api/v1/expert/predictions/b28ceabc-9d17-48b0-acf3-c59b1935e11f "HTTP/1.1 200 OK"
+____ test_a_repeated_delete_writes_one_audit_entry_carrying_the_stored_time ____
+
+client = <starlette.testclient.TestClient object at 0x10fa6b0d0>
+db = <sqlalchemy.orm.session.Session object at 0x10f7cab10>
+
+    def test_a_repeated_delete_writes_one_audit_entry_carrying_the_stored_time(client, db):
+        """Every call used to append a DELETE audit entry with a fresh time of its own, so the trail
+        showed withdrawals that never happened. One deletion, one entry, the time actually stored."""
+        expert = _expert(db)
+        prediction = _prediction(db, _match(db), expert)
+        signed_in(expert)
+    
+        for _ in range(3):
+            assert client.delete(f"/api/v1/expert/predictions/{prediction.id}").status_code == 200
+    
+        rows = _deletion_audit_rows(db, prediction)
+>       assert len(rows) == 1, f"{len(rows)} deletion entries for one deletion"
+E       AssertionError: 3 deletion entries for one deletion
+E       assert 3 == 1
+E        +  where 3 = len([<app.models.audit.AuditLog object at 0x10fddf490>, <app.models.audit.AuditLog object at 0x10f9ce190>, <app.models.audit.AuditLog object at 0x10f9cd310>])
+
+tests/api/test_expert_manage_db.py:206: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Deleted prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a by expert 242156fd-e331-40c5-8f82-ad0a04d819d1
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:free:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:premium:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:pro:match_winner
+2026-10-20 19:38:53 - app.services.prediction_audit - INFO - Created audit log: delete on prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: DELETE http://testserver/api/v1/expert/predictions/8e231406-1c72-4518-bc02-99c0be1f2d1a "HTTP/1.1 200 OK"
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Deleted prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a by expert 242156fd-e331-40c5-8f82-ad0a04d819d1
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:free:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:premium:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:pro:match_winner
+2026-10-20 19:38:53 - app.services.prediction_audit - INFO - Created audit log: delete on prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: DELETE http://testserver/api/v1/expert/predictions/8e231406-1c72-4518-bc02-99c0be1f2d1a "HTTP/1.1 200 OK"
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Deleted prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a by expert 242156fd-e331-40c5-8f82-ad0a04d819d1
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:free:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:premium:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:pro:match_winner
+2026-10-20 19:38:53 - app.services.prediction_audit - INFO - Created audit log: delete on prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: DELETE http://testserver/api/v1/expert/predictions/8e231406-1c72-4518-bc02-99c0be1f2d1a "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a by expert 242156fd-e331-40c5-8f82-ad0a04d819d1
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: delete on prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a
+INFO     httpx:_client.py:1013 HTTP Request: DELETE http://testserver/api/v1/expert/predictions/8e231406-1c72-4518-bc02-99c0be1f2d1a "HTTP/1.1 200 OK"
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a by expert 242156fd-e331-40c5-8f82-ad0a04d819d1
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: delete on prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a
+INFO     httpx:_client.py:1013 HTTP Request: DELETE http://testserver/api/v1/expert/predictions/8e231406-1c72-4518-bc02-99c0be1f2d1a "HTTP/1.1 200 OK"
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a by expert 242156fd-e331-40c5-8f82-ad0a04d819d1
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:b853f88b-66ff-4a7d-8593-9984add0ac11:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: delete on prediction 8e231406-1c72-4518-bc02-99c0be1f2d1a
+INFO     httpx:_client.py:1013 HTTP Request: DELETE http://testserver/api/v1/expert/predictions/8e231406-1c72-4518-bc02-99c0be1f2d1a "HTTP/1.1 200 OK"
+__________________ test_a_deleted_prediction_cannot_be_edited __________________
+
+client = <starlette.testclient.TestClient object at 0x10f801c10>
+db = <sqlalchemy.orm.session.Session object at 0x10fdde510>
+
+    def test_a_deleted_prediction_cannot_be_edited(client, db):
+        """Editing a deleted row rewrote the values it was withdrawn with and appended a revision to a
+        prediction nobody could see. It is refused as a missing one is, and nothing changes."""
+        expert = _expert(db)
+        prediction = _prediction(db, _match(db), expert)
+        signed_in(expert)
+        assert client.delete(f"/api/v1/expert/predictions/{prediction.id}").status_code == 200
+        before = _reread(db, prediction)
+        values = (before.home_win_prob, before.reasoning, before.updated_at, before.deleted_at)
+    
+        response = client.put(f"/api/v1/expert/predictions/{prediction.id}",
+                              json={"home_win_prob": 0.7, "draw_prob": 0.2, "away_win_prob": 0.1,
+                                    "reasoning": "rewritten after it was deleted"})
+    
+>       assert response.status_code == 404, response.text
+E       AssertionError: {"id":"6a23b77c-1d66-4b6d-82de-9c54372f9f1d","match_id":"dfd849e2-db8b-40ec-bb06-cbf4dfc7368c","source":"expert_manual","priority_level":100,"home_win_prob":0.7,"draw_prob":0.2,"away_win_prob":0.1,"confidence_score":0.8,"btts_yes_prob":null,"btts_no_prob":null,"btts_confidence":null,"total_goals_over_25_prob":null,"total_goals_under_25_prob":null,"total_goals_over_35_prob":null,"total_goals_under_35_prob":null,"total_goals_confidence":null,"reasoning":"rewritten after it was deleted","key_factors":null,"status":"published","created_by":"d8d1585b-93f9-4da9-aa47-6bd0ff568573","created_at":"2026-10-20T23:38:53.589510Z","published_at":"2026-12-10T19:00:00Z","unpublished_at":null,"is_test_data":null,"superseded_by":null,"match_details":{"home_team_name":"Home a5246d2a","away_team_name":"Away a5246d2a","home_team_logo":null,"away_team_logo":null,"league_name":"Manage League","match_date":"2026-12-11T19:00:00Z","external_match_id":"ext-manage-a5246d2a"},"user_details":{"username":"manager_979b21ce","first_name":null,"last_name":null}}
+E       assert 200 == 404
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/api/test_expert_manage_db.py:249: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Deleted prediction 6a23b77c-1d66-4b6d-82de-9c54372f9f1d by expert d8d1585b-93f9-4da9-aa47-6bd0ff568573
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:free:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:premium:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:pro:match_winner
+2026-10-20 19:38:53 - app.services.prediction_audit - INFO - Created audit log: delete on prediction 6a23b77c-1d66-4b6d-82de-9c54372f9f1d
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: DELETE http://testserver/api/v1/expert/predictions/6a23b77c-1d66-4b6d-82de-9c54372f9f1d "HTTP/1.1 200 OK"
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Updated prediction 6a23b77c-1d66-4b6d-82de-9c54372f9f1d (status PredictionStatus.PUBLISHED) by expert d8d1585b-93f9-4da9-aa47-6bd0ff568573; previous version preserved as revision f1e693f3-d32a-4fa5-a7d0-b69075ae71e9
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:free:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:premium:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:pro:match_winner
+2026-10-20 19:38:53 - app.services.prediction_audit - INFO - Created audit log: update on prediction 6a23b77c-1d66-4b6d-82de-9c54372f9f1d
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/expert/predictions/6a23b77c-1d66-4b6d-82de-9c54372f9f1d "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction 6a23b77c-1d66-4b6d-82de-9c54372f9f1d by expert d8d1585b-93f9-4da9-aa47-6bd0ff568573
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: delete on prediction 6a23b77c-1d66-4b6d-82de-9c54372f9f1d
+INFO     httpx:_client.py:1013 HTTP Request: DELETE http://testserver/api/v1/expert/predictions/6a23b77c-1d66-4b6d-82de-9c54372f9f1d "HTTP/1.1 200 OK"
+INFO     app.services.expert_prediction:expert_prediction.py:800 Updated prediction 6a23b77c-1d66-4b6d-82de-9c54372f9f1d (status PredictionStatus.PUBLISHED) by expert d8d1585b-93f9-4da9-aa47-6bd0ff568573; previous version preserved as revision f1e693f3-d32a-4fa5-a7d0-b69075ae71e9
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:dfd849e2-db8b-40ec-bb06-cbf4dfc7368c:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: update on prediction 6a23b77c-1d66-4b6d-82de-9c54372f9f1d
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/expert/predictions/6a23b77c-1d66-4b6d-82de-9c54372f9f1d "HTTP/1.1 200 OK"
+________ test_a_deleted_prediction_cannot_be_publish_toggled[published] ________
+
+client = <starlette.testclient.TestClient object at 0x10fdf9c50>
+db = <sqlalchemy.orm.session.Session object at 0x10fdfb6d0>
+status = <PredictionStatus.PUBLISHED: 'published'>
+
+    @pytest.mark.parametrize("status", [PredictionStatus.PUBLISHED, PredictionStatus.ARCHIVED])
+    def test_a_deleted_prediction_cannot_be_publish_toggled(client, db, status):
+        """Toggling a deleted row moved its status and its unpublished_at - the withdrawal evidence
+        settlement reads - after the expert had already taken it down."""
+        expert = _expert(db)
+        prediction = _prediction(db, _match(db), expert, status=status)
+        signed_in(expert)
+        assert client.delete(f"/api/v1/expert/predictions/{prediction.id}").status_code == 200
+        before = _reread(db, prediction)
+        evidence = (before.status, before.published_at, before.unpublished_at, before.updated_at,
+                    before.deleted_at)
+    
+        response = client.post(f"/api/v1/expert/predictions/{prediction.id}/toggle-publish")
+    
+>       assert response.status_code == 404, response.text
+E       AssertionError: {"id":"482645d9-41b3-48b3-ab63-d47acdfa0d60","match_id":"4bb20b18-2b3d-4e72-92ec-e474ea82080b","source":"expert_manual","priority_level":100,"home_win_prob":0.5,"draw_prob":0.3,"away_win_prob":0.2,"confidence_score":0.8,"btts_yes_prob":null,"btts_no_prob":null,"btts_confidence":null,"total_goals_over_25_prob":null,"total_goals_under_25_prob":null,"total_goals_over_35_prob":null,"total_goals_under_35_prob":null,"total_goals_confidence":null,"reasoning":"constructed for a management test","key_factors":null,"status":"archived","created_by":"394e5998-57f3-4bdd-b5c2-693c146576f5","created_at":"2026-10-20T23:38:53.623129Z","published_at":"2026-12-10T19:00:00Z","unpublished_at":"2026-10-20T23:38:53.634218","is_test_data":null,"superseded_by":null,"match_details":{"home_team_name":"Home 6a4ccfb6","away_team_name":"Away 6a4ccfb6","home_team_logo":null,"away_team_logo":null,"league_name":"Manage League","match_date":"2026-12-11T19:00:00Z","external_match_id":"ext-manage-6a4ccfb6"},"user_details":{"username":"manager_379e481c","first_name":null,"last_name":null}}
+E       assert 200 == 404
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/api/test_expert_manage_db.py:270: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Deleted prediction 482645d9-41b3-48b3-ab63-d47acdfa0d60 by expert 394e5998-57f3-4bdd-b5c2-693c146576f5
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:free:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:premium:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:pro:match_winner
+2026-10-20 19:38:53 - app.services.prediction_audit - INFO - Created audit log: delete on prediction 482645d9-41b3-48b3-ab63-d47acdfa0d60
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: DELETE http://testserver/api/v1/expert/predictions/482645d9-41b3-48b3-ab63-d47acdfa0d60 "HTTP/1.1 200 OK"
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Unpublished prediction 482645d9-41b3-48b3-ab63-d47acdfa0d60 by expert 394e5998-57f3-4bdd-b5c2-693c146576f5; its publication time 2026-12-10 19:00:00 is kept
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:free:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:premium:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:pro:match_winner
+2026-10-20 19:38:53 - app.services.prediction_audit - INFO - Created audit log: archive on prediction 482645d9-41b3-48b3-ab63-d47acdfa0d60
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/expert/predictions/482645d9-41b3-48b3-ab63-d47acdfa0d60/toggle-publish "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction 482645d9-41b3-48b3-ab63-d47acdfa0d60 by expert 394e5998-57f3-4bdd-b5c2-693c146576f5
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: delete on prediction 482645d9-41b3-48b3-ab63-d47acdfa0d60
+INFO     httpx:_client.py:1013 HTTP Request: DELETE http://testserver/api/v1/expert/predictions/482645d9-41b3-48b3-ab63-d47acdfa0d60 "HTTP/1.1 200 OK"
+INFO     app.services.expert_prediction:expert_prediction.py:951 Unpublished prediction 482645d9-41b3-48b3-ab63-d47acdfa0d60 by expert 394e5998-57f3-4bdd-b5c2-693c146576f5; its publication time 2026-12-10 19:00:00 is kept
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:4bb20b18-2b3d-4e72-92ec-e474ea82080b:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: archive on prediction 482645d9-41b3-48b3-ab63-d47acdfa0d60
+INFO     httpx:_client.py:1013 HTTP Request: POST http://testserver/api/v1/expert/predictions/482645d9-41b3-48b3-ab63-d47acdfa0d60/toggle-publish "HTTP/1.1 200 OK"
+________ test_a_deleted_prediction_cannot_be_publish_toggled[archived] _________
+
+client = <starlette.testclient.TestClient object at 0x10fb45910>
+db = <sqlalchemy.orm.session.Session object at 0x10fb44d50>
+status = <PredictionStatus.ARCHIVED: 'archived'>
+
+    @pytest.mark.parametrize("status", [PredictionStatus.PUBLISHED, PredictionStatus.ARCHIVED])
+    def test_a_deleted_prediction_cannot_be_publish_toggled(client, db, status):
+        """Toggling a deleted row moved its status and its unpublished_at - the withdrawal evidence
+        settlement reads - after the expert had already taken it down."""
+        expert = _expert(db)
+        prediction = _prediction(db, _match(db), expert, status=status)
+        signed_in(expert)
+        assert client.delete(f"/api/v1/expert/predictions/{prediction.id}").status_code == 200
+        before = _reread(db, prediction)
+        evidence = (before.status, before.published_at, before.unpublished_at, before.updated_at,
+                    before.deleted_at)
+    
+        response = client.post(f"/api/v1/expert/predictions/{prediction.id}/toggle-publish")
+    
+>       assert response.status_code == 404, response.text
+E       AssertionError: {"id":"b1bc1607-d144-4f90-89af-cc0dc9e5f71f","match_id":"a6fe79de-0c9f-4cf4-9fd8-c450c2018e76","source":"expert_manual","priority_level":100,"home_win_prob":0.5,"draw_prob":0.3,"away_win_prob":0.2,"confidence_score":0.8,"btts_yes_prob":null,"btts_no_prob":null,"btts_confidence":null,"total_goals_over_25_prob":null,"total_goals_under_25_prob":null,"total_goals_over_35_prob":null,"total_goals_under_35_prob":null,"total_goals_confidence":null,"reasoning":"constructed for a management test","key_factors":null,"status":"published","created_by":"f2afa17c-c258-4239-9396-d80ad2231480","created_at":"2026-10-20T23:38:53.652670Z","published_at":"2026-12-10T19:00:00Z","unpublished_at":null,"is_test_data":null,"superseded_by":null,"match_details":{"home_team_name":"Home 3546f383","away_team_name":"Away 3546f383","home_team_logo":null,"away_team_logo":null,"league_name":"Manage League","match_date":"2026-12-11T19:00:00Z","external_match_id":"ext-manage-3546f383"},"user_details":{"username":"manager_9dc47d23","first_name":null,"last_name":null}}
+E       assert 200 == 404
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/api/test_expert_manage_db.py:270: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Deleted prediction b1bc1607-d144-4f90-89af-cc0dc9e5f71f by expert f2afa17c-c258-4239-9396-d80ad2231480
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:free:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:premium:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:pro:match_winner
+2026-10-20 19:38:53 - app.services.prediction_audit - INFO - Created audit log: delete on prediction b1bc1607-d144-4f90-89af-cc0dc9e5f71f
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: DELETE http://testserver/api/v1/expert/predictions/b1bc1607-d144-4f90-89af-cc0dc9e5f71f "HTTP/1.1 200 OK"
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Published prediction b1bc1607-d144-4f90-89af-cc0dc9e5f71f by expert f2afa17c-c258-4239-9396-d80ad2231480
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:free:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:premium:match_winner
+2026-10-20 19:38:53 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:pro:match_winner
+2026-10-20 19:38:53 - app.services.prediction_audit - INFO - Created audit log: publish on prediction b1bc1607-d144-4f90-89af-cc0dc9e5f71f
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/expert/predictions/b1bc1607-d144-4f90-89af-cc0dc9e5f71f/toggle-publish "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction b1bc1607-d144-4f90-89af-cc0dc9e5f71f by expert f2afa17c-c258-4239-9396-d80ad2231480
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: delete on prediction b1bc1607-d144-4f90-89af-cc0dc9e5f71f
+INFO     httpx:_client.py:1013 HTTP Request: DELETE http://testserver/api/v1/expert/predictions/b1bc1607-d144-4f90-89af-cc0dc9e5f71f "HTTP/1.1 200 OK"
+INFO     app.services.expert_prediction:expert_prediction.py:960 Published prediction b1bc1607-d144-4f90-89af-cc0dc9e5f71f by expert f2afa17c-c258-4239-9396-d80ad2231480
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:a6fe79de-0c9f-4cf4-9fd8-c450c2018e76:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: publish on prediction b1bc1607-d144-4f90-89af-cc0dc9e5f71f
+INFO     httpx:_client.py:1013 HTTP Request: POST http://testserver/api/v1/expert/predictions/b1bc1607-d144-4f90-89af-cc0dc9e5f71f/toggle-publish "HTTP/1.1 200 OK"
+__________ test_editing_or_toggling_a_missing_prediction_is_a_404_too __________
+
+client = <starlette.testclient.TestClient object at 0x10fdf8290>
+db = <sqlalchemy.orm.session.Session object at 0x10fe48350>
+
+    def test_editing_or_toggling_a_missing_prediction_is_a_404_too(client, db):
+        """The same answer as for a deleted one: the caller cannot tell the two apart, and need not."""
+        signed_in(_expert(db))
+        missing = uuid.uuid4()
+    
+        edit = client.put(f"/api/v1/expert/predictions/{missing}",
+                          json={"home_win_prob": 0.7, "draw_prob": 0.2, "away_win_prob": 0.1})
+        toggle = client.post(f"/api/v1/expert/predictions/{missing}/toggle-publish")
+    
+>       assert edit.status_code == 404, edit.text
+E       AssertionError: {"detail":"Prediction 44b65b04-9dae-47b5-836a-6b28ce5449c6 not found"}
+E       assert 400 == 404
+E        +  where 400 = <Response [400 Bad Request]>.status_code
+
+tests/api/test_expert_manage_db.py:287: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/expert/predictions/44b65b04-9dae-47b5-836a-6b28ce5449c6 "HTTP/1.1 400 Bad Request"
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/expert/predictions/44b65b04-9dae-47b5-836a-6b28ce5449c6/toggle-publish "HTTP/1.1 400 Bad Request"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/expert/predictions/44b65b04-9dae-47b5-836a-6b28ce5449c6 "HTTP/1.1 400 Bad Request"
+INFO     httpx:_client.py:1013 HTTP Request: POST http://testserver/api/v1/expert/predictions/44b65b04-9dae-47b5-836a-6b28ce5449c6/toggle-publish "HTTP/1.1 400 Bad Request"
+_________ test_the_counts_by_status_leave_out_deleted_and_foreign_rows _________
+
+db = <sqlalchemy.orm.session.Session object at 0x10fe6d990>
+
+    def test_the_counts_by_status_leave_out_deleted_and_foreign_rows(db):
+        expert = _one_of_each(db)
+    
+>       counts = ExpertPredictionService(db).count_expert_predictions_by_status(expert)
+E       AttributeError: 'ExpertPredictionService' object has no attribute 'count_expert_predictions_by_status'
+
+tests/api/test_expert_manage_db.py:324: AttributeError
+_______________________ test_the_dashboard_counts_add_up _______________________
+
+client = <starlette.testclient.TestClient object at 0x10fdf9910>
+db = <sqlalchemy.orm.session.Session object at 0x10fdfb890>
+
+    def test_the_dashboard_counts_add_up(client, db):
+        """Written = Published + Not published, whatever the statuses. Before, "not published" was
+        PENDING alone: an unpublished (ARCHIVED) or REJECTED row was counted nowhere."""
+        expert = _one_of_each(db)
+        signed_in(expert)
+    
+        response = client.get("/api/v1/expert/analytics/performance")
+    
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["total_predictions"] == 4
+        assert data["published_predictions"] == 1
+        assert data["pending_predictions"] == 1, "the old field keeps its old meaning"
+>       assert data["archived_predictions"] == 1
+E       KeyError: 'archived_predictions'
+
+tests/api/test_expert_manage_db.py:343: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/expert/analytics/performance "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/expert/analytics/performance "HTTP/1.1 200 OK"
+_________ test_the_dashboard_counts_are_not_capped_at_a_thousand_rows __________
+
+client = <starlette.testclient.TestClient object at 0x10fb45e10>
+db = <sqlalchemy.orm.session.Session object at 0x10f800f50>
+
+    def test_the_dashboard_counts_are_not_capped_at_a_thousand_rows(client, db):
+        """The counts were len() of a list fetched with limit=1000."""
+        expert = _expert(db)
+        match = _match(db)
+        start = datetime.utcnow() - timedelta(days=5)
+        db.execute(insert(Prediction), [
+            dict(id=uuid.uuid4(), match_id=match.id, source=PredictionSource.EXPERT_MANUAL,
+                 created_by=expert.id, home_win_prob=Decimal("0.5"), draw_prob=Decimal("0.3"),
+                 away_win_prob=Decimal("0.2"), confidence_score=Decimal("0.6"),
+                 status=PredictionStatus.PUBLISHED, priority_level=100,
+                 published_at=start, created_at=start + timedelta(seconds=n),
+                 updated_at=start + timedelta(seconds=n))
+            for n in range(1001)])
+        _prediction(db, match, expert, PredictionStatus.ARCHIVED, created_at=start - timedelta(days=1))
+        db.flush()
+        signed_in(expert)
+    
+        data = client.get("/api/v1/expert/analytics/performance").json()
+    
+>       assert data["total_predictions"] == 1002
+E       assert 1000 == 1002
+
+tests/api/test_expert_manage_db.py:370: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/expert/analytics/performance "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/expert/analytics/performance "HTTP/1.1 200 OK"
+____________ test_my_predictions_carries_the_total_in_x_total_count ____________
+
+client = <starlette.testclient.TestClient object at 0x10fee7b90>
+db = <sqlalchemy.orm.session.Session object at 0x10fee7c50>
+
+    def test_my_predictions_carries_the_total_in_x_total_count(client, db):
+        """The body stays a bare list (the QA cleanup and the composer suite read it as one); the total
+        for the same filter travels in a header, so the page can tell whether another page exists."""
+        expert = _one_of_each(db)
+        signed_in(expert)
+    
+        page = client.get("/api/v1/expert/predictions/my-predictions?limit=2&offset=0")
+        archived = client.get("/api/v1/expert/predictions/my-predictions?status=archived")
+        beyond = client.get("/api/v1/expert/predictions/my-predictions?limit=2&offset=10")
+    
+        assert page.status_code == 200, page.text
+        assert isinstance(page.json(), list) and len(page.json()) == 2
+>       assert page.headers["x-total-count"] == "4"
+
+tests/api/test_expert_manage_db.py:390: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Headers({'content-length': '577', 'content-type': 'application/json', 'content-encoding': 'gzip', 'vary': 'Accept-Enco...referrer-policy': 'strict-origin-when-cross-origin', 'permissions-policy': 'geolocation=(), microphone=(), camera=()'})
+key = 'x-total-count'
+
+    def __getitem__(self, key: str) -> str:
+        """
+        Return a single header value.
+    
+        If there are multiple headers with the same key, then we concatenate
+        them with commas. See: https://tools.ietf.org/html/rfc7230#section-3.2.2
+        """
+        normalized_key = key.lower().encode(self.encoding)
+    
+        items = [
+            header_value.decode(self.encoding)
+            for _, header_key, header_value in self._list
+            if header_key == normalized_key
+        ]
+    
+        if items:
+            return ", ".join(items)
+    
+>       raise KeyError(key)
+E       KeyError: 'x-total-count'
+
+venv311/lib/python3.11/site-packages/httpx/_models.py:226: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/expert/predictions/my-predictions?limit=2&offset=0 "HTTP/1.1 200 OK"
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/expert/predictions/my-predictions?status=archived "HTTP/1.1 200 OK"
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/expert/predictions/my-predictions?limit=2&offset=10 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/expert/predictions/my-predictions?limit=2&offset=0 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/expert/predictions/my-predictions?status=archived "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/expert/predictions/my-predictions?limit=2&offset=10 "HTTP/1.1 200 OK"
+____________ test_the_total_count_header_is_exposed_to_the_browser _____________
+
+client = <starlette.testclient.TestClient object at 0x11830f750>
+db = <sqlalchemy.orm.session.Session object at 0x11830e990>
+
+    def test_the_total_count_header_is_exposed_to_the_browser(client, db):
+        """A cross-origin page can read a response header only if CORS exposes it."""
+        signed_in(_expert(db))
+        origin = settings.BACKEND_CORS_ORIGINS[0]
+    
+        response = client.get("/api/v1/expert/predictions/my-predictions", headers={"Origin": origin})
+    
+        assert response.status_code == 200, response.text
+>       assert response.headers["x-total-count"] == "0"
+
+tests/api/test_expert_manage_db.py:403: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Headers({'content-length': '2', 'content-type': 'application/json', 'access-control-allow-credentials': 'true', 'acces...referrer-policy': 'strict-origin-when-cross-origin', 'permissions-policy': 'geolocation=(), microphone=(), camera=()'})
+key = 'x-total-count'
+
+    def __getitem__(self, key: str) -> str:
+        """
+        Return a single header value.
+    
+        If there are multiple headers with the same key, then we concatenate
+        them with commas. See: https://tools.ietf.org/html/rfc7230#section-3.2.2
+        """
+        normalized_key = key.lower().encode(self.encoding)
+    
+        items = [
+            header_value.decode(self.encoding)
+            for _, header_key, header_value in self._list
+            if header_key == normalized_key
+        ]
+    
+        if items:
+            return ", ".join(items)
+    
+>       raise KeyError(key)
+E       KeyError: 'x-total-count'
+
+venv311/lib/python3.11/site-packages/httpx/_models.py:226: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:53 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/expert/predictions/my-predictions "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/expert/predictions/my-predictions "HTTP/1.1 200 OK"
+_ test_two_simultaneous_deletes_write_once_and_the_loser_reports_already_deleted _
+
+engine = Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test)
+world = namespace(Session=sessionmaker(class_='Session', bind=Engine(postgresql://postgres@127.0.0.1:5440/forecast_race_test),...e), expert_id=UUID('f69cbe6e-4241-4515-8e28-eeb43cce847d'), prediction_id=UUID('80de418e-3514-4996-99f3-73e120ec691d'))
+
+    def test_two_simultaneous_deletes_write_once_and_the_loser_reports_already_deleted(engine, world):
+        gate = DeletionGate(engine)
+        try:
+            one = InThread(lambda: run_delete(world), "worker 1")
+            wait(gate.arrived, "worker 1 at its update")
+            two = InThread(lambda: run_delete(world), "worker 2")
+    
+            # Worker 2 must now be parked on worker 1's row lock. On the old code it never was: it read
+            # deleted_at as NULL without a lock and ran straight through to its own write.
+            blocked = False
+            deadline = time.monotonic() + WAIT_SECONDS
+            while time.monotonic() < deadline and two.thread.is_alive():
+                if waiting_on_a_lock(engine) > 0:
+                    blocked = True
+                    break
+                time.sleep(0.05)
+    
+            gate.go.set()
+            first = one.join()
+            second = two.join()
+        finally:
+            gate.close()
+    
+        session = world.Session()
+        try:
+            stored = session.get(Prediction, world.prediction_id).deleted_at
+            audit = session.query(AuditLog).filter(AuditLog.resource_type == "prediction",
+                                                   AuditLog.resource_id == world.prediction_id,
+                                                   AuditLog.action == AuditAction.DELETE).all()
+        finally:
+            session.close()
+    
+>       assert gate.updates == ["worker 1"], f"deleted_at was written by {gate.updates}"
+E       AssertionError: deleted_at was written by ['worker 1', 'worker 2']
+E       assert ['worker 1', 'worker 2'] == ['worker 1']
+E         Left contains one more item: 'worker 2'
+E         Use -v to get more diff
+
+tests/services/test_expert_delete_race_pg.py:194: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:54 - app.services.expert_prediction - INFO - Deleted prediction 80de418e-3514-4996-99f3-73e120ec691d by expert f69cbe6e-4241-4515-8e28-eeb43cce847d
+2026-10-20 19:38:54 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:free:match_winner
+2026-10-20 19:38:54 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:premium:match_winner
+2026-10-20 19:38:54 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:pro:match_winner
+2026-10-20 19:38:54 - app.services.prediction_audit - INFO - Created audit log: delete on prediction 80de418e-3514-4996-99f3-73e120ec691d
+2026-10-20 19:38:54 - app.services.expert_prediction - INFO - Deleted prediction 80de418e-3514-4996-99f3-73e120ec691d by expert f69cbe6e-4241-4515-8e28-eeb43cce847d
+2026-10-20 19:38:54 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:free:match_winner
+2026-10-20 19:38:54 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:premium:match_winner
+2026-10-20 19:38:54 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:pro:match_winner
+2026-10-20 19:38:54 - app.services.prediction_audit - INFO - Created audit log: delete on prediction 80de418e-3514-4996-99f3-73e120ec691d
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction 80de418e-3514-4996-99f3-73e120ec691d by expert f69cbe6e-4241-4515-8e28-eeb43cce847d
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: delete on prediction 80de418e-3514-4996-99f3-73e120ec691d
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction 80de418e-3514-4996-99f3-73e120ec691d by expert f69cbe6e-4241-4515-8e28-eeb43cce847d
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:9e2cd569-3050-4e8b-9b9b-56d971c421ba:pro:match_winner
+INFO     app.services.prediction_audit:prediction_audit.py:374 Created audit log: delete on prediction 80de418e-3514-4996-99f3-73e120ec691d
+_ TestMyPredictions.test_get_my_predictions_passes_the_page_through_and_reports_the_total _
+
+self = <test_expert_endpoints.TestMyPredictions object at 0x10faa3550>
+mock_expert_service = <MagicMock name='ExpertPredictionService' id='4561455440'>
+client = <starlette.testclient.TestClient object at 0x1183e0a50>
+mock_expert_user = <Mock spec='User' id='4700722384'>
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    def test_get_my_predictions_passes_the_page_through_and_reports_the_total(
+        self, mock_expert_service, client, mock_expert_user
+    ):
+        """The body stays a bare list; the total for the same filter rides in X-Total-Count."""
+        instance = _service_mock([_make_prediction(status=PredictionStatus.ARCHIVED)])
+        instance.count_expert_predictions.return_value = 21
+        mock_expert_service.return_value = instance
+    
+        response = client.get(
+            "/api/v1/expert/predictions/my-predictions?limit=20&offset=20&status=archived",
+            headers={"Authorization": "Bearer mock-token"}
+        )
+    
+        assert response.status_code == 200, response.text
+        assert isinstance(response.json(), list) and len(response.json()) == 1
+>       assert response.headers["X-Total-Count"] == "21"
+
+tests/api/test_expert_endpoints.py:867: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Headers({'content-length': '977', 'content-type': 'application/json', 'x-content-type-options': 'nosniff', 'x-frame-op...referrer-policy': 'strict-origin-when-cross-origin', 'permissions-policy': 'geolocation=(), microphone=(), camera=()'})
+key = 'X-Total-Count'
+
+    def __getitem__(self, key: str) -> str:
+        """
+        Return a single header value.
+    
+        If there are multiple headers with the same key, then we concatenate
+        them with commas. See: https://tools.ietf.org/html/rfc7230#section-3.2.2
+        """
+        normalized_key = key.lower().encode(self.encoding)
+    
+        items = [
+            header_value.decode(self.encoding)
+            for _, header_key, header_value in self._list
+            if header_key == normalized_key
+        ]
+    
+        if items:
+            return ", ".join(items)
+    
+>       raise KeyError(key)
+E       KeyError: 'X-Total-Count'
+
+venv311/lib/python3.11/site-packages/httpx/_models.py:226: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:54 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/expert/predictions/my-predictions?limit=20&offset=20&status=archived "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/expert/predictions/my-predictions?limit=20&offset=20&status=archived "HTTP/1.1 200 OK"
+______ TestExpertPerformance.test_the_counts_add_up_whatever_the_statuses ______
+
+self = <test_expert_endpoints.TestExpertPerformance object at 0x10faa03d0>
+mock_expert_service = <MagicMock name='ExpertPredictionService' id='4562811344'>
+client = <starlette.testclient.TestClient object at 0x11836d650>
+mock_expert_user = <Mock spec='User' id='4701213392'>
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    def test_the_counts_add_up_whatever_the_statuses(
+        self, mock_expert_service, client, mock_expert_user
+    ):
+        """Written = Published + Not published. "Not published" used to be PENDING alone, so an
+        unpublished (ARCHIVED) prediction was counted nowhere: Written 3, Published 1, Pending 1."""
+        mock_expert_service.return_value = _service_mock([
+            _make_prediction(status=PredictionStatus.PUBLISHED),
+            _make_prediction(status=PredictionStatus.ARCHIVED),
+            _make_prediction(status=PredictionStatus.PENDING),
+        ])
+    
+        response = client.get(
+            "/api/v1/expert/analytics/performance",
+            headers={"Authorization": "Bearer mock-token"}
+        )
+    
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["total_predictions"] == 3
+        assert data["published_predictions"] == 1
+        assert data["pending_predictions"] == 1, "the old field keeps its old meaning"
+>       assert data["archived_predictions"] == 1
+E       KeyError: 'archived_predictions'
+
+tests/api/test_expert_endpoints.py:923: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:38:54 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/expert/analytics/performance "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/expert/analytics/performance "HTTP/1.1 200 OK"
+_ TestExpertPerformance.test_the_new_count_fields_default_to_zero_for_an_older_payload _
+
+self = <test_expert_endpoints.TestExpertPerformance object at 0x10faa0850>
+
+    def test_the_new_count_fields_default_to_zero_for_an_older_payload(self):
+        """Added with defaults, so a payload built without them still validates."""
+        from app.schemas.predictions import ExpertPerformanceMetrics
+    
+        metrics = ExpertPerformanceMetrics(
+            expert_id="e", expert_name="n", total_predictions=0, published_predictions=0,
+            pending_predictions=0, predictions_by_league={}, recent_predictions=[],
+            performance_trend=[])
+    
+>       assert metrics.archived_predictions == 0
+
+tests/api/test_expert_endpoints.py:936: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ExpertPerformanceMetrics(expert_id='e', expert_name='n', total_predictions=0, published_predictions=0, pending_predict...=0, accuracy_rate=None, average_confidence=None, predictions_by_league={}, recent_predictions=[], performance_trend=[])
+item = 'archived_predictions'
+
+    def __getattr__(self, item: str) -> Any:
+        private_attributes = object.__getattribute__(self, '__private_attributes__')
+        if item in private_attributes:
+            attribute = private_attributes[item]
+            if hasattr(attribute, '__get__'):
+                return attribute.__get__(self, type(self))  # type: ignore
+    
+            try:
+                # Note: self.__pydantic_private__ cannot be None if self.__private_attributes__ has items
+                return self.__pydantic_private__[item]  # type: ignore
+            except KeyError as exc:
+                raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}') from exc
+        else:
+            # `__pydantic_extra__` can fail to be set if the model is not yet fully initialized.
+            # See `BaseModel.__repr_args__` for more details
+            try:
+                pydantic_extra = object.__getattribute__(self, '__pydantic_extra__')
+            except AttributeError:
+                pydantic_extra = None
+    
+            if pydantic_extra is not None:
+                try:
+                    return pydantic_extra[item]
+                except KeyError as exc:
+                    raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}') from exc
+            else:
+                if hasattr(self.__class__, item):
+                    return super().__getattribute__(item)  # Raises AttributeError if appropriate
+                else:
+                    # this is the current error
+>                   raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+E                   AttributeError: 'ExpertPerformanceMetrics' object has no attribute 'archived_predictions'
+
+venv311/lib/python3.11/site-packages/pydantic/main.py:761: AttributeError
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/services/test_expert_history.py::test_a_delete_retried_after_kickoff_keeps_the_prematch_withdrawal
+FAILED tests/services/test_expert_history.py::test_a_delete_retried_before_kickoff_keeps_the_first_deletion_time
+FAILED tests/services/test_expert_history.py::test_another_expert_cannot_redelete_a_deleted_prediction
+FAILED tests/services/test_expert_history.py::test_a_first_delete_after_kickoff_is_still_scored_and_a_retry_changes_nothing
+FAILED tests/api/test_expert_manage_db.py::test_deleting_twice_answers_200_both_times_with_the_first_deletion_time
+FAILED tests/api/test_expert_manage_db.py::test_a_repeated_delete_writes_one_audit_entry_carrying_the_stored_time
+FAILED tests/api/test_expert_manage_db.py::test_a_deleted_prediction_cannot_be_edited
+FAILED tests/api/test_expert_manage_db.py::test_a_deleted_prediction_cannot_be_publish_toggled[published]
+FAILED tests/api/test_expert_manage_db.py::test_a_deleted_prediction_cannot_be_publish_toggled[archived]
+FAILED tests/api/test_expert_manage_db.py::test_editing_or_toggling_a_missing_prediction_is_a_404_too
+FAILED tests/api/test_expert_manage_db.py::test_the_counts_by_status_leave_out_deleted_and_foreign_rows
+FAILED tests/api/test_expert_manage_db.py::test_the_dashboard_counts_add_up
+FAILED tests/api/test_expert_manage_db.py::test_the_dashboard_counts_are_not_capped_at_a_thousand_rows
+FAILED tests/api/test_expert_manage_db.py::test_my_predictions_carries_the_total_in_x_total_count
+FAILED tests/api/test_expert_manage_db.py::test_the_total_count_header_is_exposed_to_the_browser
+FAILED tests/services/test_expert_delete_race_pg.py::test_two_simultaneous_deletes_write_once_and_the_loser_reports_already_deleted
+FAILED tests/api/test_expert_endpoints.py::TestMyPredictions::test_get_my_predictions_passes_the_page_through_and_reports_the_total
+FAILED tests/api/test_expert_endpoints.py::TestExpertPerformance::test_the_counts_add_up_whatever_the_statuses
+FAILED tests/api/test_expert_endpoints.py::TestExpertPerformance::test_the_new_count_fields_default_to_zero_for_an_older_payload
+19 failed, 4 passed, 62 deselected, 18 warnings in 1.20s
+exit=1
+# (home-directory prefix shortened to ~ in 9 line(s) before committing; nothing else edited)

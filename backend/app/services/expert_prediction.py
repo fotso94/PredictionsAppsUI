@@ -5,11 +5,12 @@ Handles expert prediction creation, overrides, and management.
 """
 
 import logging
-from typing import Iterable, List, Optional, Dict, Any, Tuple
+from dataclasses import dataclass
+from typing import Callable, Iterable, List, Optional, Dict, Any, Tuple
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, desc
+from sqlalchemy.orm import Query, Session
+from sqlalchemy import and_, desc, func, update
 import uuid
 
 from app.models.predictions import (
@@ -61,6 +62,26 @@ EDITABLE_VALUE_FIELDS: Tuple[str, ...] = REVISION_VALUE_FIELDS
 
 class ForeignExpertRecord(Exception):
     """Raised when an expert tries to attach an override to another expert's published record."""
+
+
+class PredictionNotFound(ValueError):
+    """Raised when the named prediction does not exist - or, for an edit or a publication toggle,
+    has been deleted.
+
+    A deleted prediction is answered exactly as a missing one: its withdrawal is evidence that
+    settlement reads, so nothing may move it afterwards, and the caller needs no other story. A
+    subclass of ValueError, so every caller that already catches ValueError still does; the
+    endpoints catch it first and answer 404.
+    """
+
+
+@dataclass(frozen=True)
+class DeletionOutcome:
+    """What a DELETE did. ``deleted_at`` is always the STORED time of the first deletion."""
+    prediction: Prediction
+    deleted_at: datetime
+    #: True when the prediction was already deleted and this call wrote nothing.
+    already_deleted: bool
 
 
 class ClassificationNotAllowed(Exception):
@@ -157,16 +178,21 @@ class ExpertPredictionService:
     - Tracking prediction supersession
     """
     
-    def __init__(self, db: Session, cache_service: Optional[PredictionCacheService] = None):
+    def __init__(self, db: Session, cache_service: Optional[PredictionCacheService] = None,
+                 clock: Optional[Callable[[], datetime]] = None):
         """
         Initialize ExpertPredictionService
         
         Args:
             db: Database session
             cache_service: Optional cache service
+            clock: Optional source of the current time, used to stamp a deletion. It must return
+                naive UTC like every stored timestamp (settlement compares them with plain ``<``).
+                Defaults to datetime.utcnow; tests pass a fixed clock.
         """
         self.db = db
         self.cache_service = cache_service or PredictionCacheService()
+        self._utcnow = clock or datetime.utcnow
     
     @staticmethod
     def _initial_status() -> PredictionStatus:
@@ -490,21 +516,52 @@ class ExpertPredictionService:
         Returns:
             List of expert's predictions
         """
+        predictions = self._own_predictions(expert_user, status).order_by(
+            desc(Prediction.created_at)
+        ).limit(limit).offset(offset).all()
+        
+        return predictions
+
+    def _own_predictions(self, expert_user: User, status: Optional[PredictionStatus] = None) -> Query:
+        """The expert's own predictions that have not been deleted, optionally of one status.
+
+        The single definition of "this expert's predictions": the list, its total and the dashboard
+        counts are all built from it, so they cannot disagree about which rows exist.
+        """
         query = self.db.query(Prediction).filter(
             and_(
                 Prediction.created_by == expert_user.id,
                 Prediction.deleted_at.is_(None)
             )
         )
-        
         if status:
             query = query.filter(Prediction.status == status)
-        
-        predictions = query.order_by(
-            desc(Prediction.created_at)
-        ).limit(limit).offset(offset).all()
-        
-        return predictions
+        return query
+
+    def count_expert_predictions(self, expert_user: User,
+                                 status: Optional[PredictionStatus] = None) -> int:
+        """How many rows get_expert_predictions would page through for the same filter."""
+        return self._own_predictions(expert_user, status).count()
+
+    def count_expert_predictions_by_status(self, expert_user: User) -> Dict[PredictionStatus, int]:
+        """The expert's predictions counted per status, in SQL and over every row.
+
+        A status with no predictions is absent rather than present with 0.
+        """
+        rows = self._own_predictions(expert_user).with_entities(
+            Prediction.status, func.count(Prediction.id)
+        ).group_by(Prediction.status).all()
+        return {status: count for status, count in rows}
+
+    def average_stated_confidence(self, expert_user: User) -> Optional[float]:
+        """The mean conviction over the expert's predictions that state one, or None if none do.
+
+        SQL AVG skips NULLs and returns NULL over no values, which is exactly the rule: a conviction
+        nobody supplied is not a zero, and an average of nothing is not zero either.
+        """
+        average = self._own_predictions(expert_user).with_entities(
+            func.avg(Prediction.confidence_score)).scalar()
+        return float(average) if average is not None else None
     
     def approve_prediction(
         self,
@@ -681,14 +738,19 @@ class ExpertPredictionService:
             (updated prediction, the appended revision holding the previous version)
 
         Raises:
-            ValueError: If prediction not found, not owned by user, or not editable
+            PredictionNotFound: If the prediction does not exist or has been deleted
+            ValueError: If prediction not owned by user, or not editable
         """
+        # Locked, so a deletion cannot land between this read and the write below (and re-read, so
+        # an object the session already holds cannot hide one that landed first).
         prediction = self.db.query(Prediction).filter(
             Prediction.id == uuid.UUID(prediction_id)
-        ).first()
+        ).with_for_update().populate_existing().first()
 
-        if not prediction:
-            raise ValueError(f"Prediction {prediction_id} not found")
+        # A deleted prediction is not edited: the values it was withdrawn with are part of its
+        # record, and a revision appended to a row nobody can see would be a version nobody saw.
+        if not prediction or prediction.deleted_at is not None:
+            raise PredictionNotFound(f"Prediction {prediction_id} not found")
 
         # Check ownership
         if prediction.created_by != expert_user.id:
@@ -828,27 +890,56 @@ class ExpertPredictionService:
         self,
         prediction_id: str,
         expert_user: User
-    ) -> None:
+    ) -> DeletionOutcome:
         """
-        Delete a prediction (Expert can delete their own PENDING, REJECTED, or PUBLISHED predictions).
+        Delete a prediction (Expert can delete their own PENDING, REJECTED, PUBLISHED or ARCHIVED
+        predictions), exactly once.
+
+        The deletion is a soft delete, and its time is evidence: settlement decides whether the
+        prediction stood at kickoff by comparing ``deleted_at`` with the kickoff. It used to be
+        rewritten on every call, so a retry sent once the result was in moved a prematch withdrawal
+        past kickoff and the next settlement pass scored the row - the profitable direction, since
+        only a winner is worth re-deleting. ``deleted_at`` is therefore written once:
+
+        * the row is read under its lock (SELECT ... FOR UPDATE, re-read with populate_existing so
+          an object already in the session cannot answer with a stale ``deleted_at``), so a second
+          request waits for the first and then sees its deletion;
+        * a row that is already deleted gets nothing written at all - not ``deleted_at``, not
+          ``updated_at`` - and the call reports the stored time with ``already_deleted``;
+        * the write itself is a compare-and-set (UPDATE ... WHERE deleted_at IS NULL), so even a
+          caller that got past the lock some other way cannot overwrite a deletion.
 
         Args:
             prediction_id: Prediction ID
             expert_user: Expert user deleting the prediction
 
+        Returns:
+            DeletionOutcome carrying the stored deletion time and whether this call deleted it
+
         Raises:
-            ValueError: If prediction not found, not owned by user, or not deletable
+            PredictionNotFound: If the prediction does not exist
+            ValueError: If prediction not owned by user, or not deletable
         """
         prediction = self.db.query(Prediction).filter(
             Prediction.id == uuid.UUID(prediction_id)
-        ).first()
+        ).with_for_update().populate_existing().first()
 
         if not prediction:
-            raise ValueError(f"Prediction {prediction_id} not found")
+            raise PredictionNotFound(f"Prediction {prediction_id} not found")
 
-        # Check ownership
+        # Check ownership - before the deleted check, so another expert is refused the same way
+        # whether or not the row has already been deleted
         if prediction.created_by != expert_user.id:
             raise ValueError("You can only delete your own predictions")
+
+        if prediction.deleted_at is not None:
+            first_deleted_at = prediction.deleted_at
+            # Nothing is written. Ending the transaction releases the row lock.
+            self.db.commit()
+            logger.info(f"Prediction {prediction_id} was already deleted at {first_deleted_at}; "
+                        f"nothing written for expert {expert_user.id}")
+            return DeletionOutcome(prediction=prediction, deleted_at=first_deleted_at,
+                                   already_deleted=True)
 
         # Check if prediction is deletable (PENDING, REJECTED, PUBLISHED, or ARCHIVED predictions can be deleted)
         if prediction.status not in [PredictionStatus.PENDING, PredictionStatus.REJECTED, PredictionStatus.PUBLISHED, PredictionStatus.ARCHIVED]:
@@ -856,15 +947,32 @@ class ExpertPredictionService:
 
         match_id = str(prediction.match_id)
 
-        # Soft delete
-        prediction.deleted_at = datetime.utcnow()
+        # Soft delete, as a compare-and-set
+        deleted_at = self._utcnow()
+        claimed = self.db.execute(
+            update(Prediction)
+            .where(Prediction.id == prediction.id, Prediction.deleted_at.is_(None))
+            .values(deleted_at=deleted_at, updated_at=deleted_at)
+            .execution_options(synchronize_session=False)
+        ).rowcount
 
         self.db.commit()
+        # Read back what is stored: on a lost compare-and-set it is the other deletion's time.
+        self.db.refresh(prediction)
+
+        if not claimed:
+            logger.info(f"Prediction {prediction_id} was deleted by a concurrent request at "
+                        f"{prediction.deleted_at}; nothing written for expert {expert_user.id}")
+            return DeletionOutcome(prediction=prediction, deleted_at=prediction.deleted_at,
+                                   already_deleted=True)
 
         logger.info(f"Deleted prediction {prediction_id} by expert {expert_user.id}")
 
         # Invalidate cache
         self._invalidate_match_cache(match_id)
+
+        return DeletionOutcome(prediction=prediction, deleted_at=prediction.deleted_at,
+                               already_deleted=False)
 
     def _withdrawal_is_frozen(self, prediction: Prediction, now: datetime) -> bool:
         """Is this prediction's recorded withdrawal now a closed fact that must not be rewritten?
@@ -909,14 +1017,18 @@ class ExpertPredictionService:
             Updated prediction
 
         Raises:
-            ValueError: If prediction not found, not owned by user, or not in a toggleable state
+            PredictionNotFound: If the prediction does not exist or has been deleted
+            ValueError: If prediction not owned by user, or not in a toggleable state
         """
+        # Locked and re-read for the same reason as an edit: see update_prediction_with_revision.
         prediction = self.db.query(Prediction).filter(
             Prediction.id == uuid.UUID(prediction_id)
-        ).first()
+        ).with_for_update().populate_existing().first()
 
-        if not prediction:
-            raise ValueError(f"Prediction {prediction_id} not found")
+        # A deleted prediction is not toggled. Its status and unpublished_at are withdrawal
+        # evidence settlement reads, and they must not move once the expert has taken it down.
+        if not prediction or prediction.deleted_at is not None:
+            raise PredictionNotFound(f"Prediction {prediction_id} not found")
 
         # Check ownership
         if prediction.created_by != expert_user.id:

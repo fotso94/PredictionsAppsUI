@@ -1,0 +1,86 @@
+# delete-counts AFTER: the same selection as delete-counts-before-all.log, against the fixed code (uncommitted working tree on expert-fixes at 6cfb1c22)
+# plus test_a_lost_compare_and_set_reports_the_other_deletion_and_overwrites_nothing, added with the fix (it exercises a branch the old code did not have)
+# run at 2026-10-20T23:42:16Z; -rfEs (a superset of -rs)
+============================= test session starts ==============================
+platform darwin -- Python 3.11.9, pytest-7.4.3, pluggy-1.6.0 -- ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/bin/python
+rootdir: ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend
+configfile: pyproject.toml
+plugins: cov-4.1.0, asyncio-0.21.1, anyio-3.7.1
+asyncio: mode=Mode.STRICT
+collecting ... collected 86 items / 62 deselected / 24 selected
+
+tests/services/test_expert_history.py::test_a_delete_retried_after_kickoff_keeps_the_prematch_withdrawal PASSED [  4%]
+tests/services/test_expert_history.py::test_a_delete_retried_before_kickoff_keeps_the_first_deletion_time PASSED [  8%]
+tests/services/test_expert_history.py::test_another_expert_cannot_redelete_a_deleted_prediction PASSED [ 12%]
+tests/services/test_expert_history.py::test_a_first_delete_after_kickoff_is_still_scored_and_a_retry_changes_nothing PASSED [ 16%]
+tests/services/test_expert_history.py::test_without_a_clock_the_deletion_is_stamped_in_naive_utc PASSED [ 20%]
+tests/api/test_expert_manage_db.py::test_deleting_twice_answers_200_both_times_with_the_first_deletion_time PASSED [ 25%]
+tests/api/test_expert_manage_db.py::test_a_repeated_delete_writes_one_audit_entry_carrying_the_stored_time PASSED [ 29%]
+tests/api/test_expert_manage_db.py::test_deleting_a_missing_prediction_is_a_404 PASSED [ 33%]
+tests/api/test_expert_manage_db.py::test_another_expert_cannot_delete_a_prediction_and_nothing_is_written PASSED [ 37%]
+tests/api/test_expert_manage_db.py::test_a_lost_compare_and_set_reports_the_other_deletion_and_overwrites_nothing PASSED [ 41%]
+tests/api/test_expert_manage_db.py::test_a_deleted_prediction_cannot_be_edited PASSED [ 45%]
+tests/api/test_expert_manage_db.py::test_a_deleted_prediction_cannot_be_publish_toggled[published] PASSED [ 50%]
+tests/api/test_expert_manage_db.py::test_a_deleted_prediction_cannot_be_publish_toggled[archived] PASSED [ 54%]
+tests/api/test_expert_manage_db.py::test_editing_or_toggling_a_missing_prediction_is_a_404_too PASSED [ 58%]
+tests/api/test_expert_manage_db.py::test_a_live_prediction_is_still_edited_and_toggled_as_before PASSED [ 62%]
+tests/api/test_expert_manage_db.py::test_the_counts_by_status_leave_out_deleted_and_foreign_rows PASSED [ 66%]
+tests/api/test_expert_manage_db.py::test_the_dashboard_counts_add_up PASSED [ 70%]
+tests/api/test_expert_manage_db.py::test_the_dashboard_counts_are_not_capped_at_a_thousand_rows PASSED [ 75%]
+tests/api/test_expert_manage_db.py::test_my_predictions_carries_the_total_in_x_total_count PASSED [ 79%]
+tests/api/test_expert_manage_db.py::test_the_total_count_header_is_exposed_to_the_browser PASSED [ 83%]
+tests/services/test_expert_delete_race_pg.py::test_two_simultaneous_deletes_write_once_and_the_loser_reports_already_deleted PASSED [ 87%]
+tests/api/test_expert_endpoints.py::TestMyPredictions::test_get_my_predictions_passes_the_page_through_and_reports_the_total PASSED [ 91%]
+tests/api/test_expert_endpoints.py::TestExpertPerformance::test_the_counts_add_up_whatever_the_statuses PASSED [ 95%]
+tests/api/test_expert_endpoints.py::TestExpertPerformance::test_the_new_count_fields_default_to_zero_for_an_older_payload PASSED [100%]
+
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================ 24 passed, 62 deselected, 18 warnings in 1.09s ================
+exit=0
+# (home-directory prefix shortened to ~ in 11 line(s) before committing; nothing else edited)

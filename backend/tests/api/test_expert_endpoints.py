@@ -189,11 +189,23 @@ def _enriched(prediction) -> Dict[str, Any]:
 
 
 def _service_mock(predictions=None) -> Mock:
-    """Mocked ExpertPredictionService instance with a dict-returning enrichment stub."""
+    """Mocked ExpertPredictionService instance with a dict-returning enrichment stub.
+
+    The count and average stand-ins answer from the same list, the way the real queries answer
+    from the same rows, so a test that hands over three predictions is told about three.
+    """
+    rows = list(predictions or [])
     instance = Mock()
-    instance.get_review_queue.return_value = list(predictions or [])
-    instance.get_expert_predictions.return_value = list(predictions or [])
+    instance.get_review_queue.return_value = list(rows)
+    instance.get_expert_predictions.return_value = list(rows)
     instance.enrich_prediction_with_details.side_effect = _enriched
+    by_status: Dict[PredictionStatus, int] = {}
+    for row in rows:
+        by_status[row.status] = by_status.get(row.status, 0) + 1
+    instance.count_expert_predictions_by_status.return_value = by_status
+    instance.count_expert_predictions.return_value = len(rows)
+    stated = [float(row.confidence_score) for row in rows if row.confidence_score is not None]
+    instance.average_stated_confidence.return_value = sum(stated) / len(stated) if stated else None
     return instance
 
 
@@ -836,6 +848,28 @@ class TestMyPredictions:
 
         assert response.status_code == 400, response.text
 
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    def test_get_my_predictions_passes_the_page_through_and_reports_the_total(
+        self, mock_expert_service, client, mock_expert_user
+    ):
+        """The body stays a bare list; the total for the same filter rides in X-Total-Count."""
+        instance = _service_mock([_make_prediction(status=PredictionStatus.ARCHIVED)])
+        instance.count_expert_predictions.return_value = 21
+        mock_expert_service.return_value = instance
+
+        response = client.get(
+            "/api/v1/expert/predictions/my-predictions?limit=20&offset=20&status=archived",
+            headers={"Authorization": "Bearer mock-token"}
+        )
+
+        assert response.status_code == 200, response.text
+        assert isinstance(response.json(), list) and len(response.json()) == 1
+        assert response.headers["X-Total-Count"] == "21"
+        instance.get_expert_predictions.assert_called_once_with(
+            expert_user=mock_expert_user, limit=20, offset=20, status=PredictionStatus.ARCHIVED)
+        instance.count_expert_predictions.assert_called_once_with(
+            expert_user=mock_expert_user, status=PredictionStatus.ARCHIVED)
+
 
 class TestExpertPerformance:
     """Tests for GET /api/v1/expert/analytics/performance (KAN-153)"""
@@ -863,6 +897,44 @@ class TestExpertPerformance:
         assert "published_predictions" in data
         assert "pending_predictions" in data
         assert "average_confidence" in data
+
+    @patch("app.api.v1.endpoints.expert.ExpertPredictionService")
+    def test_the_counts_add_up_whatever_the_statuses(
+        self, mock_expert_service, client, mock_expert_user
+    ):
+        """Written = Published + Not published. "Not published" used to be PENDING alone, so an
+        unpublished (ARCHIVED) prediction was counted nowhere: Written 3, Published 1, Pending 1."""
+        mock_expert_service.return_value = _service_mock([
+            _make_prediction(status=PredictionStatus.PUBLISHED),
+            _make_prediction(status=PredictionStatus.ARCHIVED),
+            _make_prediction(status=PredictionStatus.PENDING),
+        ])
+
+        response = client.get(
+            "/api/v1/expert/analytics/performance",
+            headers={"Authorization": "Bearer mock-token"}
+        )
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["total_predictions"] == 3
+        assert data["published_predictions"] == 1
+        assert data["pending_predictions"] == 1, "the old field keeps its old meaning"
+        assert data["archived_predictions"] == 1
+        assert data["not_published_predictions"] == 2
+        assert data["total_predictions"] == data["published_predictions"] + data["not_published_predictions"]
+
+    def test_the_new_count_fields_default_to_zero_for_an_older_payload(self):
+        """Added with defaults, so a payload built without them still validates."""
+        from app.schemas.predictions import ExpertPerformanceMetrics
+
+        metrics = ExpertPerformanceMetrics(
+            expert_id="e", expert_name="n", total_predictions=0, published_predictions=0,
+            pending_predictions=0, predictions_by_league={}, recent_predictions=[],
+            performance_trend=[])
+
+        assert metrics.archived_predictions == 0
+        assert metrics.not_published_predictions == 0
 
 
 class TestAuthenticationIsStillEnforced:

@@ -6,7 +6,7 @@ Expert-specific API endpoints for prediction management
 import logging
 from types import SimpleNamespace
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -36,6 +36,7 @@ from app.services.expert_prediction import (
     ClassificationNotAllowed,
     ExpertPredictionService,
     ForeignExpertRecord,
+    PredictionNotFound,
     RecordClosed,
 )
 from app.services.prediction_audit import PredictionAuditService
@@ -332,6 +333,7 @@ async def get_review_queue(
 
 @router.get("/predictions/my-predictions", response_model=List[ExpertPredictionResponse])
 async def get_my_predictions(
+    response: Response,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     status: Optional[str] = Query(None, description="Filter by status (pending, approved, published, rejected)"),
@@ -351,7 +353,9 @@ async def get_my_predictions(
     - offset: Offset for pagination (default 0)
     - status: Filter by status (optional)
 
-    **Returns**: List of expert's predictions with match and user details
+    **Returns**: List of expert's predictions with match and user details. The body stays a bare
+    list; the number of predictions matching the same filter, across every page, is in the
+    `X-Total-Count` header (exposed to the browser by the CORS configuration in app/main.py).
     """
     expert_service = ExpertPredictionService(db)
 
@@ -374,6 +378,10 @@ async def get_my_predictions(
         offset=offset,
         status=status_filter
     )
+    # Without a total the page could only guess whether another page exists, from "this page came
+    # back full" - which is wrong exactly when the total is a multiple of the page size.
+    response.headers["X-Total-Count"] = str(
+        expert_service.count_expert_predictions(expert_user=current_user, status=status_filter))
 
     # Enrich predictions with match and user details
     enriched_predictions = [
@@ -533,6 +541,9 @@ async def update_prediction(
         enriched = expert_service.enrich_prediction_with_details(prediction)
 
         return enriched
+    except PredictionNotFound as e:
+        # Missing or deleted: a deleted prediction is not edited, and is answered as a missing one.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -555,50 +566,46 @@ async def delete_prediction(
 
     Allows experts to delete their own PENDING, REJECTED, PUBLISHED, or ARCHIVED predictions.
 
-    **Returns**: Success message
+    Idempotent. The first call deletes; a repeat - a retry, a second tab, a double click - writes
+    nothing and answers 200 again with the same `deleted_at` and `already_deleted: true`. The
+    deletion time is never moved, because settlement reads it to decide whether the prediction was
+    standing at kickoff, and the audit trail gets one DELETE entry, carrying that stored time.
+
+    **Returns**: `message`, `prediction_id`, `deleted_at` (UTC ISO-8601, the first deletion's time)
+    and `already_deleted`
     """
     expert_service = ExpertPredictionService(db)
     audit_service = PredictionAuditService(db)
 
     try:
-        # Get prediction before deletion for audit log
-        from app.models.predictions import Prediction
-        import uuid as uuid_lib
-        prediction = db.query(Prediction).filter(
-            Prediction.id == uuid_lib.UUID(prediction_id)
-        ).first()
-
-        if not prediction:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Prediction {prediction_id} not found"
-            )
-
-        # Deletion is a soft delete, so the loaded row stays readable and the audit entry below can
-        # use it directly. (A dict was being built here for that purpose and never passed anywhere.)
-        expert_service.delete_prediction(prediction_id, current_user)
-
-        try:
-            audit_service.log_prediction_deleted(
-                prediction=prediction,
-                user=current_user,
-                reason="Expert deleted their own prediction"
-            )
-        except Exception as audit_error:
-            # Log the audit error but don't fail the deletion
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Failed to log audit trail for prediction deletion: {audit_error}")
-
-        return {
-            "message": "Prediction deleted successfully",
-            "prediction_id": prediction_id
-        }
+        outcome = expert_service.delete_prediction(prediction_id, current_user)
+    except PredictionNotFound as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+
+    if not outcome.already_deleted:
+        # Only the call that deleted writes the audit entry; a repeat is not another withdrawal.
+        # Deletion is a soft delete, so the row stays readable and the entry can use it directly.
+        try:
+            audit_service.log_prediction_deleted(
+                prediction=outcome.prediction,
+                user=current_user,
+                reason="Expert deleted their own prediction"
+            )
+        except Exception as audit_error:
+            # Log the audit error but don't fail the deletion
+            logger.error(f"Failed to log audit trail for prediction deletion: {audit_error}")
+
+    return {
+        "message": "Prediction deleted successfully",
+        "prediction_id": prediction_id,
+        "deleted_at": to_utc_iso_z(outcome.deleted_at),
+        "already_deleted": outcome.already_deleted,
+    }
 
 
 @router.post("/predictions/{prediction_id}/toggle-publish", response_model=ExpertPredictionResponse)
@@ -638,6 +645,9 @@ async def toggle_publish_status(
         enriched_prediction = expert_service.enrich_prediction_with_details(prediction)
 
         return enriched_prediction
+    except PredictionNotFound as e:
+        # Missing or deleted: a deleted prediction's publication state is withdrawal evidence.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -708,17 +718,17 @@ async def get_expert_performance(
 
     expert_service = ExpertPredictionService(db)
 
-    # Get expert's predictions
-    all_predictions = expert_service.get_expert_predictions(
-        expert_user=current_user,
-        limit=1000,  # Get all for analytics
-        offset=0
-    )
-
-    # Calculate metrics
-    total_predictions = len(all_predictions)
-    published_predictions = len([p for p in all_predictions if p.status == PredictionStatus.PUBLISHED])
-    pending_predictions = len([p for p in all_predictions if p.status == PredictionStatus.PENDING])
+    # Counted in SQL over every row. These were len() of a list fetched with limit=1000, so they
+    # stopped growing at 1000, and "not published" was PENDING alone: an expert's unpublished
+    # (ARCHIVED) or REJECTED predictions were counted nowhere, so Written never equalled
+    # Published + Not published. pending_predictions keeps its old meaning for existing readers;
+    # not_published_predictions is everything that is not PUBLISHED.
+    counts = expert_service.count_expert_predictions_by_status(current_user)
+    total_predictions = sum(counts.values())
+    published_predictions = counts.get(PredictionStatus.PUBLISHED, 0)
+    pending_predictions = counts.get(PredictionStatus.PENDING, 0)
+    archived_predictions = counts.get(PredictionStatus.ARCHIVED, 0)
+    not_published_predictions = total_predictions - published_predictions
 
     # The average of the convictions that EXIST, and None when none do.
     #
@@ -729,15 +739,16 @@ async def get_expert_performance(
     # version of the same error: it drags the mean down with a number nobody supplied.
     #
     # No conviction at all gives None rather than 0.0, because "nobody said" and "everybody said
-    # zero" are different answers and the response model carries the distinction.
-    stated = [float(p.confidence_score) for p in all_predictions if p.confidence_score is not None]
-    avg_confidence = (sum(stated) / len(stated)) if stated else None
+    # zero" are different answers and the response model carries the distinction. Computed in SQL
+    # over the same rows as the counts; AVG skips NULLs and is NULL over none.
+    avg_confidence = expert_service.average_stated_confidence(current_user)
 
     # Group by league (placeholder - would need match data)
     predictions_by_league = {}
 
     # Get recent predictions and enrich with match details
-    recent_predictions_raw = all_predictions[:10]
+    recent_predictions_raw = expert_service.get_expert_predictions(
+        expert_user=current_user, limit=10, offset=0)
     recent_predictions = [
         expert_service.enrich_prediction_with_details(p) for p in recent_predictions_raw
     ]
@@ -751,6 +762,8 @@ async def get_expert_performance(
         total_predictions=total_predictions,
         published_predictions=published_predictions,
         pending_predictions=pending_predictions,
+        archived_predictions=archived_predictions,
+        not_published_predictions=not_published_predictions,
         accuracy_rate=None,  # TODO: Calculate from match outcomes
         average_confidence=avg_confidence,
         predictions_by_league=predictions_by_league,

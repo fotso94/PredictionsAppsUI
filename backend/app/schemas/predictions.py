@@ -739,7 +739,13 @@ class ExpertPerformanceMetrics(BaseModel):
     expert_name: str
     total_predictions: int
     published_predictions: int
+    #: PENDING only, as it always was. It is NOT "not published": see the two fields below.
     pending_predictions: int
+    #: Unpublished by the expert (ARCHIVED).
+    archived_predictions: int = 0
+    #: Everything that is not PUBLISHED, so total == published + not_published always holds.
+    #: Both default to 0, so a payload built without them still validates.
+    not_published_predictions: int = 0
     accuracy_rate: Optional[float] = None
     #: Mean conviction across this expert's predictions, or NULL when none of them carries one.
     #: An average of nothing is not zero. Widened alongside Prediction.confidence_score becoming

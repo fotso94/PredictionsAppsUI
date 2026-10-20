@@ -1,0 +1,210 @@
+# delete-counts BEFORE (behaviour): the clock-driven delete-retry tests against the unchanged product code
+# the old constructor has no clock, so docs/evidence/expert-fixes-2026-10-20/delete_counts_old_code_clock_shim.py
+# (loaded with -p) feeds the same clock to the OLD module's datetime.utcnow(); no product logic is changed
+# branch expert-fixes at 6cfb1c22; git diff --stat -- backend/app: ''; run at 2026-10-20T23:39:02Z
+FF.F.                                                                    [100%]
+=================================== FAILURES ===================================
+______ test_a_delete_retried_after_kickoff_keeps_the_prematch_withdrawal _______
+
+db = <sqlalchemy.orm.session.Session object at 0x10f1e0cd0>
+
+    def test_a_delete_retried_after_kickoff_keeps_the_prematch_withdrawal(db):
+        """The profitable direction, through the delete path. This is the test the fix exists for.
+    
+        ``deleted_at`` was rewritten on every DELETE. A prediction deleted before kickoff is not
+        scored; a second DELETE sent once the result was in moved ``deleted_at`` past kickoff, which
+        made the row a settlement candidate again, and the next pass scored it - as a win, because a
+        winner is the only prediction worth re-deleting. The first deletion is the fact; a retry must
+        not move it.
+        """
+        match = away_win(db)
+        kickoff = match.match_date
+        user = _expert(db)
+        winner = _prediction(db, match, user, home=0.15, draw=0.25, away=0.6)   # would WIN
+        withdrawn_at = kickoff - timedelta(hours=2)
+        clock = Clock(withdrawn_at)
+        service = ExpertPredictionService(db, clock=clock)
+    
+        first = service.delete_prediction(str(winner.id), user)
+        settle(db)
+        assert score_of(db, winner) is None, "withdrawn before kickoff, so nothing to measure"
+    
+        clock.now = kickoff + timedelta(hours=3)                 # the result is in
+        retry = service.delete_prediction(str(winner.id), user)
+    
+        settle(db)
+        scored = score_of(db, winner)
+>       assert scored is None, (
+            f"a win withdrawn before kickoff was scored ({scored.outcome}) after a retried delete")
+E       AssertionError: a win withdrawn before kickoff was scored (PredictionOutcome.WON) after a retried delete
+E       assert <app.models.predictions.PredictionResult object at 0x10ee51610> is None
+
+tests/services/test_expert_history.py:313: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Deleted prediction 8b612836-41a8-4118-b557-058a2518677e by expert 995dc593-ff04-446e-b662-e71aa5513845
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:free:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:premium:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:pro:match_winner
+2026-10-20 19:39:03 - app.services.settlement - INFO - settlement soccer-regulation-time-v2: 1 match(es) considered, expert {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Deleted prediction 8b612836-41a8-4118-b557-058a2518677e by expert 995dc593-ff04-446e-b662-e71aa5513845
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:free:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:premium:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:pro:match_winner
+2026-10-20 19:39:03 - app.services.settlement - INFO - settlement soccer-regulation-time-v2: 1 match(es) considered, expert {'settled': 1, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction 8b612836-41a8-4118-b557-058a2518677e by expert 995dc593-ff04-446e-b662-e71aa5513845
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:pro:match_winner
+INFO     app.services.settlement:settlement.py:1036 settlement soccer-regulation-time-v2: 1 match(es) considered, expert {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction 8b612836-41a8-4118-b557-058a2518677e by expert 995dc593-ff04-446e-b662-e71aa5513845
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:29bbe1d2-424d-4aaa-aaa9-2121445efed7:pro:match_winner
+INFO     app.services.settlement:settlement.py:1036 settlement soccer-regulation-time-v2: 1 match(es) considered, expert {'settled': 1, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}
+______ test_a_delete_retried_before_kickoff_keeps_the_first_deletion_time ______
+
+db = <sqlalchemy.orm.session.Session object at 0x10f1fa0d0>
+
+    def test_a_delete_retried_before_kickoff_keeps_the_first_deletion_time(db):
+        """A retry is not a second deletion even while the match is still ahead: nothing is written."""
+        match = away_win(db)
+        kickoff = match.match_date
+        user = _expert(db)
+        prediction = _prediction(db, match, user)
+        clock = Clock(kickoff - timedelta(hours=5))
+        service = ExpertPredictionService(db, clock=clock)
+    
+        service.delete_prediction(str(prediction.id), user)
+        after_first = _reread(db, prediction)
+        first_deleted_at, first_updated_at = after_first.deleted_at, after_first.updated_at
+    
+        clock.now = kickoff - timedelta(hours=1)
+        retry = service.delete_prediction(str(prediction.id), user)
+    
+        stored = _reread(db, prediction)
+>       assert stored.deleted_at == first_deleted_at == kickoff - timedelta(hours=5)
+E       assert datetime.datetime(2025, 12, 24, 14, 0) == datetime.datetime(2025, 12, 24, 10, 0)
+E        +  where datetime.datetime(2025, 12, 24, 14, 0) = <app.models.predictions.Prediction object at 0x10eded3d0>.deleted_at
+
+tests/services/test_expert_history.py:342: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Deleted prediction 59aae190-d5ad-4c24-95fd-9ece4b3a35aa by expert 076a6bce-8bbd-45ad-a5e0-a62339890a01
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:free:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:premium:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:pro:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Deleted prediction 59aae190-d5ad-4c24-95fd-9ece4b3a35aa by expert 076a6bce-8bbd-45ad-a5e0-a62339890a01
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:free:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:premium:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:pro:match_winner
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction 59aae190-d5ad-4c24-95fd-9ece4b3a35aa by expert 076a6bce-8bbd-45ad-a5e0-a62339890a01
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:pro:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction 59aae190-d5ad-4c24-95fd-9ece4b3a35aa by expert 076a6bce-8bbd-45ad-a5e0-a62339890a01
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aa0f2eb0-5a77-4693-8d65-6af3e74e35c2:pro:match_winner
+_ test_a_first_delete_after_kickoff_is_still_scored_and_a_retry_changes_nothing _
+
+db = <sqlalchemy.orm.session.Session object at 0x10f1ec4d0>
+
+    def test_a_first_delete_after_kickoff_is_still_scored_and_a_retry_changes_nothing(db):
+        """The control: a deletion made once the match had started was always too late to count."""
+        match = away_win(db)
+        kickoff = match.match_date
+        user = _expert(db)
+        loser = _prediction(db, match, user)                   # leans home; the home side lost 0-2
+        clock = Clock(kickoff + timedelta(hours=3))
+        service = ExpertPredictionService(db, clock=clock)
+    
+        service.delete_prediction(str(loser.id), user)
+        settle(db)
+        row = score_of(db, loser)
+        assert row is not None and row.outcome == PredictionOutcome.LOST
+    
+        clock.now = kickoff + timedelta(days=30)
+        retry = service.delete_prediction(str(loser.id), user)
+    
+        stored = _reread(db, loser)
+>       assert stored.deleted_at == kickoff + timedelta(hours=3)
+E       assert datetime.datetime(2026, 1, 23, 15, 0) == (datetime.datetime(2025, 12, 24, 15, 0) + datetime.timedelta(seconds=10800))
+E        +  where datetime.datetime(2026, 1, 23, 15, 0) = <app.models.predictions.Prediction object at 0x10f332290>.deleted_at
+E        +  and   datetime.timedelta(seconds=10800) = timedelta(hours=3)
+
+tests/services/test_expert_history.py:382: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Deleted prediction c710f82a-704f-42e2-bdb9-a090fe473371 by expert c795ab1d-c6b2-4b34-a5aa-cb4428c7b6b1
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:free:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:premium:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:pro:match_winner
+2026-10-20 19:39:03 - app.services.settlement - INFO - settlement soccer-regulation-time-v2: 1 match(es) considered, expert {'settled': 1, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Deleted prediction c710f82a-704f-42e2-bdb9-a090fe473371 by expert c795ab1d-c6b2-4b34-a5aa-cb4428c7b6b1
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:free:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:premium:match_winner
+2026-10-20 19:39:03 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:pro:match_winner
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction c710f82a-704f-42e2-bdb9-a090fe473371 by expert c795ab1d-c6b2-4b34-a5aa-cb4428c7b6b1
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:pro:match_winner
+INFO     app.services.settlement:settlement.py:1036 settlement soccer-regulation-time-v2: 1 match(es) considered, expert {'settled': 1, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}
+INFO     app.services.expert_prediction:expert_prediction.py:864 Deleted prediction c710f82a-704f-42e2-bdb9-a090fe473371 by expert c795ab1d-c6b2-4b34-a5aa-cb4428c7b6b1
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1139 Would invalidate cache key: prediction:aaf0161b-8256-4580-a8f4-47bac9cff8a2:pro:match_winner
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/services/test_expert_history.py::test_a_delete_retried_after_kickoff_keeps_the_prematch_withdrawal
+FAILED tests/services/test_expert_history.py::test_a_delete_retried_before_kickoff_keeps_the_first_deletion_time
+FAILED tests/services/test_expert_history.py::test_a_first_delete_after_kickoff_is_still_scored_and_a_retry_changes_nothing
+3 failed, 2 passed, 38 deselected, 18 warnings in 0.32s
+exit=1
+# (home-directory prefix shortened to ~ in 9 line(s) before committing; nothing else edited)

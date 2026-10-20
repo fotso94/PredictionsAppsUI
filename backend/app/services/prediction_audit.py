@@ -252,6 +252,11 @@ class PredictionAuditService:
     ) -> AuditLog:
         """
         Log prediction deletion event.
+
+        Records the deletion time the prediction STORES, not the moment this entry happens to be
+        written: the entry used to carry a fresh utcnow(), so it could disagree with the stored
+        ``deleted_at`` that settlement reads, and every repeated DELETE added another entry with a
+        time of its own. The endpoint now logs only the call that actually deleted.
         
         Args:
             prediction: Deleted prediction
@@ -261,6 +266,7 @@ class PredictionAuditService:
         Returns:
             Created audit log entry
         """
+        deleted_at = prediction.deleted_at
         return self._create_audit_log(
             action=AuditAction.DELETE,
             user=user,
@@ -273,7 +279,7 @@ class PredictionAuditService:
                 "source": prediction.source.value,
                 "created_by": str(prediction.created_by),
                 "deletion_reason": reason,
-                "deleted_at": datetime.utcnow().isoformat(),
+                "deleted_at": deleted_at.isoformat() if deleted_at is not None else None,
             }
         )
     
