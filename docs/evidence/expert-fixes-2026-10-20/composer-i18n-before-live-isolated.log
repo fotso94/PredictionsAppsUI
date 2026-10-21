@@ -1,0 +1,94 @@
+
+Running 2 tests using 1 worker
+
+  ✘  1 [live-isolated] › e2e/live-isolated/expert-composer-french.spec.ts:113:1 › the French picker states a real fixture's forecast as the backend's list payload does (12.1s)
+  ✘  2 [live-isolated] › e2e/live-isolated/expert-composer-french.spec.ts:145:1 › a French decimal comma is stored as the same probability, and an edit reopens it with a comma (12.0s)
+
+
+  1) [live-isolated] › e2e/live-isolated/expert-composer-french.spec.ts:113:1 › the French picker states a real fixture's forecast as the backend's list payload does 
+
+    Error: the row does not say what the backend says: "Prévision du modèle détenue · périmée"
+
+    expect(locator).toContainText(expected) failed
+
+    Locator: locator('li').filter({ hasText: 'Lille' }).filter({ hasText: 'Galatasaray' })
+    Expected substring: "Prévision du modèle détenue · périmée"
+    Received string:    "17:45LilleGalatasarayUEFA Champions LeagueRédiger un pronosticNo forecast held"
+    Timeout: 10000ms
+
+    Call log:
+      - the row does not say what the backend says: "Prévision du modèle détenue · périmée" locator('li').filter({ hasText: 'Lille' }).filter({ hasText: 'Galatasaray' }) with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Lille' }).filter({ hasText: 'Galatasaray' })
+        24 × locator resolved to <li class="border-b border-dark-800 last:border-b-0">…</li>
+           - unexpected value "17:45LilleGalatasarayUEFA Champions LeagueRédiger un pronosticNo forecast held"
+
+
+      135 |   await expect(row).toHaveCount(1);
+      136 |   const badge = expectedBadge(served as Record<string, unknown>);
+    > 137 |   await expect(row, `the row does not say what the backend says: "${badge}"`).toContainText(badge);
+          |                                                                               ^
+      138 |   await expect(row.getByTestId('picker-forecast'), 'the forecast badge on a real fixture').toHaveText(badge);
+      139 |   await expect(row.getByTestId('picker-expert')).toHaveCount((served as Record<string, unknown>).expert_prediction ? 1 : 0);
+      140 |   // The row's name is French, and still begins with the action, as the English one does.
+        at <worktree>/frontend/e2e/live-isolated/expert-composer-french.spec.ts:137:79
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-expert-compo-f80c4-backend-s-list-payload-does-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/live-isolated-expert-compo-f80c4-backend-s-list-payload-does-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/live-isolated-expert-compo-f80c4-backend-s-list-payload-does-live-isolated/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-expert-compo-f80c4-backend-s-list-payload-does-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/live-isolated-expert-compo-f80c4-backend-s-list-payload-does-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [live-isolated] › e2e/live-isolated/expert-composer-french.spec.ts:145:1 › a French decimal comma is stored as the same probability, and an edit reopens it with a comma 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('p').filter({ hasText: '100 % au total.' }).first()
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('p').filter({ hasText: '100 % au total.' }).first() with timeout 10000ms
+      - waiting for locator('p').filter({ hasText: '100 % au total.' }).first()
+
+
+      160 |   const hundred = await percentIn(page, 100);
+      161 |   await expect(page.locator('p').filter({ hasText: say('expert.editor.totalBalanced', { percent: hundred }) }).first())
+    > 162 |     .toBeVisible();
+          |      ^
+      163 |   await page.getByRole('button', { name: fr['expert.action.preview'], exact: true }).click();
+      164 |   const preview = page.getByLabel(fr['expert.preview.regionLabel']);
+      165 |   await expect(preview).toContainText(await percentIn(page, 55.5, 1));
+        at <worktree>/frontend/e2e/live-isolated/expert-composer-french.spec.ts:162:6
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-expert-compo-58acd-dit-reopens-it-with-a-comma-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/live-isolated-expert-compo-58acd-dit-reopens-it-with-a-comma-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/live-isolated-expert-compo-58acd-dit-reopens-it-with-a-comma-live-isolated/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-expert-compo-58acd-dit-reopens-it-with-a-comma-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/live-isolated-expert-compo-58acd-dit-reopens-it-with-a-comma-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [live-isolated] › e2e/live-isolated/expert-composer-french.spec.ts:113:1 › the French picker states a real fixture's forecast as the backend's list payload does 
+    [live-isolated] › e2e/live-isolated/expert-composer-french.spec.ts:145:1 › a French decimal comma is stored as the same probability, and an edit reopens it with a comma 
+
+playwright exit=1

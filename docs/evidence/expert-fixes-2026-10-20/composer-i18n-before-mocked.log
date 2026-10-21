@@ -1,0 +1,1878 @@
+
+Running 42 tests using 1 worker
+
+  ✘   1 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:328:1 › the English figures the composer prints are exactly what they were, and the French ones are French (2ms)
+  ✘   2 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:369:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged (5ms)
+  ✘   3 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:415:1 › the French composer, from picker to published, carries no English the catalogue cannot account for (13.8s)
+  ✘   4 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:475:1 › a French decimal comma is sent as the same probability, and read back with a comma (11.1s)
+  ✘   5 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:514:1 › the French composer refuses bad input in French, and sends nothing (11.0s)
+  ✘   6 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:578:1 › a French publish the server refuses says so around the server's own words (1.2s)
+  ✘   7 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:593:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview (1.0s)
+  ✘   8 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:632:1 › changing the zone re-times the composer picker and asks the backend for the new day window (11.0s)
+  ✘   9 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en (10.9s)
+  ✘  10 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr (10.9s)
+  ✘  11 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:736:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is (876ms)
+  ✘  12 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in fr (10.4s)
+  ✓  13 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in en (6.3s)
+  ✓  14 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:821:1 › the English composer reads exactly as it did (2.6s)
+  ✘  15 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:328:1 › the English figures the composer prints are exactly what they were, and the French ones are French (2ms)
+  ✘  16 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:369:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged (5ms)
+  ✘  17 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:415:1 › the French composer, from picker to published, carries no English the catalogue cannot account for (11.3s)
+  ✘  18 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:475:1 › a French decimal comma is sent as the same probability, and read back with a comma (11.1s)
+  ✘  19 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:514:1 › the French composer refuses bad input in French, and sends nothing (11.2s)
+  ✘  20 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:578:1 › a French publish the server refuses says so around the server's own words (1.2s)
+  ✘  21 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:593:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview (1.2s)
+  ✘  22 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:632:1 › changing the zone re-times the composer picker and asks the backend for the new day window (11.2s)
+  ✘  23 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en (11.2s)
+  ✘  24 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr (11.1s)
+  ✘  25 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:736:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is (1.1s)
+  ✘  26 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in fr (10.6s)
+  ✓  27 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in en (4.9s)
+  ✓  28 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:821:1 › the English composer reads exactly as it did (2.9s)
+  ✘  29 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:328:1 › the English figures the composer prints are exactly what they were, and the French ones are French (3ms)
+  ✘  30 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:369:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged (5ms)
+  ✘  31 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:415:1 › the French composer, from picker to published, carries no English the catalogue cannot account for (11.1s)
+  ✘  32 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:475:1 › a French decimal comma is sent as the same probability, and read back with a comma (11.0s)
+  ✘  33 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:514:1 › the French composer refuses bad input in French, and sends nothing (11.1s)
+  ✘  34 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:578:1 › a French publish the server refuses says so around the server's own words (2.0s)
+  ✘  35 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:593:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview (1.0s)
+  ✘  36 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:632:1 › changing the zone re-times the composer picker and asks the backend for the new day window (11.0s)
+  ✘  37 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en (11.0s)
+  ✘  38 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr (11.0s)
+  ✘  39 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:736:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is (916ms)
+  ✘  40 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in fr (10.5s)
+  ✓  41 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in en (7.5s)
+  ✓  42 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:821:1 › the English composer reads exactly as it did (4.1s)
+
+
+  1) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:328:1 › the English figures the composer prints are exactly what they were, and the French ones are French 
+
+    TypeError: percent.formatPercentTotal is not a function
+
+      339 |     const points = hundredths / 100;
+      340 |     if (percent.formatPercentPoints(points, 'en-GB') !== oldPoints(points)) drift.push(`points ${points}`);
+    > 341 |     if (percent.formatPercentTotal(points, 'en-GB') !== `${oldPoints(points)}%`) drift.push(`total ${points}`);
+          |                 ^
+      342 |   }
+      343 |   for (let tenths = -50; tenths <= 2_000; tenths += 1) {
+      344 |     const value = tenths / 10;
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:341:17
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-baeac--the-French-ones-are-French-mocked-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-baeac--the-French-ones-are-French-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-baeac--the-French-ones-are-French-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:369:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 59
+    + Received  +  7
+
+      Object {
+    -   "bttsTotal": Object {
+    -     "key": "expert.editor.adjustRemove",
+    -     "params": Object {
+    -       "points": Object {
+    -         "kind": "points",
+    -         "value": 1.01,
+    -       },
+    -     },
+    -   },
+    -   "conviction": Object {
+    -     "key": "expert.validation.notANumber",
+    -     "params": Object {
+    -       "example": Object {
+    -         "kind": "whole",
+    -         "value": 55,
+    -       },
+    -     },
+    -   },
+    -   "matchId": Object {
+    -     "key": "expert.validation.chooseFixture",
+    -   },
+    -   "outcomeTotal": Object {
+    -     "key": "expert.editor.adjustAdd",
+    -     "params": Object {
+    -       "points": Object {
+    -         "kind": "points",
+    -         "value": 1,
+    -       },
+    -     },
+    -   },
+    -   "over25": Object {
+    -     "key": "expert.validation.outOfRange",
+    -     "params": Object {
+    -       "max": Object {
+    -         "kind": "whole",
+    -         "value": 100,
+    -       },
+    -       "min": Object {
+    -         "kind": "whole",
+    -         "value": 0,
+    -       },
+    -     },
+    -   },
+    -   "reasoning": Object {
+    -     "key": "expert.validation.reasoningTooLong",
+    -     "params": Object {
+    -       "count": Object {
+    -         "kind": "whole",
+    -         "value": 2001,
+    -       },
+    -       "max": Object {
+    -         "kind": "whole",
+    -         "value": 2000,
+    -       },
+    -     },
+    -   },
+    -   "under25": Object {
+    -     "key": "expert.validation.lineBlank",
+    -   },
+    +   "bttsTotal": "Yes and no currently total 101.01%. They must total 100%. Remove 1.01.",
+    +   "conviction": "Enter a number, for example 55.",
+    +   "matchId": "Choose the fixture this prediction is for.",
+    +   "outcomeTotal": "Home, draw and away currently total 99%. They must total 100%. Add 1.",
+    +   "over25": "Enter a percentage between 0 and 100.",
+    +   "reasoning": "Shorten this to 2000 characters — it is 2001 now.",
+    +   "under25": "Enter a percentage, or untick this line.",
+      }
+
+      383 |
+      384 |   // The messages: a key and its figures, rendered later in whatever language is on screen.
+    > 385 |   expect(result.errors).toEqual({
+          |                         ^
+      386 |     matchId: { key: 'expert.validation.chooseFixture' },
+      387 |     outcomeTotal: { key: 'expert.editor.adjustAdd', params: { points: { kind: 'points', value: 1 } } },
+      388 |     conviction: { key: 'expert.validation.notANumber', params: { example: { kind: 'whole', value: 55 } } },
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:385:25
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-52f96-its-arithmetic-is-unchanged-mocked-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-52f96-its-arithmetic-is-unchanged-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-52f96-its-arithmetic-is-unchanged-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:415:1 › the French composer, from picker to published, carries no English the catalogue cannot account for 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('#main')
+    Expected substring: "Jour des rencontres"
+    Received string:    "Retour au tableau de bordRédiger un pronosticCommencez par choisir la rencontre. La publication est immédiate dès que vous appuyez sur Publier — il n’y a aucune étape de validation.Choisir une rencontreFiltrez par jour, compétition ou nom d’équipe.Match dayTodayTomorrowIn two daysFilter by team or competitionOnly fixtures with no expert prediction yetShowing 4 of 4 fixtures on this day.00:30Coton SportUnion DoualaPremier LeagueRédiger un pronosticModel forecast held13:00Fovu BahamBamboutosPremier LeagueRédiger un pronosticNo forecast held14:00Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticNo forecast held15:00PWD BamendaAigle RoyalPremier LeagueRédiger un pronosticExpert prediction publishedAvancé : coller un identifiant de matchUtile uniquement si vous avez déjà sous la main un identifiant de match interne ou un identifiant de rencontre d’un fournisseur. La liste ci-dessus est la voie normale.Identifiant de matchUtiliser cet identifiant"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "toContainText" locator('#main') with timeout 10000ms
+      - waiting for locator('#main')
+        24 × locator resolved to <main id="main" class="flex-1">…</main>
+           - unexpected value "Retour au tableau de bordRédiger un pronosticCommencez par choisir la rencontre. La publication est immédiate dès que vous appuyez sur Publier — il n’y a aucune étape de validation.Choisir une rencontreFiltrez par jour, compétition ou nom d’équipe.Match dayTodayTomorrowIn two daysFilter by team or competitionOnly fixtures with no expert prediction yetShowing 4 of 4 fixtures on this day.00:30Coton SportUnion DoualaPremier LeagueRédiger un pronosticModel forecast held13:00Fovu BahamBamboutosPremier LeagueRédiger un pronosticNo forecast held14:00Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticNo forecast held15:00PWD BamendaAigle RoyalPremier LeagueRédiger un pronosticExpert prediction publishedAvancé : coller un identifiant de matchUtile uniquement si vous avez déjà sous la main un identifiant de match interne ou un identifiant de rencontre d’un fournisseur. La liste ci-dessus est la voie normale.Identifiant de matchUtiliser cet identifiant"
+
+
+      420 |   await openComposerPicker(page);
+      421 |   await expect(page.locator('#main')).toContainText(fr['expert.compose.chooseFixture']);
+    > 422 |   await expect(page.locator('#main')).toContainText(fr['expert.picker.dayLabel']);
+          |                                       ^
+      423 |   await expectAllAccountedFor(page, allowed, 'the composer picker');
+      424 |
+      425 |   // ---------------------------------------------------------------- a fixture chosen
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:422:39
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:475:1 › a French decimal comma is sent as the same probability, and read back with a comma 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('p').filter({ hasText: '100 % au total.' }).first()
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('p').filter({ hasText: '100 % au total.' }).first() with timeout 10000ms
+      - waiting for locator('p').filter({ hasText: '100 % au total.' }).first()
+
+
+      486 |   await expect(totalLine(page, rule)).toHaveCount(0); // a balanced total states its total, not the rule
+      487 |   const balanced = say('fr', 'expert.editor.totalBalanced', { percent: hundred });
+    > 488 |   await expect(page.locator('p').filter({ hasText: balanced }).first()).toBeVisible();
+          |                                                                         ^
+      489 |
+      490 |   // The preview prints what will be published, in French: 55,5 %, not 55.5%.
+      491 |   await page.getByRole('button', { name: fr['expert.action.preview'], exact: true }).click();
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:488:73
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:514:1 › the French composer refuses bad input in French, and sends nothing 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('p').filter({ hasText: 'Les trois issues doivent totaliser 100 %.' }).first()
+    Expected: "101 % au total — Les trois issues doivent totaliser 100 %. Retirez 1."
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" locator('p').filter({ hasText: 'Les trois issues doivent totaliser 100 %.' }).first() with timeout 10000ms
+      - waiting for locator('p').filter({ hasText: 'Les trois issues doivent totaliser 100 %.' }).first()
+
+
+      528 |     percent: await percentIn(page, 'fr', 101), rule: outcomeRule,
+      529 |   })} ${say('fr', 'expert.editor.adjustRemove', { points: await pointsIn(page, 'fr', 1) })}`;
+    > 530 |   await expect(totalLine(page, outcomeRule)).toHaveText(outcomeTotal);
+          |                                              ^
+      531 |   expect(plainSpaces(outcomeTotal)).toContain('101 % au total');
+      532 |   expect(outcomeTotal).toContain('Retirez 1.');
+      533 |
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:530:46
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:578:1 › a French publish the server refuses says so around the server's own words 
+
+    Error: a refused publish: a word on the French composer is in no catalogue, no fixture and no locale
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 99
+
+    - Array []
+    + Array [
+    +   "about — in: What is already known about this fixture",
+    +   "accuracy — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "already — in: What is already known",
+    +   "an — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "and — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "are — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "as — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "away — in: Away",
+    +   "blank — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "both — in: Both teams to score",
+    +   "by — in: Not supplied by the model:",
+    +   "call — in: Your conviction in this call",
+    +   "can — in: characters. Published with your prediction so readers can weigh it.",
+    +   "characters — in: characters. Published with your prediction so readers can weigh it.",
+    +   "copy — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "draw — in: Draw",
+    +   "every — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "evidence — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "fields — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "filled — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "fixture — in: What is already known about this fixture",
+    +   "for — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "form — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "from — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "goals — in: Over / under 2.5 goals",
+    +   "held — in: Model markets held:",
+    +   "here — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "hold — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "home — in: Home",
+    +   "how — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "in — in: Your conviction in this call",
+    +   "inferred — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "is — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "it — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "kick — in: Kick-off",
+    +   "known — in: What is already known",
+    +   "large — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "led — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "left — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "market — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "markets — in: Other markets",
+    +   "model — in: Model markets held:",
+    +   "never — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "news — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "no — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "none — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "not — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "numbers — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "of — in: of",
+    +   "off — in: Kick-off",
+    +   "only — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "optional — in: (optional)",
+    +   "outcomes — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "over — in: Over / under 2.5 goals",
+    +   "own — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "percentages — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "prediction — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "published — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "publishes — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "read — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "readers — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "reasoning — in: Your reasoning",
+    +   "recent — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "rest — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "result — in: Match result",
+    +   "round — in: Round",
+    +   "same — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "see — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "shows — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "so — in: characters. Published with your prediction so readers can weigh it.",
+    +   "stay — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "strongly — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "supplied — in: Not supplied by the model:",
+    +   "team — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "teams — in: Both teams to score",
+    +   "the — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "them — in: . Those stay unavailable unless you publish a view on them.",
+    +   "these — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "this — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "those — in: . Those stay unavailable unless you publish a view on them.",
+    +   "three — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "tick — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "to — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "unavailable — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "under — in: Over / under 2.5 goals",
+    +   "unless — in: . Those stay unavailable unless you publish a view on them.",
+    +   "unticked — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "up — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "venue — in: Venue",
+    +   "view — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "want — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "weigh — in: characters. Published with your prediction so readers can weigh it.",
+    +   "what — in: What is already known",
+    +   "win — in: Coton Sport win",
+    +   "with — in: characters. Published with your prediction so readers can weigh it.",
+    +   "you — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "your — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    + ]
+
+      303 |     unaccountedWords(strings, allowed),
+      304 |     `${state}: a word on the French composer is in no catalogue, no fixture and no locale`,
+    > 305 |   ).toEqual([]);
+          |     ^
+      306 |   expect(await sidewaysOverflow(page), `${state}: the document scrolls sideways`).toBeLessThanOrEqual(0);
+      307 | }
+      308 |
+        at expectAllAccountedFor (<worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:305:5)
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:588:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:593:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview 
+
+    Error: the evidence panel did not show the Douala kick-off
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "25 oct. 2026, 00:30"
+    Received string:    "What is already known The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it. Premier League Coton Sport HOME Union Douala AWAY Kick-off 2026-10-25 00:30 Venue Tottenham Hotspur Stadium Round 5 Modèle Coton Sport 45% Draw 30% Union Douala 25% Model markets held: Résultat du match, Les deux équipes marquent, Total de buts 2,5, Total de buts 3,5. Not supplied by the model: Score exact. Those stay unavailable unless you publish a view on them. Expert Aucun expert n’a publié de pronostic pour ce match."
+
+      616 |   const evidence = page.locator('#main aside');
+      617 |   const evidenceText = plainSpaces(normalise(await evidence.innerText()));
+    > 618 |   expect(evidenceText, 'the evidence panel did not show the Douala kick-off').toContain(stamp);
+          |                                                                               ^
+      619 |   expect(evidenceText, 'the evidence panel printed an ISO date').not.toMatch(/\d{4}-\d{2}-\d{2}/);
+      620 |   expect(evidenceText).not.toContain(deviceStamp);
+      621 |
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:618:79
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:632:1 › changing the zone re-times the composer picker and asks the backend for the new day window 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('li').filter({ hasText: 'Coton Sport' }).locator('time')
+    Expected: "02:30"
+    Received: "00:30"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('li').filter({ hasText: 'Coton Sport' }).locator('time') with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Coton Sport' }).locator('time')
+        24 × locator resolved to <time datetime="2026-10-24T23:30:00Z" class="num text-sm font-semibold text-white">00:30</time>
+           - unexpected value "00:30"
+
+
+      643 |
+      644 |   // 23:30Z is 00:30 in Douala and 02:30 in Nairobi, both on the same next day.
+    > 645 |   await expect(row.locator('time')).toHaveText(await inZone(page, NAIROBI, 'fr', CLOCK, KICKOFF_UTC));
+          |                                     ^
+      646 |   // The day the kick-offs belong to is spelled out, with the zone named beside it.
+      647 |   const day = page.getByTestId('picker-day-shown');
+      648 |   await expect(day).toContainText(say('fr', 'expert.picker.dayShown', {
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:645:37
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en 
+
+    Error: /expert/match-selection: the Canon Yaoundé row does not say "Model forecast held · out of date"
+
+    expect(locator).toContainText(expected) failed
+
+    Locator: locator('li').filter({ hasText: 'Canon Yaoundé' })
+    Expected substring: "Model forecast held · out of date"
+    Received string:    "07:11Canon YaoundéColombe SportivePremier LeagueWrite a predictionNo forecast held"
+    Timeout: 10000ms
+
+    Call log:
+      - /expert/match-selection: the Canon Yaoundé row does not say "Model forecast held · out of date" locator('li').filter({ hasText: 'Canon Yaoundé' }) with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Canon Yaoundé' })
+        24 × locator resolved to <li class="border-b border-dark-800 last:border-b-0">…</li>
+           - unexpected value "07:11Canon YaoundéColombe SportivePremier LeagueWrite a predictionNo forecast held"
+
+
+      699 |         const row = page.locator('li').filter({ hasText: home });
+      700 |         for (const badge of badges) {
+    > 701 |           await expect(row, `${path}: the ${home} row does not say "${badge}"`).toContainText(badge);
+          |                                                                                 ^
+      702 |         }
+      703 |       }
+      704 |       // "No forecast held" is said of the one fixture that has none, and of no other.
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:701:81
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr 
+
+    Error: /expert/match-selection: the Canon Yaoundé row does not say "Prévision du modèle détenue · périmée"
+
+    expect(locator).toContainText(expected) failed
+
+    Locator: locator('li').filter({ hasText: 'Canon Yaoundé' })
+    Expected substring: "Prévision du modèle détenue · périmée"
+    Received string:    "07:11Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticAucune prévision détenue"
+    Timeout: 10000ms
+
+    Call log:
+      - /expert/match-selection: the Canon Yaoundé row does not say "Prévision du modèle détenue · périmée" locator('li').filter({ hasText: 'Canon Yaoundé' }) with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Canon Yaoundé' })
+        24 × locator resolved to <li class="border-b border-dark-800 last:border-b-0">…</li>
+           - unexpected value "07:11Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticAucune prévision détenue"
+
+
+      699 |         const row = page.locator('li').filter({ hasText: home });
+      700 |         for (const badge of badges) {
+    > 701 |           await expect(row, `${path}: the ${home} row does not say "${badge}"`).toContainText(badge);
+          |                                                                                 ^
+      702 |         }
+      703 |       }
+      704 |       // "No forecast held" is said of the one fixture that has none, and of no other.
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:701:81
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:736:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is 
+
+    Error: the backend sentences on the page, exactly
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 6
+    + Received  + 1
+
+    - Array [
+    -   Object {
+    -     "lang": "en",
+    -     "text": "No expert has published a prediction for this fixture.",
+    -   },
+    - ]
+    + Array []
+
+      747 |
+      748 |   expect(await verbatimStrings(page, '#main'), 'the backend sentences on the page, exactly')
+    > 749 |     .toEqual([{ text: expertDetail, lang: 'en' }]);
+          |      ^
+      750 |   await expectAllAccountedFor(page, frenchVocabulary([detail], { withVenue: true }), 'the evidence panel with a full brief');
+      751 | });
+      752 |
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:749:6
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in fr 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator:  locator('#edit-pred-1-home')
+    Expected: "55,5"
+    Received: "55.5"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveValue" locator('#edit-pred-1-home') with timeout 10000ms
+      - waiting for locator('#edit-pred-1-home')
+        24 × locator resolved to <input type="text" value="55.5" autocomplete="off" inputmode="decimal" aria-required="true" id="edit-pred-1-home" class="form-input num w-full pr-9 disabled:cursor-not-allowed disabled:opacity-60"/>
+           - unexpected value "55.5"
+
+
+      762 |     // Reopened as typed in this language: 55,5 in French, 55.5 in English, never 0.555.
+      763 |     const decimal = language === 'fr' ? ',' : '.';
+    > 764 |     await expect(page.locator('#edit-pred-1-home')).toHaveValue(`55${decimal}5`);
+          |                                                     ^
+      765 |     await expect(page.locator('#edit-pred-1-draw')).toHaveValue(`24${decimal}5`);
+      766 |     await expect(page.locator('#edit-pred-1-away')).toHaveValue('20');
+      767 |     await expect(page.locator('#edit-pred-1-conviction')).toHaveValue('70');
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:764:53
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:328:1 › the English figures the composer prints are exactly what they were, and the French ones are French 
+
+    TypeError: percent.formatPercentTotal is not a function
+
+      339 |     const points = hundredths / 100;
+      340 |     if (percent.formatPercentPoints(points, 'en-GB') !== oldPoints(points)) drift.push(`points ${points}`);
+    > 341 |     if (percent.formatPercentTotal(points, 'en-GB') !== `${oldPoints(points)}%`) drift.push(`total ${points}`);
+          |                 ^
+      342 |   }
+      343 |   for (let tenths = -50; tenths <= 2_000; tenths += 1) {
+      344 |     const value = tenths / 10;
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:341:17
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-baeac--the-French-ones-are-French-mocked-mobile/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-baeac--the-French-ones-are-French-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-baeac--the-French-ones-are-French-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:369:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 59
+    + Received  +  7
+
+      Object {
+    -   "bttsTotal": Object {
+    -     "key": "expert.editor.adjustRemove",
+    -     "params": Object {
+    -       "points": Object {
+    -         "kind": "points",
+    -         "value": 1.01,
+    -       },
+    -     },
+    -   },
+    -   "conviction": Object {
+    -     "key": "expert.validation.notANumber",
+    -     "params": Object {
+    -       "example": Object {
+    -         "kind": "whole",
+    -         "value": 55,
+    -       },
+    -     },
+    -   },
+    -   "matchId": Object {
+    -     "key": "expert.validation.chooseFixture",
+    -   },
+    -   "outcomeTotal": Object {
+    -     "key": "expert.editor.adjustAdd",
+    -     "params": Object {
+    -       "points": Object {
+    -         "kind": "points",
+    -         "value": 1,
+    -       },
+    -     },
+    -   },
+    -   "over25": Object {
+    -     "key": "expert.validation.outOfRange",
+    -     "params": Object {
+    -       "max": Object {
+    -         "kind": "whole",
+    -         "value": 100,
+    -       },
+    -       "min": Object {
+    -         "kind": "whole",
+    -         "value": 0,
+    -       },
+    -     },
+    -   },
+    -   "reasoning": Object {
+    -     "key": "expert.validation.reasoningTooLong",
+    -     "params": Object {
+    -       "count": Object {
+    -         "kind": "whole",
+    -         "value": 2001,
+    -       },
+    -       "max": Object {
+    -         "kind": "whole",
+    -         "value": 2000,
+    -       },
+    -     },
+    -   },
+    -   "under25": Object {
+    -     "key": "expert.validation.lineBlank",
+    -   },
+    +   "bttsTotal": "Yes and no currently total 101.01%. They must total 100%. Remove 1.01.",
+    +   "conviction": "Enter a number, for example 55.",
+    +   "matchId": "Choose the fixture this prediction is for.",
+    +   "outcomeTotal": "Home, draw and away currently total 99%. They must total 100%. Add 1.",
+    +   "over25": "Enter a percentage between 0 and 100.",
+    +   "reasoning": "Shorten this to 2000 characters — it is 2001 now.",
+    +   "under25": "Enter a percentage, or untick this line.",
+      }
+
+      383 |
+      384 |   // The messages: a key and its figures, rendered later in whatever language is on screen.
+    > 385 |   expect(result.errors).toEqual({
+          |                         ^
+      386 |     matchId: { key: 'expert.validation.chooseFixture' },
+      387 |     outcomeTotal: { key: 'expert.editor.adjustAdd', params: { points: { kind: 'points', value: 1 } } },
+      388 |     conviction: { key: 'expert.validation.notANumber', params: { example: { kind: 'whole', value: 55 } } },
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:385:25
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-52f96-its-arithmetic-is-unchanged-mocked-mobile/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-52f96-its-arithmetic-is-unchanged-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-52f96-its-arithmetic-is-unchanged-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:415:1 › the French composer, from picker to published, carries no English the catalogue cannot account for 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('#main')
+    Expected substring: "Jour des rencontres"
+    Received string:    "Retour au tableau de bordRédiger un pronosticCommencez par choisir la rencontre. La publication est immédiate dès que vous appuyez sur Publier — il n’y a aucune étape de validation.Choisir une rencontreFiltrez par jour, compétition ou nom d’équipe.Match dayTodayTomorrowIn two daysFilter by team or competitionOnly fixtures with no expert prediction yetShowing 4 of 4 fixtures on this day.00:30Coton SportUnion DoualaPremier LeagueRédiger un pronosticModel forecast held13:00Fovu BahamBamboutosPremier LeagueRédiger un pronosticNo forecast held14:00Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticNo forecast held15:00PWD BamendaAigle RoyalPremier LeagueRédiger un pronosticExpert prediction publishedAvancé : coller un identifiant de matchUtile uniquement si vous avez déjà sous la main un identifiant de match interne ou un identifiant de rencontre d’un fournisseur. La liste ci-dessus est la voie normale.Identifiant de matchUtiliser cet identifiant"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "toContainText" locator('#main') with timeout 10000ms
+      - waiting for locator('#main')
+        24 × locator resolved to <main id="main" class="flex-1">…</main>
+           - unexpected value "Retour au tableau de bordRédiger un pronosticCommencez par choisir la rencontre. La publication est immédiate dès que vous appuyez sur Publier — il n’y a aucune étape de validation.Choisir une rencontreFiltrez par jour, compétition ou nom d’équipe.Match dayTodayTomorrowIn two daysFilter by team or competitionOnly fixtures with no expert prediction yetShowing 4 of 4 fixtures on this day.00:30Coton SportUnion DoualaPremier LeagueRédiger un pronosticModel forecast held13:00Fovu BahamBamboutosPremier LeagueRédiger un pronosticNo forecast held14:00Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticNo forecast held15:00PWD BamendaAigle RoyalPremier LeagueRédiger un pronosticExpert prediction publishedAvancé : coller un identifiant de matchUtile uniquement si vous avez déjà sous la main un identifiant de match interne ou un identifiant de rencontre d’un fournisseur. La liste ci-dessus est la voie normale.Identifiant de matchUtiliser cet identifiant"
+
+
+      420 |   await openComposerPicker(page);
+      421 |   await expect(page.locator('#main')).toContainText(fr['expert.compose.chooseFixture']);
+    > 422 |   await expect(page.locator('#main')).toContainText(fr['expert.picker.dayLabel']);
+          |                                       ^
+      423 |   await expectAllAccountedFor(page, allowed, 'the composer picker');
+      424 |
+      425 |   // ---------------------------------------------------------------- a fixture chosen
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:422:39
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:475:1 › a French decimal comma is sent as the same probability, and read back with a comma 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('p').filter({ hasText: '100 % au total.' }).first()
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('p').filter({ hasText: '100 % au total.' }).first() with timeout 10000ms
+      - waiting for locator('p').filter({ hasText: '100 % au total.' }).first()
+
+
+      486 |   await expect(totalLine(page, rule)).toHaveCount(0); // a balanced total states its total, not the rule
+      487 |   const balanced = say('fr', 'expert.editor.totalBalanced', { percent: hundred });
+    > 488 |   await expect(page.locator('p').filter({ hasText: balanced }).first()).toBeVisible();
+          |                                                                         ^
+      489 |
+      490 |   // The preview prints what will be published, in French: 55,5 %, not 55.5%.
+      491 |   await page.getByRole('button', { name: fr['expert.action.preview'], exact: true }).click();
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:488:73
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:514:1 › the French composer refuses bad input in French, and sends nothing 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('p').filter({ hasText: 'Les trois issues doivent totaliser 100 %.' }).first()
+    Expected: "101 % au total — Les trois issues doivent totaliser 100 %. Retirez 1."
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" locator('p').filter({ hasText: 'Les trois issues doivent totaliser 100 %.' }).first() with timeout 10000ms
+      - waiting for locator('p').filter({ hasText: 'Les trois issues doivent totaliser 100 %.' }).first()
+
+
+      528 |     percent: await percentIn(page, 'fr', 101), rule: outcomeRule,
+      529 |   })} ${say('fr', 'expert.editor.adjustRemove', { points: await pointsIn(page, 'fr', 1) })}`;
+    > 530 |   await expect(totalLine(page, outcomeRule)).toHaveText(outcomeTotal);
+          |                                              ^
+      531 |   expect(plainSpaces(outcomeTotal)).toContain('101 % au total');
+      532 |   expect(outcomeTotal).toContain('Retirez 1.');
+      533 |
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:530:46
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:578:1 › a French publish the server refuses says so around the server's own words 
+
+    Error: a refused publish: a word on the French composer is in no catalogue, no fixture and no locale
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 99
+
+    - Array []
+    + Array [
+    +   "about — in: What is already known about this fixture",
+    +   "accuracy — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "already — in: What is already known",
+    +   "an — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "and — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "are — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "as — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "away — in: Away",
+    +   "blank — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "both — in: Both teams to score",
+    +   "by — in: Not supplied by the model:",
+    +   "call — in: Your conviction in this call",
+    +   "can — in: characters. Published with your prediction so readers can weigh it.",
+    +   "characters — in: characters. Published with your prediction so readers can weigh it.",
+    +   "copy — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "draw — in: Draw",
+    +   "every — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "evidence — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "fields — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "filled — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "fixture — in: What is already known about this fixture",
+    +   "for — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "form — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "from — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "goals — in: Over / under 2.5 goals",
+    +   "held — in: Model markets held:",
+    +   "here — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "hold — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "home — in: Home",
+    +   "how — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "in — in: Your conviction in this call",
+    +   "inferred — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "is — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "it — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "kick — in: Kick-off",
+    +   "known — in: What is already known",
+    +   "large — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "led — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "left — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "market — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "markets — in: Other markets",
+    +   "model — in: Model markets held:",
+    +   "never — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "news — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "no — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "none — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "not — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "numbers — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "of — in: of",
+    +   "off — in: Kick-off",
+    +   "only — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "optional — in: (optional)",
+    +   "outcomes — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "over — in: Over / under 2.5 goals",
+    +   "own — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "percentages — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "prediction — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "published — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "publishes — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "read — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "readers — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "reasoning — in: Your reasoning",
+    +   "recent — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "rest — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "result — in: Match result",
+    +   "round — in: Round",
+    +   "same — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "see — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "shows — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "so — in: characters. Published with your prediction so readers can weigh it.",
+    +   "stay — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "strongly — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "supplied — in: Not supplied by the model:",
+    +   "team — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "teams — in: Both teams to score",
+    +   "the — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "them — in: . Those stay unavailable unless you publish a view on them.",
+    +   "these — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "this — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "those — in: . Those stay unavailable unless you publish a view on them.",
+    +   "three — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "tick — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "to — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "unavailable — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "under — in: Over / under 2.5 goals",
+    +   "unless — in: . Those stay unavailable unless you publish a view on them.",
+    +   "unticked — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "up — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "venue — in: Venue",
+    +   "view — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "want — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "weigh — in: characters. Published with your prediction so readers can weigh it.",
+    +   "what — in: What is already known",
+    +   "win — in: Coton Sport win",
+    +   "with — in: characters. Published with your prediction so readers can weigh it.",
+    +   "you — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "your — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    + ]
+
+      303 |     unaccountedWords(strings, allowed),
+      304 |     `${state}: a word on the French composer is in no catalogue, no fixture and no locale`,
+    > 305 |   ).toEqual([]);
+          |     ^
+      306 |   expect(await sidewaysOverflow(page), `${state}: the document scrolls sideways`).toBeLessThanOrEqual(0);
+      307 | }
+      308 |
+        at expectAllAccountedFor (<worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:305:5)
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:588:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:593:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview 
+
+    Error: the evidence panel did not show the Douala kick-off
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "25 oct. 2026 à 00:30"
+    Received string:    "What is already known The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it. Premier League Coton Sport HOME Union Douala AWAY Kick-off 2026-10-25 00:30 Venue Tottenham Hotspur Stadium Round 5 Modèle Coton Sport 45% Draw 30% Union Douala 25% Model markets held: Résultat du match, Les deux équipes marquent, Total de buts 2,5, Total de buts 3,5. Not supplied by the model: Score exact. Those stay unavailable unless you publish a view on them. Expert Aucun expert n’a publié de pronostic pour ce match."
+
+      616 |   const evidence = page.locator('#main aside');
+      617 |   const evidenceText = plainSpaces(normalise(await evidence.innerText()));
+    > 618 |   expect(evidenceText, 'the evidence panel did not show the Douala kick-off').toContain(stamp);
+          |                                                                               ^
+      619 |   expect(evidenceText, 'the evidence panel printed an ISO date').not.toMatch(/\d{4}-\d{2}-\d{2}/);
+      620 |   expect(evidenceText).not.toContain(deviceStamp);
+      621 |
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:618:79
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  20) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:632:1 › changing the zone re-times the composer picker and asks the backend for the new day window 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('li').filter({ hasText: 'Coton Sport' }).locator('time')
+    Expected: "02:30"
+    Received: "00:30"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('li').filter({ hasText: 'Coton Sport' }).locator('time') with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Coton Sport' }).locator('time')
+        24 × locator resolved to <time datetime="2026-10-24T23:30:00Z" class="num text-sm font-semibold text-white">00:30</time>
+           - unexpected value "00:30"
+
+
+      643 |
+      644 |   // 23:30Z is 00:30 in Douala and 02:30 in Nairobi, both on the same next day.
+    > 645 |   await expect(row.locator('time')).toHaveText(await inZone(page, NAIROBI, 'fr', CLOCK, KICKOFF_UTC));
+          |                                     ^
+      646 |   // The day the kick-offs belong to is spelled out, with the zone named beside it.
+      647 |   const day = page.getByTestId('picker-day-shown');
+      648 |   await expect(day).toContainText(say('fr', 'expert.picker.dayShown', {
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:645:37
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  21) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en 
+
+    Error: /expert/match-selection: the Canon Yaoundé row does not say "Model forecast held · out of date"
+
+    expect(locator).toContainText(expected) failed
+
+    Locator: locator('li').filter({ hasText: 'Canon Yaoundé' })
+    Expected substring: "Model forecast held · out of date"
+    Received string:    "07:12Canon YaoundéColombe SportivePremier LeagueWrite a predictionNo forecast held"
+    Timeout: 10000ms
+
+    Call log:
+      - /expert/match-selection: the Canon Yaoundé row does not say "Model forecast held · out of date" locator('li').filter({ hasText: 'Canon Yaoundé' }) with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Canon Yaoundé' })
+        24 × locator resolved to <li class="border-b border-dark-800 last:border-b-0">…</li>
+           - unexpected value "07:12Canon YaoundéColombe SportivePremier LeagueWrite a predictionNo forecast held"
+
+
+      699 |         const row = page.locator('li').filter({ hasText: home });
+      700 |         for (const badge of badges) {
+    > 701 |           await expect(row, `${path}: the ${home} row does not say "${badge}"`).toContainText(badge);
+          |                                                                                 ^
+      702 |         }
+      703 |       }
+      704 |       // "No forecast held" is said of the one fixture that has none, and of no other.
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:701:81
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  22) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr 
+
+    Error: /expert/match-selection: the Canon Yaoundé row does not say "Prévision du modèle détenue · périmée"
+
+    expect(locator).toContainText(expected) failed
+
+    Locator: locator('li').filter({ hasText: 'Canon Yaoundé' })
+    Expected substring: "Prévision du modèle détenue · périmée"
+    Received string:    "07:13Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticAucune prévision détenue"
+    Timeout: 10000ms
+
+    Call log:
+      - /expert/match-selection: the Canon Yaoundé row does not say "Prévision du modèle détenue · périmée" locator('li').filter({ hasText: 'Canon Yaoundé' }) with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Canon Yaoundé' })
+        24 × locator resolved to <li class="border-b border-dark-800 last:border-b-0">…</li>
+           - unexpected value "07:13Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticAucune prévision détenue"
+
+
+      699 |         const row = page.locator('li').filter({ hasText: home });
+      700 |         for (const badge of badges) {
+    > 701 |           await expect(row, `${path}: the ${home} row does not say "${badge}"`).toContainText(badge);
+          |                                                                                 ^
+      702 |         }
+      703 |       }
+      704 |       // "No forecast held" is said of the one fixture that has none, and of no other.
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:701:81
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  23) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:736:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is 
+
+    Error: the backend sentences on the page, exactly
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 6
+    + Received  + 1
+
+    - Array [
+    -   Object {
+    -     "lang": "en",
+    -     "text": "No expert has published a prediction for this fixture.",
+    -   },
+    - ]
+    + Array []
+
+      747 |
+      748 |   expect(await verbatimStrings(page, '#main'), 'the backend sentences on the page, exactly')
+    > 749 |     .toEqual([{ text: expertDetail, lang: 'en' }]);
+          |      ^
+      750 |   await expectAllAccountedFor(page, frenchVocabulary([detail], { withVenue: true }), 'the evidence panel with a full brief');
+      751 | });
+      752 |
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:749:6
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in fr 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator:  locator('#edit-pred-1-home')
+    Expected: "55,5"
+    Received: "55.5"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveValue" locator('#edit-pred-1-home') with timeout 10000ms
+      - waiting for locator('#edit-pred-1-home')
+        24 × locator resolved to <input type="text" value="55.5" autocomplete="off" inputmode="decimal" aria-required="true" id="edit-pred-1-home" class="form-input num w-full pr-9 disabled:cursor-not-allowed disabled:opacity-60"/>
+           - unexpected value "55.5"
+
+
+      762 |     // Reopened as typed in this language: 55,5 in French, 55.5 in English, never 0.555.
+      763 |     const decimal = language === 'fr' ? ',' : '.';
+    > 764 |     await expect(page.locator('#edit-pred-1-home')).toHaveValue(`55${decimal}5`);
+          |                                                     ^
+      765 |     await expect(page.locator('#edit-pred-1-draw')).toHaveValue(`24${decimal}5`);
+      766 |     await expect(page.locator('#edit-pred-1-away')).toHaveValue('20');
+      767 |     await expect(page.locator('#edit-pred-1-conviction')).toHaveValue('70');
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:764:53
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  25) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:328:1 › the English figures the composer prints are exactly what they were, and the French ones are French 
+
+    TypeError: percent.formatPercentTotal is not a function
+
+      339 |     const points = hundredths / 100;
+      340 |     if (percent.formatPercentPoints(points, 'en-GB') !== oldPoints(points)) drift.push(`points ${points}`);
+    > 341 |     if (percent.formatPercentTotal(points, 'en-GB') !== `${oldPoints(points)}%`) drift.push(`total ${points}`);
+          |                 ^
+      342 |   }
+      343 |   for (let tenths = -50; tenths <= 2_000; tenths += 1) {
+      344 |     const value = tenths / 10;
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:341:17
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-baeac--the-French-ones-are-French-mocked-mobile-360/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-baeac--the-French-ones-are-French-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-baeac--the-French-ones-are-French-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  26) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:369:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 59
+    + Received  +  7
+
+      Object {
+    -   "bttsTotal": Object {
+    -     "key": "expert.editor.adjustRemove",
+    -     "params": Object {
+    -       "points": Object {
+    -         "kind": "points",
+    -         "value": 1.01,
+    -       },
+    -     },
+    -   },
+    -   "conviction": Object {
+    -     "key": "expert.validation.notANumber",
+    -     "params": Object {
+    -       "example": Object {
+    -         "kind": "whole",
+    -         "value": 55,
+    -       },
+    -     },
+    -   },
+    -   "matchId": Object {
+    -     "key": "expert.validation.chooseFixture",
+    -   },
+    -   "outcomeTotal": Object {
+    -     "key": "expert.editor.adjustAdd",
+    -     "params": Object {
+    -       "points": Object {
+    -         "kind": "points",
+    -         "value": 1,
+    -       },
+    -     },
+    -   },
+    -   "over25": Object {
+    -     "key": "expert.validation.outOfRange",
+    -     "params": Object {
+    -       "max": Object {
+    -         "kind": "whole",
+    -         "value": 100,
+    -       },
+    -       "min": Object {
+    -         "kind": "whole",
+    -         "value": 0,
+    -       },
+    -     },
+    -   },
+    -   "reasoning": Object {
+    -     "key": "expert.validation.reasoningTooLong",
+    -     "params": Object {
+    -       "count": Object {
+    -         "kind": "whole",
+    -         "value": 2001,
+    -       },
+    -       "max": Object {
+    -         "kind": "whole",
+    -         "value": 2000,
+    -       },
+    -     },
+    -   },
+    -   "under25": Object {
+    -     "key": "expert.validation.lineBlank",
+    -   },
+    +   "bttsTotal": "Yes and no currently total 101.01%. They must total 100%. Remove 1.01.",
+    +   "conviction": "Enter a number, for example 55.",
+    +   "matchId": "Choose the fixture this prediction is for.",
+    +   "outcomeTotal": "Home, draw and away currently total 99%. They must total 100%. Add 1.",
+    +   "over25": "Enter a percentage between 0 and 100.",
+    +   "reasoning": "Shorten this to 2000 characters — it is 2001 now.",
+    +   "under25": "Enter a percentage, or untick this line.",
+      }
+
+      383 |
+      384 |   // The messages: a key and its figures, rendered later in whatever language is on screen.
+    > 385 |   expect(result.errors).toEqual({
+          |                         ^
+      386 |     matchId: { key: 'expert.validation.chooseFixture' },
+      387 |     outcomeTotal: { key: 'expert.editor.adjustAdd', params: { points: { kind: 'points', value: 1 } } },
+      388 |     conviction: { key: 'expert.validation.notANumber', params: { example: { kind: 'whole', value: 55 } } },
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:385:25
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-52f96-its-arithmetic-is-unchanged-mocked-mobile-360/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-52f96-its-arithmetic-is-unchanged-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-52f96-its-arithmetic-is-unchanged-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:415:1 › the French composer, from picker to published, carries no English the catalogue cannot account for 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('#main')
+    Expected substring: "Jour des rencontres"
+    Received string:    "Retour au tableau de bordRédiger un pronosticCommencez par choisir la rencontre. La publication est immédiate dès que vous appuyez sur Publier — il n’y a aucune étape de validation.Choisir une rencontreFiltrez par jour, compétition ou nom d’équipe.Match dayTodayTomorrowIn two daysFilter by team or competitionOnly fixtures with no expert prediction yetShowing 4 of 4 fixtures on this day.00:30Coton SportUnion DoualaPremier LeagueRédiger un pronosticModel forecast held13:00Fovu BahamBamboutosPremier LeagueRédiger un pronosticNo forecast held14:00Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticNo forecast held15:00PWD BamendaAigle RoyalPremier LeagueRédiger un pronosticExpert prediction publishedAvancé : coller un identifiant de matchUtile uniquement si vous avez déjà sous la main un identifiant de match interne ou un identifiant de rencontre d’un fournisseur. La liste ci-dessus est la voie normale.Identifiant de matchUtiliser cet identifiant"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "toContainText" locator('#main') with timeout 10000ms
+      - waiting for locator('#main')
+        24 × locator resolved to <main id="main" class="flex-1">…</main>
+           - unexpected value "Retour au tableau de bordRédiger un pronosticCommencez par choisir la rencontre. La publication est immédiate dès que vous appuyez sur Publier — il n’y a aucune étape de validation.Choisir une rencontreFiltrez par jour, compétition ou nom d’équipe.Match dayTodayTomorrowIn two daysFilter by team or competitionOnly fixtures with no expert prediction yetShowing 4 of 4 fixtures on this day.00:30Coton SportUnion DoualaPremier LeagueRédiger un pronosticModel forecast held13:00Fovu BahamBamboutosPremier LeagueRédiger un pronosticNo forecast held14:00Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticNo forecast held15:00PWD BamendaAigle RoyalPremier LeagueRédiger un pronosticExpert prediction publishedAvancé : coller un identifiant de matchUtile uniquement si vous avez déjà sous la main un identifiant de match interne ou un identifiant de rencontre d’un fournisseur. La liste ci-dessus est la voie normale.Identifiant de matchUtiliser cet identifiant"
+
+
+      420 |   await openComposerPicker(page);
+      421 |   await expect(page.locator('#main')).toContainText(fr['expert.compose.chooseFixture']);
+    > 422 |   await expect(page.locator('#main')).toContainText(fr['expert.picker.dayLabel']);
+          |                                       ^
+      423 |   await expectAllAccountedFor(page, allowed, 'the composer picker');
+      424 |
+      425 |   // ---------------------------------------------------------------- a fixture chosen
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:422:39
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-fd727-atalogue-cannot-account-for-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  28) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:475:1 › a French decimal comma is sent as the same probability, and read back with a comma 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('p').filter({ hasText: '100 % au total.' }).first()
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('p').filter({ hasText: '100 % au total.' }).first() with timeout 10000ms
+      - waiting for locator('p').filter({ hasText: '100 % au total.' }).first()
+
+
+      486 |   await expect(totalLine(page, rule)).toHaveCount(0); // a balanced total states its total, not the rule
+      487 |   const balanced = say('fr', 'expert.editor.totalBalanced', { percent: hundred });
+    > 488 |   await expect(page.locator('p').filter({ hasText: balanced }).first()).toBeVisible();
+          |                                                                         ^
+      489 |
+      490 |   // The preview prints what will be published, in French: 55,5 %, not 55.5%.
+      491 |   await page.getByRole('button', { name: fr['expert.action.preview'], exact: true }).click();
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:488:73
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-65e70--and-read-back-with-a-comma-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  29) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:514:1 › the French composer refuses bad input in French, and sends nothing 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('p').filter({ hasText: 'Les trois issues doivent totaliser 100 %.' }).first()
+    Expected: "101 % au total — Les trois issues doivent totaliser 100 %. Retirez 1."
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" locator('p').filter({ hasText: 'Les trois issues doivent totaliser 100 %.' }).first() with timeout 10000ms
+      - waiting for locator('p').filter({ hasText: 'Les trois issues doivent totaliser 100 %.' }).first()
+
+
+      528 |     percent: await percentIn(page, 'fr', 101), rule: outcomeRule,
+      529 |   })} ${say('fr', 'expert.editor.adjustRemove', { points: await pointsIn(page, 'fr', 1) })}`;
+    > 530 |   await expect(totalLine(page, outcomeRule)).toHaveText(outcomeTotal);
+          |                                              ^
+      531 |   expect(plainSpaces(outcomeTotal)).toContain('101 % au total');
+      532 |   expect(outcomeTotal).toContain('Retirez 1.');
+      533 |
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:530:46
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-6c5da-in-French-and-sends-nothing-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  30) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:578:1 › a French publish the server refuses says so around the server's own words 
+
+    Error: a refused publish: a word on the French composer is in no catalogue, no fixture and no locale
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 99
+
+    - Array []
+    + Array [
+    +   "about — in: What is already known about this fixture",
+    +   "accuracy — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "already — in: What is already known",
+    +   "an — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "and — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "are — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "as — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "away — in: Away",
+    +   "blank — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "both — in: Both teams to score",
+    +   "by — in: Not supplied by the model:",
+    +   "call — in: Your conviction in this call",
+    +   "can — in: characters. Published with your prediction so readers can weigh it.",
+    +   "characters — in: characters. Published with your prediction so readers can weigh it.",
+    +   "copy — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "draw — in: Draw",
+    +   "every — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "evidence — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "fields — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "filled — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "fixture — in: What is already known about this fixture",
+    +   "for — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "form — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "from — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "goals — in: Over / under 2.5 goals",
+    +   "held — in: Model markets held:",
+    +   "here — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "hold — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "home — in: Home",
+    +   "how — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "in — in: Your conviction in this call",
+    +   "inferred — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "is — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "it — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "kick — in: Kick-off",
+    +   "known — in: What is already known",
+    +   "large — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "led — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "left — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "market — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "markets — in: Other markets",
+    +   "model — in: Model markets held:",
+    +   "never — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "news — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "no — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "none — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "not — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "numbers — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "of — in: of",
+    +   "off — in: Kick-off",
+    +   "only — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "optional — in: (optional)",
+    +   "outcomes — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "over — in: Over / under 2.5 goals",
+    +   "own — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "percentages — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "prediction — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "published — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "publishes — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "read — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "readers — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "reasoning — in: Your reasoning",
+    +   "recent — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "rest — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "result — in: Match result",
+    +   "round — in: Round",
+    +   "same — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "see — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "shows — in: The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.",
+    +   "so — in: characters. Published with your prediction so readers can weigh it.",
+    +   "stay — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "strongly — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "supplied — in: Not supplied by the model:",
+    +   "team — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "teams — in: Both teams to score",
+    +   "the — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "them — in: . Those stay unavailable unless you publish a view on them.",
+    +   "these — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "this — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "those — in: . Those stay unavailable unless you publish a view on them.",
+    +   "three — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    +   "tick — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "to — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "unavailable — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "under — in: Over / under 2.5 goals",
+    +   "unless — in: . Those stay unavailable unless you publish a view on them.",
+    +   "unticked — in: Left unticked, this market is not published and readers see it as unavailable.",
+    +   "up — in: What led you to these numbers — team news, recent form, the match-up.",
+    +   "venue — in: Venue",
+    +   "view — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "want — in: Tick only the markets you want to publish a view on. The rest stay unavailable.",
+    +   "weigh — in: characters. Published with your prediction so readers can weigh it.",
+    +   "what — in: What is already known",
+    +   "win — in: Coton Sport win",
+    +   "with — in: characters. Published with your prediction so readers can weigh it.",
+    +   "you — in: How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.",
+    +   "your — in: Your own percentages for the three outcomes. Every prediction publishes this market.",
+    + ]
+
+      303 |     unaccountedWords(strings, allowed),
+      304 |     `${state}: a word on the French composer is in no catalogue, no fixture and no locale`,
+    > 305 |   ).toEqual([]);
+          |     ^
+      306 |   expect(await sidewaysOverflow(page), `${state}: the document scrolls sideways`).toBeLessThanOrEqual(0);
+      307 | }
+      308 |
+        at expectAllAccountedFor (<worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:305:5)
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:588:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-7ebb3-ound-the-server-s-own-words-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  31) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:593:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview 
+
+    Error: the evidence panel did not show the Douala kick-off
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "25 oct. 2026, 00:30"
+    Received string:    "What is already known The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it. Premier League Coton Sport HOME Union Douala AWAY Kick-off 2026-10-25 00:30 Venue Tottenham Hotspur Stadium Round 5 Modèle Coton Sport 45% Draw 30% Union Douala 25% Model markets held: Résultat du match, Les deux équipes marquent, Total de buts 2,5, Total de buts 3,5. Not supplied by the model: Score exact. Those stay unavailable unless you publish a view on them. Expert Aucun expert n’a publié de pronostic pour ce match."
+
+      616 |   const evidence = page.locator('#main aside');
+      617 |   const evidenceText = plainSpaces(normalise(await evidence.innerText()));
+    > 618 |   expect(evidenceText, 'the evidence panel did not show the Douala kick-off').toContain(stamp);
+          |                                                                               ^
+      619 |   expect(evidenceText, 'the evidence panel printed an ISO date').not.toMatch(/\d{4}-\d{2}-\d{2}/);
+      620 |   expect(evidenceText).not.toContain(deviceStamp);
+      621 |
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:618:79
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-8364b-he-evidence-and-the-preview-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  32) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:632:1 › changing the zone re-times the composer picker and asks the backend for the new day window 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('li').filter({ hasText: 'Coton Sport' }).locator('time')
+    Expected: "02:30"
+    Received: "00:30"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('li').filter({ hasText: 'Coton Sport' }).locator('time') with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Coton Sport' }).locator('time')
+        24 × locator resolved to <time datetime="2026-10-24T23:30:00Z" class="num text-sm font-semibold text-white">00:30</time>
+           - unexpected value "00:30"
+
+
+      643 |
+      644 |   // 23:30Z is 00:30 in Douala and 02:30 in Nairobi, both on the same next day.
+    > 645 |   await expect(row.locator('time')).toHaveText(await inZone(page, NAIROBI, 'fr', CLOCK, KICKOFF_UTC));
+          |                                     ^
+      646 |   // The day the kick-offs belong to is spelled out, with the zone named beside it.
+      647 |   const day = page.getByTestId('picker-day-shown');
+      648 |   await expect(day).toContainText(say('fr', 'expert.picker.dayShown', {
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:645:37
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-71d4c-kend-for-the-new-day-window-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  33) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en 
+
+    Error: /expert/match-selection: the Canon Yaoundé row does not say "Model forecast held · out of date"
+
+    expect(locator).toContainText(expected) failed
+
+    Locator: locator('li').filter({ hasText: 'Canon Yaoundé' })
+    Expected substring: "Model forecast held · out of date"
+    Received string:    "07:14Canon YaoundéColombe SportivePremier LeagueWrite a predictionNo forecast held"
+    Timeout: 10000ms
+
+    Call log:
+      - /expert/match-selection: the Canon Yaoundé row does not say "Model forecast held · out of date" locator('li').filter({ hasText: 'Canon Yaoundé' }) with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Canon Yaoundé' })
+        24 × locator resolved to <li class="border-b border-dark-800 last:border-b-0">…</li>
+           - unexpected value "07:14Canon YaoundéColombe SportivePremier LeagueWrite a predictionNo forecast held"
+
+
+      699 |         const row = page.locator('li').filter({ hasText: home });
+      700 |         for (const badge of badges) {
+    > 701 |           await expect(row, `${path}: the ${home} row does not say "${badge}"`).toContainText(badge);
+          |                                                                                 ^
+      702 |         }
+      703 |       }
+      704 |       // "No forecast held" is said of the one fixture that has none, and of no other.
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:701:81
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-0d65e-ce-or-none-truthfully-in-en-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  34) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr 
+
+    Error: /expert/match-selection: the Canon Yaoundé row does not say "Prévision du modèle détenue · périmée"
+
+    expect(locator).toContainText(expected) failed
+
+    Locator: locator('li').filter({ hasText: 'Canon Yaoundé' })
+    Expected substring: "Prévision du modèle détenue · périmée"
+    Received string:    "07:14Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticAucune prévision détenue"
+    Timeout: 10000ms
+
+    Call log:
+      - /expert/match-selection: the Canon Yaoundé row does not say "Prévision du modèle détenue · périmée" locator('li').filter({ hasText: 'Canon Yaoundé' }) with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Canon Yaoundé' })
+        24 × locator resolved to <li class="border-b border-dark-800 last:border-b-0">…</li>
+           - unexpected value "07:14Canon YaoundéColombe SportivePremier LeagueRédiger un pronosticAucune prévision détenue"
+
+
+      699 |         const row = page.locator('li').filter({ hasText: home });
+      700 |         for (const badge of badges) {
+    > 701 |           await expect(row, `${path}: the ${home} row does not say "${badge}"`).toContainText(badge);
+          |                                                                                 ^
+      702 |         }
+      703 |       }
+      704 |       // "No forecast held" is said of the one fixture that has none, and of no other.
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:701:81
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-b9650-ce-or-none-truthfully-in-fr-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  35) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:736:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is 
+
+    Error: the backend sentences on the page, exactly
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 6
+    + Received  + 1
+
+    - Array [
+    -   Object {
+    -     "lang": "en",
+    -     "text": "No expert has published a prediction for this fixture.",
+    -   },
+    - ]
+    + Array []
+
+      747 |
+      748 |   expect(await verbatimStrings(page, '#main'), 'the backend sentences on the page, exactly')
+    > 749 |     .toEqual([{ text: expertDetail, lang: 'en' }]);
+          |      ^
+      750 |   await expectAllAccountedFor(page, frenchVocabulary([detail], { withVenue: true }), 'the evidence panel with a full brief');
+      751 | });
+      752 |
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:749:6
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-03a2b-English-and-nothing-else-is-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  36) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in fr 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator:  locator('#edit-pred-1-home')
+    Expected: "55,5"
+    Received: "55.5"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveValue" locator('#edit-pred-1-home') with timeout 10000ms
+      - waiting for locator('#edit-pred-1-home')
+        24 × locator resolved to <input type="text" value="55.5" autocomplete="off" inputmode="decimal" aria-required="true" id="edit-pred-1-home" class="form-input num w-full pr-9 disabled:cursor-not-allowed disabled:opacity-60"/>
+           - unexpected value "55.5"
+
+
+      762 |     // Reopened as typed in this language: 55,5 in French, 55.5 in English, never 0.555.
+      763 |     const decimal = language === 'fr' ? ',' : '.';
+    > 764 |     await expect(page.locator('#edit-pred-1-home')).toHaveValue(`55${decimal}5`);
+          |                                                     ^
+      765 |     await expect(page.locator('#edit-pred-1-draw')).toHaveValue(`24${decimal}5`);
+      766 |     await expect(page.locator('#edit-pred-1-away')).toHaveValue('20');
+      767 |     await expect(page.locator('#edit-pred-1-conviction')).toHaveValue('70');
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:764:53
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-0b237-cimals-and-is-checked-in-fr-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  36 failed
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:328:1 › the English figures the composer prints are exactly what they were, and the French ones are French 
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:369:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged 
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:415:1 › the French composer, from picker to published, carries no English the catalogue cannot account for 
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:475:1 › a French decimal comma is sent as the same probability, and read back with a comma 
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:514:1 › the French composer refuses bad input in French, and sends nothing 
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:578:1 › a French publish the server refuses says so around the server's own words 
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:593:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview 
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:632:1 › changing the zone re-times the composer picker and asks the backend for the new day window 
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en 
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr 
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:736:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is 
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in fr 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:328:1 › the English figures the composer prints are exactly what they were, and the French ones are French 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:369:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:415:1 › the French composer, from picker to published, carries no English the catalogue cannot account for 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:475:1 › a French decimal comma is sent as the same probability, and read back with a comma 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:514:1 › the French composer refuses bad input in French, and sends nothing 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:578:1 › a French publish the server refuses says so around the server's own words 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:593:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:632:1 › changing the zone re-times the composer picker and asks the backend for the new day window 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:736:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in fr 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:328:1 › the English figures the composer prints are exactly what they were, and the French ones are French 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:369:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:415:1 › the French composer, from picker to published, carries no English the catalogue cannot account for 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:475:1 › a French decimal comma is sent as the same probability, and read back with a comma 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:514:1 › the French composer refuses bad input in French, and sends nothing 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:578:1 › a French publish the server refuses says so around the server's own words 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:593:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:632:1 › changing the zone re-times the composer picker and asks the backend for the new day window 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:676:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:736:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:756:3 › an edit reopens in the reader's decimals and is checked in fr 
+  6 passed (4.8m)
+
+playwright exit=1

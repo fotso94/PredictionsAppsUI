@@ -49,9 +49,11 @@
  * ── NO MESSAGE HERE COUNTS ANYTHING ─────────────────────────────────────────────────────────
  *
  * Several interpolate a count — `expert.mine.listHeading`, `expert.queue.listHeading`,
- * `expert.page.number` — and none of them needs a plural branch, in either language: the noun in
- * each is a fixed list label ("Your Predictions (0)", « Vos pronostics (0) ») exactly as the
- * screens already shipped it, and "Page" does not agree with its number. That is why this area
+ * `expert.page.number`, `expert.picker.showing`, and the reasoning field's
+ * `expert.editor.reasoningCount` and `expert.validation.reasoningTooLong` — and none of them needs
+ * a plural branch, in either language: the noun in each is a fixed list label ("Your Predictions
+ * (0)", « Vos pronostics (0) ») exactly as the screens already shipped it, "Page" does not agree
+ * with its number, and the French of the other three attaches no noun to a figure at all. That is why this area
  * adds nothing to COUNT_CASES in frontend/e2e/mocked/localisation.spec.ts, whose guard fails on
  * any catalogue string using ICU `plural` that is not listed there. If a later change gives an
  * expert string a real plural branch, it must be registered in THAT file as well as covered in
@@ -222,11 +224,12 @@ const expert = {
   'expert.selection.howNote': 'Expert predictions are shown separately from model forecasts and are never merged with them. A market you leave out is shown as unavailable rather than as 0%. The fixture list covers the configured competitions only.',
 
   /*
-   * ─── the fixture picker on the match-selection page ────────────────────────────────────
+   * ─── the fixture picker, on the match-selection page and in the composer ───────────────
    *
    * EVERY ENGLISH VALUE BELOW IS THE STRING THAT SCREEN ALREADY SHOWED, character for
    * character, lifted out of `components/expert/FixturePicker.tsx` where it was a literal in
-   * the component source. Nothing is reworded on the way in — including two forms that are
+   * the component source. That component renders these keys itself now, as does the
+   * match-selection page's own copy of the list. Nothing is reworded on the way in — including two forms that are
    * imperfect English and stay imperfect here, because fixing them is a copy change and this
    * is a translation change:
    *
@@ -291,6 +294,15 @@ const expert = {
    * kick-off, so the row says so before the expert opens it.
    */
   'expert.picker.kickedOff': 'Kicked off — a prediction published now is not scored',
+  /*
+   * The forecast badge's other two states (QA finding 9). The picker used to recognise only a
+   * CURRENT forecast and labelled everything else `brief.noForecastHeld`, which is false for a
+   * forecast that is stored but out of date, and for one kept after kick-off for reference. The
+   * four states come from the stored list payload (utils/forecastCoverage.ts); the current one is
+   * `expert.picker.modelForecastHeld` above and the absent one `brief.noForecastHeld`.
+   */
+  'expert.picker.modelForecastStale': 'Model forecast held · out of date',
+  'expert.picker.modelForecastReference': 'Model forecast kept for reference',
 
   // ─── the composer ───────────────────────────────────────────────────────────────────────
   'expert.compose.title': 'Write a prediction',
@@ -327,6 +339,96 @@ const expert = {
   'expert.compose.internalMatchId': 'Internal match id:',
   /** `{provider}` is the provider's own name, never translated. */
   'expert.compose.providerId': '{provider}:',
+
+  /*
+   * ─── the markets editor, its fields and its validation ──────────────────────────────────
+   *
+   * Lifted out of components/expert/PredictionMarketsEditor.tsx, PercentField.tsx and
+   * composer.ts, where they were English literals, CHARACTER FOR CHARACTER: e2e/mocked/
+   * conviction-clearing.spec.ts pins "99% total", "Add 1.", "101.01% total" and "Remove 1.01."
+   * on the English edit form. Every figure is a hole and arrives formatted for the reader's
+   * locale (components/expert/composerText.ts): `{percent}` and `{hundred}` are percentages with
+   * the locale's sign, `{points}` is percentage points without one, `{line}` is a goal line, and
+   * `{count}` / `{max}` are character counts printed WITHOUT grouping, so the English still
+   * reads "2000" and not "2,000". The two messages holding `{count}` are rendered at 0, 1, 2
+   * and 11 in frontend/e2e/mocked/expert-localisation.spec.ts.
+   *
+   * "Match result", "Both teams to score", "Home win", "Draw" and "Away win" are not declared
+   * here: they are `market.matchResult`, `market.btts` and `outcome.*` in ./core.en.ts, the same
+   * English, already translated.
+   */
+  'expert.editor.matchResultIntro': 'Your own percentages for the three outcomes. Every prediction publishes this market.',
+  /** A field label with the club's name in it, e.g. "Arsenal win". `{team}` is the provider's name. */
+  'expert.editor.teamWin': '{team} win',
+  /** The rule a pair's running total is held to, as a whole sentence per market. */
+  'expert.editor.ruleOutcomes': 'The three outcomes must total {hundred}.',
+  'expert.editor.ruleSides': 'The two sides must total {hundred}.',
+  'expert.editor.ruleOverUnder': 'Over and under must total {hundred}.',
+  /** The running total. `{percent}` is the figure, drawn in bold; `{rule}` is one of the three above. */
+  'expert.editor.totalBalanced': '{percent} total.',
+  'expert.editor.totalUnbalanced': '{percent} total — {rule}',
+  /** How far off an unbalanced total is, in percentage points. Also the pair's validation error. */
+  'expert.editor.adjustAdd': 'Add {points}.',
+  'expert.editor.adjustRemove': 'Remove {points}.',
+  'expert.editor.convictionLabel': 'Your conviction in this call',
+  'expert.editor.convictionHint': 'How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.',
+  'expert.editor.otherMarkets': 'Other markets',
+  'expert.editor.otherMarketsIntro': 'Tick only the markets you want to publish a view on. The rest stay unavailable.',
+  'expert.editor.marketLocked': 'Already published. You can change the numbers here; removing the market needs the prediction to be deleted.',
+  'expert.editor.marketOn': 'Both sides are published, and they must total {hundred}.',
+  'expert.editor.marketOff': 'Left unticked, this market is not published and readers see it as unavailable.',
+  'expert.editor.overUnderGoals': 'Over / under {line} goals',
+  'expert.editor.bttsYes': 'Both teams score',
+  'expert.editor.bttsNo': 'At least one does not',
+  'expert.editor.bttsConviction': 'Conviction for this market',
+  'expert.editor.overGoals': 'Over {line} goals',
+  'expert.editor.underGoals': 'Under {line} goals',
+  'expert.editor.totalsConviction': 'Conviction for the goal lines',
+  'expert.editor.totalsConvictionHint': 'One value covers both lines — that is what the API stores.',
+  'expert.editor.reasoningLabel': 'Your reasoning',
+  'expert.editor.reasoningPlaceholder': 'What led you to these numbers — team news, recent form, the match-up.',
+  /** `{count}` is drawn in the number style; both figures are ungrouped. */
+  'expert.editor.reasoningCount': '{count} of {max} characters. Published with your prediction so readers can weigh it.',
+  /** Beside every optional field's label. */
+  'expert.field.optional': '(optional)',
+
+  'expert.validation.notANumber': 'Enter a number, for example {example}.',
+  'expert.validation.outOfRange': 'Enter a percentage between {min} and {max}.',
+  /** Never on screen: it keeps a composer with no fixture from counting as ready. */
+  'expert.validation.chooseFixture': 'Choose the fixture this prediction is for.',
+  'expert.validation.homeBlank': 'Enter a percentage for the home win.',
+  'expert.validation.drawBlank': 'Enter a percentage for the draw.',
+  'expert.validation.awayBlank': 'Enter a percentage for the away win.',
+  'expert.validation.marketBlank': 'Enter a percentage, or untick this market.',
+  'expert.validation.lineBlank': 'Enter a percentage, or untick this line.',
+  'expert.validation.reasoningTooLong': 'Shorten this to {max} characters — it is {count} now.',
+
+  // ─── the publish preview ────────────────────────────────────────────────────────────────
+  /** The preview region's accessible name. Its visible heading is `expert.action.preview`. */
+  'expert.preview.regionLabel': 'Preview of what will be published',
+  'expert.preview.intro': 'This is what readers will see. Publishing puts it on the public match page straight away.',
+  /** `{value}` is the expert's own conviction as a percentage, drawn in bold. Never an accuracy. */
+  'expert.preview.convictionStated': 'Your stated conviction: {value}.',
+  'expert.preview.noConviction': 'No conviction published — readers are told none was given, and none is inferred from your percentages.',
+  /** `{market}` is drawn in bold; `{zero}` is a formatted 0%, the thing an omitted market is never shown as. */
+  'expert.preview.notPublished': '{market} — not published. Readers see this market as unavailable, never as {zero}.',
+  'expert.preview.needsAttention': 'Some fields still need attention. The problems are marked on the form above.',
+
+  // ─── the evidence beside the editor ─────────────────────────────────────────────────────
+  'expert.evidence.regionLabel': 'What is already known about this fixture',
+  'expert.evidence.heading': 'What is already known',
+  'expert.evidence.intro': 'The same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.',
+  'expert.evidence.home': 'Home',
+  'expert.evidence.away': 'Away',
+  'expert.evidence.kickoff': 'Kick-off',
+  'expert.evidence.venue': 'Venue',
+  'expert.evidence.round': 'Round',
+  /** A confidence the SOURCE published, as its own claim. Never called an accuracy. */
+  'expert.evidence.confidencePublished': '{percent} confidence, published by the source',
+  'expert.evidence.nothingForResult': 'This source published nothing for the match result.',
+  /** `{markets}` is a list of `market.*` labels joined with ", ". */
+  'expert.evidence.modelMarketsHeld': 'Model markets held: {markets}.',
+  'expert.evidence.notSuppliedByModel': 'Not supplied by the model: {markets}. Those stay unavailable unless you publish a view on them.',
 
   'expert.published.title': 'Published',
   'expert.published.body': 'Your prediction is on the public match page now. Nothing is waiting for approval — experts publish directly. You can edit or remove it at any time from My predictions.',

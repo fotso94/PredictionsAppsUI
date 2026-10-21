@@ -1,8 +1,11 @@
 import React from 'react'
 import clsx from 'clsx'
-import { ComposerValues, OPTIONAL_MARKET_LABEL, OptionalMarketKey, publishableValues } from './composer'
-import { formatPercentValue, parsePercent } from './percent'
-import { useT } from '@/i18n/react'
+import { ComposerValues, OptionalMarketKey, publishableValues } from './composer'
+import { goalLine, optionalMarketLabel } from './composerText'
+import { formatPercentShown, parsePercent } from './percent'
+import { currentLocale, formatDateTime, formatPercentValue } from '@/i18n'
+import { useLocale } from '@/i18n/react'
+import Emphasised from '@/i18n/Emphasised'
 
 /**
  * Exactly what a reader will see, before the expert commits to it.
@@ -15,14 +18,26 @@ import { useT } from '@/i18n/react'
  * No number on this panel is rounded into something friendlier, completed, or renormalised. If the
  * three outcomes do not total 100 the composer refuses to publish; the preview never quietly fixes
  * them on the way past.
+ *
+ * In the reader's language and locale: every sentence is the catalogue's, every percentage is
+ * written the reader's way (55.5% / « 55,5 % »), and the kick-off is formatted from the UTC
+ * instant, at render time, in the zone the reader CHOSE — not the string the draft froze in
+ * whatever zone was current when it was saved. Team and competition names are the provider's.
  */
 export interface PublishPreviewProps {
   values: ComposerValues
-  fixture: { homeTeam: string; awayTeam: string; competition: string | null; kickoff: string | null } | null
+  fixture: {
+    homeTeam: string
+    awayTeam: string
+    competition: string | null
+    /** The kick-off as text, for a fixture whose instant is unknown. */
+    kickoff: string | null
+    /** The kick-off instant (ISO, UTC). Preferred whenever it is known. */
+    kickoffUtc?: string | null
+  } | null
   /**
    * The fixture has kicked off, so what is about to be published will be labelled late and never
-   * scored. The sentence comes from the catalogue, in the reader's language, although the rest of
-   * this panel is still English.
+   * scored.
    */
   kickedOff?: boolean
   className?: string
@@ -31,38 +46,56 @@ export interface PublishPreviewProps {
 /** A percentage as it will be published, or null when the field holds nothing readable. */
 function shown(text: string): string | null {
   const value = parsePercent(text)
-  return value === null ? null : `${formatPercentValue(value)}%`
+  return value === null ? null : formatPercentShown(value, currentLocale())
 }
 
-const Line: React.FC<{ label: string; value: string | null }> = ({ label, value }) => (
-  <div className="flex items-baseline justify-between gap-3 text-sm">
-    <span className="min-w-0 truncate text-secondary-200">{label}</span>
-    <span className={clsx('flex-shrink-0 font-semibold', value ? 'num text-white' : 'text-secondary-400')}>
-      {value ?? 'Unavailable'}
-    </span>
-  </div>
-)
+const Line: React.FC<{ label: string; value: string | null }> = ({ label, value }) => {
+  const { t } = useLocale()
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-sm">
+      <span className="min-w-0 truncate text-secondary-200">{label}</span>
+      <span className={clsx('flex-shrink-0 font-semibold', value ? 'num text-white' : 'text-secondary-400')}>
+        {value ?? t('probability.unavailable')}
+      </span>
+    </div>
+  )
+}
 
 /** An optional market the expert left out. Named, so its absence is a stated fact, not a gap. */
-const NotPublished: React.FC<{ market: OptionalMarketKey }> = ({ market }) => (
-  <div className="rounded-lg border border-dashed border-dark-700 px-3 py-2">
-    <p className="text-xs text-secondary-300">
-      <span className="font-medium text-secondary-200">{OPTIONAL_MARKET_LABEL[market]}</span> — not published. Readers
-      see this market as unavailable, never as 0%.
-    </p>
+const NotPublished: React.FC<{ market: OptionalMarketKey }> = ({ market }) => {
+  const { t } = useLocale()
+  const label = optionalMarketLabel(market)
+  // `{zero}` is formatted: the sentence warning against "0%" must not print an English "0%".
+  const sentence = t('expert.preview.notPublished', { market: label, zero: formatPercentValue(0, 0) })
+  return (
+    <div className="rounded-lg border border-dashed border-dark-700 px-3 py-2">
+      <p className="text-xs text-secondary-300">
+        <Emphasised sentence={sentence} value={label} className="font-medium text-secondary-200" />
+      </p>
+    </div>
+  )
+}
+
+/** One opt-in market the expert ticked: its name, then its two sides. */
+const TwoWay: React.FC<{ market: OptionalMarketKey; sides: Array<[string, string]> }> = ({ market, sides }) => (
+  <div className="rounded-lg border border-dark-700 px-3 py-2">
+    <p className="mb-1.5 text-xs font-medium text-secondary-200">{optionalMarketLabel(market)}</p>
+    {sides.map(([label, text]) => <Line key={label} label={label} value={shown(text)} />)}
   </div>
 )
 
 const PublishPreview: React.FC<PublishPreviewProps> = ({ values, fixture, kickedOff = false, className }) => {
-  const t = useT()
+  const { t } = useLocale()
   const payload = publishableValues(values)
   const conviction = shown(values.conviction)
+  const convictionSentence = conviction ? t('expert.preview.convictionStated', { value: conviction }) : ''
+  const kickoff = fixture ? formatDateTime(fixture.kickoffUtc) ?? fixture.kickoff : null
 
   return (
-    <section className={clsx('card p-4', className)} aria-label="Preview of what will be published">
-      <h3 className="text-sm font-semibold text-white">Preview</h3>
+    <section className={clsx('card p-4', className)} aria-label={t('expert.preview.regionLabel')}>
+      <h3 className="text-sm font-semibold text-white">{t('expert.action.preview')}</h3>
       <p className="mt-1 text-xs text-secondary-400">
-        This is what readers will see. Publishing puts it on the public match page straight away.
+        {t('expert.preview.intro')}
       </p>
 
       {kickedOff && (
@@ -77,68 +110,77 @@ const PublishPreview: React.FC<PublishPreviewProps> = ({ values, fixture, kicked
 
       {fixture && (
         <div className="mt-3 rounded-lg border border-dark-700 bg-dark-900/60 p-3">
-          <p className="truncate text-sm font-medium text-white">{fixture.homeTeam} v {fixture.awayTeam}</p>
+          <p className="truncate text-sm font-medium text-white">
+            {t('expert.fixtureShort', { home: fixture.homeTeam, away: fixture.awayTeam })}
+          </p>
           <p className="mt-0.5 truncate text-xs text-secondary-400">
-            {[fixture.competition, fixture.kickoff].filter(Boolean).join(' · ') || 'Fixture details unavailable'}
+            {[fixture.competition, kickoff].filter(Boolean).join(' · ') || t('expert.row.fixtureUnavailable')}
           </p>
         </div>
       )}
 
       <div className="mt-4 space-y-4">
         <div>
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-secondary-400">Match result</h4>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-secondary-400">{t('market.matchResult')}</h4>
           <div className="space-y-1.5">
-            <Line label={fixture ? `${fixture.homeTeam} win` : 'Home win'} value={shown(values.homeWin)} />
-            <Line label="Draw" value={shown(values.draw)} />
-            <Line label={fixture ? `${fixture.awayTeam} win` : 'Away win'} value={shown(values.awayWin)} />
+            <Line
+              label={fixture ? t('expert.editor.teamWin', { team: fixture.homeTeam }) : t('outcome.homeWin')}
+              value={shown(values.homeWin)}
+            />
+            <Line label={t('outcome.draw')} value={shown(values.draw)} />
+            <Line
+              label={fixture ? t('expert.editor.teamWin', { team: fixture.awayTeam }) : t('outcome.awayWin')}
+              value={shown(values.awayWin)}
+            />
           </div>
           <p className="mt-2 text-xs text-secondary-400">
             {conviction
               // Said as the expert's own claim. It is not an accuracy: nothing here has been scored
               // against a result.
-              ? <>Your stated conviction: <span className="num font-semibold text-secondary-200">{conviction}</span>.</>
-              : 'No conviction published — readers are told none was given, and none is inferred from your percentages.'}
+              ? <Emphasised sentence={convictionSentence} value={conviction} className="num font-semibold text-secondary-200" />
+              : t('expert.preview.noConviction')}
           </p>
         </div>
 
         <div className="space-y-2">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-secondary-400">Other markets</h4>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-secondary-400">{t('expert.editor.otherMarkets')}</h4>
 
           {values.bttsEnabled ? (
-            <div className="rounded-lg border border-dark-700 px-3 py-2">
-              <p className="mb-1.5 text-xs font-medium text-secondary-200">{OPTIONAL_MARKET_LABEL.btts}</p>
-              <Line label="Both teams score" value={shown(values.bttsYes)} />
-              <Line label="At least one does not" value={shown(values.bttsNo)} />
-            </div>
+            <TwoWay market="btts" sides={[[t('expert.editor.bttsYes'), values.bttsYes], [t('expert.editor.bttsNo'), values.bttsNo]]} />
           ) : <NotPublished market="btts" />}
 
           {values.over25Enabled ? (
-            <div className="rounded-lg border border-dark-700 px-3 py-2">
-              <p className="mb-1.5 text-xs font-medium text-secondary-200">{OPTIONAL_MARKET_LABEL.over25}</p>
-              <Line label="Over 2.5 goals" value={shown(values.over25)} />
-              <Line label="Under 2.5 goals" value={shown(values.under25)} />
-            </div>
+            <TwoWay
+              market="over25"
+              sides={[
+                [t('expert.editor.overGoals', { line: goalLine(2.5) }), values.over25],
+                [t('expert.editor.underGoals', { line: goalLine(2.5) }), values.under25],
+              ]}
+            />
           ) : <NotPublished market="over25" />}
 
           {values.over35Enabled ? (
-            <div className="rounded-lg border border-dark-700 px-3 py-2">
-              <p className="mb-1.5 text-xs font-medium text-secondary-200">{OPTIONAL_MARKET_LABEL.over35}</p>
-              <Line label="Over 3.5 goals" value={shown(values.over35)} />
-              <Line label="Under 3.5 goals" value={shown(values.under35)} />
-            </div>
+            <TwoWay
+              market="over35"
+              sides={[
+                [t('expert.editor.overGoals', { line: goalLine(3.5) }), values.over35],
+                [t('expert.editor.underGoals', { line: goalLine(3.5) }), values.under35],
+              ]}
+            />
           ) : <NotPublished market="over35" />}
         </div>
 
         {values.reasoning.trim() && (
           <div>
-            <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-secondary-400">Your reasoning</h4>
+            <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-secondary-400">{t('expert.editor.reasoningLabel')}</h4>
+            {/* The expert's own words, shown back exactly as they wrote them. */}
             <p className="whitespace-pre-wrap break-words text-sm text-secondary-200">{values.reasoning.trim()}</p>
           </div>
         )}
 
         {!payload && (
           <p className="text-xs text-warning-200">
-            Some fields still need attention. The problems are marked on the form above.
+            {t('expert.preview.needsAttention')}
           </p>
         )}
       </div>

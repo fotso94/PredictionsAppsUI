@@ -15,7 +15,7 @@
  *
  * ── WHY THE LIST IS RENDERED HERE AND NOT BY components/expert/FixturePicker.tsx ─────────────
  *
- * It used to be, and the picker was measured before anything was changed: `FixturePicker` holds
+ * It used to be, and the picker was measured before anything was changed: `FixturePicker` held
  * TWENTY-TWO English literals that this screen renders — the label on the date control, three day
  * chips, the search field's hidden label and its placeholder, the competition strip's accessible
  * name, the checkbox, "Clear filters", the loading line, the count sentence, three coverage
@@ -29,15 +29,16 @@
  * chosen zone only until the reader changes it, and formatted in the DEVICE's zone outright on
  * the legacy api-football data source.
  *
- * So the list lives here, where this package can translate it and can re-derive the kick-off from
- * the UTC instant on every render. THIS IS A FORK AND IS MEANT TO BE TEMPORARY. The composer
- * (`ExpertCreatePredictionPage`) still renders `FixturePicker`, still in English, and it is no
- * better off than before — but four of its English strings are now VISIBLE to the generated stray
- * check in `frontend/e2e/mocked/expert-localisation.spec.ts` where only one was, because putting
- * the picker's wording into the catalogue is what lets a catalogue-derived check see it. When the
- * picker's owner takes the labels below as props or reads them from the catalogue itself, this
- * page should go back to importing it and everything from `DAY_OFFSETS` to `FixtureList` here
- * should be deleted.
+ * So the list lives here, where this package could translate it and re-derive the kick-off from
+ * the UTC instant on every render. THIS IS A FORK AND IS MEANT TO BE TEMPORARY. Its reason has now
+ * gone: `FixturePicker` renders the same `expert.picker.*` keys, formats the kick-off from
+ * `kickoffUtc` in the chosen zone, refetches on a zone change and spells out the day, so the
+ * composer's picker reads exactly as this one does. The two still exist side by side only because
+ * collapsing them is a change to a heavily-tested page (its testids, its 360px measurement, its
+ * zone tests) that deserves its own step: point this page back at `FixturePicker` — with this
+ * page's heading as its `heading` and `className="mt-6"` — and delete everything from
+ * `DAY_OFFSETS` to `FixtureList` below. Until then, both read the forecast badge from the same
+ * helper (utils/forecastCoverage.ts), so they cannot disagree about a fixture.
  *
  * ── THE KICK-OFF IS A CORRECTNESS PROBLEM ON THIS SCREEN, NOT A COSMETIC ONE ─────────────────
  *
@@ -67,13 +68,13 @@ import { footballDataService } from '@/services/football-data.service'
 import { localDateString, STORED_ONLY } from '@/services/match-data-source'
 import { filterLiveAndScheduledMatches, hasMatchKickedOff } from '@/utils/matchFilters'
 import { getErrorMessage } from '@/utils/errors'
+import { FORECAST_COVERAGE_CLASS, FORECAST_COVERAGE_LABEL, forecastCoverage } from '@/utils/forecastCoverage'
 import CompetitionChip from '@/components/ui/CompetitionChip'
 import EmptyState from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import {
   formatIsoDate, formatNumber, formatPercentValue, formatTime, zoneLabel,
 } from '@/i18n'
-import type { TranslateFn } from '@/i18n'
 import { useLocale, useT } from '@/i18n/react'
 
 /** Today, tomorrow, the day after. Relative to the reader's chosen zone, never the device's. */
@@ -88,34 +89,24 @@ interface CompetitionOption {
 }
 
 /**
- * A published expert prediction, or a model forecast, or neither — said in words, not a colour.
- *
- * "No forecast held" is `brief.noForecastHeld` from the core catalogue rather than a key of this
- * area's own: it is the same sentence, already translated, and two copies of it could drift.
- */
-function coverageNote(match: Match, t: TranslateFn): { label: string; className: string } {
-  if (match.expertPrediction) {
-    return { label: t('expert.picker.expertPublished'), className: 'bg-primary-900/60 text-primary-200' }
-  }
-  if (match.providerForecast?.state === 'available') {
-    return { label: t('expert.picker.modelForecastHeld'), className: 'bg-dark-700 text-secondary-200' }
-  }
-  return { label: t('brief.noForecastHeld'), className: 'bg-dark-700 text-secondary-300' }
-}
-
-/**
  * One fixture as a single control.
  *
  * Every text node that can be long sits in a `min-w-0` box and truncates, the kick-off column has a
  * fixed narrow width, and the badges wrap onto their own line. That combination is what keeps the
  * row inside 390px however long a club is called — and the accessible name carries the same four
  * facts in one sentence, since a screen reader gets no benefit from the layout.
+ *
+ * The badges say what is known about the fixture, in words, not a colour: the model forecast's
+ * state (current, out of date, kept for reference, or none — QA finding 9: a stale forecast used to
+ * read "No forecast held"), and BESIDE it, never instead of it, a published expert prediction. An
+ * aria-label hides them from a screen reader, so they are also the button's accessible
+ * description, in the order they are drawn.
  */
 const PickerRow: React.FC<{ match: Match; actionLabel: string; onChoose: (match: Match) => void }> = ({
   match, actionLabel, onChoose,
 }) => {
   const t = useT()
-  const coverage = coverageNote(match, t)
+  const coverage = forecastCoverage(match)
   const live = match.status === 'live' || match.status === 'halftime'
   // Re-derived from the instant on every render, in the chosen zone. `match.time` is the mapper's
   // one-off formatting and stands in only when the payload carried no instant to format.
@@ -123,11 +114,15 @@ const PickerRow: React.FC<{ match: Match; actionLabel: string; onChoose: (match:
   /*
    * Kicked off — by the clock or by the status — so a prediction published now is never scored.
    * The fixture is still offered (that is the posting policy, unchanged); the row says what a
-   * publish on it would be. The row's accessible name is its aria-label, which hides the badges
-   * from a screen reader, so this one is also the button's accessible DESCRIPTION.
+   * publish on it would be. Like the other badges, it is part of the button's description.
    */
   const kickedOff = hasMatchKickedOff(match)
-  const kickedOffId = useId()
+  const badgeId = useId()
+  const forecastId = `${badgeId}-forecast`
+  const expertId = `${badgeId}-expert`
+  const kickedOffId = `${badgeId}-kicked-off`
+  const describedBy = [forecastId, match.expertPrediction ? expertId : null, kickedOff ? kickedOffId : null]
+    .filter(Boolean).join(' ')
 
   return (
     <li className="border-b border-dark-800 last:border-b-0">
@@ -142,7 +137,7 @@ const PickerRow: React.FC<{ match: Match; actionLabel: string; onChoose: (match:
           competition: match.league.name,
           time: kickoff,
         })}
-        aria-describedby={kickedOff ? kickedOffId : undefined}
+        aria-describedby={describedBy}
       >
         <div className="flex w-full items-center gap-2">
           <span className="flex w-12 flex-shrink-0 flex-col items-center text-center">
@@ -164,7 +159,14 @@ const PickerRow: React.FC<{ match: Match; actionLabel: string; onChoose: (match:
         </div>
 
         <span className="flex flex-wrap gap-1 pl-14">
-          <span className={clsx('rounded-full px-2 py-0.5 text-[11px]', coverage.className)}>{coverage.label}</span>
+          <span id={forecastId} data-testid="picker-forecast" className={clsx('rounded-full px-2 py-0.5 text-[11px]', FORECAST_COVERAGE_CLASS[coverage])}>
+            {t(FORECAST_COVERAGE_LABEL[coverage])}
+          </span>
+          {match.expertPrediction && (
+            <span id={expertId} data-testid="picker-expert" className="rounded-full bg-primary-900/60 px-2 py-0.5 text-[11px] text-primary-200">
+              {t('expert.picker.expertPublished')}
+            </span>
+          )}
           {kickedOff && (
             <span id={kickedOffId} data-testid="picker-kicked-off" className="rounded-md bg-warning-900/40 px-2 py-0.5 text-[11px] text-warning-200">
               {t('expert.picker.kickedOff')}

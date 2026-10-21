@@ -96,17 +96,80 @@ function roundOffLastDigits(digits: string, count: number): number {
   return padded[padded.length - count] >= '5' ? kept + 1 : kept
 }
 
+/*
+ * ── DISPLAY, IN THE READER'S LOCALE ─────────────────────────────────────────────────────────
+ *
+ * Everything below writes a number for a person to read, and takes the BCP 47 locale it is
+ * written in as an argument rather than reading it from src/i18n: this file stays free of any
+ * runtime import, so its arithmetic above and these formatters can be exercised with no page and
+ * no catalogue (e2e/mocked/expert-composer-localisation.spec.ts does exactly that). Callers pass
+ * `currentLocale()`; the default is the English the editor always printed.
+ *
+ * ENGLISH IS BYTE-FOR-BYTE WHAT IT WAS. These replaced `toFixed` and `String`, which wrote "99%",
+ * "101.01%", "Add 1." and "1500" for everybody. `Intl` writes exactly those in en-GB — measured
+ * over every value the composer can produce, in that spec — and in French writes « 99 % »,
+ * « 101,01 % », « 1,01 », with the locale's own no-break space before the sign. Grouping is off
+ * throughout: the old output had none, so "2000" characters stays "2000" rather than "2,000".
+ */
+
+const numberFormats = new Map<string, Intl.NumberFormat>()
+
+function numberFormat(locale: string, options: Intl.NumberFormatOptions): Intl.NumberFormat {
+  const key = `${locale}|${JSON.stringify(options)}`
+  let format = numberFormats.get(key)
+  if (!format) {
+    format = new Intl.NumberFormat(locale, { useGrouping: false, ...options })
+    numberFormats.set(key, format)
+  }
+  return format
+}
+
+/** -0 written as 0. `Intl` prints a negative zero with its sign, where `String(-0)` never did. */
+const unsigned = (value: number): number => (Object.is(value, -0) ? 0 : value)
+
 /**
- * A number of percentage points as text, to the precision the API can actually keep.
+ * A number of percentage points as text, to the precision the API can actually keep: "1.01" in
+ * English, « 1,01 » in French. No sign — this is the size of a gap ("Add 1.").
  *
  * Two decimals: one percentage point is 0.01 in the 0-1 units the API takes, and the columns
  * keep four decimal places of those units, so 0.01 of a percentage point is the smallest
  * difference that survives storage. Anything coarser would print "0" for a total that is
- * genuinely short, and tell an expert to change nothing.
+ * genuinely short, and tell an expert to change nothing. Trailing zeros are dropped.
  */
-export function formatPercentPoints(points: number): string {
-  const text = points.toFixed(2)
-  return text.includes('.') ? text.replace(/0+$/, '').replace(/\.$/, '') : text
+export function formatPercentPoints(points: number, locale = 'en-GB'): string {
+  return numberFormat(locale, { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(unsigned(points))
+}
+
+/**
+ * The same precision as a percentage, with the locale's sign: "99%" / « 99 % », "101.01%" /
+ * « 101,01 % ». This is a pair's running total, which has to show the hundredths the API will
+ * hold: a total of 99.99 must not round to "100%" beside a sentence saying it is short.
+ */
+export function formatPercentTotal(points: number, locale = 'en-GB'): string {
+  return numberFormat(locale, { style: 'percent', minimumFractionDigits: 0, maximumFractionDigits: 2 })
+    .format(unsigned(points) / 100)
+}
+
+/**
+ * A percentage as the preview publishes it: one decimal at most, no trailing ".0", with the
+ * locale's sign — "55.5%" / « 55,5 % », "20%" / « 20 % ».
+ */
+export function formatPercentShown(percent: number, locale = 'en-GB'): string {
+  const rounded = unsigned(Math.round(percent * 10) / 10)
+  const digits = Number.isInteger(rounded) ? 0 : 1
+  return numberFormat(locale, { style: 'percent', minimumFractionDigits: digits, maximumFractionDigits: digits })
+    .format(rounded / 100)
+}
+
+/** A whole number, never grouped: a character count reads "2000" in both languages. */
+export function formatWholeNumber(value: number, locale = 'en-GB'): string {
+  return numberFormat(locale, { maximumFractionDigits: 0 }).format(unsigned(value))
+}
+
+/** The locale's decimal separator: "." in English, "," in French. */
+export function decimalSeparator(locale = 'en-GB'): string {
+  return numberFormat(locale, { minimumFractionDigits: 1 }).formatToParts(1.5)
+    .find(part => part.type === 'decimal')?.value ?? '.'
 }
 
 /**
@@ -120,14 +183,17 @@ export function unitToPercent(unit: number): number {
   return Math.round(unit * 1e6) / 1e4
 }
 
-/** A stored 0-1 probability as text for an input. Blank when the source published nothing. */
-export function unitToPercentInput(unit: number | null | undefined): PercentInput {
+/**
+ * A stored 0-1 probability as text for an input, written the way the reader types a decimal:
+ * "55.5" in English, « 55,5 » in French. Blank when the source published nothing.
+ *
+ * The French form is the one `parsePercent` reads back to the same number, so reopening and
+ * saving an edit untouched sends the stored value unchanged. An expert who would rather type a
+ * point can: either separator is accepted.
+ */
+export function unitToPercentInput(unit: number | null | undefined, locale = 'en-GB'): PercentInput {
   if (typeof unit !== 'number' || !Number.isFinite(unit)) return ''
-  return String(unitToPercent(unit))
-}
-
-/** A percentage for display: one decimal at most, and no trailing `.0`. */
-export function formatPercentValue(percent: number): string {
-  const rounded = Math.round(percent * 10) / 10
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+  const text = String(unitToPercent(unit))
+  const separator = decimalSeparator(locale)
+  return separator === '.' ? text : text.replace('.', separator)
 }

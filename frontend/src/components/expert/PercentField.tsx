@@ -1,5 +1,6 @@
 import React from 'react'
 import clsx from 'clsx'
+import { useT } from '@/i18n/react'
 
 /**
  * One probability, entered the way a person says it: 55 means 55 per cent.
@@ -23,7 +24,7 @@ export interface PercentFieldProps {
   /** Shown only when there is no error, so a hint never hides a problem. */
   hint?: string | null
   disabled?: boolean
-  /** Adds the required marker and the accessible attribute. Optional fields say "optional". */
+  /** Adds the required marker and the accessible attribute. Optional fields say so, in the reader's language. */
   required?: boolean
   className?: string
 }
@@ -31,6 +32,7 @@ export interface PercentFieldProps {
 const PercentField: React.FC<PercentFieldProps> = ({
   id, label, value, onChange, error, hint, disabled = false, required = false, className,
 }) => {
+  const t = useT()
   const errorId = `${id}-error`
   const hintId = `${id}-hint`
   const describedBy = error ? errorId : hint ? hintId : undefined
@@ -41,7 +43,7 @@ const PercentField: React.FC<PercentFieldProps> = ({
         {label}
         {required
           ? <span className="ml-1 text-danger-400" aria-hidden="true">*</span>
-          : <span className="ml-1 text-xs font-normal text-secondary-500">(optional)</span>}
+          : <span className="ml-1 text-xs font-normal text-secondary-500">{t('expert.field.optional')}</span>}
       </label>
       <div className="relative">
         <input

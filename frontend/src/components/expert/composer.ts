@@ -37,13 +37,14 @@
  *     body this module builds can still be refused.
  */
 
-import {
+import type {
   ExpertPredictionCreateRequest,
   ExpertPredictionResponse,
   ExpertPredictionUpdateRequest,
 } from '@/types/expert'
+import type { MessageKey } from '@/i18n'
 import {
-  formatPercentPoints, inPercentRange, isBlankPercent, isMalformedPercent, parsePercent,
+  inPercentRange, isBlankPercent, isMalformedPercent, parsePercent,
   percentToUnit, PercentInput, storedTenThousandths, unitToPercentInput,
 } from './percent'
 
@@ -101,10 +102,16 @@ export const EMPTY_COMPOSER: ComposerValues = {
 /** The optional markets, in the order the editor shows them. */
 export type OptionalMarketKey = 'btts' | 'over25' | 'over35'
 
-export const OPTIONAL_MARKET_LABEL: Record<OptionalMarketKey, string> = {
-  btts: 'Both teams to score',
-  over25: 'Over / under 2.5 goals',
-  over35: 'Over / under 3.5 goals',
+/**
+ * The goal line each optional market is about, or null for one that has none. The NAME of each
+ * market is not here: it is a sentence in the reader's language, built at render time by
+ * `optionalMarketLabel` in ./composerText.ts. A `Record` of English names evaluated when this
+ * module loaded was how the labels stayed English on a French page.
+ */
+export const OPTIONAL_MARKET_LINE: Record<OptionalMarketKey, number | null> = {
+  btts: null,
+  over25: 2.5,
+  over35: 3.5,
 }
 
 /** Which flag switches each optional market on. */
@@ -141,8 +148,30 @@ export interface PairState {
   gap: number | null
 }
 
+/**
+ * A figure inside a validation message, kept as a NUMBER until it is drawn.
+ *
+ * Validation runs in a `useMemo` over the values, which does not re-run when the reader changes
+ * language — so it must not produce text at all. It produces a catalogue key and the numbers that
+ * go in it, and ./composerText.ts writes them in whatever language is on screen at render time:
+ *
+ *   points   percentage points, no sign: "1.01" / « 1,01 »   (the size of an adjustment)
+ *   whole    a whole number, never grouped: "2000"           (character counts, 0 and 100, 55)
+ */
+export type ComposerFigure =
+  | { kind: 'points'; value: number }
+  | { kind: 'whole'; value: number }
+
+/** One problem with the composer, as a catalogue key and its figures. Never a sentence. */
+export interface ComposerMessage {
+  key: MessageKey
+  params?: Record<string, ComposerFigure>
+}
+
+const whole = (value: number): ComposerFigure => ({ kind: 'whole', value })
+
 export interface ComposerValidation {
-  errors: Partial<Record<ComposerIssueKey, string>>
+  errors: Partial<Record<ComposerIssueKey, ComposerMessage>>
   /** True when the composer can be published as it stands. */
   ready: boolean
   outcome: PairState
@@ -151,8 +180,10 @@ export interface ComposerValidation {
   totals35: PairState
 }
 
-const NOT_A_NUMBER = 'Enter a number, for example 55.'
-const OUT_OF_RANGE = 'Enter a percentage between 0 and 100.'
+const NOT_A_NUMBER: ComposerMessage = { key: 'expert.validation.notANumber', params: { example: whole(55) } }
+const OUT_OF_RANGE: ComposerMessage = {
+  key: 'expert.validation.outOfRange', params: { min: whole(0), max: whole(100) },
+}
 
 const UNKNOWN_PAIR: PairState = { percent: null, balanced: false, gap: null }
 
@@ -181,8 +212,8 @@ const TWO_WAY = 100
  * Returns the message to show, or null. Blank is only an error when the field is required: an
  * optional conviction nobody filled in is a legitimate "no claim made", not a mistake.
  */
-function checkPercentField(text: PercentInput, required: boolean, blankMessage: string): string | null {
-  if (isBlankPercent(text)) return required ? blankMessage : null
+function checkPercentField(text: PercentInput, required: boolean, blank: MessageKey | null): ComposerMessage | null {
+  if (isBlankPercent(text)) return required && blank ? { key: blank } : null
   if (isMalformedPercent(text)) return NOT_A_NUMBER
   const value = parsePercent(text)
   if (value === null || !inPercentRange(value)) return OUT_OF_RANGE
@@ -217,18 +248,25 @@ function checkPair(parts: Array<number | null>, slack: number): PairState {
  * A form that refuses 33 / 33 / 33 and stops there leaves them to work out that one point is
  * missing and which box to put it in. The size is stated; which box is theirs to choose.
  */
-export function pairAdjustment(gap: number | null): string | null {
+export function pairAdjustment(gap: number | null): ComposerMessage | null {
   if (gap === null || gap === 0) return null
   return gap > 0
-    ? `Add ${formatPercentPoints(gap)}.`
-    : `Remove ${formatPercentPoints(-gap)}.`
+    ? { key: 'expert.editor.adjustAdd', params: { points: { kind: 'points', value: gap } } }
+    : { key: 'expert.editor.adjustRemove', params: { points: { kind: 'points', value: -gap } } }
 }
 
-function pairMessage(state: PairState, subject: string): string | null {
+/**
+ * The error a pair's total is reported under: the adjustment it needs.
+ *
+ * It used to be a sentence of its own ("Home, draw and away currently total 99%…") that no
+ * component ever printed — `PredictionMarketsEditor` reads it for colour and role only, beside the
+ * running total that already says all of it. An unbalanced pair always has an adjustment (a gap
+ * of 0 is balanced by every rule here), so the key exists exactly when the pair is wrong and
+ * `ready` stays false for the same reason it always did.
+ */
+function pairMessage(state: PairState): ComposerMessage | null {
   if (state.percent === null || state.balanced) return null
-  const adjustment = pairAdjustment(state.gap)
-  return `${subject} currently total ${formatPercentPoints(state.percent)}%. They must total `
-    + `100%.${adjustment ? ` ${adjustment}` : ''}`
+  return pairAdjustment(state.gap)
 }
 
 /**
@@ -238,14 +276,14 @@ function pairMessage(state: PairState, subject: string): string | null {
  * saying so here means the publish button can be disabled for a stated reason rather than silently.
  */
 export function validateComposer(values: ComposerValues, matchId: string | null): ComposerValidation {
-  const errors: Partial<Record<ComposerIssueKey, string>> = {}
+  const errors: Partial<Record<ComposerIssueKey, ComposerMessage>> = {}
 
-  if (!matchId) errors.matchId = 'Choose the fixture this prediction is for.'
+  if (!matchId) errors.matchId = { key: 'expert.validation.chooseFixture' }
 
   // ------------------------------------------------------------------ 1X2 (always published)
-  const homeError = checkPercentField(values.homeWin, true, 'Enter a percentage for the home win.')
-  const drawError = checkPercentField(values.draw, true, 'Enter a percentage for the draw.')
-  const awayError = checkPercentField(values.awayWin, true, 'Enter a percentage for the away win.')
+  const homeError = checkPercentField(values.homeWin, true, 'expert.validation.homeBlank')
+  const drawError = checkPercentField(values.draw, true, 'expert.validation.drawBlank')
+  const awayError = checkPercentField(values.awayWin, true, 'expert.validation.awayBlank')
   if (homeError) errors.homeWin = homeError
   if (drawError) errors.draw = drawError
   if (awayError) errors.awayWin = awayError
@@ -253,57 +291,60 @@ export function validateComposer(values: ComposerValues, matchId: string | null)
   const outcome = homeError || drawError || awayError
     ? UNKNOWN_PAIR
     : checkPair([parsePercent(values.homeWin), parsePercent(values.draw), parsePercent(values.awayWin)], EXACT)
-  const outcomeMessage = pairMessage(outcome, 'Home, draw and away')
+  const outcomeMessage = pairMessage(outcome)
   if (outcomeMessage) errors.outcomeTotal = outcomeMessage
 
-  const convictionError = checkPercentField(values.conviction, false, '')
+  const convictionError = checkPercentField(values.conviction, false, null)
   if (convictionError) errors.conviction = convictionError
 
   // ------------------------------------------------------------------ both teams to score (opt-in)
   let btts = UNKNOWN_PAIR
   if (values.bttsEnabled) {
-    const yesError = checkPercentField(values.bttsYes, true, 'Enter a percentage, or untick this market.')
-    const noError = checkPercentField(values.bttsNo, true, 'Enter a percentage, or untick this market.')
+    const yesError = checkPercentField(values.bttsYes, true, 'expert.validation.marketBlank')
+    const noError = checkPercentField(values.bttsNo, true, 'expert.validation.marketBlank')
     if (yesError) errors.bttsYes = yesError
     if (noError) errors.bttsNo = noError
     btts = yesError || noError ? UNKNOWN_PAIR : checkPair([parsePercent(values.bttsYes), parsePercent(values.bttsNo)], TWO_WAY)
-    const message = pairMessage(btts, 'Yes and no')
+    const message = pairMessage(btts)
     if (message) errors.bttsTotal = message
-    const confidence = checkPercentField(values.bttsConviction, false, '')
+    const confidence = checkPercentField(values.bttsConviction, false, null)
     if (confidence) errors.bttsConviction = confidence
   }
 
   // ------------------------------------------------------------------ goal lines (opt-in, each)
   let totals25 = UNKNOWN_PAIR
   if (values.over25Enabled) {
-    const overError = checkPercentField(values.over25, true, 'Enter a percentage, or untick this line.')
-    const underError = checkPercentField(values.under25, true, 'Enter a percentage, or untick this line.')
+    const overError = checkPercentField(values.over25, true, 'expert.validation.lineBlank')
+    const underError = checkPercentField(values.under25, true, 'expert.validation.lineBlank')
     if (overError) errors.over25 = overError
     if (underError) errors.under25 = underError
     totals25 = overError || underError ? UNKNOWN_PAIR : checkPair([parsePercent(values.over25), parsePercent(values.under25)], TWO_WAY)
-    const message = pairMessage(totals25, 'Over 2.5 and under 2.5')
+    const message = pairMessage(totals25)
     if (message) errors.total25 = message
   }
 
   let totals35 = UNKNOWN_PAIR
   if (values.over35Enabled) {
-    const overError = checkPercentField(values.over35, true, 'Enter a percentage, or untick this line.')
-    const underError = checkPercentField(values.under35, true, 'Enter a percentage, or untick this line.')
+    const overError = checkPercentField(values.over35, true, 'expert.validation.lineBlank')
+    const underError = checkPercentField(values.under35, true, 'expert.validation.lineBlank')
     if (overError) errors.over35 = overError
     if (underError) errors.under35 = underError
     totals35 = overError || underError ? UNKNOWN_PAIR : checkPair([parsePercent(values.over35), parsePercent(values.under35)], TWO_WAY)
-    const message = pairMessage(totals35, 'Over 3.5 and under 3.5')
+    const message = pairMessage(totals35)
     if (message) errors.total35 = message
   }
 
   if (values.over25Enabled || values.over35Enabled) {
-    const confidence = checkPercentField(values.totalsConviction, false, '')
+    const confidence = checkPercentField(values.totalsConviction, false, null)
     if (confidence) errors.totalsConviction = confidence
   }
 
   // ------------------------------------------------------------------ words
   if (values.reasoning.length > REASONING_MAX) {
-    errors.reasoning = `Shorten this to ${REASONING_MAX} characters — it is ${values.reasoning.length} now.`
+    errors.reasoning = {
+      key: 'expert.validation.reasoningTooLong',
+      params: { max: whole(REASONING_MAX), count: whole(values.reasoning.length) },
+    }
   }
 
   return { errors, ready: Object.keys(errors).length === 0, outcome, btts, totals25, totals35 }
@@ -484,15 +525,19 @@ export function buildUpdateRequest(values: ComposerValues): ExpertPredictionUpda
  *
  * A market is ticked only when the API actually returned a number for it, so a prediction that
  * published no goal lines reopens with those boxes unticked and empty rather than at zero.
+ *
+ * `locale` decides only how a decimal is WRITTEN into the boxes — "55.5" in English, « 55,5 » in
+ * French, so a French expert reopens their own figure the way they typed it. `parsePercent` reads
+ * either back to the same number, so an untouched edit still sends exactly what is stored.
  */
-export function composerFromPrediction(prediction: ExpertPredictionResponse): ComposerValues {
+export function composerFromPrediction(prediction: ExpertPredictionResponse, locale = 'en-GB'): ComposerValues {
   const published = (value: number | null | undefined): boolean =>
     typeof value === 'number' && Number.isFinite(value)
 
   return {
-    homeWin: unitToPercentInput(prediction.home_win_prob),
-    draw: unitToPercentInput(prediction.draw_prob),
-    awayWin: unitToPercentInput(prediction.away_win_prob),
+    homeWin: unitToPercentInput(prediction.home_win_prob, locale),
+    draw: unitToPercentInput(prediction.draw_prob, locale),
+    awayWin: unitToPercentInput(prediction.away_win_prob, locale),
     /*
      * Null is how "none was supplied" reaches us now, so a stored zero is a real zero again.
      *
@@ -503,19 +548,19 @@ export function composerFromPrediction(prediction: ExpertPredictionResponse): Co
      * was gone from in front of them.
      */
     conviction: published(prediction.confidence_score)
-      ? unitToPercentInput(prediction.confidence_score)
+      ? unitToPercentInput(prediction.confidence_score, locale)
       : '',
     bttsEnabled: published(prediction.btts_yes_prob) || published(prediction.btts_no_prob),
-    bttsYes: unitToPercentInput(prediction.btts_yes_prob),
-    bttsNo: unitToPercentInput(prediction.btts_no_prob),
-    bttsConviction: unitToPercentInput(prediction.btts_confidence),
+    bttsYes: unitToPercentInput(prediction.btts_yes_prob, locale),
+    bttsNo: unitToPercentInput(prediction.btts_no_prob, locale),
+    bttsConviction: unitToPercentInput(prediction.btts_confidence, locale),
     over25Enabled: published(prediction.total_goals_over_25_prob) || published(prediction.total_goals_under_25_prob),
-    over25: unitToPercentInput(prediction.total_goals_over_25_prob),
-    under25: unitToPercentInput(prediction.total_goals_under_25_prob),
+    over25: unitToPercentInput(prediction.total_goals_over_25_prob, locale),
+    under25: unitToPercentInput(prediction.total_goals_under_25_prob, locale),
     over35Enabled: published(prediction.total_goals_over_35_prob) || published(prediction.total_goals_under_35_prob),
-    over35: unitToPercentInput(prediction.total_goals_over_35_prob),
-    under35: unitToPercentInput(prediction.total_goals_under_35_prob),
-    totalsConviction: unitToPercentInput(prediction.total_goals_confidence),
+    over35: unitToPercentInput(prediction.total_goals_over_35_prob, locale),
+    under35: unitToPercentInput(prediction.total_goals_under_35_prob, locale),
+    totalsConviction: unitToPercentInput(prediction.total_goals_confidence, locale),
     reasoning: prediction.reasoning ?? '',
   }
 }

@@ -46,12 +46,17 @@
  *  - every discard asks first, and a publish clears only the published fixture's draft.
  * components/expert/draft.ts holds the storage rules.
  *
- * WHAT IS STILL ENGLISH ON THIS PAGE. The editor itself — `components/expert/PredictionMarketsEditor`,
- * `PercentField`, `PublishPreview`, `FixtureEvidence`, `FixturePicker` and the validation messages
- * in `components/expert/composer.ts` — belongs to another package and is not translated. So a
- * French expert reads this page's frame in French and the field labels, hints and validation
- * errors in English. The package report lists every string and `e2e/mocked/expert-localisation.spec.ts`
- * counts them on the French page rather than letting the gap stay invisible.
+ * THE WHOLE PAGE IS IN THE READER'S LANGUAGE NOW (QA finding 7). The editor's children —
+ * `components/expert/PredictionMarketsEditor`, `PercentField`, `PublishPreview`, `FixtureEvidence`,
+ * `FixturePicker` — read the catalogue themselves, and `components/expert/composer.ts` returns
+ * its validation problems as catalogue keys with numbers, which `composerText.ts` writes at render
+ * time. That last part is why `validation` below can stay memoised on the values alone: it holds
+ * no sentence that a change of language could leave behind. Figures are the reader's (55,5 typed is
+ * 0.555 sent, the preview prints « 55,5 % »), and every kick-off on the page — the header, the
+ * picker, the evidence panel and the preview — is the UTC instant in the CHOSEN zone. What stays
+ * English is the backend's own prose, marked `lang="en"` where the evidence panel shows it.
+ * e2e/mocked/expert-composer-localisation.spec.ts walks every state of the page in French and
+ * fails on any word the catalogue, the fixtures or the locale cannot account for.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -288,7 +293,7 @@ const FixtureComposer: React.FC<FixtureComposerProps> = ({
   // ------------------------------------------------------------------ published
   if (published) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-8">
+      <div className="container mx-auto max-w-3xl px-4 py-8" data-testid="expert-composer">
         <div className="card p-6">
           <div className="flex items-start gap-3">
             <CheckCircleIcon className="mt-0.5 h-6 w-6 flex-shrink-0 text-success-400" aria-hidden="true" />
@@ -309,7 +314,7 @@ const FixtureComposer: React.FC<FixtureComposerProps> = ({
 
   // ------------------------------------------------------------------ compose
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-8">
+    <div className="container mx-auto max-w-6xl px-4 py-8" data-testid="expert-composer">
       <button type="button" onClick={() => navigate('/expert/dashboard')} className="focus-ring mb-4 inline-flex items-center gap-1 text-sm text-primary-300 hover:text-primary-200">
         <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" />
         {t('expert.backToDashboard')}
@@ -577,7 +582,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
   const keptSentence = keptLabel ? t('expert.draft.keptFor', { fixture: keptLabel }) : ''
 
   return (
-    <div className="container mx-auto max-w-4xl px-4 py-8">
+    <div className="container mx-auto max-w-4xl px-4 py-8" data-testid="expert-composer">
       <button type="button" onClick={() => navigate('/expert/dashboard')} className="focus-ring mb-4 inline-flex items-center gap-1 text-sm text-primary-300 hover:text-primary-200">
         <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" />
         {t('expert.backToDashboard')}

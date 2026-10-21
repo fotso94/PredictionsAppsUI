@@ -23,6 +23,17 @@ A characterisation test in `frontend/e2e/mocked/localisation.spec.ts` counts the
 rendered on the French home page, so the gap is visible and cannot grow unnoticed. The count comes
 down deliberately or not at all.
 
+**The expert composer shows the backend's forecast prose in English.** Checked 2026-10-21. The
+composer, its fixture picker, its editor, its validation and its preview are translated. The
+evidence panel beside the editor still shows three kinds of backend sentence as the server wrote
+them: a brief block's `detail` (for example "No expert has published a prediction for this
+fixture."), the freshness `state_reason` (for example "forecast generated 52 h ago") and the reason
+a refresh is paused. Each is wrapped in `<span lang="en" data-verbatim="backend">`, so a screen
+reader voices it in English and `frontend/e2e/mocked/expert-composer-localisation.spec.ts` checks
+it word for word against the stub. The same policy as the rule prose above applies, for the same
+reason. Separately, a fixture with no venue shows the match mapper's English fallback, "Venue to be
+confirmed" (`frontend/src/services/backend-match-data.service.ts`), in the evidence panel.
+
 **Two pages are untranslated: `MatchDetailPage` and the developer pages.**
 `MatchDetailPage` does not call the translation hook, so its labels are English in both languages.
 Its timestamps are correct, however: both were converted to the reader's chosen zone. `APITestPage`

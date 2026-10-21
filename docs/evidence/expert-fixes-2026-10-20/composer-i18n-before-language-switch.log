@@ -1,0 +1,90 @@
+
+Running 2 tests using 1 worker
+
+  ✘  1 [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:587:1 › switching to French with errors on screen re-renders them in French, untouched (11.1s)
+  ✘  2 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:587:1 › switching to French with errors on screen re-renders them in French, untouched (11.6s)
+
+
+  1) [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:587:1 › switching to French with errors on screen re-renders them in French, untouched 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#composer-conviction-error')
+    Expected: "Saisissez un nombre, par exemple 55."
+    Received: "Enter a number, for example 55."
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#composer-conviction-error') with timeout 10000ms
+      - waiting for locator('#composer-conviction-error')
+        24 × locator resolved to <p class="form-error" id="composer-conviction-error">Enter a number, for example 55.</p>
+           - unexpected value "Enter a number, for example 55."
+
+
+      603 |   // Nothing typed since: the same problems, now said in French.
+      604 |   await expect(page.locator('#composer-conviction-error'))
+    > 605 |     .toHaveText(say('fr', 'expert.validation.notANumber', { example: await numberIn(page, 'fr', 55) }));
+          |      ^
+      606 |   const hundred = await percentIn(page, 'fr', 100);
+      607 |   const rule = say('fr', 'expert.editor.ruleOutcomes', { hundred });
+      608 |   await expect(totalLine(page, rule)).toHaveText(
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:605:6
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-bd57c-rs-them-in-French-untouched-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-bd57c-rs-them-in-French-untouched-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-bd57c-rs-them-in-French-untouched-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-bd57c-rs-them-in-French-untouched-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:587:1 › switching to French with errors on screen re-renders them in French, untouched 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#composer-conviction-error')
+    Expected: "Saisissez un nombre, par exemple 55."
+    Received: "Enter a number, for example 55."
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#composer-conviction-error') with timeout 10000ms
+      - waiting for locator('#composer-conviction-error')
+        24 × locator resolved to <p class="form-error" id="composer-conviction-error">Enter a number, for example 55.</p>
+           - unexpected value "Enter a number, for example 55."
+
+
+      603 |   // Nothing typed since: the same problems, now said in French.
+      604 |   await expect(page.locator('#composer-conviction-error'))
+    > 605 |     .toHaveText(say('fr', 'expert.validation.notANumber', { example: await numberIn(page, 'fr', 55) }));
+          |      ^
+      606 |   const hundred = await percentIn(page, 'fr', 100);
+      607 |   const rule = say('fr', 'expert.editor.ruleOutcomes', { hundred });
+      608 |   await expect(totalLine(page, rule)).toHaveText(
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:605:6
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-bd57c-rs-them-in-French-untouched-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-bd57c-rs-them-in-French-untouched-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-bd57c-rs-them-in-French-untouched-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-bd57c-rs-them-in-French-untouched-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [mocked-desktop] › e2e/mocked/expert-composer-localisation.spec.ts:587:1 › switching to French with errors on screen re-renders them in French, untouched 
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:587:1 › switching to French with errors on screen re-renders them in French, untouched 
+
+playwright exit=1

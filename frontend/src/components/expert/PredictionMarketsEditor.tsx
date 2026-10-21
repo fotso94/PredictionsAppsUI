@@ -2,10 +2,15 @@ import React from 'react'
 import clsx from 'clsx'
 import PercentField from './PercentField'
 import {
-  ComposerIssueKey, ComposerValidation, ComposerValues, OPTIONAL_MARKET_LABEL, OptionalMarketKey,
+  ComposerIssueKey, ComposerMessage, ComposerValidation, ComposerValues, OptionalMarketKey,
   pairAdjustment, PairState, REASONING_MAX,
 } from './composer'
-import { formatPercentPoints } from './percent'
+import { composerText, goalLine, hundredPercent, optionalMarketLabel } from './composerText'
+import { formatPercentTotal, formatWholeNumber } from './percent'
+import { currentLocale } from '@/i18n'
+import type { MessageKey } from '@/i18n'
+import { useLocale } from '@/i18n/react'
+import Emphasised from '@/i18n/Emphasised'
 
 /**
  * The markets an expert is publishing, and only those.
@@ -21,6 +26,11 @@ import { formatPercentPoints } from './percent'
  *
  * The editor never proposes a number. The model forecast sits beside it as evidence to read; not
  * one of its figures is copied into a field here, and there is no "start from the model" control.
+ *
+ * IN THE READER'S LANGUAGE. Every label, hint, total and error comes from the catalogue at render
+ * time (`expert.editor.*`, `expert.validation.*`, and `market.*` / `outcome.*` from core), and
+ * every figure is formatted for the reader's locale — « 101 % au total », « Retirez 1,01. » — while
+ * the English is the exact text this component always printed. Team names are the provider's.
  */
 export interface PredictionMarketsEditorProps {
   values: ComposerValues
@@ -58,19 +68,26 @@ export interface PredictionMarketsEditorProps {
  * so it is printed to the same two decimals: a total of 99.99 must not round to "100%" beside a
  * sentence saying it is short.
  */
-const PairTotal: React.FC<{ state: PairState; label: string; error?: string | null }> = ({ state, label, error }) => {
+const PairTotal: React.FC<{ state: PairState; rule: MessageKey; error?: ComposerMessage | null }> = ({ state, rule, error }) => {
+  const { t } = useLocale()
+  const ruleText = t(rule, { hundred: hundredPercent() })
   if (state.percent === null) {
-    return <p className="mt-2 text-xs text-secondary-400">{label} must total 100%.</p>
+    return <p className="mt-2 text-xs text-secondary-400">{ruleText}</p>
   }
+  // One sentence per state, with the figure inside it, so each language puts the figure where it
+  // goes. The figure is then picked out of the rendered sentence to be drawn in bold.
+  const figure = formatPercentTotal(state.percent, currentLocale())
+  const sentence = state.balanced
+    ? t('expert.editor.totalBalanced', { percent: figure })
+    : t('expert.editor.totalUnbalanced', { percent: figure, rule: ruleText })
   const adjustment = state.balanced ? null : pairAdjustment(state.gap)
   return (
     <p
       className={clsx('mt-2 text-xs', state.balanced ? 'text-success-300' : error ? 'text-danger-300' : 'text-warning-200')}
       role={error ? 'alert' : undefined}
     >
-      <span className="num font-semibold">{formatPercentPoints(state.percent)}%</span> total
-      {state.balanced ? '.' : ` — ${label} must total 100%.`}
-      {adjustment ? ` ${adjustment}` : ''}
+      <Emphasised sentence={sentence} value={figure} className="num font-semibold" />
+      {adjustment ? ` ${composerText(adjustment)}` : ''}
     </p>
   )
 }
@@ -85,10 +102,12 @@ const MarketSection: React.FC<{
   idPrefix: string
   children: React.ReactNode
 }> = ({ market, enabled, locked, onToggle, disabled, idPrefix, children }) => {
+  const { t } = useLocale()
   const boxId = `${idPrefix}-${market}-enabled`
+  const label = optionalMarketLabel(market)
   return (
     <fieldset className="rounded-lg border border-dark-700 bg-dark-900/60 p-4">
-      <legend className="sr-only">{OPTIONAL_MARKET_LABEL[market]}</legend>
+      <legend className="sr-only">{label}</legend>
       <div className="flex items-start gap-3">
         <input
           id={boxId}
@@ -100,14 +119,14 @@ const MarketSection: React.FC<{
         />
         <div className="min-w-0">
           <label htmlFor={boxId} className="block text-sm font-medium text-white">
-            {OPTIONAL_MARKET_LABEL[market]}
+            {label}
           </label>
           <p className="mt-0.5 text-xs text-secondary-400">
             {locked
-              ? 'Already published. You can change the numbers here; removing the market needs the prediction to be deleted.'
+              ? t('expert.editor.marketLocked')
               : enabled
-                ? 'Both sides are published, and they must total 100%.'
-                : 'Left unticked, this market is not published and readers see it as unavailable.'}
+                ? t('expert.editor.marketOn', { hundred: hundredPercent() })
+                : t('expert.editor.marketOff')}
           </p>
         </div>
       </div>
@@ -119,25 +138,43 @@ const MarketSection: React.FC<{
 const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
   values, onChange, validation, showErrors, homeTeam, awayTeam, idPrefix, lockedMarkets, disabled = false,
 }) => {
+  // The subscription: a change of language re-renders this, and everything below reads the new
+  // catalogue and locale as it renders.
+  const { t } = useLocale()
+  const locale = currentLocale()
+
   const set = <K extends keyof ComposerValues>(key: K, value: ComposerValues[K]) => {
     onChange({ ...values, [key]: value })
   }
 
-  const errorFor = (key: ComposerIssueKey): string | null =>
+  /** The error under one field, as a sentence, only once errors are being shown. */
+  const errorFor = (key: ComposerIssueKey): string | null => {
+    const message = showErrors ? validation.errors[key] : undefined
+    return message ? composerText(message) : null
+  }
+  /** The same error kept as a message, for the totals, which use it for colour and role only. */
+  const issueFor = (key: ComposerIssueKey): ComposerMessage | null =>
     showErrors ? validation.errors[key] ?? null : null
 
   const locked = (market: OptionalMarketKey) => Boolean(lockedMarkets?.has(market))
 
-  const homeLabel = homeTeam ? `${homeTeam} win` : 'Home win'
-  const awayLabel = awayTeam ? `${awayTeam} win` : 'Away win'
+  const homeLabel = homeTeam ? t('expert.editor.teamWin', { team: homeTeam }) : t('outcome.homeWin')
+  const awayLabel = awayTeam ? t('expert.editor.teamWin', { team: awayTeam }) : t('outcome.awayWin')
+
+  // The count is drawn in the number style; both figures are ungrouped, so English still says 2000.
+  const reasoningCount = formatWholeNumber(values.reasoning.length, locale)
+  const reasoningSentence = t('expert.editor.reasoningCount', {
+    count: reasoningCount,
+    max: formatWholeNumber(REASONING_MAX, locale),
+  })
 
   return (
     <div className="space-y-6">
       {/* ------------------------------------------------------------------ match result */}
       <fieldset className="rounded-lg border border-dark-700 bg-dark-900/60 p-4">
-        <legend className="px-1 text-sm font-semibold text-white">Match result</legend>
+        <legend className="px-1 text-sm font-semibold text-white">{t('market.matchResult')}</legend>
         <p className="mb-4 text-xs text-secondary-400">
-          Your own percentages for the three outcomes. Every prediction publishes this market.
+          {t('expert.editor.matchResultIntro')}
         </p>
         {/* One column on a phone: three number fields side by side at 390px cannot show a team
             name, and a grid that never wraps is how a page starts scrolling sideways. */}
@@ -153,7 +190,7 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
           />
           <PercentField
             id={`${idPrefix}-draw`}
-            label="Draw"
+            label={t('outcome.draw')}
             value={values.draw}
             onChange={next => set('draw', next)}
             error={errorFor('draw')}
@@ -170,16 +207,16 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
             required
           />
         </div>
-        <PairTotal state={validation.outcome} label="The three outcomes" error={errorFor('outcomeTotal')} />
+        <PairTotal state={validation.outcome} rule="expert.editor.ruleOutcomes" error={issueFor('outcomeTotal')} />
 
         <div className="mt-4 max-w-xs">
           <PercentField
             id={`${idPrefix}-conviction`}
-            label="Your conviction in this call"
+            label={t('expert.editor.convictionLabel')}
             value={values.conviction}
             onChange={next => set('conviction', next)}
             error={errorFor('conviction')}
-            hint="How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy."
+            hint={t('expert.editor.convictionHint')}
             disabled={disabled}
           />
         </div>
@@ -188,9 +225,9 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
       {/* ------------------------------------------------------------------ opt-in markets */}
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-semibold text-white">Other markets</h3>
+          <h3 className="text-sm font-semibold text-white">{t('expert.editor.otherMarkets')}</h3>
           <p className="mt-1 text-xs text-secondary-400">
-            Tick only the markets you want to publish a view on. The rest stay unavailable.
+            {t('expert.editor.otherMarketsIntro')}
           </p>
         </div>
 
@@ -205,7 +242,7 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <PercentField
               id={`${idPrefix}-btts-yes`}
-              label="Both teams score"
+              label={t('expert.editor.bttsYes')}
               value={values.bttsYes}
               onChange={next => set('bttsYes', next)}
               error={errorFor('bttsYes')}
@@ -214,7 +251,7 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
             />
             <PercentField
               id={`${idPrefix}-btts-no`}
-              label="At least one does not"
+              label={t('expert.editor.bttsNo')}
               value={values.bttsNo}
               onChange={next => set('bttsNo', next)}
               error={errorFor('bttsNo')}
@@ -222,11 +259,11 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
               required
             />
           </div>
-          <PairTotal state={validation.btts} label="The two sides" error={errorFor('bttsTotal')} />
+          <PairTotal state={validation.btts} rule="expert.editor.ruleSides" error={issueFor('bttsTotal')} />
             <div className="mt-4 max-w-xs">
             <PercentField
               id={`${idPrefix}-btts-conviction`}
-              label="Conviction for this market"
+              label={t('expert.editor.bttsConviction')}
               value={values.bttsConviction}
               onChange={next => set('bttsConviction', next)}
               error={errorFor('bttsConviction')}
@@ -246,7 +283,7 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <PercentField
               id={`${idPrefix}-over25`}
-              label="Over 2.5 goals"
+              label={t('expert.editor.overGoals', { line: goalLine(2.5) })}
               value={values.over25}
               onChange={next => set('over25', next)}
               error={errorFor('over25')}
@@ -255,7 +292,7 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
             />
             <PercentField
               id={`${idPrefix}-under25`}
-              label="Under 2.5 goals"
+              label={t('expert.editor.underGoals', { line: goalLine(2.5) })}
               value={values.under25}
               onChange={next => set('under25', next)}
               error={errorFor('under25')}
@@ -263,7 +300,7 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
               required
             />
           </div>
-          <PairTotal state={validation.totals25} label="Over and under" error={errorFor('total25')} />
+          <PairTotal state={validation.totals25} rule="expert.editor.ruleOverUnder" error={issueFor('total25')} />
           </MarketSection>
 
         <MarketSection
@@ -277,7 +314,7 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <PercentField
               id={`${idPrefix}-over35`}
-              label="Over 3.5 goals"
+              label={t('expert.editor.overGoals', { line: goalLine(3.5) })}
               value={values.over35}
               onChange={next => set('over35', next)}
               error={errorFor('over35')}
@@ -286,7 +323,7 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
             />
             <PercentField
               id={`${idPrefix}-under35`}
-              label="Under 3.5 goals"
+              label={t('expert.editor.underGoals', { line: goalLine(3.5) })}
               value={values.under35}
               onChange={next => set('under35', next)}
               error={errorFor('under35')}
@@ -294,18 +331,18 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
               required
             />
           </div>
-          <PairTotal state={validation.totals35} label="Over and under" error={errorFor('total35')} />
+          <PairTotal state={validation.totals35} rule="expert.editor.ruleOverUnder" error={issueFor('total35')} />
           </MarketSection>
 
         {(values.over25Enabled || values.over35Enabled) && (
           <div className="max-w-xs">
             <PercentField
               id={`${idPrefix}-totals-conviction`}
-              label="Conviction for the goal lines"
+              label={t('expert.editor.totalsConviction')}
               value={values.totalsConviction}
               onChange={next => set('totalsConviction', next)}
               error={errorFor('totalsConviction')}
-              hint="One value covers both lines — that is what the API stores."
+              hint={t('expert.editor.totalsConvictionHint')}
               disabled={disabled}
             />
           </div>
@@ -315,8 +352,8 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
       {/* ------------------------------------------------------------------ reasoning */}
       <div>
         <label htmlFor={`${idPrefix}-reasoning`} className="form-label">
-          Your reasoning
-          <span className="ml-1 text-xs font-normal text-secondary-500">(optional)</span>
+          {t('expert.editor.reasoningLabel')}
+          <span className="ml-1 text-xs font-normal text-secondary-500">{t('expert.field.optional')}</span>
         </label>
         <textarea
           id={`${idPrefix}-reasoning`}
@@ -327,11 +364,10 @@ const PredictionMarketsEditor: React.FC<PredictionMarketsEditorProps> = ({
           aria-invalid={errorFor('reasoning') ? true : undefined}
           aria-describedby={`${idPrefix}-reasoning-count`}
           className="form-input w-full disabled:cursor-not-allowed disabled:opacity-60"
-          placeholder="What led you to these numbers — team news, recent form, the match-up."
+          placeholder={t('expert.editor.reasoningPlaceholder')}
         />
         <p id={`${idPrefix}-reasoning-count`} className="mt-1 text-xs text-secondary-400">
-          <span className="num">{values.reasoning.length}</span> of {REASONING_MAX} characters. Published with your
-          prediction so readers can weigh it.
+          <Emphasised sentence={reasoningSentence} value={reasoningCount} className="num" />
         </p>
         {errorFor('reasoning') && <p className="form-error">{errorFor('reasoning')}</p>}
       </div>

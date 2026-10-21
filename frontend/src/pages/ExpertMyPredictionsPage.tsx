@@ -57,13 +57,15 @@
  * the same confirmation as the dashboard and, after kickoff, a note on the card and in the
  * confirmation that the change does not alter the measured record. utils/publication.ts says why.
  *
- * ── WHAT IS STILL ENGLISH ──────────────────────────────────────────────────
+ * ── THE EDITOR, IN THE READER'S LANGUAGE ───────────────────────────────────────────
  *
- * The inline editor is `components/expert/PredictionMarketsEditor`, and its validation messages
- * come from `components/expert/composer.ts`. Neither belongs to this package and neither is
- * translated, so a French expert correcting a number reads this page's frame in French and the
- * field labels and errors in English. The status BADGE beside each prediction renders the
- * backend's own word and is left that way deliberately. The package report lists all of it.
+ * The inline editor is `components/expert/PredictionMarketsEditor`, the composer's own, so its
+ * labels, totals and validation messages are the catalogue's in both languages (QA finding 7).
+ * An edit reopens the stored figures the way the reader types a decimal — « 55,5 » in French,
+ * "55.5" in English — because `composerFromPrediction` is given the reader's locale; either
+ * separator reads back to the same probability, so an untouched save sends what is stored. The
+ * status BADGE beside each prediction renders the backend's own word and is left that way
+ * deliberately.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -78,7 +80,7 @@ import {
 import { formatUnitProbability, isPublished } from '@/components/ui/probability';
 import { hideBrokenImage } from '@/components/ui/imageFallback';
 import { getErrorMessage } from '@/utils/errors';
-import { backendInstant, formatDate, formatDateTime, formatNumber, formatPercentValue } from '@/i18n';
+import { backendInstant, currentLocale, formatDate, formatDateTime, formatNumber, formatPercentValue } from '@/i18n';
 import { useT } from '@/i18n/react';
 import type { MessageKey } from '@/i18n';
 import { canTogglePublication, hasKickedOff, kickedOffNoteKey, publicationConfirmText } from '@/utils/publication';
@@ -265,7 +267,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
   const handleEdit = (prediction: ExpertPredictionResponse) => {
     setEditingId(prediction.id);
     // A market the prediction never published reopens unticked and empty — never at zero.
-    setEditValues(composerFromPrediction(prediction));
+    setEditValues(composerFromPrediction(prediction, currentLocale()));
     setEditShowErrors(false);
   };
 
@@ -545,7 +547,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
 
                   {/* Probabilities */}
                   {editingId === prediction.id && editValues ? (
-                    <div className="mb-3 rounded-lg border border-dark-700 bg-dark-900/60 p-4">
+                    <div className="mb-3 rounded-lg border border-dark-700 bg-dark-900/60 p-4" data-testid="prediction-editor">
                       <p className="mb-4 text-sm text-secondary-300">
                         {t('expert.mine.editNote', percentExamples)}
                       </p>

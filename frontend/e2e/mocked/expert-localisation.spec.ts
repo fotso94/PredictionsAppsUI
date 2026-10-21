@@ -4,9 +4,12 @@ import fr from '../../src/i18n/messages/fr';
 import expertEn from '../../src/i18n/messages/expert.en';
 import expertFr from '../../src/i18n/messages/expert.fr';
 import { compileMessage, renderMessage } from '../../src/i18n/format';
-import { ApiMatch, Json, baseMatches, emptyDayPayload, fixtureAt, selectLocalDay, stubBackend } from '../support/api-stub';
+import {
+  ApiMatch, Json, baseMatches, emptyDayPayload, fixtureAt, selectLocalDay, stubBackend, withCompactBrief,
+  withKickoffPassedForecast, withStaleForecast,
+} from '../support/api-stub';
 import { regularUser, signIn } from '../support/auth';
-import { OFFERED_ZONES } from '../../src/i18n/zones';
+import { frenchVocabulary, pageStrings, unaccountedWords, wordsOf } from '../support/vocabulary';
 
 /**
  * THE EXPERT SCREENS, IN THE READER'S LANGUAGE AND THE READER'S ZONE.
@@ -273,75 +276,31 @@ const ROUTES: Array<{ path: string; anchor: keyof typeof en }> = [
 ];
 
 /**
- * ENGLISH THAT IS REALLY ON THE FRENCH PAGE AND IS NOT THIS PACKAGE'S TO REMOVE.
+ * ENGLISH FROM ANOTHER CATALOGUE ENTRY THAT IS STILL ON THE FRENCH PAGE: NONE, ON EVERY ROUTE.
  *
  * The stray check below is exact rather than "at most" on purpose: a new English string on one of
- * these pages fails the test, and so does removing one of these without deleting its line, which
- * means the gap can only shrink deliberately.
+ * these pages fails the test, and so does a route's entry naming a string that is gone, which
+ * means a gap can only reopen visibly.
  *
- * WHY THE TWO ROUTES' ENTRIES LOOK NOTHING ALIKE.
+ * Both routes that list fixtures used to differ here. `/expert/match-selection` rendered its own
+ * translated copy of the list and was empty; `/expert/predictions/create` rendered
+ * `components/expert/FixturePicker.tsx`, whose literals were English, and this entry named the
+ * four of them a catalogue-derived check could see (`brief.noForecastHeld`,
+ * `expert.picker.searchLabel`, `expert.picker.onlyWithoutExpert`,
+ * `expert.picker.modelForecastHeld`). The picker now renders the `expert.picker.*` keys itself, so
+ * the composer's entry is EMPTY too — and being empty rather than absent is the point: the route
+ * is still in ROUTES, still checked, and the day it grows English again this line turns red.
  *
- * A CATALOGUE-DERIVED CHECK CAN ONLY SEE A LITERAL SOME CATALOGUE ALSO HOLDS AS A SENTENCE.
- * `components/expert/FixturePicker.tsx` hard-codes twenty-two English literals; a check built by
- * filtering the catalogue finds one of them for every catalogue entry that happens to say the
- * same thing, and is blind to the rest.
- *
- * `/expert/match-selection` does not render that component. `pages/ExpertMatchSelectionPage.tsx`
- * renders the list itself, from `expert.picker.*`, so its entry here is EMPTY — and being empty
- * rather than absent is the point: the route is still in ROUTES, still checked, and the day it
- * grows English again this line turns red.
- *
- * `/expert/predictions/create` does render `FixturePicker`, and its entry names four strings.
- * THAT IS NOT FOUR FAULTS AGAINST ONE. Those four are the picker's literals that a catalogue can
- * name — `brief.noForecastHeld` in core, three `expert.picker.*` written for the page above — and
- * naming a string is what makes it visible to this check at all. The count is a measure of what
- * can be seen, not of how much English the composer has; the eighteen below are there too.
- *
- * WHY ONLY FOUR OF THE TWENTY-TWO, which is a property of the generator and not a claim that the
- * other eighteen are gone. `otherLanguageStrings` above drops anything holding ICU syntax, and
- * anything under sixteen characters or without a space; `strays` then searches `innerText`. So
- * the picker's English divides up like this, and each line is a reason, not an excuse:
- *
- *   found here (4)     brief.noForecastHeld, expert.picker.searchLabel,
- *                      expert.picker.onlyWithoutExpert, expert.picker.modelForecastHeld
- *   not in innerText   expert.picker.searchPlaceholder (a placeholder attribute) and
- *                      expert.picker.competitionGroup (an aria-label)
- *   too short          expert.picker.dayLabel, dayAfterTomorrow, clearFilters,
- *                      matchday.relative.today, matchday.relative.tomorrow, fixture.live,
- *                      expert.retry
- *   holds ICU syntax   expert.picker.showing, expert.picker.rowAction
- *   not in this state  expert.picker.loading (transient), expertPublished (no fixture in
- *                      e2e/fixtures/matches-day.json has an expert prediction), loadFailed,
- *                      emptyFilteredTitle, emptyFilteredBody, emptyDayTitle, emptyDayBody
- *
- * The package report names all twenty-two and says which of them a French expert meets on the
- * composer today.
+ * A CATALOGUE-DERIVED CHECK CAN ONLY SEE A LITERAL SOME CATALOGUE ALSO HOLDS AS A SENTENCE, and
+ * `otherLanguageStrings` drops anything with ICU syntax, under sixteen characters or without a
+ * space. So an empty list here is not proof that a page holds no English; the allow-list walks —
+ * `the French match picker carries no English the catalogue cannot account for` below and every
+ * state in ./expert-composer-localisation.spec.ts — are what check that.
  */
 const CATALOGUE_ENGLISH_STILL_ON_THE_FRENCH_PAGE: Record<string, string[]> = {
-  // Renders its own list now, in the reader's language. Empty on purpose, not absent.
   '/expert/match-selection': [],
-  /*
-   * FixturePicker.tsx, still English on the composer. In ENGLISH_ONLY order, which is the order
-   * `Object.keys(en)` gives and therefore the order the filtered result comes back in:
-   *   core.en.ts      brief.noForecastHeld          the badge on a fixture with no forecast
-   *   expert.en.ts    expert.picker.searchLabel     the search field's visually-hidden label
-   *                   expert.picker.onlyWithoutExpert   the checkbox
-   *                   expert.picker.modelForecastHeld   the badge on a fixture with a forecast
-   *
-   * `expert.picker.expertPublished` clears every filter the generator applies and is STILL not
-   * listed, for a reason about the data rather than the check: no fixture in
-   * e2e/fixtures/matches-day.json carries an expert prediction, so that badge is never in this
-   * page's DOM to be found. It is English on the composer all the same — `the French match picker
-   * carries no English the catalogue cannot account for` below builds a fixture that has one, so
-   * the badge is rendered and checked somewhere — and listing it here would fail this test for
-   * the honest reason that the string is absent.
-   */
-  '/expert/predictions/create': [
-    'No forecast held',
-    'Filter by team or competition',
-    'Only fixtures with no expert prediction yet',
-    'Model forecast held',
-  ],
+  // components/expert/FixturePicker.tsx renders `expert.picker.*` now. Empty on purpose, not absent.
+  '/expert/predictions/create': [],
 };
 
 for (const language of ['en', 'fr'] as const) {
@@ -652,6 +611,45 @@ const COUNT_CASES: CountCase[] = [
       `Rencontres affichées ce jour-là${NBSP}: 11 sur 11.`,
     ],
   },
+  {
+    /*
+     * The reasoning field's count line, under every editor. Built like the picker's count line
+     * and for the same reason: the English is the sentence the editor already showed, and it
+     * reads "1 of 1 characters" at one only in this table — the page always passes `{max}` as
+     * 2000 — so it is recorded rather than reworded. The French attaches « caractères » to
+     * neither figure, so it is right whatever either of them is.
+     */
+    key: 'expert.editor.reasoningCount',
+    en: [
+      '0 of 0 characters. Published with your prediction so readers can weigh it.',
+      '1 of 1 characters. Published with your prediction so readers can weigh it.',
+      '2 of 2 characters. Published with your prediction so readers can weigh it.',
+      '11 of 11 characters. Published with your prediction so readers can weigh it.',
+    ],
+    fr: [
+      `Caractères${NBSP}: 0 sur 0. Publié avec votre pronostic pour que les lecteurs puissent le prendre en compte.`,
+      `Caractères${NBSP}: 1 sur 1. Publié avec votre pronostic pour que les lecteurs puissent le prendre en compte.`,
+      `Caractères${NBSP}: 2 sur 2. Publié avec votre pronostic pour que les lecteurs puissent le prendre en compte.`,
+      `Caractères${NBSP}: 11 sur 11. Publié avec votre pronostic pour que les lecteurs puissent le prendre en compte.`,
+    ],
+  },
+  {
+    /* The reasoning-too-long error. Same shape, same reason: in use `{max}` is 2000 and `{count}`
+       is above it, and the French names neither figure with a noun that would have to agree. */
+    key: 'expert.validation.reasoningTooLong',
+    en: [
+      'Shorten this to 0 characters — it is 0 now.',
+      'Shorten this to 1 characters — it is 1 now.',
+      'Shorten this to 2 characters — it is 2 now.',
+      'Shorten this to 11 characters — it is 11 now.',
+    ],
+    fr: [
+      `Texte trop long (caractères${NBSP}: 0, maximum${NBSP}: 0). Raccourcissez-le.`,
+      `Texte trop long (caractères${NBSP}: 1, maximum${NBSP}: 1). Raccourcissez-le.`,
+      `Texte trop long (caractères${NBSP}: 2, maximum${NBSP}: 2). Raccourcissez-le.`,
+      `Texte trop long (caractères${NBSP}: 11, maximum${NBSP}: 11). Raccourcissez-le.`,
+    ],
+  },
 ];
 
 /**
@@ -667,6 +665,8 @@ const COUNT_PARAM: Record<string, string[]> = {
   'expert.queue.listHeading': ['count'],
   'expert.page.number': ['number'],
   'expert.picker.showing': ['shown', 'total'],
+  'expert.editor.reasoningCount': ['count', 'max'],
+  'expert.validation.reasoningTooLong': ['count', 'max'],
 };
 
 function render(
@@ -993,36 +993,28 @@ test('a percentage typed as 55 in the French composer is still sent as 0.55', as
   await expect(page.locator('body')).toContainText(fr['expert.published.body']);
 });
 
-/* =================================== the English that is left is counted, not overlooked */
+/* ================================ the English that was on the composer, and is not any more */
 
 /**
- * WHAT THIS FILE CANNOT FIX, MEASURED RATHER THAN LEFT AS A BLIND SPOT.
+ * WHAT THIS LEDGER USED TO COUNT, AND WHY IT IS NOW A LIST OF THINGS THAT MUST BE ABSENT.
  *
- * The stray check above is generated from the CATALOGUES, so it can only ever see a string that
- * entered one of them. The composer's own editor never did: `components/expert/
- * PredictionMarketsEditor.tsx`, `PercentField.tsx`, `PublishPreview.tsx`, `FixtureEvidence.tsx`,
- * `FixturePicker.tsx` and the validation messages in `components/expert/composer.ts` are English
- * literals in the component source, and all six files belong to another package's ownership
- * block. So a French expert reads this page's frame in French and the field labels, hints and
- * errors in English, while every test above passes — which is precisely the shape of false green
- * this project has been burned by before.
+ * The composer's own editor — `components/expert/PredictionMarketsEditor.tsx`, `PercentField.tsx`,
+ * `PublishPreview.tsx`, `FixtureEvidence.tsx`, `FixturePicker.tsx` and the validation messages in
+ * `components/expert/composer.ts` — was English literals in the component source, invisible to a
+ * check generated from the catalogues. This ledger named the fifteen of them a French expert met
+ * on ARRIVAL and asserted they were all still there, so the count could only come down on
+ * purpose. They are translated now: every one of them comes from the catalogue, so
+ * ENGLISH_LEFT_ON_THE_FRENCH_COMPOSER is empty and the test asserts that NONE of the fifteen is
+ * on the French page.
  *
- * This does not translate them; it counts them. Each string below is named with the file it
- * comes from, and the owner of those files can delete a line here as they fix each one.
- *
- * WHAT THIS ASSERTION ACTUALLY GUARANTEES, WHICH IS ONE DIRECTION AND NOT TWO. The check filters
- * the ledger by what is on the page, so it fails when a listed string is GONE — translated,
- * reworded or removed — and the number therefore comes down deliberately rather than by accident.
- * It does NOT fail when new English appears, because a string that is in no catalogue and in no
- * list here is in nothing this test iterates over. READ AS A TWO-DIRECTIONAL CHECK IT IS WORSE
- * THAN NOTHING: it goes green over untranslated wording it was never able to look at, and the
- * ledger can then sit short by a dozen strings with no test saying so. Catching new English
- * needs a different mechanism — an allow-list of the
- * French the page may contain, rather than a deny-list of the English it may not — and that is
- * not built here. Until it is, adding to this ledger is a manual act and the package report, not
- * this test, is what says the list is complete.
+ * WHAT THIS DOES NOT GUARANTEE, which is unchanged. A list of known strings can only find the
+ * strings on it; it cannot fail on English nobody has thought of. That direction is now covered
+ * by the allow-list walks in ./expert-composer-localisation.spec.ts — the picker, the editor with
+ * every optional market ticked, the validation messages, the preview, the evidence panel and the
+ * published confirmation — which iterate the PAGE and fail on any word no catalogue, fixture or
+ * locale accounts for. This ledger stays as the cheap, named regression check on the fifteen.
  */
-const ENGLISH_LEFT_ON_THE_FRENCH_COMPOSER = [
+const ENGLISH_TRANSLATED_ON_THE_FRENCH_COMPOSER = [
   // components/expert/PredictionMarketsEditor.tsx — the 1X2 block
   'Match result',
   'Your own percentages for the three outcomes. Every prediction publishes this market.',
@@ -1033,7 +1025,7 @@ const ENGLISH_LEFT_ON_THE_FRENCH_COMPOSER = [
   'Other markets',
   'Tick only the markets you want to publish a view on. The rest stay unavailable.',
   'Left unticked, this market is not published and readers see it as unavailable.',
-  // components/expert/composer.ts — OPTIONAL_MARKET_LABEL, rendered for each market's checkbox
+  // components/expert/composer.ts — the old OPTIONAL_MARKET_LABEL, rendered for each market's checkbox
   'Both teams to score',
   'Over / under 2.5 goals',
   'Over / under 3.5 goals',
@@ -1045,42 +1037,24 @@ const ENGLISH_LEFT_ON_THE_FRENCH_COMPOSER = [
   'The same evidence the public match page shows',
 ];
 
-/*
- * WHY THIS LIST IS THIS LONG, AND WHAT IS STILL OUTSIDE IT.
- *
- * A shorter ledger here would rest on the optional markets' labels being "not in the DOM until
- * the market is ticked". Checked against the running page, that is not true:
- * `PredictionMarketsEditor` renders every market's label, its checkbox and its "Left unticked…"
- * hint on arrival, unticked. Every entry above was verified present in this very test's DOM
- * before being listed, and each is named with the file it comes from, so the count a reader
- * takes from this ledger is the count a French expert actually meets.
- *
- * "The three outcomes must total 100%." is the 1X2 pair hint in its UNBALANCED state, which is the
- * state this test's composer is in — it opens with three empty fields and touches nothing. When
- * the three add up the same component says "100% total." instead. Both are English; this ledger
- * names the one that is on the screen here.
- *
- * STILL OUTSIDE IT, deliberately: the single words — "Kick-off", "Venue", "Round", "HOME", "AWAY",
- * "Draw" in FixtureEvidence and the "Draw*" field label — and the validation messages, which need
- * a wrong number typed into a field before they exist. A one-word `includes` against a whole page
- * is an accident waiting to happen ("Venue" is also a French word), and provoking validation
- * inside a check whose job is to count what a reader meets on ARRIVAL would be measuring
- * something else. They are English, they are real, and they are in the package report with the
- * rest; the owner of those files has the full list.
- */
+/** English a French expert still meets on arrival in the composer. Empty: see above. */
+const ENGLISH_LEFT_ON_THE_FRENCH_COMPOSER: string[] = [];
 
-test('the English left on the French composer is counted, and has not grown', async ({ page }) => {
+test('the English that was on the French composer is gone, and none of it has come back', async ({ page }) => {
   const fixture = fixtureAt(KICKOFF_UTC, 'Coton Sport', 'Union Douala', MATCH_ID);
   await openAsExpert(page, { language: 'fr', zone: DOUALA }, { fixtures: [fixture] });
   await page.goto(`/expert/predictions/create?matchId=${MATCH_ID}`);
   await page.waitForLoadState('networkidle');
+  // A positive anchor first: an editor that never rendered would hold no English either.
+  await expect(page.locator('#composer-home')).toBeVisible();
+  await expect(page.locator('body')).toContainText(fr['expert.editor.matchResultIntro']);
 
   const text = (await bodyText(page)).replace(/\s+/g, ' ');
-  const stillEnglish = ENGLISH_LEFT_ON_THE_FRENCH_COMPOSER.filter(value => text.includes(value));
+  const stillEnglish = ENGLISH_TRANSLATED_ON_THE_FRENCH_COMPOSER.filter(value => text.includes(value));
   expect(
     stillEnglish,
-    'this is the ledger of English a French expert still meets in the composer; if one of these '
-    + 'was translated, delete its line here, and if a new one appeared, add it and say so',
+    'English a French expert meets in the composer; every string in this ledger is translated now, '
+    + 'so one of them on the page is a regression',
   ).toEqual(ENGLISH_LEFT_ON_THE_FRENCH_COMPOSER);
 });
 
@@ -1140,7 +1114,10 @@ test('no expert screen asks a provider to refresh', async ({ page }) => {
  *   3. the zone cities in ../../src/i18n/zones.ts, for the zone named beside the day;
  *   4. what `Intl` itself calls the months and weekdays in French, for the spelled-out date.
  *
- * A word from none of those is a failure, and it is reported with the string it came from.
+ * A word from none of those is a failure, and it is reported with the string it came from. The
+ * walk itself — `wordsOf`, `frenchVocabulary`, `pageStrings`, `unaccountedWords` — lives in
+ * ../support/vocabulary.ts, so ./expert-composer-localisation.spec.ts walks the composer by the
+ * same rules.
  *
  * WHAT IT CANNOT DO, said plainly so nobody reads more into a green run than is there. It cannot
  * see a BAD translation — « Jour des rencontres » and « Jour des pommes » are both French. It
@@ -1152,83 +1129,9 @@ test('no expert screen asks a provider to refresh', async ({ page }) => {
  * make this package's test go red for another package's string.
  */
 
-/** Words from one message, ICU holes removed, lowercased. Anything under two letters is noise. */
-function wordsOf(value: string, into: Set<string>): void {
-  value
-    .replace(/\{[^}]*\}/g, ' ')
-    .toLowerCase()
-    .split(/[^\p{L}]+/u)
-    .forEach(word => { if (word.length >= 2) into.add(word); });
-}
-
 /**
- * Every word a French page may legitimately show, derived from four sources and typed in none.
- *
- * `fixtures` is what the calling test put on the wire; nothing else about the data is assumed.
- */
-function frenchVocabulary(fixtures: ApiMatch[]): Set<string> {
-  const allowed = new Set<string>();
-
-  for (const value of Object.values(fr)) wordsOf(value, allowed);
-
-  for (const match of fixtures) {
-    const competition = match.competition as { name?: string; country?: string } | undefined;
-    [match.home?.name, match.home?.short_name, match.home?.country,
-      match.away?.name, match.away?.short_name, match.away?.country,
-      competition?.name, competition?.country]
-      .forEach(name => { if (name) wordsOf(name, allowed); });
-  }
-
-  for (const zone of OFFERED_ZONES) wordsOf(zone.city, allowed);
-  // `zoneLabel` writes the offset as "UTC+01:00"; the city list already carries "UTC" itself.
-
-  for (let month = 0; month < 12; month += 1) {
-    wordsOf(new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(new Date(Date.UTC(2026, month, 15))), allowed);
-  }
-  for (let day = 4; day <= 10; day += 1) {
-    wordsOf(new Intl.DateTimeFormat('fr-FR', { weekday: 'long' }).format(new Date(Date.UTC(2026, 0, day))), allowed);
-  }
-
-  return allowed;
-}
-
-/** Everything the page shows or announces, inside this page's own container. */
-async function pageStrings(page: Page, testId: string): Promise<string[]> {
-  return page.evaluate(id => {
-    const root = document.querySelector(`[data-testid="${id}"]`);
-    if (!root) return [];
-    const found: string[] = [];
-    const keep = (value: string | null) => {
-      const trimmed = (value ?? '').replace(/\s+/g, ' ').trim();
-      if (trimmed) found.push(trimmed);
-    };
-
-    // Text nodes, including the visually hidden ones a screen reader is the only reader of.
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) keep(node.textContent);
-
-    // And everything announced rather than drawn.
-    root.querySelectorAll('[aria-label]').forEach(el => keep(el.getAttribute('aria-label')));
-    root.querySelectorAll('[placeholder]').forEach(el => keep(el.getAttribute('placeholder')));
-    root.querySelectorAll('[title]').forEach(el => keep(el.getAttribute('title')));
-    root.querySelectorAll('img[alt]').forEach(el => keep(el.getAttribute('alt')));
-    return found;
-  }, testId);
-}
-
-/** Each unaccounted-for word, with one string it appeared in, so a failure names the sentence. */
-function unaccountedWords(strings: string[], allowed: Set<string>): string[] {
-  const offences = new Map<string, string>();
-  for (const value of strings) {
-    const seen = new Set<string>();
-    wordsOf(value, seen);
-    for (const word of seen) if (!allowed.has(word) && !offences.has(word)) offences.set(word, value);
-  }
-  return [...offences].map(([word, inside]) => `${word} — in: ${inside}`).sort();
-}
-
-/**
- * A day of fixtures with the three coverage states and a live kick-off all present at once.
+ * A day of fixtures with every coverage state and a live kick-off all present at once: an expert
+ * prediction, a current forecast, a stale one, one kept for reference, and none.
  *
  * Without this the badges are not on the page to be checked: nothing in
  * e2e/fixtures/matches-day.json carries an expert prediction, and nothing in it is live, so a
@@ -1257,6 +1160,12 @@ function pickerDay(isoDate: string): ApiMatch[] {
   pool[1] = { ...pool[1], status: 'live', minute: '58' };
   // One with no forecast at all → "No forecast held".
   pool[2] = { ...pool[2], forecast: null, forecast_state: 'unavailable' };
+  // One whose forecast is stored but out of date → "Model forecast held · out of date". QA finding
+  // 9: the picker used to say "No forecast held" here, which is false — the forecast is held.
+  pool[3] = withStaleForecast(pool[3]);
+  // One whose forecast is kept after kick-off, as the list's own compact brief says → "Model
+  // forecast kept for reference".
+  pool[4] = withKickoffPassedForecast(withCompactBrief(pool[4]));
 
   return pool;
 }
@@ -1299,6 +1208,8 @@ test('the French match picker carries no English the catalogue cannot account fo
   await expect(body).toContainText(fr['expert.picker.expertPublished']);
   await expect(body).toContainText(fr['expert.picker.modelForecastHeld']);
   await expect(body).toContainText(fr['brief.noForecastHeld']);
+  await expect(body).toContainText(fr['expert.picker.modelForecastStale']);
+  await expect(body).toContainText(fr['expert.picker.modelForecastReference']);
   await expect(body).toContainText(fr['fixture.live']);
   await expect(body).toContainText(fr['expert.picker.dayLabel']);
   await expect(page.getByTestId('picker-count'))

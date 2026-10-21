@@ -252,6 +252,14 @@ const expert: Area<'expert'> = {
   'expert.picker.emptyDayBody': 'Les rencontres terminées, reportées et annulées sont écartées. Essayez un autre jour.',
   'expert.picker.dayShown': 'Rencontres du {date}',
   'expert.picker.kickedOff': 'Coup d’envoi passé — un pronostic publié maintenant n’est pas comptabilisé',
+  /*
+   * Built on « Prévision du modèle détenue » above, and with the adjectives ./core.fr.ts already
+   * gives a forecast in these two states (`brief.outOfDate` « Périmée », `brief.keptForReference`
+   * « Conservée pour référence »), feminine to agree with « la prévision ». A stored forecast that
+   * is out of date is still HELD, which is the claim « Aucune prévision détenue » got wrong.
+   */
+  'expert.picker.modelForecastStale': 'Prévision du modèle détenue · périmée',
+  'expert.picker.modelForecastReference': 'Prévision du modèle conservée pour référence',
 
   // ─── the composer ───────────────────────────────────────────────────────────────────────
   'expert.compose.title': 'Rédiger un pronostic',
@@ -281,6 +289,89 @@ const expert: Area<'expert'> = {
   'expert.compose.advancedIds': 'Avancé\u00a0: identifiants de la rencontre',
   'expert.compose.internalMatchId': 'Identifiant de match interne\u00a0:',
   'expert.compose.providerId': '{provider}\u00a0:',
+
+  /*
+   * ─── l’éditeur des marchés, ses champs et ses contrôles ────────────────────────────────
+   *
+   * NOT REVIEWED. The choices a reviewer is most likely to revisit:
+   *
+   *  1. « {team} gagne » for "{team} win", rather than « Victoire de {team} »: French elides
+   *     « de » before a vowel (« d’Arsenal », « d’Aston Villa ») and a club name is data, so a
+   *     fixed « de » would be wrong for every club whose name starts with one.
+   *  2. « Les deux options » for "The two sides" of a two-way market, and « Les options plus et
+   *     moins » for "Over and under": the English subjects are short nouns French has no exact
+   *     equivalent for, and each rule is a whole sentence so the verb agrees with its subject.
+   *  3. The character count. « {count} sur {max} caractères » would agree « caractères » with
+   *     {max}, read wrong at one, and no plural branch is available to this area (see
+   *     ./expert.en.ts); so both counting sentences put the figures after a colon and attach no
+   *     noun to them, exactly as `expert.picker.showing` does. Rendered at 0, 1, 2 and 11 in
+   *     frontend/e2e/mocked/expert-localisation.spec.ts.
+   *  4. `expert.editor.marketLocked` keeps the English claim exactly — that removing a published
+   *     market needs the prediction deleted — although composer.ts now withdraws one with null.
+   *     Whether the sentence is still true is a copy question for the owner, not a translation.
+   */
+  'expert.editor.matchResultIntro': 'Vos propres pourcentages pour les trois issues. Chaque pronostic publie ce marché.',
+  'expert.editor.teamWin': '{team} gagne',
+  'expert.editor.ruleOutcomes': 'Les trois issues doivent totaliser {hundred}.',
+  'expert.editor.ruleSides': 'Les deux options doivent totaliser {hundred}.',
+  'expert.editor.ruleOverUnder': 'Les options plus et moins doivent totaliser {hundred}.',
+  'expert.editor.totalBalanced': '{percent} au total.',
+  'expert.editor.totalUnbalanced': '{percent} au total — {rule}',
+  'expert.editor.adjustAdd': 'Ajoutez {points}.',
+  'expert.editor.adjustRemove': 'Retirez {points}.',
+  'expert.editor.convictionLabel': 'Votre conviction sur ce pronostic',
+  'expert.editor.convictionHint': 'La force avec laquelle vous défendez cet avis. Laissé vide, aucune conviction n’est publiée — elle n’est jamais déduite de la taille de vos pourcentages, et ce n’est pas une exactitude.',
+  'expert.editor.otherMarkets': 'Autres marchés',
+  'expert.editor.otherMarketsIntro': 'Ne cochez que les marchés sur lesquels vous voulez publier un avis. Les autres restent indisponibles.',
+  'expert.editor.marketLocked': 'Déjà publié. Vous pouvez modifier les chiffres ici\u00a0; retirer ce marché nécessite de supprimer le pronostic.',
+  'expert.editor.marketOn': 'Les deux options sont publiées, et elles doivent totaliser {hundred}.',
+  'expert.editor.marketOff': 'Non coché, ce marché n’est pas publié et les lecteurs le voient comme indisponible.',
+  'expert.editor.overUnderGoals': 'Plus / moins de {line} buts',
+  'expert.editor.bttsYes': 'Oui, les deux équipes marquent',
+  'expert.editor.bttsNo': 'Au moins une ne marque pas',
+  'expert.editor.bttsConviction': 'Conviction pour ce marché',
+  'expert.editor.overGoals': 'Plus de {line} buts',
+  'expert.editor.underGoals': 'Moins de {line} buts',
+  'expert.editor.totalsConviction': 'Conviction pour les lignes de buts',
+  'expert.editor.totalsConvictionHint': 'Une seule valeur couvre les deux lignes — c’est ce que l’API enregistre.',
+  'expert.editor.reasoningLabel': 'Votre raisonnement',
+  'expert.editor.reasoningPlaceholder': 'Ce qui vous a mené à ces chiffres — nouvelles des équipes, forme récente, confrontation.',
+  'expert.editor.reasoningCount': 'Caractères\u00a0: {count} sur {max}. Publié avec votre pronostic pour que les lecteurs puissent le prendre en compte.',
+  'expert.field.optional': '(facultatif)',
+
+  'expert.validation.notANumber': 'Saisissez un nombre, par exemple {example}.',
+  'expert.validation.outOfRange': 'Saisissez un pourcentage entre {min} et {max}.',
+  'expert.validation.chooseFixture': 'Choisissez la rencontre concernée par ce pronostic.',
+  'expert.validation.homeBlank': 'Saisissez un pourcentage pour la victoire à domicile.',
+  'expert.validation.drawBlank': 'Saisissez un pourcentage pour le match nul.',
+  'expert.validation.awayBlank': 'Saisissez un pourcentage pour la victoire à l’extérieur.',
+  'expert.validation.marketBlank': 'Saisissez un pourcentage, ou décochez ce marché.',
+  'expert.validation.lineBlank': 'Saisissez un pourcentage, ou décochez cette ligne.',
+  'expert.validation.reasoningTooLong': 'Texte trop long (caractères\u00a0: {count}, maximum\u00a0: {max}). Raccourcissez-le.',
+
+  // ─── l’aperçu avant publication ─────────────────────────────────────────────────────────
+  'expert.preview.regionLabel': 'Aperçu de ce qui sera publié',
+  'expert.preview.intro': 'Voici ce que verront les lecteurs. La publication le place immédiatement sur la page publique du match.',
+  'expert.preview.convictionStated': 'Votre conviction déclarée\u00a0: {value}.',
+  'expert.preview.noConviction': 'Aucune conviction publiée — les lecteurs sont informés qu’aucune n’a été donnée, et aucune n’est déduite de vos pourcentages.',
+  'expert.preview.notPublished': '{market} — non publié. Les lecteurs voient ce marché comme indisponible, jamais comme {zero}.',
+  'expert.preview.needsAttention': 'Certains champs demandent encore votre attention. Les problèmes sont signalés sur le formulaire ci-dessus.',
+
+  // ─── ce que l’on sait déjà ──────────────────────────────────────────────────────────────
+  'expert.evidence.regionLabel': 'Ce que l’on sait déjà de cette rencontre',
+  'expert.evidence.heading': 'Ce que l’on sait déjà',
+  'expert.evidence.intro': 'Les mêmes éléments que la page publique du match. Ils sont là pour être lus, pas copiés — aucun de vos champs n’en est rempli.',
+  'expert.evidence.home': 'Domicile',
+  'expert.evidence.away': 'Extérieur',
+  'expert.evidence.kickoff': 'Coup d’envoi',
+  /** « Stade » rather than « Lieu »: the provider's venue is always a ground. */
+  'expert.evidence.venue': 'Stade',
+  /** « Journée » is the French for a competition's round. */
+  'expert.evidence.round': 'Journée',
+  'expert.evidence.confidencePublished': 'Confiance de {percent}, publiée par la source',
+  'expert.evidence.nothingForResult': 'Cette source n’a rien publié pour le résultat du match.',
+  'expert.evidence.modelMarketsHeld': 'Marchés du modèle détenus\u00a0: {markets}.',
+  'expert.evidence.notSuppliedByModel': 'Non fournis par le modèle\u00a0: {markets}. Ils restent indisponibles sauf si vous publiez un avis dessus.',
 
   'expert.published.title': 'Publié',
   'expert.published.body': 'Votre pronostic est maintenant sur la page publique du match. Rien n’attend de validation — les experts publient directement. Vous pouvez le modifier ou le supprimer à tout moment depuis Mes pronostics.',

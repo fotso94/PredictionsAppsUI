@@ -605,6 +605,81 @@ export function withoutForecast(match: ApiMatch): ApiMatch {
   return copy;
 }
 
+/**
+ * A forecast that is STORED but older than the freshness limit: the backend's `stale` state.
+ *
+ * Set everywhere the backend sets it — `forecast.state`, the payload's `forecast_state` and, when
+ * the fixture carries one, the compact brief's `forecast_state` with `stale: true` — because
+ * app/services/match_brief.py derives all three from the same `freshness()` result, so a stub that
+ * set one and not the others would be a payload the backend cannot produce. The reason is the
+ * backend's own wording (forecast_service.py::freshness), English on every page by policy.
+ */
+export function withStaleForecast(match: ApiMatch, reason = 'forecast generated 52 h ago'): ApiMatch {
+  const copy = JSON.parse(JSON.stringify(match)) as ApiMatch;
+  if (copy.forecast) {
+    copy.forecast.state = 'stale';
+    copy.forecast.state_reason = reason;
+  }
+  copy.forecast_state = 'stale';
+  const compact = copy.brief_compact as Json | null | undefined;
+  if (compact) {
+    compact.forecast_state = 'stale';
+    compact.stale = true;
+  }
+  return copy;
+}
+
+/**
+ * A forecast kept after kick-off: the backend's `kickoff_passed` state, which it reports once a
+ * fixture is finished or more than 150 minutes past its kick-off. `stale` is false in that state —
+ * match_brief.py sets it only for `stale` itself — and the stub keeps it so.
+ */
+export function withKickoffPassedForecast(
+  match: ApiMatch,
+  reason = 'match already played; forecast shown for reference only',
+): ApiMatch {
+  const copy = JSON.parse(JSON.stringify(match)) as ApiMatch;
+  if (copy.forecast) {
+    copy.forecast.state = 'kickoff_passed';
+    copy.forecast.state_reason = reason;
+  }
+  copy.forecast_state = 'kickoff_passed';
+  const compact = copy.brief_compact as Json | null | undefined;
+  if (compact) {
+    compact.forecast_state = 'kickoff_passed';
+    compact.stale = false;
+  }
+  return copy;
+}
+
+/**
+ * The compact brief a list payload carries, assembled from the fixture's own forecast the way
+ * `build_match_payloads(..., full_brief=False)` does: which markets the model supplied, which it
+ * did not, and the freshness verdict. The captured day predates the compact brief, so a test that
+ * wants the list's own verdict on a fixture attaches one with this.
+ */
+export function withCompactBrief(match: ApiMatch): ApiMatch {
+  const copy = JSON.parse(JSON.stringify(match)) as ApiMatch;
+  const available = copy.forecast?.markets_available as Record<string, boolean> | undefined;
+  const keys = ['match_result', 'btts', 'over_under_25', 'over_under_35', 'exact_score'];
+  const supplied = copy.forecast ? keys.filter(key => available?.[key] !== false) : [];
+  const state = (copy.forecast?.state as string | undefined) ?? (copy.forecast_state as string | undefined) ?? 'unavailable';
+  copy.brief_compact = {
+    match_id: copy.id,
+    headline: null,
+    supplied_markets: { model: supplied, expert: [] },
+    missing_markets: { model: keys.filter(key => !supplied.includes(key)), expert: keys },
+    missing_reasons: copy.forecast ? ['no_expert_prediction'] : ['no_forecast_retrieved', 'no_expert_prediction'],
+    forecast_state: state,
+    stale: state === 'stale',
+    refresh_blocked: false,
+    refresh_blocked_reason: null,
+    confidence_published: { model: false, expert: false },
+    accuracy_measured: false,
+  };
+  return copy;
+}
+
 /** Provider status describing a spent daily allowance: refreshes are paused, not broken. */
 export function quotaExhaustedStatus(): ProviderStatusPayload {
   const status = baseStatus();

@@ -501,8 +501,10 @@ for (const language of ['en', 'fr'] as const) {
       const kickedOff = say(language, 'expert.picker.kickedOff');
       await expect(pickerRow(page, 'Fovu Baham'), `${path} does not say the fixture has kicked off`).toContainText(kickedOff);
       await expect(pickerRow(page, 'Coton Sport'), `${path} marked an upcoming fixture as kicked off`).not.toContainText(kickedOff);
-      // A screen reader gets the row's accessible name only, so the warning is its description.
-      await expect(pickerRow(page, 'Fovu Baham').getByRole('button')).toHaveAccessibleDescription(kickedOff);
+      // A screen reader gets the row's accessible name only, so the badges are its description:
+      // the forecast badge first, as drawn, then the warning. (The stub's forecast is current.)
+      await expect(pickerRow(page, 'Fovu Baham').getByRole('button'))
+        .toHaveAccessibleDescription(`${say(language, 'expert.picker.modelForecastHeld')} ${kickedOff}`);
       expect(await noSidewaysScroll(page), `${path} scrolls sideways`).toBe(true);
     }
   });
@@ -534,7 +536,7 @@ for (const language of ['en', 'fr'] as const) {
     await page.waitForLoadState('networkidle');
     await expect(page.getByTestId('composer-kickoff-warning')).toHaveCount(0);
     await page.getByRole('button', { name: say(language, 'expert.action.preview'), exact: true }).click();
-    await expect(page.getByLabel(/Preview of what will be published/)).toBeVisible();
+    await expect(page.getByLabel(say(language, 'expert.preview.regionLabel'))).toBeVisible();
     await expect(page.getByTestId('preview-kickoff-warning')).toHaveCount(0);
     expect(await noSidewaysScroll(page), 'the composer scrolls sideways').toBe(true);
   });

@@ -98,9 +98,14 @@ export default defineConfig({
        * market it carried, in labelled cells whose French labels (« Conviction déclarée », « Plus
        * de 2,5 ») are the longer ones, and a picker row can carry a two-line kicked-off badge. It
        * measures sideways scroll on the match page, both pickers and the composer.
+       *
+       * expert-composer-localisation.spec.ts joins it because the composer is where French runs
+       * longest: whole validation sentences under 360px-wide fields, two badges side by side on a
+       * picker row, and every optional market ticked at once. It walks each of those states for
+       * English and measures sideways scroll in every one.
        */
       name: 'mocked-mobile-360',
-      testMatch: /mocked\/(navigation-continuity|national-teams|overdue-results|parlay-builder|match-data-state|expert-management|revision-history)\.spec\.ts/,
+      testMatch: /mocked\/(navigation-continuity|national-teams|overdue-results|parlay-builder|match-data-state|expert-management|revision-history|expert-composer-localisation)\.spec\.ts/,
       use: { ...devices['Galaxy S8'] },
     },
     {
