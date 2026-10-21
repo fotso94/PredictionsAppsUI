@@ -20,7 +20,7 @@ Running 1 test using 1 worker
       164 |
       165 |   await typeDraft(page, draftB);
       166 |   await reloadComposer(page);
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/live-isolated/expert-drafts.spec.ts:163:101
+        at <worktree>/frontend/e2e/live-isolated/expert-drafts.spec.ts:163:101
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/live-isolated-expert-draft-67d48-ds-and-nothing-is-published-live-isolated/test-failed-1.png
@@ -40,3 +40,4 @@ Running 1 test using 1 worker
 
   1 failed
     [live-isolated] › e2e/live-isolated/expert-drafts.spec.ts:141:1 › A's draft survives B, through real match selection and reloads, and nothing is published 
+# (local worktree path replaced with <worktree> in 1 line(s) before committing; nothing else edited)

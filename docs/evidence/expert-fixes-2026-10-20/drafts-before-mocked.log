@@ -45,7 +45,7 @@ Running 26 tests using 1 worker
       236 |
       237 |   await typeDraft(page, DRAFT_B);
       238 |   await page.reload();
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:235:5
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:235:5
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-A-s-d-4dbd1-ion-reloads-and-coming-back-mocked-desktop/test-failed-1.png
@@ -84,7 +84,7 @@ Running 26 tests using 1 worker
       260 |   await expect(page.locator('body'), 'the expert was not told A is kept').toContainText(COPY.keptA);
       261 |   expect(await storedWith(page, DRAFT_A.reasoning)).toBe(1);
       262 |
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:259:80
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:259:80
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-chang-af24f-e-draft-and-follows-the-URL-mocked-desktop/test-failed-1.png
@@ -121,7 +121,7 @@ Running 26 tests using 1 worker
       294 |
       295 |   await page.goto('/expert/dashboard');
       296 |   await page.waitForLoadState('networkidle');
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:293:76
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:293:76
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-openi-e8533-res-no-draft-and-lists-none-mocked-desktop/test-failed-1.png
@@ -162,7 +162,7 @@ Running 26 tests using 1 worker
       327 |   await expect(summaries.nth(0)).toContainText('Canon Yaounde v Tonnerre');
       328 |   await expect(summaries.nth(1)).toContainText('Coton Sport v Union Douala');
       329 |
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:326:70
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:326:70
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-every-f5e87-ves-only-the-draft-it-names-mocked-desktop/test-failed-1.png
@@ -194,7 +194,7 @@ Running 26 tests using 1 worker
       386 |
       387 |   await page.goto('/expert/dashboard');
       388 |   await page.waitForLoadState('networkidle');
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:385:87
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:385:87
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-publi-914c4-ars-B-s-draft-and-keeps-A-s-mocked-desktop/test-failed-1.png
@@ -230,7 +230,7 @@ Running 26 tests using 1 worker
       468 |   expect(await storedWith(page, 'legacy words'), 'the legacy draft is stored once').toBe(1);
       469 |
       470 |   await page.reload();
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:467:96
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:467:96
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-a-leg-34953-o-its-fixture-once-and-kept-mocked-desktop/test-failed-1.png
@@ -271,7 +271,7 @@ Running 26 tests using 1 worker
       494 |   await expect.poll(() => legacyKeyValue(page)).toBeNull();
       495 |   expect(await storedDrafts(page)).toEqual([]);
       496 | });
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:493:81
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:493:81
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-an-em-efb76-dropped-rather-than-offered-mocked-desktop/test-failed-1.png
@@ -310,7 +310,7 @@ Running 26 tests using 1 worker
       509 |   await expect(draftRows(page).first()).toContainText(COPY.noFixture);
       510 |
       511 |   await page.goto('/expert/predictions/create');
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:508:33
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:508:33
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-a-leg-82a92-o-the-fixture-chosen-for-it-mocked-desktop/test-failed-1.png
@@ -349,7 +349,7 @@ Running 26 tests using 1 worker
       543 |   await draftRow(page, COPY.noFixture).getByRole('button', { name: COPY.continue, exact: true }).click();
       544 |   await rowButton(page, A).click();
       545 |   await expect(page).toHaveURL(/[?&]matchId=fx-a(&|$)/);
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:542:33
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:542:33
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-a-dra-42dce--chosen-fixture-already-has-mocked-desktop/test-failed-1.png
@@ -390,7 +390,7 @@ Running 26 tests using 1 worker
       569 |     await expect(draftRow(page, 'Fovu Baham')).toContainText(COPY.kickedOff);
       570 |     await expect(draftRow(page, 'Coton Sport')).not.toContainText(COPY.kickedOff);
       571 |   }
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:568:68
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:568:68
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-a-dra-7810a-er-be-published-as-prematch-mocked-desktop/test-failed-1.png
@@ -442,7 +442,7 @@ Running 26 tests using 1 worker
       596 |   await expect(page.locator('#composer-reasoning')).toHaveValue(DRAFT_A.reasoning);
       597 |   expect(await storedDrafts(page)).toEqual([]);
       598 |
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:595:38
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:595:38
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-a-bro-2ab57--the-words-stay-on-the-page-mocked-desktop/test-failed-1.png
@@ -475,7 +475,7 @@ Running 26 tests using 1 worker
       646 |   const kept = await ids();
       647 |   expect(kept, 'the oldest-saved draft past the grace was not the one evicted').not.toContain('old-1');
       648 |   for (const id of ['fx-a', 'old-2', 'old-3', 'recent-ko', 'unknown-ko', 'future-1', 'future-45']) {
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:645:55
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:645:55
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-over--ef0e5--over-a-week-ago-is-evicted-mocked-desktop/test-failed-1.png
@@ -507,7 +507,7 @@ Running 26 tests using 1 worker
       236 |
       237 |   await typeDraft(page, DRAFT_B);
       238 |   await page.reload();
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:235:5
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:235:5
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-A-s-d-4dbd1-ion-reloads-and-coming-back-mocked-mobile/test-failed-1.png
@@ -546,7 +546,7 @@ Running 26 tests using 1 worker
       260 |   await expect(page.locator('body'), 'the expert was not told A is kept').toContainText(COPY.keptA);
       261 |   expect(await storedWith(page, DRAFT_A.reasoning)).toBe(1);
       262 |
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:259:80
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:259:80
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-chang-af24f-e-draft-and-follows-the-URL-mocked-mobile/test-failed-1.png
@@ -583,7 +583,7 @@ Running 26 tests using 1 worker
       294 |
       295 |   await page.goto('/expert/dashboard');
       296 |   await page.waitForLoadState('networkidle');
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:293:76
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:293:76
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-openi-e8533-res-no-draft-and-lists-none-mocked-mobile/test-failed-1.png
@@ -624,7 +624,7 @@ Running 26 tests using 1 worker
       327 |   await expect(summaries.nth(0)).toContainText('Canon Yaounde v Tonnerre');
       328 |   await expect(summaries.nth(1)).toContainText('Coton Sport v Union Douala');
       329 |
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:326:70
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:326:70
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-every-f5e87-ves-only-the-draft-it-names-mocked-mobile/test-failed-1.png
@@ -656,7 +656,7 @@ Running 26 tests using 1 worker
       386 |
       387 |   await page.goto('/expert/dashboard');
       388 |   await page.waitForLoadState('networkidle');
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:385:87
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:385:87
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-publi-914c4-ars-B-s-draft-and-keeps-A-s-mocked-mobile/test-failed-1.png
@@ -692,7 +692,7 @@ Running 26 tests using 1 worker
       468 |   expect(await storedWith(page, 'legacy words'), 'the legacy draft is stored once').toBe(1);
       469 |
       470 |   await page.reload();
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:467:96
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:467:96
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-a-leg-34953-o-its-fixture-once-and-kept-mocked-mobile/test-failed-1.png
@@ -733,7 +733,7 @@ Running 26 tests using 1 worker
       494 |   await expect.poll(() => legacyKeyValue(page)).toBeNull();
       495 |   expect(await storedDrafts(page)).toEqual([]);
       496 | });
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:493:81
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:493:81
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-an-em-efb76-dropped-rather-than-offered-mocked-mobile/test-failed-1.png
@@ -772,7 +772,7 @@ Running 26 tests using 1 worker
       509 |   await expect(draftRows(page).first()).toContainText(COPY.noFixture);
       510 |
       511 |   await page.goto('/expert/predictions/create');
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:508:33
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:508:33
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-a-leg-82a92-o-the-fixture-chosen-for-it-mocked-mobile/test-failed-1.png
@@ -811,7 +811,7 @@ Running 26 tests using 1 worker
       543 |   await draftRow(page, COPY.noFixture).getByRole('button', { name: COPY.continue, exact: true }).click();
       544 |   await rowButton(page, A).click();
       545 |   await expect(page).toHaveURL(/[?&]matchId=fx-a(&|$)/);
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:542:33
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:542:33
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-a-dra-42dce--chosen-fixture-already-has-mocked-mobile/test-failed-1.png
@@ -852,7 +852,7 @@ Running 26 tests using 1 worker
       569 |     await expect(draftRow(page, 'Fovu Baham')).toContainText(COPY.kickedOff);
       570 |     await expect(draftRow(page, 'Coton Sport')).not.toContainText(COPY.kickedOff);
       571 |   }
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:568:68
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:568:68
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-a-dra-7810a-er-be-published-as-prematch-mocked-mobile/test-failed-1.png
@@ -904,7 +904,7 @@ Running 26 tests using 1 worker
       596 |   await expect(page.locator('#composer-reasoning')).toHaveValue(DRAFT_A.reasoning);
       597 |   expect(await storedDrafts(page)).toEqual([]);
       598 |
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:595:38
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:595:38
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-a-bro-2ab57--the-words-stay-on-the-page-mocked-mobile/test-failed-1.png
@@ -937,7 +937,7 @@ Running 26 tests using 1 worker
       646 |   const kept = await ids();
       647 |   expect(kept, 'the oldest-saved draft past the grace was not the one evicted').not.toContain('old-1');
       648 |   for (const id of ['fx-a', 'old-2', 'old-3', 'recent-ko', 'unknown-ko', 'future-1', 'future-45']) {
-        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:645:55
+        at <worktree>/frontend/e2e/mocked/expert-drafts.spec.ts:645:55
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     e2e/.artifacts/mocked-expert-drafts-over--ef0e5--over-a-week-ago-is-evicted-mocked-mobile/test-failed-1.png
@@ -979,3 +979,4 @@ Running 26 tests using 1 worker
     [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:580:1 › a browser that refuses to store the draft says so, and the words stay on the page 
     [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:609:1 › over fifty drafts, only the oldest whose fixture kicked off over a week ago is evicted 
   2 passed (3.9m)
+# (local worktree path replaced with <worktree> in 24 line(s) before committing; nothing else edited)
