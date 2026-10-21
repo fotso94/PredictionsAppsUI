@@ -1,0 +1,19 @@
+# review-fix (P1-3 trace gap): DELETE sent twice, and twice at once, through the isolated backend :8001 (soccer_predictions_e2e); new coverage of an already-fixed behaviour, so there is no failing BEFORE run
+# branch expert-fixes at 34527e5c; the spec e2e/live-isolated/expert-delete-idempotent.spec.ts is new in this commit
+# isolated backend: pid 70388, cwd <worktree>/backend, /health database=soccer_predictions_e2e commit=34527e5c app_tree_sha256=7138445ead1da33f2c8ca9597a7a08c90d9ebdf6fbad5da0fb11256a20f75539 started_at=2026-10-21T05:48:34Z; checkout app_tree_sha256=7138445ead1da33f2c8ca9597a7a08c90d9ebdf6fbad5da0fb11256a20f75539 (equal = the process runs this checkout's code); started by scripts/local-servers.sh with EMAIL_ENABLED=false
+# run at 2026-10-21T05:50:08Z; cd frontend && npx playwright test e2e/live-isolated/expert-delete-idempotent.spec.ts --project=live-isolated --workers=1
+
+Running 2 tests using 1 worker
+
+  ✓  1 [live-isolated] › e2e/live-isolated/expert-delete-idempotent.spec.ts:103:1 › a DELETE sent twice answers 200 both times with one deletion time, and the row leaves the public match (208ms)
+  ✓  2 [live-isolated] › e2e/live-isolated/expert-delete-idempotent.spec.ts:127:1 › two DELETEs sent at once: both 200, exactly one deletes, both report the same time (165ms)
+
+  2 passed (1.5s)
+
+# ---- read-only check of soccer_predictions_e2e afterwards (docker exec psql, SELECT only): id | deleted_at | is_test_data | DELETE audit entries | deleted_at logged in that entry
+# soccer_predictions_e2e
+# 316791b7-8e84-4f13-8694-b4405c0c72ce|2026-10-21 05:50:09.610825|t|1|2026-10-21T05:50:09.610825
+# 5851d17b-2848-4b6d-9ac4-a4059b89be27|2026-10-21 05:50:09.794768|t|1|2026-10-21T05:50:09.794768
+# the first test sent 3 DELETEs and the second 2 at once: one audit entry each, carrying the stored deleted_at
+# (local worktree path replaced with <worktree> in 1 line(s), the isolated backend cwd in the header; nothing else edited)
+# exit=0
