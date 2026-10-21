@@ -45,6 +45,7 @@
       "env": {
         "POSTGRES_DB": "soccer_predictions_e2e",
         "SYNC_SCHEDULER_ENABLED": "false",
+        "EMAIL_ENABLED": "false",
         "LIVESCORE_API_KEY": "",
         "LIVESCORE_API_SECRET": "",
         "GAMEFORECAST_API_KEY": "",
@@ -58,7 +59,7 @@
         "REDIS_DB_RATE_LIMIT": "15",
         "BACKEND_CORS_ORIGINS": "[\"http://localhost:3101\",\"http://127.0.0.1:3101\"]"
       },
-      "_note": "The isolated backend for the write-producing browser tests (Playwright project live-isolated): the e2e clone of the live database, scheduler off, every provider door closed, its own Redis databases. scripts/local-servers.sh starts the same thing detached from the app."
+      "_note": "The isolated backend for the write-producing browser tests (Playwright project live-isolated): the e2e clone of the live database, scheduler off, email off (EMAIL_ENABLED defaults to true, and a QA registration or password reset here must never send a real message), every provider door closed, its own Redis databases. scripts/local-servers.sh starts the same thing detached from the app, with the same environment."
     },
     {
       "name": "frontend-isolated",
