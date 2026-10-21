@@ -34,7 +34,9 @@ WHAT `run` DOES
     3. The suites run one after another, each with its own exit code taken from the child process.
        The backend suite (pytest) runs first. Then the Playwright projects mocked-desktop,
        mocked-mobile, mocked-mobile-360, live and live-isolated run in that order, one invocation
-       each. live-isolated drives the isolated pair (:3101 and :8001 on a clone of the live
+       each. The mocked projects load their pages from the isolated frontend (:3101, every API
+       call stubbed); the preflight refuses the live frontend for them. live-isolated drives the
+       isolated pair (:3101 and :8001 on a clone of the live
        database) and holds every browser spec that signs in — signing in makes the slip dock read
        the reader's slips, and that read settles and commits — while live keeps the two anonymous
        specs; the preflight refuses live-isolated unless that backend says it serves a database
@@ -114,10 +116,14 @@ EVIDENCE_PREFIX = "docs/evidence/test-reports/"
 FORMAT = "predictionsappsui-test-evidence/1"
 PLAYWRIGHT_PROJECTS = ("mocked-desktop", "mocked-mobile", "mocked-mobile-360", "live", "live-isolated")
 ALL_SUITES = ("backend",) + PLAYWRIGHT_PROJECTS
-#: The projects that drive the MAIN pair (:3100 and, for live, :8000). live-isolated drives the
+#: The projects that drive the MAIN pair (:3100 and :8000): live alone. live-isolated drives the
 #: isolated pair instead: the browser tests that write something they cannot remove run only against
-#: a backend serving a clone of the live database (docs/isolated-dev-environment.md).
-MAIN_PAIR_PROJECTS = ("mocked-desktop", "mocked-mobile", "mocked-mobile-360", "live")
+#: a backend serving a clone of the live database (docs/isolated-dev-environment.md). The mocked
+#: projects load their pages from the isolated frontend: playwright.config.ts's preflight refuses
+#: the live frontend for them (it serves the main checkout's code with its API on the live backend,
+#: and only the page stubs stood in front of it - 2026-10-21 review).
+MAIN_PAIR_PROJECTS = ("live",)
+MOCKED_PROJECTS = ("mocked-desktop", "mocked-mobile", "mocked-mobile-360")
 DEFAULT_BASE_URL = "http://localhost:3100"
 DEFAULT_API_URL = "http://127.0.0.1:8000"
 DEFAULT_ISOLATED_BASE_URL = "http://localhost:3101"
@@ -1092,6 +1098,8 @@ def playwright_env(project: str, raw: Path, base_url: str, api_url: str,
     # reads them, and a project that does not cannot be misled by them.
     isolated = {name: value for name, value in (("E2E_ISOLATED_BASE_URL", isolated_base_url),
                                                 ("E2E_ISOLATED_API_URL", isolated_api_url)) if value}
+    # The mocked projects' frontend is the isolated one, never base_url (the main pair's, for live).
+    frontend = (isolated_base_url or DEFAULT_ISOLATED_BASE_URL) if project in MOCKED_PROJECTS else base_url
     return {
         **isolated,
         "PLAYWRIGHT_JSON_OUTPUT_FILE": str(raw / f"playwright-{project}.json"),
@@ -1100,7 +1108,7 @@ def playwright_env(project: str, raw: Path, base_url: str, api_url: str,
         "PLAYWRIGHT_JUNIT_INCLUDE_PROJECT_IN_TEST_NAME": "1",
         "PLAYWRIGHT_JUNIT_STRIP_ANSI": "1",
         "FORCE_COLOR": "0",
-        "E2E_BASE_URL": base_url,
+        "E2E_BASE_URL": frontend,
         "E2E_API_URL": api_url,
         "E2E_STACK": stack_for(project),
     }
@@ -2413,10 +2421,11 @@ def preflight(opts: Options) -> Tuple[Dict[str, Any], List[str], Optional[str]]:
     playwright_selected = [s for s in opts.suites if s in PLAYWRIGHT_PROJECTS]
     main_pair = any(s in MAIN_PAIR_PROJECTS for s in playwright_selected)
     isolated = "live-isolated" in opts.suites
+    mocked = any(s in MOCKED_PROJECTS for s in opts.suites)
     servers: Dict[str, Dict[str, Any]] = {}
     for role, url, needed in (("frontend", opts.base_url, main_pair),
                               ("backend", opts.api_url, "live" in opts.suites),
-                              ("frontend-isolated", opts.isolated_base_url, isolated),
+                              ("frontend-isolated", opts.isolated_base_url, isolated or mocked),
                               ("backend-isolated", opts.isolated_api_url, isolated)):
         host, port = url_port(url)
         server: Dict[str, Any] = {"url": url}
@@ -2727,8 +2736,9 @@ def cmd_run(opts: Options) -> int:
             watched["frontend"] = record["servers"]["frontend"]
         if "live" in opts.suites:
             watched["backend"] = record["servers"]["backend"]
-        if "live-isolated" in opts.suites:
+        if "live-isolated" in opts.suites or any(s in MOCKED_PROJECTS for s in opts.suites):
             watched["frontend-isolated"] = record["servers"]["frontend-isolated"]
+        if "live-isolated" in opts.suites:
             watched["backend-isolated"] = record["servers"]["backend-isolated"]
         watcher = Watcher(repo, watched)
         watcher.start()
@@ -2819,10 +2829,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     run.add_argument("--suites", help=f"comma-separated subset of {','.join(ALL_SUITES)} "
                                       "(a subset is PARTIAL - NOT EVIDENCE)")
     run.add_argument("--allow-dirty", action="store_true", help="run on a dirty working tree and record it")
-    run.add_argument("--base-url", help=f"frontend under test (default $E2E_BASE_URL or {DEFAULT_BASE_URL})")
+    run.add_argument("--base-url", help="the main pair's frontend, which the live project drives "
+                     f"(default $E2E_BASE_URL or {DEFAULT_BASE_URL})")
     run.add_argument("--api-url", help=f"backend under test (default $E2E_API_URL or {DEFAULT_API_URL})")
-    run.add_argument("--isolated-base-url", help="the isolated frontend live-isolated drives "
-                     f"(default $E2E_ISOLATED_BASE_URL or {DEFAULT_ISOLATED_BASE_URL})")
+    run.add_argument("--isolated-base-url", help="the isolated frontend live-isolated drives, and the one the "
+                     f"mocked projects load their pages from (default $E2E_ISOLATED_BASE_URL or {DEFAULT_ISOLATED_BASE_URL})")
     run.add_argument("--isolated-api-url", help="the isolated backend live-isolated drives "
                      f"(default $E2E_ISOLATED_API_URL or {DEFAULT_ISOLATED_API_URL})")
     run.add_argument("--grep", help="filter tests (pytest -k / playwright --grep); "

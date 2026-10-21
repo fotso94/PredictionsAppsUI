@@ -38,7 +38,7 @@ def safe_json(response):
     except:
         return {"error": "Failed to parse JSON", "text": response.text[:200]}
 
-def test_health():
+def check_health():
     """Test health endpoint"""
     print_section("Testing Health Endpoint")
 
@@ -46,7 +46,7 @@ def test_health():
     print_result("GET /health", response.status_code, safe_json(response))
     return response.status_code == 200
 
-def test_auth():
+def check_auth():
     """Test authentication endpoints"""
     print_section("Testing Authentication Endpoints")
 
@@ -66,7 +66,7 @@ def test_auth():
 
     return None, None
 
-def test_user_endpoints(access_token):
+def check_user_endpoints(access_token):
     """Test user management endpoints"""
     print_section("Testing User Endpoints")
     
@@ -99,7 +99,7 @@ def test_user_endpoints(access_token):
     )
     print_result("PUT /users/me/preferences (KAN-129)", response.status_code, safe_json(response))
 
-def test_prediction_endpoints(access_token):
+def check_prediction_endpoints(access_token):
     """Test prediction endpoints"""
     print_section("Testing Prediction Endpoints")
     
@@ -143,7 +143,7 @@ def test_prediction_endpoints(access_token):
         response = requests.get(f"{BASE_URL}/predictions/{prediction_id}/feedback", headers=headers)
         print_result(f"GET /predictions/{prediction_id}/feedback (KAN-137)", response.status_code, safe_json(response))
 
-def test_subscription_endpoints(access_token):
+def check_subscription_endpoints(access_token):
     """Test subscription endpoints"""
     print_section("Testing Subscription Endpoints")
     
@@ -173,12 +173,12 @@ def main():
     print("="*80)
     
     # Test health
-    if not test_health():
+    if not check_health():
         print("\n❌ Health check failed. Is the server running?")
         return
     
     # Test authentication
-    access_token, refresh_token = test_auth()
+    access_token, refresh_token = check_auth()
     if not access_token:
         print("\n❌ Authentication failed. Please check credentials.")
         print(f"   Expected user: {TEST_USER['email']}")
@@ -189,9 +189,9 @@ def main():
     print(f"   Access Token: {access_token[:50]}...")
     
     # Test all endpoints
-    test_user_endpoints(access_token)
-    test_prediction_endpoints(access_token)
-    test_subscription_endpoints(access_token)
+    check_user_endpoints(access_token)
+    check_prediction_endpoints(access_token)
+    check_subscription_endpoints(access_token)
     
     print("\n" + "="*80)
     print("  TEST SUMMARY")

@@ -39,7 +39,7 @@ Complete guide for testing PostgreSQL and Redis connections in the Soccer Predic
 # Or use Python script
 cd backend
 source venv/bin/activate
-python scripts/test_connections.py
+python scripts/check_connections.py
 ```
 
 ---
@@ -171,13 +171,13 @@ curl http://localhost:8000/api/v1/health/redis
 
 ### 2. Python Script (Comprehensive Testing)
 
-**Location**: `backend/scripts/test_connections.py`
+**Location**: `backend/scripts/check_connections.py`
 
 **Usage**:
 ```bash
 cd backend
 source venv/bin/activate
-python scripts/test_connections.py
+python scripts/check_connections.py
 ```
 
 **Features**:

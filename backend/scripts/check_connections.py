@@ -48,7 +48,7 @@ def print_info(message: str):
     print(f"ℹ️  {message}")
 
 
-def test_postgresql_connection():
+def check_postgresql_connection():
     """Test PostgreSQL database connection"""
     print_header("Testing PostgreSQL Connection")
     
@@ -105,7 +105,7 @@ def test_postgresql_connection():
         return False
 
 
-def test_redis_connection():
+def check_redis_connection():
     """Test Redis connection"""
     print_header("Testing Redis Connection")
     
@@ -146,7 +146,7 @@ def test_redis_connection():
         return False
 
 
-def test_redis_databases():
+def check_redis_databases():
     """Test all Redis database allocations"""
     print_header("Testing Redis Database Allocations")
     
@@ -185,7 +185,7 @@ def test_redis_databases():
     return all_passed
 
 
-def test_connection_pooling():
+def check_connection_pooling():
     """Test connection pooling"""
     print_header("Testing Connection Pooling")
     
@@ -232,7 +232,7 @@ def test_connection_pooling():
         return False
 
 
-def test_error_handling():
+def check_error_handling():
     """Test error handling for connection failures"""
     print_header("Testing Error Handling")
     
@@ -270,11 +270,11 @@ def main():
     print_info(f"Redis URL: {settings.REDIS_URL}")
     
     results = {
-        "PostgreSQL Connection": test_postgresql_connection(),
-        "Redis Connection": test_redis_connection(),
-        "Redis Databases": test_redis_databases(),
-        "Connection Pooling": test_connection_pooling(),
-        "Error Handling": test_error_handling(),
+        "PostgreSQL Connection": check_postgresql_connection(),
+        "Redis Connection": check_redis_connection(),
+        "Redis Databases": check_redis_databases(),
+        "Connection Pooling": check_connection_pooling(),
+        "Error Handling": check_error_handling(),
     }
     
     # Print summary

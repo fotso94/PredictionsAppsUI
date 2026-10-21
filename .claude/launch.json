@@ -31,13 +31,10 @@
     },
     {
       "name": "backend-isolated",
-      "runtimeExecutable": "./venv311/bin/uvicorn",
+      "runtimeExecutable": "sh",
       "runtimeArgs": [
-        "app.main:app",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "8001"
+        "-c",
+        "./venv311/bin/python -m app.core.target_guard --role isolated-backend && exec ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001"
       ],
       "cwd": "backend",
       "port": 8001,
@@ -62,7 +59,7 @@
         "REDIS_DB_RATE_LIMIT": "15",
         "BACKEND_CORS_ORIGINS": "[\"http://localhost:3101\",\"http://127.0.0.1:3101\"]"
       },
-      "_note": "The isolated backend for the write-producing browser tests (Playwright project live-isolated): the e2e clone of the live database, scheduler off, email off (EMAIL_ENABLED defaults to true, and a QA registration or password reset here must never send a real message), every provider door closed, its own Redis databases - REDIS_DB included, or the default client stays on .env's database 0, the live sessions database. scripts/local-servers.sh starts the same thing detached from the app, with the same environment, after running the isolation preflight (python -m app.core.target_guard --role isolated-backend) over it."
+      "_note": "The isolated backend for the write-producing browser tests (Playwright project live-isolated): the e2e clone of the live database, scheduler off, email off (EMAIL_ENABLED defaults to true, and a QA registration or password reset here must never send a real message), every provider door closed, its own Redis databases - REDIS_DB included, or the default client stays on .env's database 0, the live sessions database. It runs the isolation preflight (python -m app.core.target_guard --role isolated-backend, exit 78 on a refusal) over that environment before uvicorn starts, as scripts/local-servers.sh does when it starts the same thing detached from the app: without it, a DATABASE_URL from backend/.env or the environment that redirects the database (an unencoded # or ? in its password, a ?dbname= parameter) would start this backend on the live database."
     },
     {
       "name": "frontend-isolated",

@@ -228,8 +228,11 @@ export function stageA(env: Record<string, string | undefined>, policy: BrowserP
     if (value === undefined) return fallbackUrl === null ? null : readOrigin(key, fallbackUrl, refusals);
     return readOrigin(key, value, refusals);
   };
-  // The main pair's URLs as the projects resolve them (playwright.config.ts, qa-account.ts).
-  const mainBase = read('E2E_BASE_URL', fallback(policy.live.frontendPorts, 'localhost'));
+  // The main pair's URLs as the projects resolve them (playwright.config.ts, qa-account.ts). The
+  // frontend's default is the live one only for the live project; anything else - the mocked
+  // projects - defaults to the isolated frontend, as playwright.config.ts does.
+  const mainBase = read('E2E_BASE_URL', projects.includes('live') ? fallback(policy.live.frontendPorts, 'localhost')
+    : fallback(policy.isolated.frontendPorts, 'localhost'));
   const mainApi = read('E2E_API_URL', fallback(policy.live.backendPorts, '127.0.0.1'));
   const isolatedApiGiven = nonBlank(env.E2E_ISOLATED_API_URL) ? read('E2E_ISOLATED_API_URL', null) : null;
 
@@ -239,6 +242,13 @@ export function stageA(env: Record<string, string | undefined>, policy: BrowserP
     if (backendPorts.includes(mainBase.port) || apiPorts.includes(mainBase.port)) {
       refusals.push({ code: 'conflict:frontend-is-backend', message: `E2E_BASE_URL (${mainBase.url}) is a backend's port, `
         + 'not a frontend: the mocked projects would load their pages from a backend' });
+    } else if (policy.live.frontendPorts.includes(mainBase.port)) {
+      // The live frontend serves the main checkout's code, whose API is the live backend; a mocked
+      // spec would load every page and module from it, with only its page stubs in front of :8000.
+      refusals.push({ code: 'live-target', message: `the mocked projects' frontend (${mainBase.url}) is the live frontend's `
+        + `port; mocked specs load their pages from the isolated frontend (${fallback(policy.isolated.frontendPorts, 'localhost')}, `
+        + 'the default) or another frontend that is not live, never from the main pair'
+        + (projects.includes('live') ? ' - and they are not defined beside the live project, which shares that URL' : '') });
     }
     plan.push(...mocked.map((project) => ({ project, frontend: mainBase.url, api: null })));
   }

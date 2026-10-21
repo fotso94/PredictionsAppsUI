@@ -19,7 +19,7 @@ class MockUser:
         self.user_type = user_type
 
 
-def test_permission_system():
+def check_permission_system():
     """Test the permission system"""
     print("=" * 60)
     print("PERMISSION SYSTEM TEST")
@@ -87,5 +87,5 @@ def test_permission_system():
 
 
 if __name__ == "__main__":
-    test_permission_system()
+    check_permission_system()
 

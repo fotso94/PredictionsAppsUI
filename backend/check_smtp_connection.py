@@ -7,7 +7,7 @@ import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-async def test_smtp_connection():
+async def check_smtp_connection():
     """Test SMTP connection with Mailtrap Live credentials"""
     
     # Credentials come from backend/.env (see .env.example); nothing is hard-coded here.
@@ -65,6 +65,6 @@ async def test_smtp_connection():
         return False
 
 if __name__ == "__main__":
-    result = asyncio.run(test_smtp_connection())
+    result = asyncio.run(check_smtp_connection())
     exit(0 if result else 1)
 

@@ -164,7 +164,7 @@ backend/
 ├── scripts/
 │   ├── repair_forecasts.py     # re-derive stored forecasts from their saved raw payload
 │   ├── purge_sample_data.py    # drop sample fixtures before switching to a real provider
-│   ├── grant_admin.py, test_connections.py, start.sh, test.sh, test_api.sh
+│   ├── grant_admin.py, check_connections.py, start.sh, test.sh, test_api.sh
 ├── requirements.txt            # the dependency list actually used by the venv
 ├── pyproject.toml              # project metadata; also sets the default pytest addopts
 ├── Dockerfile
@@ -270,9 +270,15 @@ What the preflight requires, and refuses:
   lease databases that overlap the application's.
 
 It runs first from `backend/conftest.py` (pytest loads it before any other conftest or test
-module), again after collection, and from `tests/__init__.py` for a run that skips the rootdir
-conftest. `scripts/test_evidence.py` runs the command-line check with the suite's own environment
-before it probes the services.
+module), again after collection, as the first statement of `tests/conftest.py` (for a run that cuts
+the rootdir conftest off with `--confcutdir` or another `--rootdir`), and from `app/core/config.py`
+under pytest the moment the settings are built - the layer that does not depend on which conftest
+files pytest loaded, so `--noconftest`, `--import-mode=importlib` with another rootdir (where
+`tests/__init__.py`, which runs it too, is replaced by an empty placeholder and never executes) and a
+test file outside `tests/` are refused as well. No file outside `tests/` is named or written like a
+test module: the manual scripts are `check_*.py` (`scripts/check_connections.py`,
+`check_public_api.py`, ...) and are run with `python`, not pytest. `scripts/test_evidence.py` runs
+the command-line check with the suite's own environment before it probes the services.
 
 `venv` (Apple's Command Line Tools Python 3.9) passes the same suite where macOS lets it read the
 repository folder; see docs/known-limitations.md, "Running it locally".

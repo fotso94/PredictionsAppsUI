@@ -57,7 +57,22 @@ test('the isolated pair, named explicitly, passes Stage A', () => {
 });
 
 test('the live project passes on its own pair without any network', () => {
-  expect(codes({ E2E_STACK: 'live' }, [...MOCKED, 'live'])).toEqual([]);
+  expect(codes({ E2E_STACK: 'live' }, ['live'])).toEqual([]);
+});
+
+// ------------------------------------------------------------------------------------- the live frontend
+test('a mocked run never loads its pages from the live frontend: the default is the isolated one', () => {
+  // :3100 is the policy's live frontend (it serves the main checkout's code, whose API is :8000);
+  // only the page stubs stood between a mocked spec and the live backend there.
+  const plan = stageA({}, policy, MOCKED).plan;
+  expect(plan.map((p) => p.frontend)).toEqual(MOCKED.map(() => 'http://localhost:3101'));
+  for (const base of ['http://localhost:3100', 'http://127.0.0.1:3100', 'http://[::1]:3100', 'http://0.0.0.0:3100']) {
+    expect(codes({ E2E_BASE_URL: base }, MOCKED), base).toContain('live-target');
+  }
+});
+
+test('mocked projects defined beside the live project are refused: they would share its frontend', () => {
+  expect(codes({ E2E_STACK: 'live' }, [...MOCKED, 'live'])).toContain('live-target');
 });
 
 // ------------------------------------------------------------------------------------- missing

@@ -1413,3 +1413,36 @@ def test_each_playwright_project_names_its_stack():
     for project in ("mocked-desktop", "mocked-mobile", "mocked-mobile-360"):
         assert te.playwright_env(project, raw, "http://localhost:3100", "http://127.0.0.1:8000")["E2E_STACK"] == "mocked"
         assert te.stack_for(project) == "mocked"
+
+
+def test_a_mocked_project_never_loads_its_pages_from_the_live_frontend():
+    """playwright.config.ts's preflight refuses the live frontend (:3100) for the mocked projects
+    (2026-10-21 review: it serves the main checkout's code, whose API is the live backend, and only
+    the page stubs stood in front of it). So the runner hands them the isolated frontend, and only
+    the live project the main pair's frontend."""
+    raw = Path("/r")
+    for project in ("mocked-desktop", "mocked-mobile", "mocked-mobile-360"):
+        env = te.playwright_env(project, raw, "http://localhost:3100", "http://127.0.0.1:8000",
+                                "http://localhost:3101", "http://127.0.0.1:8001")
+        assert env["E2E_BASE_URL"] == "http://localhost:3101", project
+        bare = te.playwright_env(project, raw, "http://localhost:3100", "http://127.0.0.1:8000")
+        assert bare["E2E_BASE_URL"] == te.DEFAULT_ISOLATED_BASE_URL == "http://localhost:3101"
+    assert te.playwright_env("live", raw, "http://localhost:3100", "http://127.0.0.1:8000")["E2E_BASE_URL"] \
+        == "http://localhost:3100"
+    assert te.MAIN_PAIR_PROJECTS == ("live",)
+
+
+def test_a_mocked_run_needs_the_isolated_frontend_and_never_looks_for_the_live_one(monkeypatch):
+    seen = []
+
+    def listener(port):
+        seen.append(port)
+        return {"listening": False}
+
+    monkeypatch.setattr(te, "repo_state", lambda: {"head": "0" * 40, "dirty": False, "dirty_paths": []})
+    monkeypatch.setattr(te, "origin_main", lambda: {})
+    monkeypatch.setattr(te, "find_foreign_runners", lambda: [])
+    monkeypatch.setattr(te, "listener", listener)
+    _, refusals, _ = te.preflight(options(suites="mocked-desktop,mocked-mobile"))
+    assert "nothing is listening for the frontend-isolated at http://localhost:3101" in refusals, refusals
+    assert not any("for the frontend at" in r for r in refusals), refusals

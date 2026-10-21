@@ -10,12 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 import logging
-from urllib.parse import urlsplit
+from typing import Optional
 
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.redis import LOOPBACK_HOSTS, redis_targets_in_use
 from app.core.source_identity import source_identity
+from app.core.target_guard import driver_database
 from app.api.v1.api import api_router
 from app.db.init_db import init_db
 from app.middleware.security_headers import SecurityHeadersMiddleware
@@ -113,9 +114,17 @@ async def root():
     }
 
 
-def _database_name() -> str:
-    """The configured database's NAME alone. The URL carries the password and never leaves here."""
-    return urlsplit(settings.DATABASE_URL or "").path.lstrip("/") or settings.POSTGRES_DB
+def _database_name() -> Optional[str]:
+    """The NAME of the database the driver really connects to, read from the URL the way
+    SQLAlchemy and psycopg2 read it (target_guard.driver_database); None when the URL cannot be read
+    or carries a parameter that overrides its own host, port or database. The URL carries the
+    password and never leaves here.
+
+    It used to be urlsplit's path with POSTGRES_DB as the fallback, which an unencoded '#' or '?'
+    in the password emptied (the fallback then named a database the driver did not use) and which
+    ignored ?dbname=. The browser preflight trusts this answer, and refuses a null one.
+    """
+    return driver_database(settings.DATABASE_URL or "")
 
 
 def _redis_in_use() -> dict:

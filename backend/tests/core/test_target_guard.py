@@ -30,6 +30,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -711,3 +712,134 @@ def test_an_approved_run_really_reaches_the_throwaway_services(tmp_path):
         if label.startswith("redis_"):
             assert outcome["ok"] and outcome["port"] == cache.port, canary
     assert "target guard: backend-tests approved" in output
+
+
+# ================================================================================ the bypasses of 2026-10-21
+# Three reviewers ran pytest in ways that skip every file the guard used to live in: the rootdir
+# conftest and tests/__init__.py. Each case below runs behind the same tripwires as the order tests
+# above, with an environment the guard refuses whose every target is a port nothing listens on, and
+# demands exit 78 with no connection attempt and no test body reached.
+APP_CANARY = "tests/core/guard_canary_app.py"
+
+
+def refused_env(dead: int):
+    """The approved subprocess environment, pointed at the live database's NAME and at a Redis
+    server, both on a port nothing listens on: refused by the guard, and harmless without it."""
+    return apply(approved_subprocess_env(dead), {
+        "POSTGRES_DB": "soccer_predictions", "POSTGRES_PORT": str(dead), "REDIS_PORT": str(dead),
+        "TEST_DATABASE_URL": f"postgresql://postgres@127.0.0.1:{dead}/soccer_predictions"})
+
+
+def assert_refused_before_anything(code, output, entries, layer):
+    assert [e for e in entries if e["kind"] != "import"] == [], f"attempted before the refusal: {entries}\n{output[-3000:]}"
+    assert code == EXIT_REFUSED, output[-3000:]
+    assert "CANARY" not in output, output[-3000:]
+    assert "REFUSED" in output and layer in output, output[-3000:]
+    assert SUBPROCESS_PASSWORD not in output
+
+
+def _python_files_outside_tests():
+    for root, dirs, files in os.walk(BACKEND):
+        here = Path(root)
+        dirs[:] = [d for d in dirs if not (d.startswith(("venv", ".venv", ".")) or d in ("__pycache__", "node_modules")
+                                           or here / d == TESTS)]
+        yield from (here / name for name in files if name.endswith(".py"))
+
+
+def test_no_file_outside_the_tests_package_is_collectable():
+    """scripts/test_connections.py was collected by `pytest --noconftest scripts/test_connections.py`
+    (or --confcutdir=scripts): neither guard file runs for a module outside tests/, and its settings
+    came from backend/.env - the live database and live Redis databases 0-5, which it writes test
+    keys into. The root-level test_*.py files called the live API on :8000 or a real SMTP server.
+    They are check_*.py now, run with python as before. Two rules, because pytest collects a file
+    named on its command line whatever its name: no file outside tests/ is named like a test module
+    (pyproject's python_files, and pytest's own default when -c points elsewhere), and no module
+    outside tests/ and app/ defines a test function or class. (A module under app/ that can connect
+    reads app.core.config, whose settings judge themselves under pytest.)"""
+    named = sorted(str(path.relative_to(BACKEND)) for path in _python_files_outside_tests()
+                   if path.name.startswith("test_") or path.name.endswith("_test.py"))
+    assert named == []
+    definitions = re.compile(r"^(?:async\s+def\s+|def\s+)(test\w*)\s*\(|^class\s+(Test\w*)", re.M)
+    defined = sorted(f"{path.relative_to(BACKEND)}::{a or b}" for path in _python_files_outside_tests()
+                     if path.relative_to(BACKEND).parts[0] != "app"
+                     for a, b in definitions.findall(path.read_text(encoding="utf-8", errors="replace")))
+    assert defined == []
+
+
+@pytest.mark.parametrize("flags", [[], ["--noconftest"], ["--confcutdir=scripts"]],
+                         ids=["outside-rootdir", "noconftest", "confcutdir-scripts"])
+def test_a_test_file_outside_the_tests_package_is_refused_before_it_connects(tmp_path, flags):
+    """A collectable file outside tests/ (copied there: the canary imports only the application) is
+    judged when the application's settings are built, whatever conftest files pytest skipped."""
+    dead = free_port()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    canary = outside / "test_outside_canary.py"
+    canary.write_text((BACKEND / APP_CANARY).read_text(encoding="utf-8"), encoding="utf-8")
+    args = ["-q", "-rP", "-p", "no:cacheprovider", "-o", "addopts=", *flags, str(canary)]
+    code, output, entries = tripwired(tmp_path, refused_env(dead), args=args)
+    assert_refused_before_anything(code, output, entries, "app/core/config.py")
+
+
+@pytest.mark.parametrize("flags", [
+    ["--import-mode=importlib", "--confcutdir=tests", "--rootdir=.."],
+    ["--noconftest", "--import-mode=importlib", "-c", "/dev/null"],
+], ids=["importlib-confcutdir-rootdir", "importlib-noconftest-inifile"])
+def test_importlib_mode_with_the_rootdir_conftest_cut_off_is_refused(tmp_path, flags):
+    """Under --import-mode=importlib with another rootdir (or -c /dev/null) pytest names the modules
+    from that rootdir (backend.tests.*, Users.*), puts an empty placeholder in sys.modules for the
+    parent packages, and hands the placeholder back for tests/__init__.py, which therefore never
+    runs; --confcutdir=tests or --noconftest cuts off backend/conftest.py as well."""
+    dead = free_port()
+    code, output, entries = tripwired(tmp_path, refused_env(dead),
+                                      args=["-q", "-rP", "-p", "no:cacheprovider", "-o", "addopts=", *flags, APP_CANARY])
+    assert_refused_before_anything(code, output, entries,
+                                   "tests/conftest.py" if "--confcutdir=tests" in flags else "app/core/config.py")
+
+
+#: The connections script under whatever name it has: scripts/test_connections.py until 2026-10-21.
+CONNECTIONS_SCRIPT = next((p for p in ("scripts/check_connections.py", "scripts/test_connections.py")
+                           if (BACKEND / p).exists()), "scripts/check_connections.py")
+
+
+@pytest.mark.parametrize("args, layer", [
+    (["--import-mode=importlib", "--confcutdir=tests", "--rootdir=..", "tests/test_cache_services.py",
+      "tests/test_health.py", "tests/test_auth.py"], "tests/conftest.py"),
+    (["--noconftest", "--import-mode=importlib", "-c", "/dev/null", "tests/test_cache_services.py"], "app/core/config.py"),
+    (["--noconftest", CONNECTIONS_SCRIPT], "app/core/config.py"),
+    (["--confcutdir=scripts", CONNECTIONS_SCRIPT], "app/core/config.py"),
+], ids=["importlib-confcutdir-rootdir", "importlib-noconftest-inifile", "noconftest-script", "confcutdir-script"])
+def test_the_reviewers_own_commands_are_refused_at_collection(tmp_path, args, layer):
+    """The commands the reviewers ran (collect-only, so even a run with no guard executes no test
+    body), with an environment the guard refuses: each collected its modules and exited 0 with no
+    refusal. Each must now end at collection with exit 78 - not collect, and not stop on an
+    ImportError either (the settings first built inside a half-imported app.core.redis, as
+    tests/test_cache_services.py imports them, once made the preflight fail to import)."""
+    dead = free_port()
+    code, output, entries = tripwired(tmp_path, refused_env(dead),
+                                      args=["-q", "--co", "-p", "no:cacheprovider", "-o", "addopts=", *args])
+    assert_refused_before_anything(code, output, entries, layer)
+    assert "ImportError" not in output and "tests collected" not in output
+
+
+def test_the_isolated_backend_launch_entry_runs_the_guard_before_uvicorn(tmp_path):
+    """.claude/launch.json's backend-isolated entry started uvicorn directly, so a DATABASE_URL in
+    backend/.env (or the environment) that redirects the database - an unencoded '#' or '?' in its
+    password, a ?dbname= parameter - put the isolated backend on the live database with nothing to
+    refuse it. scripts/local-servers.sh already ran the guard first; the entry now does the same."""
+    launch = json.loads((BACKEND.parent / ".claude" / "launch.json").read_text(encoding="utf-8"))
+    entry = next(c for c in launch["configurations"] if c["name"] == "backend-isolated")
+    assert entry["runtimeExecutable"] == "sh" and entry["runtimeArgs"][0] == "-c", entry
+    guard_command, joiner, server = entry["runtimeArgs"][1].partition(" && exec ")
+    assert joiner and guard_command == "./venv311/bin/python -m app.core.target_guard --role isolated-backend"
+    assert server.split()[:2] == ["./venv311/bin/uvicorn", "app.main:app"] and "--port 8001" in server
+    dead = free_port()
+    for url in (f"postgresql://postgres:p#w@127.0.0.1:{dead}/soccer_predictions",
+                f"postgresql://postgres:pw@127.0.0.1:{dead}/soccer_predictions_e2e?dbname=soccer_predictions"):
+        (tmp_path / "tripwire.jsonl").unlink(missing_ok=True)
+        code, output, entries = tripwired(tmp_path, {**entry["env"], "DATABASE_URL": url}, mode="cli",
+                                          args=guard_command.split()[3:] + ["--json"])
+        assert entries == [] and code == EXIT_REFUSED, output[-2000:]
+        verdict = json.loads(output[output.index("{"):output.rindex("}") + 1])
+        assert "live-database" in verdict["codes"], verdict
+        assert "p#w" not in output and ":pw@" not in output

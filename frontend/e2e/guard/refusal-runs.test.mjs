@@ -46,7 +46,7 @@ async function standIn() {
   return { port, url: `http://127.0.0.1:${port}`, hits, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-async function playwright({ env = {}, args = [], allow = [] }) {
+async function playwright({ env = {}, args = [], allow = [], config = 'playwright.config.ts', cwd = FRONTEND, listOnly = false }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'isolation-guard-run-'));
   const log = path.join(dir, 'net.log');
   fs.writeFileSync(log, '');
@@ -57,9 +57,11 @@ async function playwright({ env = {}, args = [], allow = [] }) {
     GUARD_NET_TRIPWIRE_ALLOW: allow.join(','),
   });
   for (const [key, value] of Object.entries(env)) if (value !== undefined) childEnv[key] = value;
-  const argv = ['test', '--config=playwright.config.ts', `--output=${path.join(dir, 'artifacts')}`,
-    '--reporter=line', '--workers=1', ...args];
-  const child = spawn(PLAYWRIGHT, argv, { cwd: FRONTEND, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+  // config null: no --config at all, so Playwright looks for one in cwd and, finding none, builds its
+  // default configuration. listOnly: --list, which takes no --output, reporter or workers.
+  const argv = ['test', ...(config ? [`--config=${config}`] : []),
+    ...(!listOnly ? [`--output=${path.join(dir, 'artifacts')}`, '--reporter=line', '--workers=1'] : []), ...args];
+  const child = spawn(PLAYWRIGHT, argv, { cwd, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
   child.stdout.on('data', (chunk) => { output += chunk; });
   child.stderr.on('data', (chunk) => { output += chunk; });
@@ -203,3 +205,111 @@ test('the approved isolated pair passes the preflight: one GET to the isolated b
   assert.match(result.connections[0], /^allowed 127\.0\.0\.1:8001 /, shown);
   assert.match(result.output, /No tests found/, shown);   // it selected none on purpose
 });
+
+
+// ----------------------------------------------------------------------------------- the bypasses of 2026-10-21
+/** A worker refused the run: the preflight token was missing, so the test never reached its body. */
+function refusedInTheWorker(result, standIns = []) {
+  const shown = `exit ${result.status}\n${result.output.slice(-4000)}\nnet: ${result.connections.join('; ')}`;
+  assert.ok(result.installed >= 1, `the tripwire was not loaded\n${shown}`);
+  assert.deepEqual(result.connections, [], `Node connected or tried to\n${shown}`);
+  for (const s of standIns) assert.deepEqual(s.hits, [], `a stand-in on :${s.port} was contacted\n${shown}`);
+  assert.notEqual(result.status, 0, shown);
+  assert.doesNotMatch(result.output, /\b[1-9]\d* passed\b/, shown);
+  assert.match(result.output, /the isolation preflight did not pass in this run/, shown);
+}
+
+test('a mocked run never uses the live frontend: the default is the isolated one, and :3100 is refused', async () => {
+  const onDefaults = await playwright({ args: ['--project=mocked-desktop', '--grep', NO_SUCH_TEST] });
+  const shown = `exit ${onDefaults.status}\n${onDefaults.output.slice(-3000)}`;
+  assert.match(onDefaults.output, /isolation preflight: PASS[\s\S]*mocked-desktop[^\n]*: frontend http:\/\/localhost:3101;/, shown);
+  assert.deepEqual(onDefaults.connections, [], shown);
+  const named = await playwright({ env: { E2E_BASE_URL: 'http://localhost:3100' }, args: ['--project=mocked-desktop', '--grep', NO_SUCH_TEST] });
+  refusedBeforeAnything(named, /\[live-target\][^\n]*:3100[\s\S]*nothing was sent to any server/);
+});
+
+test('live specs run under another configuration (no global setup) refuse before their first request', async () => {
+  // `-c e2e/live` names a directory with no playwright.config.*: Playwright builds its default
+  // configuration, with no globalSetup, so no preflight and no E2E_STACK gate.
+  const [api, isolatedApi] = [await standIn(), await standIn()];
+  try {
+    const result = await playwright({ config: 'e2e/live', env: { E2E_API_URL: api.url, E2E_ISOLATED_API_URL: isolatedApi.url },
+      args: ['--grep', 'three distinct forecast timestamps'] });
+    refusedInTheWorker(result, [api, isolatedApi]);
+  } finally { await api.close(); await isolatedApi.close(); }
+});
+
+test('live and live-isolated specs named from the repository root (no configuration at all) refuse too', async () => {
+  const [api, isolatedApi] = [await standIn(), await standIn()];
+  try {
+    const result = await playwright({ config: null, cwd: path.dirname(FRONTEND),
+      env: { E2E_API_URL: api.url, E2E_ISOLATED_API_URL: isolatedApi.url },
+      args: ['frontend/e2e/live', 'frontend/e2e/live-isolated', '--grep', 'three distinct forecast timestamps|a DELETE sent twice'] });
+    refusedInTheWorker(result, [api, isolatedApi]);
+  } finally { await api.close(); await isolatedApi.close(); }
+});
+
+test('workers refuse when no preflight passed in their runner, as in watch mode, which ignores a failed global setup', async () => {
+  // PWTEST_WATCH's loop (runWatchModeLoop in playwright/lib/runner) awaits runGlobalSetup and drops its
+  // status, then runs tests on every change; UI mode lets a person run them too. A configuration
+  // that is the real one without its globalSetup stands for that here, with no watcher and no prompt.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'isolation-guard-config-'));
+  const config = path.join(dir, 'no-preflight.config.ts');
+  fs.writeFileSync(path.join(dir, 'package.json'), '{ "type": "module" }\n');   // as frontend/package.json
+  fs.writeFileSync(config, `import real from ${JSON.stringify(path.join(FRONTEND, 'playwright.config.ts'))};\n`
+    + `export default { ...real, testDir: ${JSON.stringify(path.join(FRONTEND, 'e2e'))}, globalSetup: undefined };\n`);
+  try {
+    const result = await playwright({ config, env: { E2E_BASE_URL: 'http://localhost:3101' },
+      args: ['--project=mocked-desktop', 'e2e/mocked/provider-states.spec.ts', '--grep', 'the status banner stays away'] });
+    refusedInTheWorker(result);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+/** A copy of the browser tests whose checkout directory is called `name`, for `--list` only. */
+function checkoutNamed(name) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'isolation-guard-checkout-'));
+  const frontend = path.join(root, name, 'frontend');
+  const policyDir = path.join(root, name, 'backend', 'app', 'core');
+  fs.mkdirSync(policyDir, { recursive: true });
+  fs.copyFileSync(path.join(FRONTEND, '..', 'backend', 'app', 'core', 'isolation_targets.json'), path.join(policyDir, 'isolation_targets.json'));
+  fs.mkdirSync(frontend, { recursive: true });
+  for (const file of ['playwright.config.ts', 'package.json']) fs.copyFileSync(path.join(FRONTEND, file), path.join(frontend, file));
+  fs.cpSync(path.join(FRONTEND, 'e2e'), path.join(frontend, 'e2e'), {
+    recursive: true, filter: (from) => !/[\\/]e2e[\\/]\.[^\\/]+/.test(from) });
+  fs.symlinkSync(path.join(FRONTEND, 'node_modules'), path.join(frontend, 'node_modules'));
+  fs.symlinkSync(path.join(FRONTEND, 'src'), path.join(frontend, 'src'));
+  return { root, frontend };
+}
+
+/** project -> the e2e directories its listed tests come from (a list line: `[project] › path:line:col › title`). */
+function directoriesPerProject(output) {
+  const seen = {};
+  for (const line of output.split('\n')) {
+    const match = /^\s*\[([^\]]+)\] › (\S+?\.spec\.ts):\d+:\d+ › /.exec(line);
+    if (!match) continue;
+    const parts = match[2].split(/[\\/]/);
+    const at = parts.lastIndexOf('e2e');
+    (seen[match[1]] ||= new Set()).add(parts[at + 1] ?? '?');
+  }
+  return Object.fromEntries(Object.entries(seen).map(([k, v]) => [k, [...v].sort()]));
+}
+
+for (const [name, stack, expected] of [
+  ['PredictionsAppsUI-mocked', undefined, { 'mocked-desktop': ['mocked'], 'mocked-mobile': ['mocked'], 'mocked-mobile-360': ['mocked'] }],
+  ['PredictionsAppsUI-live', 'live', { live: ['live'] }],
+  ['PredictionsAppsUI-live-isolated', 'live-isolated', { 'mocked-desktop': ['mocked'], 'mocked-mobile': ['mocked'], 'mocked-mobile-360': ['mocked'], 'live-isolated': ['live-isolated'] }],
+]) {
+  test(`in a checkout called ${name}, each project selects only its own directory`, async () => {
+    // testMatch was a regular expression tested against the ABSOLUTE path, so /mocked\/.*\.spec\.ts/
+    // matched every spec under ".../PredictionsAppsUI-mocked/", live and live-isolated included.
+    const { root, frontend } = checkoutNamed(name);
+    try {
+      const result = await playwright({ config: 'playwright.config.ts', cwd: frontend, listOnly: true,
+        env: stack ? { E2E_STACK: stack } : {}, args: ['--list'] });
+      const shown = `exit ${result.status}\n${result.output.slice(-3000)}`;
+      assert.equal(result.status, 0, shown);
+      assert.deepEqual(result.connections, [], shown);
+      assert.deepEqual(directoriesPerProject(result.output), expected, shown);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
+}

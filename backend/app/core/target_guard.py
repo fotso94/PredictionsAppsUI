@@ -11,7 +11,7 @@ with a committed allowlist, and refuses anything else.
 
 WHAT IT JUDGES. Everything a run will connect to, resolved by the same code the application and
 the tests use - the real `app.core.config.settings` object (environment, then `.env`, then class
-defaults, exactly as pydantic-settings resolves them), `app.core.redis.redis_url_for` (the URL
+defaults, exactly as pydantic-settings resolves them), `app.core.redis_urls.redis_url_for` (the URL
 `get_redis_client` connects with for each database), redis-py's `parse_url`, and SQLAlchemy's own
 `create_connect_args` for PostgreSQL (so a query string that redirects host, port or database is
 seen for what it does):
@@ -34,11 +34,23 @@ WHERE IT RUNS (role `backend-tests`; every layer calls `enforce`, which is idemp
    with exit 78, before backend/tests/conftest.py imports the application.
 2. The same file re-checks at session start and after collection, when every test module has
    read its URLs from the environment, and refuses if anything governed changed since.
-3. backend/tests/__init__.py, for a run that bypasses the rootdir conftest (--noconftest,
-   --confcutdir, another rootdir).
-4. `python -m app.core.target_guard --role backend-tests [--json]` (exit 0 or 78), which
+3. backend/tests/conftest.py, whose first statement is the same check: pytest executes a conftest
+   it loads whatever the import mode, rootdir or confcutdir, so a run that cuts off the rootdir
+   conftest (--confcutdir=tests, another --rootdir) still meets it.
+4. app/core/config.py, under pytest: the settings judge themselves the moment they are built
+   (enforce_on_settings), so a run that loads no conftest at all (--noconftest), or a test file
+   outside tests/, is refused before any module can connect with them - every module that can
+   connect reads these settings first. This is the layer that does not depend on where a file is.
+5. backend/tests/__init__.py, when the package really is imported. It is not relied on: under
+   --import-mode=importlib with another rootdir, pytest hands back an empty placeholder module
+   for the package and its __init__ never runs (2026-10-21 review), which layers 3 and 4 cover.
+6. `python -m app.core.target_guard --role backend-tests [--json]` (exit 0 or 78), which
    scripts/test_evidence.py runs with the exact environment it will give the suite, and
-   scripts/local-servers.sh runs with role `isolated-backend` before starting the isolated backend.
+   scripts/local-servers.sh and .claude/launch.json's backend-isolated entry run with role
+   `isolated-backend` before starting the isolated backend.
+
+GET /health names the database with driver_database() below, so the browser preflight hears where
+the driver really connects - or nothing, when the URL redirects or cannot be read.
 """
 
 from __future__ import annotations
@@ -505,10 +517,26 @@ def _span(databases: Sequence[int]) -> str:
     return ",".join(str(v) for v in values)
 
 
+#: How many evaluations are running in this thread's call stack. The first evaluation in a process
+#: imports app.core.config, whose own check (enforce_on_settings) would otherwise evaluate again
+#: from inside it: the outer evaluation is already judging those very settings.
+_EVALUATING = 0
+
+
 def evaluate(role: str = "backend-tests", environ: Optional[Mapping[str, str]] = None,
              settings_factory: Optional[Callable[[], Any]] = None,
              policy: Optional[Mapping[str, Any]] = None) -> Verdict:
     """Every reason to refuse `role`'s targets, or none. Pure: no connection, lookup or write."""
+    global _EVALUATING
+    _EVALUATING += 1
+    try:
+        return _evaluate(role, environ, settings_factory, policy)
+    finally:
+        _EVALUATING -= 1
+
+
+def _evaluate(role: str, environ: Optional[Mapping[str, str]], settings_factory: Optional[Callable[[], Any]],
+              policy: Optional[Mapping[str, Any]]) -> Verdict:
     environ = dict(os.environ if environ is None else environ)
     try:
         policy = load_policy() if policy is None else policy
@@ -658,7 +686,7 @@ def evaluate(role: str = "backend-tests", environ: Optional[Mapping[str, str]] =
                              "TRUNCATE ... CASCADE every table, so they need a database of their own")
 
     # ---------------------------------------------------------------- Redis: every database the application opens
-    from app.core.redis import redis_url_for
+    from app.core.redis_urls import redis_url_for
 
     redis_source = judge.source("REDIS_URL", "REDIS_HOST", "REDIS_PORT", "REDIS_DB")
     redis_url = settings.REDIS_URL
@@ -822,6 +850,28 @@ def enforce(role: str = "backend-tests", layer: str = "unspecified") -> Verdict:
     if first is None:
         _APPROVED[role] = (verdict, layer)
     return verdict
+
+
+def enforce_on_settings(layer: str = "app/core/config.py") -> Optional[Verdict]:
+    """app/core/config.py's own check, called under pytest as soon as `settings` exists: whatever
+    conftest files pytest loaded or skipped, a refused run ends here, before any module that reads
+    the settings has opened anything. Skipped when an evaluation is what imported the settings
+    module (it is judging them already). Returns the approving verdict, or None when skipped."""
+    if _EVALUATING:
+        return None
+    return enforce(role="backend-tests", layer=layer)
+
+
+def driver_database(url: str) -> Optional[str]:
+    """The name of the database psycopg2 will really connect to for `url`, read the way the
+    driver reads it (SQLAlchemy's create_connect_args); None when the URL cannot be read, names no
+    single host and database, or carries a parameter that overrides its own host, port or database.
+    GET /health publishes this: urlsplit stops at an unencoded '#' or '?' in a password and ignores
+    ?dbname=, so it named a database the driver did not use (2026-10-21 review)."""
+    target = _postgres_target("database", "settings", url or "")
+    if target.problem or target.conflict:
+        return None
+    return target.database
 
 
 # ================================================================================ command line

@@ -1,4 +1,5 @@
 import { APIRequestContext, request } from '@playwright/test';
+import { assertPreflightPassed } from './preflight-token';
 import { loadCommittedPolicy, origin } from './target-policy';
 
 /**
@@ -28,6 +29,7 @@ const POLICY = loadCommittedPolicy();
 
 /** An API context on the isolated backend, refused unless it really is isolated. */
 export async function isolatedApiContext(): Promise<APIRequestContext> {
+  assertPreflightPassed('isolated.ts isolatedApiContext');
   if (origin(ISOLATED_API) === origin(MAIN_API)) {
     throw new Error(`E2E_ISOLATED_API_URL (${ISOLATED_API}) is the main backend (${MAIN_API}); `
       + 'a write-producing test runs only against the isolated pair');
@@ -40,6 +42,11 @@ export async function isolatedApiContext(): Promise<APIRequestContext> {
       + '(scripts/local-servers.sh start isolated)');
   }
   const body = (await health.json()) as { database?: unknown };
+  if (body.database === null) {
+    await api.dispose();
+    throw new Error(`the backend at ${ISOLATED_API} cannot say which database it really connects to (its DATABASE_URL `
+      + 'cannot be read or carries a parameter that redirects it); refusing to write through it');
+  }
   if (typeof body.database !== 'string') {
     await api.dispose();
     throw new Error(`the backend at ${ISOLATED_API} does not say which database it serves; `

@@ -71,6 +71,25 @@ def test_health_names_the_database_and_never_its_url(client: TestClient):
     assert not settings.POSTGRES_PASSWORD or settings.POSTGRES_PASSWORD not in rendered
 
 
+@pytest.mark.parametrize("url", [
+    "postgresql://postgres:p#w@localhost:5432/soccer_predictions",
+    "postgresql://postgres:p?w@localhost:5432/soccer_predictions",
+    "postgresql://postgres:pw@localhost:5432/soccer_predictions_e2e?dbname=soccer_predictions",
+], ids=["hash-in-password", "question-mark-in-password", "dbname-parameter"])
+def test_health_never_names_a_database_the_driver_will_not_use(client: TestClient, monkeypatch, url):
+    """GET /health named the database with urlsplit, which reads an unencoded '#' or '?' in the
+    password as the start of a fragment or query, finds no path and falls back to POSTGRES_DB, and
+    ignores a ?dbname= parameter - while SQLAlchemy and psycopg2 connect to soccer_predictions. The
+    browser preflight trusted that answer, so an isolated backend on the live database would have
+    passed it. /health now names what the driver will use, or nothing when the URL redirects."""
+    monkeypatch.setattr(settings, "DATABASE_URL", url)
+    monkeypatch.setattr(settings, "POSTGRES_DB", "soccer_predictions_e2e")
+    data = client.get("/health").json()
+    assert data["database"] in (None, "soccer_predictions"), data["database"]
+    rendered = json.dumps(data)
+    assert "p#w" not in rendered and "p?w" not in rendered and ":pw@" not in rendered
+
+
 def test_health_publishes_every_redis_database_the_process_uses(client: TestClient):
     """The browser preflight (frontend/e2e/support/isolation-preflight.ts) refuses an isolated backend
     unless it says which Redis databases it uses - the default client's and the six roles' - on

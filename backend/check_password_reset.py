@@ -16,7 +16,7 @@ def print_section(title):
     print(f"  {title}")
     print("="*60)
 
-def test_forgot_password(email):
+def check_forgot_password(email):
     """Test the forgot password endpoint"""
     print_section("TEST 1: Request Password Reset")
     
@@ -44,7 +44,7 @@ def test_forgot_password(email):
         print(f"\n❌ ERROR: {str(e)}")
         return False
 
-def test_verify_token(token):
+def check_verify_token(token):
     """Test the verify reset token endpoint"""
     print_section("TEST 2: Verify Reset Token")
     
@@ -68,7 +68,7 @@ def test_verify_token(token):
         print(f"\n❌ ERROR: {str(e)}")
         return False
 
-def test_reset_password(token, new_password):
+def check_reset_password(token, new_password):
     """Test the reset password endpoint"""
     print_section("TEST 3: Reset Password")
     
@@ -100,7 +100,7 @@ def test_reset_password(token, new_password):
         print(f"\n❌ ERROR: {str(e)}")
         return False
 
-def test_invalid_token():
+def check_invalid_token():
     """Test with an invalid token"""
     print_section("TEST 4: Invalid Token Test")
     
@@ -140,14 +140,14 @@ def main():
         print("❌ Email is required!")
         return
     
-    success = test_forgot_password(email)
+    success = check_forgot_password(email)
     
     if not success:
         print("\n❌ Test failed. Exiting.")
         return
     
     # Test 4: Invalid token test
-    test_invalid_token()
+    check_invalid_token()
     
     # Test 2 & 3: Verify and reset (requires manual token input)
     print("\n" + "="*60)
@@ -171,13 +171,13 @@ def main():
         
         if token:
             # Test verify token
-            if test_verify_token(token):
+            if check_verify_token(token):
                 # Test reset password
                 print("\n📝 Enter new password (min 8 characters):")
                 new_password = input("   Password: ").strip()
                 
                 if len(new_password) >= 8:
-                    test_reset_password(token, new_password)
+                    check_reset_password(token, new_password)
                 else:
                     print("❌ Password must be at least 8 characters!")
     

@@ -1,5 +1,6 @@
 import { APIRequestContext, request } from '@playwright/test';
 import { ApiMatch } from './api-stub';
+import { assertPreflightPassed } from './preflight-token';
 
 /**
  * An isolated QA expert account for the live browser tests.
@@ -45,7 +46,9 @@ export const QA_EXPERT = {
  */
 export const QA_REASONING_MARKER = '[e2e-qa]';
 
+/** An API context on the main backend - refused unless this run's isolation preflight passed. */
 export async function apiContext(): Promise<APIRequestContext> {
+  assertPreflightPassed('qa-account.ts apiContext');
   return request.newContext({ baseURL: API });
 }
 

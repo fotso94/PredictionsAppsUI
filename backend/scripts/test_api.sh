@@ -121,6 +121,6 @@ echo ""
 echo "To run Python connection tests:"
 echo "  cd backend"
 echo "  source venv/bin/activate"
-echo "  python scripts/test_connections.py"
+echo "  python scripts/check_connections.py"
 echo ""
 

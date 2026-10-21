@@ -116,6 +116,17 @@ test('a backend serving the live database is refused after its one GET, and the 
   expect(result.operations).toEqual([`GET ${api.url}/health`]);
 });
 
+test('a backend that cannot vouch for its database (database: null) is refused, and the frontend is never loaded', async () => {
+  // GET /health publishes null when the DATABASE_URL redirects (a ?dbname= parameter, say) or cannot
+  // be read: the name it would otherwise give is not where the driver connects.
+  const { api, frontend, check } = await pair(json({ ...HEALTHY, database: null }));
+  const result = await check();
+  expect(codesOf(result)).toEqual(['database-unknown']);
+  expect(result.refusals[0].message).toMatch(/cannot say which database/);
+  expect(api.hits).toEqual(['GET /health']);
+  expect(frontend.hits).toEqual([]);
+});
+
 test('a database the policy does not list is refused, and a protected copy counts as live', async () => {
   const unlisted = await pair(json({ ...HEALTHY, database: 'soccer_predictions_e2e_old' }));
   expect(codesOf(await unlisted.check())).toEqual(['unapproved-database']);

@@ -1,9 +1,19 @@
 """
 Pytest Configuration
 Fixtures and test configuration
+
+The first statement is the isolation preflight (app/core/target_guard.py), as in the rootdir
+conftest: pytest executes a conftest it loads whatever the import mode, rootdir or confcutdir, so
+a run that cuts the rootdir conftest off (--confcutdir=tests, --rootdir=.. under importlib mode,
+where tests/__init__.py is replaced by an empty placeholder and never runs) is refused here,
+before the imports below build the application, its engine and its Redis clients.
 """
 
-import os
+from app.core.target_guard import enforce as _enforce_isolation
+
+_enforce_isolation(role="backend-tests", layer="tests/conftest.py")
+
+import os  # noqa: E402 - everything below runs only once the preflight has approved the run
 
 import pytest
 from fastapi.testclient import TestClient

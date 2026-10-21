@@ -30,7 +30,12 @@ restarts them on its own — `status` shows a gap, and `start` can be re-run any
 server can be addressed too: `stop backend` leaves the frontend serving stored data, which is what
 the repair window uses. Logs and pids are in
 `.local-run/` (gitignored). The `backend-isolated` and `frontend-isolated` entries in
-`.claude/launch.json` start the same processes from the app, which stops them when its session ends.
+`.claude/launch.json` start the same processes from the app, which stops them when its session ends;
+`backend-isolated` runs the isolation preflight (`python -m app.core.target_guard --role
+isolated-backend`) before uvicorn, as the script does, so a `DATABASE_URL` that redirects the
+database (an unencoded `#` or `?` in its password, a `?dbname=` parameter) cannot start it on the
+live database. `GET /health` names the database the driver really connects to, or `null` when the
+URL redirects, which the browser preflight refuses.
 
 Blank credentials make every provider "not configured": a page that asks for a refresh gets a
 clean refusal and spends nothing. Redis databases 10–15 keep the isolated backend's sessions,

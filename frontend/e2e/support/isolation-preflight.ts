@@ -14,7 +14,8 @@ import { BrowserPolicy, Refusal, origin, stageA } from './target-policy';
  * STAGE B, in this order, each step only if the one before it passed:
  *  B1. Exactly one GET to <isolated API>/health, over node:http to that address, no agent, no
  *      proxy, no redirect followed, a 5 s timeout and a 64 KB cap. It must say it serves an approved
- *      isolated database (and no live one), that EVERY Redis database it opens - the default
+ *      isolated database (and no live one) - the name the database driver reads from its URL, or
+ *      null when that URL redirects, which is refused - that EVERY Redis database it opens - the default
  *      client's and the six roles' (`redis_databases`) - is one of the isolated pair's and none of
  *      the live instance's, on that Redis server (`redis_server`: its port, and that it is this
  *      machine), and that its scheduler is off. A field it does not publish is a refusal: a backend
@@ -103,7 +104,11 @@ async function probeIsolatedBackend(apiUrl: string, policy: BrowserPolicy, opera
     + `publish \`${field}\` in GET /health, so what it uses cannot be established; ${RESTART}` });
 
   const database = body.database;
-  if (typeof database !== 'string') {
+  if (database === null) {
+    refusals.push({ code: 'database-unknown', message: `the backend at ${apiUrl} cannot say which database it really `
+      + 'connects to: GET /health publishes null when its DATABASE_URL cannot be read, or carries a parameter (?dbname=, '
+      + '?host=, ?port=) that overrides the URL\'s own; set POSTGRES_DB and no DATABASE_URL, as scripts/local-servers.sh does' });
+  } else if (typeof database !== 'string') {
     missing('database');
   } else if (policy.live.databases.includes(database)) {
     refusals.push({ code: 'live-database', message: `the backend at ${apiUrl} serves ${database}, a live database; `

@@ -75,7 +75,7 @@ Coverage: 86%
 
 ```bash
 cd backend
-python test_email_manual.py
+python check_email_manual.py
 ```
 
 This interactive script will:
@@ -288,7 +288,7 @@ pytest tests/test_email_service.py -v --cov=app.services.email_service
 
 ```bash
 cd backend
-python test_email_manual.py
+python check_email_manual.py
 ```
 
 ### Integration Testing

@@ -5,28 +5,12 @@ Redis connection and utilities
 
 import redis
 from typing import Any, List, Optional, Tuple
+# The URL helper first, from a module that does not import the settings: see app/core/redis_urls.py.
+from app.core.redis_urls import LOOPBACK_HOSTS, REDIS_ROLE_FIELDS, redis_url_for  # noqa: F401 - re-exported
 from app.core.config import settings
 
 # Redis client instance
 _redis_client: Optional[redis.Redis] = None
-
-#: The six role databases (app/core/config.py, "Redis Database Allocation").
-REDIS_ROLE_FIELDS = ("REDIS_DB_SESSIONS", "REDIS_DB_PREDICTIONS", "REDIS_DB_EXPERT_TOOLS",
-                     "REDIS_DB_ML_MODELS", "REDIS_DB_MATCH_DATA", "REDIS_DB_RATE_LIMIT")
-LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
-
-
-def redis_url_for(db: Optional[int] = None, config: Any = None) -> str:
-    """The URL get_redis_client(db) connects with. Pure: it only builds a string.
-
-    No database, or REDIS_DB itself, is the default client: REDIS_URL as it stands, whose own path
-    names the database it really serves. Any other database is REDIS_URL with its last path
-    segment replaced. The isolation preflight (app.core.target_guard) judges exactly these URLs.
-    """
-    config = settings if config is None else config
-    if db is None or db == config.REDIS_DB:
-        return config.REDIS_URL
-    return config.REDIS_URL.rsplit('/', 1)[0] + f'/{db}'
 
 
 def redis_targets_in_use(config: Any = None) -> List[Tuple[str, str, int, int]]:

@@ -3,6 +3,7 @@ Application Configuration
 Centralized settings management using Pydantic BaseSettings
 """
 
+import sys
 from typing import Any, List, Optional, Union
 from pydantic import field_validator, ValidationInfo
 from pydantic_settings import BaseSettings
@@ -424,3 +425,12 @@ class Settings(BaseSettings):
 # Create settings instance
 settings = Settings()
 
+# Under pytest, these settings judge themselves the moment they exist (app/core/target_guard.py,
+# enforce_on_settings): every module that can open a database, a Redis connection or a provider
+# request reads them first, so a test run the isolation preflight refuses ends here, with exit 78,
+# whichever conftest files pytest loaded or skipped (--noconftest, --confcutdir, importlib mode
+# with another rootdir, a test file outside tests/). Outside pytest nothing happens.
+if "_pytest" in sys.modules:
+    from app.core.target_guard import enforce_on_settings
+
+    enforce_on_settings()

@@ -13,7 +13,9 @@ or provider operation.
 It does not depend on how the shell expanded anything, on addopts (the canonical command passes
 -o addopts="") or on a plugin being installed. The same check runs again at session start and
 after collection, when every test module has read its URLs from the environment, and refuses if
-anything governed changed in between; tests/__init__.py runs it for a run that skips this file.
+anything governed changed in between. For a run that skips this file, tests/conftest.py runs it as
+its first statement and app/core/config.py runs it under pytest when the settings are built, so a
+run that loads no conftest at all, or a test file outside tests/, is refused as well.
 """
 
 from app.core.target_guard import enforce

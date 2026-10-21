@@ -5,7 +5,7 @@ This script demonstrates the email service functionality.
 Configure your email settings in .env before running.
 
 Usage:
-    python test_email_manual.py
+    python check_email_manual.py
 """
 
 import asyncio
@@ -19,7 +19,7 @@ from app.services.email_service import email_service
 from app.core.config import settings
 
 
-async def test_email_service():
+async def check_email_service():
     """Test the email service"""
     
     print("=" * 80)
@@ -103,7 +103,7 @@ async def test_email_service():
     print("=" * 80)
 
 
-async def test_custom_email():
+async def check_custom_email():
     """Test sending a custom email"""
     
     print()
@@ -211,9 +211,9 @@ async def main():
     choice = input("Enter choice (1-3): ").strip()
     
     if choice == "1":
-        await test_email_service()
+        await check_email_service()
     elif choice == "2":
-        await test_custom_email()
+        await check_custom_email()
     elif choice == "3":
         print("Exiting...")
         return
