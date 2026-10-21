@@ -659,6 +659,28 @@ def withheld_matches(db: Session, matches: Sequence[Match]) -> Dict[uuid.UUID, s
     return refusals
 
 
+def at_or_after_kickoff(instant: Optional[datetime], kickoff: Optional[datetime]) -> Optional[bool]:
+    """Did this moment fall AT or after kickoff? The one boundary every prematch judgement uses.
+
+    Publishing, editing and withdrawing are all judged against kickoff, and the exact instant
+    belongs to the actor every time: a prediction published AT kickoff is not prematch evidence, an
+    edit made AT kickoff is an edit made after it (settlement restores the version it replaced),
+    and a withdrawal AT kickoff is too late to take anything back. Settlement asks this here, and
+    so does what readers are told about the same rows (``published_after_kickoff`` and
+    ``edited_after_kickoff`` in :mod:`app.schemas.matches`), so the two cannot drift apart again -
+    they did: the readers' edit flag used ``>`` while settlement used ``>=``.
+
+    ``None`` when either time is unknown. That is not "before kickoff", and the callers below that
+    need a yes or no say which way an unknown falls.
+
+    A plain comparison of the stored naive-UTC values. Nothing is converted, so an aware datetime
+    on one side still raises TypeError rather than quietly comparing across kinds.
+    """
+    if instant is None or kickoff is None:
+        return None
+    return instant >= kickoff
+
+
 def withdrawn_before_kickoff(prediction: Prediction, kickoff: datetime) -> bool:
     """Had the expert taken this prediction back before the match started?
 
@@ -673,7 +695,7 @@ def withdrawn_before_kickoff(prediction: Prediction, kickoff: datetime) -> bool:
     loss.
     """
     for withdrawn_at in (prediction.deleted_at, prediction.unpublished_at):
-        if withdrawn_at is not None and withdrawn_at < kickoff:
+        if at_or_after_kickoff(withdrawn_at, kickoff) is False:
             return True
     return False
 
@@ -703,7 +725,9 @@ def stood_at_kickoff(prediction: Prediction, kickoff: datetime) -> bool:
     """
     if prediction.status in NEVER_PUBLISHED_STATUSES:
         return False
-    if prediction.published_at is None or prediction.published_at >= kickoff:
+    # Only a publication time known to be BEFORE kickoff qualifies: at or after it (True) is not
+    # prematch evidence, and no publication time at all (None) cannot be shown to predate it.
+    if at_or_after_kickoff(prediction.published_at, kickoff) is not False:
         return False
     return not withdrawn_before_kickoff(prediction, kickoff)
 
@@ -732,7 +756,7 @@ def not_prematch_reason(prediction: Prediction, kickoff: datetime) -> str:
     """
     if prediction.published_at is None:
         return NO_PUBLICATION_TIME_REASON
-    if prediction.published_at >= kickoff:
+    if at_or_after_kickoff(prediction.published_at, kickoff):
         return NOT_PREMATCH_EVIDENCE_REASON
     return NOT_STANDING_REASON
 
@@ -750,7 +774,7 @@ def replaced_before_kickoff(replacement: Optional[Prediction], kickoff: datetime
     """
     if replacement is None:
         return False
-    return replacement.published_at is not None and replacement.published_at < kickoff
+    return at_or_after_kickoff(replacement.published_at, kickoff) is False
 
 
 def candidate_predictions(db: Session, matches: Sequence[Match]) -> List[Prediction]:
@@ -841,12 +865,12 @@ def prematch_expert_view(prediction: Prediction, revisions: Sequence[PredictionA
     """
     if prediction.published_at is None:
         return None, NO_PUBLICATION_TIME_REASON, ""
-    if prediction.published_at >= kickoff:
+    if at_or_after_kickoff(prediction.published_at, kickoff):
         # The settlement report lists the prediction's id beside the reason, so the short form is
         # enough here; the performance read, which reports per source, spells out the consequence.
         return None, "published at or after kickoff", ""
 
-    later = [r for r in revisions if r.created_at is not None and r.created_at >= kickoff]
+    later = [r for r in revisions if at_or_after_kickoff(r.created_at, kickoff)]
     if not later:
         return markets_from_prediction_row(prediction), None, "as published"
     values = later[0].old_values or {}
@@ -1203,6 +1227,10 @@ class _SourceAccumulator:
         return data
 
 
+#: The public label of an expert with no username to show, or none on record. Never their email.
+UNKNOWN_EXPERT_LABEL = "unknown expert"
+
+
 def measure_sources(db: Session, start: datetime, end: datetime) -> List[Dict[str, Any]]:
     """Per-source measured performance over a window of kickoffs. Every figure is counted, never estimated."""
     matches = eligible_matches(db, start, end)
@@ -1226,11 +1254,14 @@ def measure_sources(db: Session, start: datetime, end: datetime) -> List[Dict[st
         results = {r.prediction_id: r for r in
                    db.query(PredictionResult).filter(PredictionResult.prediction_id.in_(prediction_ids)).all()}
         user_ids = {p.created_by for p in predictions}
-        names = {u.id: (u.username or u.email) for u in
-                 db.query(User).filter(User.id.in_(list(user_ids))).all()}
+        # This read is public (GET /performance/sources needs no sign-in), so an expert is named by
+        # username or not at all. It fell back to the email address when the username was blank,
+        # which the column allows; only the two columns used are selected, so it cannot again.
+        names = {row.id: ((row.username or "").strip() or UNKNOWN_EXPERT_LABEL) for row in
+                 db.query(User.id, User.username).filter(User.id.in_(list(user_ids))).all()}
         for prediction in predictions:
             acc = bucket("expert", str(prediction.created_by),
-                         names.get(prediction.created_by, "unknown expert"))
+                         names.get(prediction.created_by, UNKNOWN_EXPERT_LABEL))
             row = results.get(prediction.id)
             if row is not None:
                 acc.add_result(row.outcome.value if row.outcome else None, row.market_results)

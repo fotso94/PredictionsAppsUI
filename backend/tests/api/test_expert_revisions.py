@@ -44,8 +44,10 @@ from app.models.predictions import (
     Team,
 )
 from app.models.users import AccountStatus, User, UserType
+from app.schemas.matches import serialize_expert_prediction
 from app.schemas.predictions import ExpertPredictionUpdate
-from app.services.expert_prediction import REVISION_ACTION, ExpertPredictionService
+from app.services import settlement as S
+from app.services.expert_prediction import REVISION_ACTION, REVISION_VALUE_FIELDS, ExpertPredictionService
 from app.services.match_cache import MatchCache
 from app.services.match_registry import MatchRegistry
 from tests.providers.support import FakeRedis
@@ -56,6 +58,8 @@ TEST_DATABASE_URL = os.environ.get(
 # Far enough ahead that no other module in the suite has fixtures there.
 FUTURE_KICKOFF = datetime.utcnow() + timedelta(days=45)
 PAST_KICKOFF = datetime.utcnow() - timedelta(hours=5)
+#: A fixture already played, on a day of its own, for the late-publication cases.
+LATE_KICKOFF = (datetime.utcnow() - timedelta(days=12)).replace(hour=15, minute=0, second=0, microsecond=0)
 
 
 # ----------------------------------------------------------------------------- fixtures
@@ -371,3 +375,244 @@ def test_the_list_payload_costs_no_extra_query_per_match(client, db):
 
     # One more match adds only its own forecast lookup, which existed before the brief did.
     assert two_matches - one_match <= 1, f"{one_match} -> {two_matches} queries"
+
+
+# ----------------------------------------------------------------------------- what an edit changed
+#
+# A reader was told what changed by `changes_summary`, the audit text written at edit time: raw
+# column names and Python reprs ("btts_yes_prob 0.6 -> 0.4", "confidence_score 0.0 -> None"),
+# served verbatim and so untranslatable. `changes` is the same diff, structured, computed when the
+# revision is served from the two snapshots the row already stores. The audit text itself is left
+# exactly as it was (it is pinned above) and stays in the payload.
+def _btts_edit(db, prediction: Prediction, expert: User, yes: float, no: float) -> None:
+    """An edit that names only the BTTS pair beside the 1X2 the schema always requires, unchanged."""
+    ExpertPredictionService(db).update_prediction(
+        str(prediction.id),
+        ExpertPredictionUpdate(home_win_prob=0.5, draw_prob=0.3, away_win_prob=0.2,
+                               btts_yes_prob=yes, btts_no_prob=no),
+        expert)
+
+
+def test_a_btts_only_edit_keeps_every_market_in_the_revision_and_lists_only_the_btts_changes(client, db):
+    expert = _expert(db)
+    match = _match(db, FUTURE_KICKOFF, "bttsonly")
+    prediction = _publish(db, match, expert, datetime.utcnow() - timedelta(hours=4),
+                          btts_yes_prob=0.6, btts_no_prob=0.4,
+                          total_goals_over_25_prob=0.55, total_goals_under_25_prob=0.45)
+
+    _btts_edit(db, prediction, expert, yes=0.4, no=0.6)
+
+    revision = _detail(client, match)["expert_prediction_revisions"][0]
+    values = revision["values"]
+    # The earlier version is carried whole: every market, including the ones the edit left alone
+    # and the one that was never published (3.5, null on both sides, not absent).
+    assert set(REVISION_VALUE_FIELDS) <= set(values)
+    assert values["btts_yes_prob"] == pytest.approx(0.6) and values["btts_no_prob"] == pytest.approx(0.4)
+    assert values["total_goals_over_25_prob"] == pytest.approx(0.55)
+    assert values["total_goals_under_25_prob"] == pytest.approx(0.45)
+    assert values["total_goals_over_35_prob"] is None and values["total_goals_under_35_prob"] is None
+    assert values["confidence_score"] == pytest.approx(0.8)
+    # ...and the change list names exactly the two BTTS sides, from and to, nothing else.
+    assert revision["changes"] == [
+        {"field": "btts_yes_prob", "from": 0.6, "to": 0.4},
+        {"field": "btts_no_prob", "from": 0.4, "to": 0.6},
+    ]
+    # The audit text is still served, unchanged in form.
+    assert revision["changes_summary"] == "btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6"
+
+
+def test_a_conviction_moved_between_zero_and_null_is_a_change_in_both_directions(client, db):
+    """0 is a claim ("I rate this at nothing"); null is the absence of one. Neither is the other."""
+    expert = _expert(db)
+    match = _match(db, FUTURE_KICKOFF, "zeronull")
+    prediction = _publish(db, match, expert, datetime.utcnow() - timedelta(hours=4), confidence_score=0.0)
+
+    _edit(db, prediction, expert, home_win_prob=0.5, draw_prob=0.3, away_win_prob=0.2,
+          confidence_score=None)                                   # 0 -> withdrawn
+    _edit(db, prediction, expert, home_win_prob=0.5, draw_prob=0.3, away_win_prob=0.2,
+          confidence_score=0.0)                                    # withdrawn -> 0
+
+    first, second = _detail(client, match)["expert_prediction_revisions"]
+    assert first["values"]["confidence_score"] == 0.0 and first["values"]["confidence_score"] is not None
+    assert first["changes"] == [{"field": "confidence_score", "from": 0.0, "to": None}]
+    assert second["values"]["confidence_score"] is None
+    assert second["changes"] == [{"field": "confidence_score", "from": None, "to": 0.0}]
+
+
+def test_reasoning_and_key_factors_are_named_as_changed_without_their_text(client, db):
+    expert = _expert(db)
+    match = _match(db, FUTURE_KICKOFF, "textual")
+    prediction = _publish(db, match, expert, datetime.utcnow() - timedelta(hours=4))
+
+    _edit(db, prediction, expert, home_win_prob=0.5, draw_prob=0.3, away_win_prob=0.2,
+          reasoning="second view", key_factors={"injuries": "none"})
+
+    revision = _detail(client, match)["expert_prediction_revisions"][0]
+    assert revision["changes"] == [{"field": "reasoning"}, {"field": "key_factors"}]
+
+
+# ----------------------------------------------------------------------------- the kickoff boundary
+@pytest.mark.parametrize("kickoff_offset,after", [
+    (timedelta(microseconds=-1), True),   # kickoff a hair before the edit
+    (timedelta(0), True),                 # the edit AT kickoff: after kickoff, as settlement reads it
+    (timedelta(microseconds=1), False),   # kickoff a hair after the edit
+])
+def test_edited_after_kickoff_uses_settlements_boundary(client, db, kickoff_offset, after):
+    """Readers and settlement must agree about the same edit.
+
+    Settlement restores the prematch view from the first revision made AT or after kickoff, so an
+    edit at the exact instant is a post-kickoff edit there. The reader's flag used ``>`` and called
+    that same edit prematch.
+    """
+    expert = _expert(db)
+    match = _match(db, PAST_KICKOFF, "boundary", status=MatchStatus.LIVE)
+    prediction = _publish(db, match, expert, PAST_KICKOFF - timedelta(hours=6))
+    _edit(db, prediction, expert, home_win_prob=0.6, draw_prob=0.25, away_win_prob=0.15)
+    revision = _revision_rows(db, prediction)[0]
+    match.match_date = revision.created_at + kickoff_offset
+    db.flush()
+
+    served = _detail(client, match)["expert_prediction_revisions"][0]
+    assert served["edited_after_kickoff"] is after
+
+    _markets, refusal, provenance = S.prematch_expert_view(prediction, [revision], match.match_date)
+    assert refusal is None
+    assert provenance.startswith("restored from revision") is after, provenance
+
+
+@pytest.mark.parametrize("published_offset,late", [
+    (timedelta(hours=-2), False),
+    (timedelta(microseconds=-1), False),
+    (timedelta(0), True),                 # published AT kickoff is not prematch evidence
+    (timedelta(minutes=30), True),
+])
+def test_published_after_kickoff_is_settlements_prematch_rule(client, db, published_offset, late):
+    expert = _expert(db)
+    kickoff = LATE_KICKOFF
+    match = _match(db, kickoff, "late", status=MatchStatus.FINISHED)
+    prediction = _publish(db, match, expert, kickoff + published_offset)
+
+    detail = _detail(client, match)
+    assert detail["expert_predictions"][0]["published_after_kickoff"] is late
+    assert detail["expert_prediction"]["published_after_kickoff"] is late
+    listing = client.get(f"/api/v1/matches?date={kickoff.date().isoformat()}&refresh=false")
+    assert listing.status_code == 200, listing.text
+    row = next(r for r in listing.json()["matches"] if r["id"] == str(match.id))
+    assert row["expert_prediction"]["published_after_kickoff"] is late
+
+    # Cross-checked against settlement itself, so the reader's flag cannot drift from the rule.
+    assert S.stood_at_kickoff(prediction, kickoff) is (not late)
+    _markets, refusal, _provenance = S.prematch_expert_view(prediction, [], kickoff)
+    assert (refusal == "published at or after kickoff") is late
+    if late:
+        assert S.not_prematch_reason(prediction, kickoff) == S.NOT_PREMATCH_EVIDENCE_REASON
+
+
+def test_published_after_kickoff_is_null_when_either_time_is_unknown(client, db):
+    """Unknown is not "before kickoff": a stored False would assert a prematch publication."""
+    expert = _expert(db)
+    match = _match(db, LATE_KICKOFF, "undated", status=MatchStatus.FINISHED)
+    undated = _publish(db, match, expert, None)
+
+    assert _detail(client, match)["expert_predictions"][0]["published_after_kickoff"] is None
+    assert S.not_prematch_reason(undated, match.match_date) == S.NO_PUBLICATION_TIME_REASON
+
+    dated = _publish(db, match, expert, LATE_KICKOFF - timedelta(hours=1))
+    assert serialize_expert_prediction(dated, kickoff=None)["published_after_kickoff"] is None
+    assert serialize_expert_prediction(dated, kickoff=LATE_KICKOFF)["published_after_kickoff"] is False
+
+
+# ----------------------------------------------------------------------------- the public author
+def _named_expert(db, label: str) -> User:
+    """An expert whose private details are distinctive strings, so their absence can be asserted."""
+    suffix = uuid.uuid4().hex[:8]
+    user = User(id=uuid.uuid4(), email=f"private-{label}-{suffix}@test.local",
+                username=f"public_{label}_{suffix}", first_name=f"Firstname{label}{suffix}",
+                last_name=f"Lastname{label}{suffix}", avatar_url=f"https://example.invalid/{label}{suffix}.png",
+                password_hash="not-a-real-hash", user_type=UserType.EXPERT,
+                account_status=AccountStatus.ACTIVE, email_verified=True)
+    db.add(user)
+    db.flush()
+    return user
+
+
+def _assert_private_details_absent(text_body: str, *users: User) -> None:
+    for user in users:
+        for private in (user.email, user.first_name, user.last_name, user.avatar_url):
+            assert private not in text_body, f"{private!r} reached a public payload"
+
+
+def test_each_public_expert_prediction_names_its_author_by_username_only(client, db):
+    first, second = _named_expert(db, "one"), _named_expert(db, "two")
+    match = _match(db, FUTURE_KICKOFF + timedelta(days=2), "author")
+    mine = _publish(db, match, first, datetime.utcnow() - timedelta(hours=3))
+    theirs = _publish(db, match, second, datetime.utcnow() - timedelta(hours=2))
+
+    response = client.get(f"/api/v1/matches/{match.id}")
+    assert response.status_code == 200, response.text
+    detail = response.json()
+    authors = {row["id"]: row["author"] for row in detail["expert_predictions"]}
+    assert authors == {
+        str(mine.id): {"id": str(first.id), "username": first.username},
+        str(theirs.id): {"id": str(second.id), "username": second.username},
+    }
+    assert detail["expert_prediction"]["author"]["username"] in {first.username, second.username}
+    _assert_private_details_absent(response.text, first, second)
+
+    listing = client.get(f"/api/v1/matches?date={match.match_date.date().isoformat()}&refresh=false")
+    assert listing.status_code == 200, listing.text
+    row = next(r for r in listing.json()["matches"] if r["id"] == str(match.id))
+    assert row["expert_prediction"]["author"]["username"] in {first.username, second.username}
+    _assert_private_details_absent(listing.text, first, second)
+
+
+def test_an_author_with_a_blank_username_is_served_without_a_name_and_never_by_email(client, db):
+    expert = _named_expert(db, "blank")
+    expert.username = "   "
+    match = _match(db, FUTURE_KICKOFF + timedelta(days=2), "blankauthor")
+    _publish(db, match, expert, datetime.utcnow() - timedelta(hours=3))
+    db.flush()
+
+    response = client.get(f"/api/v1/matches/{match.id}")
+    assert response.status_code == 200, response.text
+    assert response.json()["expert_predictions"][0]["author"] == {"id": str(expert.id), "username": None}
+    _assert_private_details_absent(response.text, expert)
+
+
+def _count_user_queries(db, client, url: str) -> int:
+    from sqlalchemy import event
+
+    seen = []
+
+    def before(conn, cursor, statement, parameters, context, executemany):
+        if "users.users" in statement:
+            seen.append(statement)
+
+    event.listen(db.get_bind(), "before_cursor_execute", before)
+    try:
+        assert client.get(url).status_code == 200
+    finally:
+        event.remove(db.get_bind(), "before_cursor_execute", before)
+    return len(seen)
+
+
+def test_the_authors_cost_one_batched_query_per_request(client, db, monkeypatch):
+    """Two matches by two experts, and two experts on one match: one users query either way.
+
+    The measured-record summary the brief carries is replaced by a fixed one here, so the only
+    reader of the users table left in the request is the author lookup being counted.
+    """
+    from app.services.match_brief import unknown_scoring_summary
+    monkeypatch.setattr("app.api.v1.endpoints.matches.current_scoring_summary",
+                        lambda db=None: unknown_scoring_summary("not measured in this test"))
+    first, second = _named_expert(db, "qa"), _named_expert(db, "qb")
+    kickoff = FUTURE_KICKOFF + timedelta(days=3)
+    one = _match(db, kickoff, "batch1")
+    two = _match(db, kickoff + timedelta(hours=1), "batch2")
+    _publish(db, one, first, datetime.utcnow() - timedelta(hours=3))
+    _publish(db, two, second, datetime.utcnow() - timedelta(hours=3))
+    _publish(db, one, second, datetime.utcnow() - timedelta(hours=2))
+    db.commit()
+
+    assert _count_user_queries(db, client, f"/api/v1/matches?date={kickoff.date().isoformat()}&refresh=false") == 1
+    assert _count_user_queries(db, client, f"/api/v1/matches/{one.id}") == 1

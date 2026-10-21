@@ -1,0 +1,828 @@
+# (home-directory prefix shortened to ~ in 9 line(s) before committing; nothing else edited)
+# revisions-profile BEFORE: the new regression tests against the unchanged product code
+# branch expert-fixes at e7af579a; product diff vs HEAD: ''
+# run at 2026-10-20T23:53:42Z; env POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test
+# pytest -rfEs tests/api/test_users_me.py tests/api/test_expert_revisions.py::test_a_btts_only_edit_keeps_every_market_in_the_revision_and_lists_only_the_btts_changes tests/api/test_expert_revisions.py::test_a_conviction_moved_between_zero_and_null_is_a_change_in_both_directions tests/api/test_expert_revisions.py::test_reasoning_and_key_factors_are_named_as_changed_without_their_text tests/api/test_expert_revisions.py::test_edited_after_kickoff_uses_settlements_boundary tests/api/test_expert_revisions.py::test_published_after_kickoff_is_settlements_prematch_rule tests/api/test_expert_revisions.py::test_published_after_kickoff_is_null_when_either_time_is_unknown tests/api/test_expert_revisions.py::test_each_public_expert_prediction_names_its_author_by_username_only tests/api/test_expert_revisions.py::test_an_author_with_a_blank_username_is_served_without_a_name_and_never_by_email tests/api/test_expert_revisions.py::test_the_authors_cost_one_batched_query_per_request tests/services/test_expert_history.py::test_an_expert_with_no_username_is_labelled_unknown_expert_never_by_email
+F.FFFFF.FFF.FFFF.F...FFFF.F.FFFFFFFFFF                                   [100%]
+=================================== FAILURES ===================================
+______ test_a_blank_name_is_read_as_a_clear_and_is_still_counted_as_sent _______
+
+    def test_a_blank_name_is_read_as_a_clear_and_is_still_counted_as_sent():
+>       body = UserUpdateRequest(first_name="", last_name="   ", avatar_url=" ")
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for UserUpdateRequest
+E       first_name
+E         String should have at least 1 character [type=string_too_short, input_value='', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.5/v/string_too_short
+
+tests/api/test_users_me.py:163: ValidationError
+______________ test_a_username_cannot_be_blanked_in_the_schema[] _______________
+
+username = ''
+
+    @pytest.mark.parametrize("username", ["", "   ", None])
+    def test_a_username_cannot_be_blanked_in_the_schema(username):
+        with pytest.raises(ValidationError) as caught:
+            UserUpdateRequest(username=username)
+>       assert "username cannot be blank" in str(caught.value)
+E       assert 'username cannot be blank' in "1 validation error for UserUpdateRequest\nusername\n  String should have at least 3 characters [type=string_too_short, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.5/v/string_too_short"
+E        +  where "1 validation error for UserUpdateRequest\nusername\n  String should have at least 3 characters [type=string_too_short, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.5/v/string_too_short" = str(1 validation error for UserUpdateRequest\nusername\n  String should have at least 3 characters [type=string_too_short, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.5/v/string_too_short)
+E        +    where 1 validation error for UserUpdateRequest\nusername\n  String should have at least 3 characters [type=string_too_short, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.5/v/string_too_short = <ExceptionInfo 1 validation error for UserUpdateRequest\nusername\n  String should have at least 3 characters [type=stri...value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.5/v/string_too_short tblen=2>.value
+
+tests/api/test_users_me.py:176: AssertionError
+_____________ test_a_username_cannot_be_blanked_in_the_schema[   ] _____________
+
+username = '   '
+
+    @pytest.mark.parametrize("username", ["", "   ", None])
+    def test_a_username_cannot_be_blanked_in_the_schema(username):
+>       with pytest.raises(ValidationError) as caught:
+E       Failed: DID NOT RAISE <class 'pydantic_core._pydantic_core.ValidationError'>
+
+tests/api/test_users_me.py:174: Failed
+____________ test_a_username_cannot_be_blanked_in_the_schema[None] _____________
+
+username = None
+
+    @pytest.mark.parametrize("username", ["", "   ", None])
+    def test_a_username_cannot_be_blanked_in_the_schema(username):
+>       with pytest.raises(ValidationError) as caught:
+E       Failed: DID NOT RAISE <class 'pydantic_core._pydantic_core.ValidationError'>
+
+tests/api/test_users_me.py:174: Failed
+__________________________ test_strings_are_stripped ___________________________
+
+    def test_strings_are_stripped():
+        body = UserUpdateRequest(username="  spaced_name  ", first_name="  Grace ")
+>       assert body.username == "spaced_name" and body.first_name == "Grace"
+E       AssertionError: assert ('  spaced_name  ' == 'spaced_name'
+E         - spaced_name
+E         +   spaced_name  
+E         ? ++           ++)
+
+tests/api/test_users_me.py:181: AssertionError
+____ test_a_user_with_no_names_can_change_their_username_from_the_full_form ____
+
+client = <starlette.testclient.TestClient object at 0x10c0ed0d0>
+db = <sqlalchemy.orm.session.Session object at 0x10c07d190>
+as_user = <function as_user.<locals>._as at 0x10bed0400>
+
+    def test_a_user_with_no_names_can_change_their_username_from_the_full_form(client, db, as_user):
+        """The defect the QA hit: the form sends '' for a name that was never supplied. Was 422."""
+        user = as_user(_user(db, first_name=None, last_name=None, avatar_url=None))
+        new_username = f"renamed_{uuid.uuid4().hex[:8]}"
+    
+        response = _put(client, {"username": new_username, "first_name": "", "last_name": "",
+                                 "avatar_url": ""})
+    
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":[{"type":"string_too_short","loc":["body","first_name"],"msg":"String should have at least 1 character","input":"","ctx":{"min_length":1},"url":"https://errors.pydantic.dev/2.5/v/string_too_short"},{"type":"string_too_short","loc":["body","last_name"],"msg":"String should have at least 1 character","input":"","ctx":{"min_length":1},"url":"https://errors.pydantic.dev/2.5/v/string_too_short"}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/api/test_users_me.py:193: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:44 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 422 Unprocessable Entity"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 422 Unprocessable Entity"
+____ test_an_explicit_null_clears_a_name_and_leaves_the_other_fields_alone _____
+
+client = <starlette.testclient.TestClient object at 0x10c1b1450>
+db = <sqlalchemy.orm.session.Session object at 0x10c1b2190>
+as_user = <function as_user.<locals>._as at 0x10bed02c0>
+
+    def test_an_explicit_null_clears_a_name_and_leaves_the_other_fields_alone(client, db, as_user):
+        """Was a silent no-op: null was read as "not sent", so the stored name stayed."""
+        user = as_user(_user(db))
+        username = user.username
+    
+        response = _put(client, {"first_name": None})
+    
+        assert response.status_code == 200, response.text
+        stored = _reread(db, user)
+>       assert stored.first_name is None
+E       AssertionError: assert 'Ada' is None
+E        +  where 'Ada' = <User(id=356afa7d-4b2b-4cf6-bc1e-8e4acec84b18, email=me-554ba55c@test.local, type=UserType.REGULAR)>.first_name
+
+tests/api/test_users_me.py:220: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:44 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+______ test_an_explicit_null_or_blank_clears_the_avatar_and_the_last_name ______
+
+client = <starlette.testclient.TestClient object at 0x10c192010>
+db = <sqlalchemy.orm.session.Session object at 0x10c191c10>
+as_user = <function as_user.<locals>._as at 0x10bed0360>
+
+    def test_an_explicit_null_or_blank_clears_the_avatar_and_the_last_name(client, db, as_user):
+        user = as_user(_user(db))
+    
+        response = _put(client, {"avatar_url": None, "last_name": "   "})
+    
+        assert response.status_code == 200, response.text
+        stored = _reread(db, user)
+>       assert stored.avatar_url is None and stored.last_name is None
+E       AssertionError: assert ('https://example.invalid/ada.png' is None)
+E        +  where 'https://example.invalid/ada.png' = <User(id=1a643c2f-4fe5-4d3e-8764-5469108a3421, email=me-0547c0e0@test.local, type=UserType.REGULAR)>.avatar_url
+
+tests/api/test_users_me.py:233: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:44 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+______________________ test_an_empty_body_changes_nothing ______________________
+
+client = <starlette.testclient.TestClient object at 0x10c25d250>
+db = <sqlalchemy.orm.session.Session object at 0x10c25cc50>
+as_user = <function as_user.<locals>._as at 0x10bed0680>
+
+    def test_an_empty_body_changes_nothing(client, db, as_user):
+        user = as_user(_user(db))
+        before = (user.username, user.first_name, user.last_name, user.avatar_url)
+    
+        response = _put(client, {})
+    
+        assert response.status_code == 200, response.text
+        stored = _reread(db, user)
+        assert (stored.username, stored.first_name, stored.last_name, stored.avatar_url) == before
+        # Nothing changed, so nothing claims a change either.
+>       assert stored.updated_at == STAMPED
+E       assert datetime.datetime(2026, 10, 20, 23, 53, 44, 602821) == datetime.datetime(2026, 1, 2, 3, 4, 5)
+E        +  where datetime.datetime(2026, 10, 20, 23, 53, 44, 602821) = <User(id=314f642e-d1d2-4374-b364-93f8e9c4246e, email=me-28dc93a9@test.local, type=UserType.REGULAR)>.updated_at
+
+tests/api/test_users_me.py:247: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:44 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+_______________________ test_values_are_stored_stripped ________________________
+
+client = <starlette.testclient.TestClient object at 0x10c24e2d0>
+db = <sqlalchemy.orm.session.Session object at 0x10c24d650>
+as_user = <function as_user.<locals>._as at 0x10c13fa60>
+
+    def test_values_are_stored_stripped(client, db, as_user):
+        user = as_user(_user(db))
+        new_username = f"strip_{uuid.uuid4().hex[:8]}"
+    
+        response = _put(client, {"username": f"  {new_username}  ", "first_name": "  Grace  "})
+    
+        assert response.status_code == 200, response.text
+        stored = _reread(db, user)
+>       assert stored.username == new_username and stored.first_name == "Grace"
+E       AssertionError: assert ('  strip_84503295  ' == 'strip_84503295'
+E         - strip_84503295
+E         +   strip_84503295  
+E         ? ++              ++)
+
+tests/api/test_users_me.py:269: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:44 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+_____________________ test_a_username_cannot_be_blanked[] ______________________
+
+client = <starlette.testclient.TestClient object at 0x10c1b3590>
+db = <sqlalchemy.orm.session.Session object at 0x10c1b3cd0>
+as_user = <function as_user.<locals>._as at 0x10c13fd80>, username = ''
+
+    @pytest.mark.parametrize("username", ["", "   ", None])
+    def test_a_username_cannot_be_blanked(client, db, as_user, username):
+        """'   ' used to pass min_length=3 and was stored; null was a silent no-op. Both are refused now."""
+        user = as_user(_user(db))
+        original = user.username
+    
+        response = _put(client, {"username": username})
+    
+        assert response.status_code == 422, response.text
+>       assert "username cannot be blank" in response.text
+E       assert 'username cannot be blank' in '{"detail":[{"type":"string_too_short","loc":["body","username"],"msg":"String should have at least 3 characters","input":"","ctx":{"min_length":3},"url":"https://errors.pydantic.dev/2.5/v/string_too_short"}]}'
+E        +  where '{"detail":[{"type":"string_too_short","loc":["body","username"],"msg":"String should have at least 3 characters","input":"","ctx":{"min_length":3},"url":"https://errors.pydantic.dev/2.5/v/string_too_short"}]}' = <Response [422 Unprocessable Entity]>.text
+
+tests/api/test_users_me.py:281: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:44 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 422 Unprocessable Entity"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 422 Unprocessable Entity"
+____________________ test_a_username_cannot_be_blanked[   ] ____________________
+
+client = <starlette.testclient.TestClient object at 0x10bc3d590>
+db = <sqlalchemy.orm.session.Session object at 0x10c257b10>
+as_user = <function as_user.<locals>._as at 0x10c13ff60>, username = '   '
+
+    @pytest.mark.parametrize("username", ["", "   ", None])
+    def test_a_username_cannot_be_blanked(client, db, as_user, username):
+        """'   ' used to pass min_length=3 and was stored; null was a silent no-op. Both are refused now."""
+        user = as_user(_user(db))
+        original = user.username
+    
+        response = _put(client, {"username": username})
+    
+>       assert response.status_code == 422, response.text
+E       AssertionError: {"id":"5830d881-53cc-4673-ad6d-ca9ab8292ed3","email":"me-4e0cdf29@test.local","username":"   ","first_name":"Ada","last_name":"Lovelace","avatar_url":"https://example.invalid/ada.png","user_type":"regular","account_status":"active","email_verified":true,"created_at":"2026-01-02T03:04:05","updated_at":"2026-10-20T23:53:44.642293","last_login_at":null}
+E       assert 200 == 422
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/api/test_users_me.py:280: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:44 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+___________________ test_a_username_cannot_be_blanked[None] ____________________
+
+client = <starlette.testclient.TestClient object at 0x10c260890>
+db = <sqlalchemy.orm.session.Session object at 0x10c262010>
+as_user = <function as_user.<locals>._as at 0x10c14e340>, username = None
+
+    @pytest.mark.parametrize("username", ["", "   ", None])
+    def test_a_username_cannot_be_blanked(client, db, as_user, username):
+        """'   ' used to pass min_length=3 and was stored; null was a silent no-op. Both are refused now."""
+        user = as_user(_user(db))
+        original = user.username
+    
+        response = _put(client, {"username": username})
+    
+>       assert response.status_code == 422, response.text
+E       AssertionError: {"id":"61f0f939-5c9d-4384-80a5-6d865d393a4a","email":"me-cbef2409@test.local","username":"me_cbef2409","first_name":"Ada","last_name":"Lovelace","avatar_url":"https://example.invalid/ada.png","user_type":"regular","account_status":"active","email_verified":true,"created_at":"2026-01-02T03:04:05","updated_at":"2026-10-20T23:53:44.651257","last_login_at":null}
+E       assert 200 == 422
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/api/test_users_me.py:280: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:44 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+____________ test_a_taken_username_is_still_a_conflict[  {taken}  ] ____________
+
+client = <starlette.testclient.TestClient object at 0x10c27f610>
+db = <sqlalchemy.orm.session.Session object at 0x10c27fc10>
+as_user = <function as_user.<locals>._as at 0x10c13fec0>
+spelling = '  {taken}  '
+
+    @pytest.mark.parametrize("spelling", ["{taken}", "  {taken}  "])
+    def test_a_taken_username_is_still_a_conflict(client, db, as_user, spelling):
+        """Padded with spaces, the taken name used to slip past the duplicate check and be stored."""
+        other = _user(db)
+        user = as_user(_user(db))
+        original = user.username
+    
+        response = _put(client, {"username": spelling.format(taken=other.username)})
+    
+>       assert response.status_code == 409, response.text
+E       AssertionError: {"id":"46d23978-75c6-4e7a-beb2-82bc5cb033a5","email":"me-9ad757a6@test.local","username":"  me_5dfd0e9e  ","first_name":"Ada","last_name":"Lovelace","avatar_url":"https://example.invalid/ada.png","user_type":"regular","account_status":"active","email_verified":true,"created_at":"2026-01-02T03:04:05","updated_at":"2026-10-20T23:53:44.667567","last_login_at":null}
+E       assert 200 == 409
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/api/test_users_me.py:294: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:44 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+_ test_a_password_change_stores_the_new_hash_revokes_refresh_tokens_and_claims_nothing_more _
+
+client = <starlette.testclient.TestClient object at 0x10c24add0>
+db = <sqlalchemy.orm.session.Session object at 0x10c24aa10>
+as_user = <function as_user.<locals>._as at 0x10c1d7100>
+revoked = <test_users_me.Recorder object at 0x10c27cfd0>
+
+    def test_a_password_change_stores_the_new_hash_revokes_refresh_tokens_and_claims_nothing_more(
+            client, db, as_user, revoked):
+        user = _password_user(db, as_user)
+    
+        response = _change(client, OLD_PASSWORD, NEW_PASSWORD, NEW_PASSWORD)
+    
+        assert response.status_code == 200, response.text
+        stored = _reread(db, user)
+        assert verify_password(NEW_PASSWORD, stored.password_hash)
+        assert not verify_password(OLD_PASSWORD, stored.password_hash)
+        assert revoked.calls == [(str(user.id),)]
+        message = response.json()["message"]
+        # Other devices are NOT signed out (access tokens stay valid until they expire), so the
+        # message must not say they are.
+>       assert "all devices" not in message and "logged out" not in message
+E       AssertionError: assert ('all devices' not in 'Password ch...all devices.'
+E         'all devices' is contained here:
+E            out from all devices.)
+
+tests/api/test_users_me.py:353: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me/password "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me/password "HTTP/1.1 200 OK"
+_ test_a_btts_only_edit_keeps_every_market_in_the_revision_and_lists_only_the_btts_changes _
+
+client = <starlette.testclient.TestClient object at 0x10c21e0d0>
+db = <sqlalchemy.orm.session.Session object at 0x10c1d8590>
+
+    def test_a_btts_only_edit_keeps_every_market_in_the_revision_and_lists_only_the_btts_changes(client, db):
+        expert = _expert(db)
+        match = _match(db, FUTURE_KICKOFF, "bttsonly")
+        prediction = _publish(db, match, expert, datetime.utcnow() - timedelta(hours=4),
+                              btts_yes_prob=0.6, btts_no_prob=0.4,
+                              total_goals_over_25_prob=0.55, total_goals_under_25_prob=0.45)
+    
+        _btts_edit(db, prediction, expert, yes=0.4, no=0.6)
+    
+        revision = _detail(client, match)["expert_prediction_revisions"][0]
+        values = revision["values"]
+        # The earlier version is carried whole: every market, including the ones the edit left alone
+        # and the one that was never published (3.5, null on both sides, not absent).
+        assert set(REVISION_VALUE_FIELDS) <= set(values)
+        assert values["btts_yes_prob"] == pytest.approx(0.6) and values["btts_no_prob"] == pytest.approx(0.4)
+        assert values["total_goals_over_25_prob"] == pytest.approx(0.55)
+        assert values["total_goals_under_25_prob"] == pytest.approx(0.45)
+        assert values["total_goals_over_35_prob"] is None and values["total_goals_under_35_prob"] is None
+        assert values["confidence_score"] == pytest.approx(0.8)
+        # ...and the change list names exactly the two BTTS sides, from and to, nothing else.
+>       assert revision["changes"] == [
+            {"field": "btts_yes_prob", "from": 0.6, "to": 0.4},
+            {"field": "btts_no_prob", "from": 0.4, "to": 0.6},
+        ]
+E       KeyError: 'changes'
+
+tests/api/test_expert_revisions.py:416: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Updated prediction b0fe4169-b045-4158-bc7c-eb862a55c75e (status PredictionStatus.PUBLISHED) by expert f7b605bb-5b77-42c9-a06b-693cfb5e653a; previous version preserved as revision f942b0ab-2a4e-43f7-a4c9-e83b3b31286b
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:1a96707e-a063-47a5-8a02-91610cc1b972:free:match_winner
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:1a96707e-a063-47a5-8a02-91610cc1b972:premium:match_winner
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:1a96707e-a063-47a5-8a02-91610cc1b972:pro:match_winner
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/1a96707e-a063-47a5-8a02-91610cc1b972 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:862 Updated prediction b0fe4169-b045-4158-bc7c-eb862a55c75e (status PredictionStatus.PUBLISHED) by expert f7b605bb-5b77-42c9-a06b-693cfb5e653a; previous version preserved as revision f942b0ab-2a4e-43f7-a4c9-e83b3b31286b
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:1a96707e-a063-47a5-8a02-91610cc1b972:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:1a96707e-a063-47a5-8a02-91610cc1b972:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:1a96707e-a063-47a5-8a02-91610cc1b972:pro:match_winner
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/1a96707e-a063-47a5-8a02-91610cc1b972 "HTTP/1.1 200 OK"
+_ test_a_conviction_moved_between_zero_and_null_is_a_change_in_both_directions _
+
+client = <starlette.testclient.TestClient object at 0x10c21e850>
+db = <sqlalchemy.orm.session.Session object at 0x10c25d650>
+
+    def test_a_conviction_moved_between_zero_and_null_is_a_change_in_both_directions(client, db):
+        """0 is a claim ("I rate this at nothing"); null is the absence of one. Neither is the other."""
+        expert = _expert(db)
+        match = _match(db, FUTURE_KICKOFF, "zeronull")
+        prediction = _publish(db, match, expert, datetime.utcnow() - timedelta(hours=4), confidence_score=0.0)
+    
+        _edit(db, prediction, expert, home_win_prob=0.5, draw_prob=0.3, away_win_prob=0.2,
+              confidence_score=None)                                   # 0 -> withdrawn
+        _edit(db, prediction, expert, home_win_prob=0.5, draw_prob=0.3, away_win_prob=0.2,
+              confidence_score=0.0)                                    # withdrawn -> 0
+    
+        first, second = _detail(client, match)["expert_prediction_revisions"]
+        assert first["values"]["confidence_score"] == 0.0 and first["values"]["confidence_score"] is not None
+>       assert first["changes"] == [{"field": "confidence_score", "from": 0.0, "to": None}]
+E       KeyError: 'changes'
+
+tests/api/test_expert_revisions.py:437: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Updated prediction 9f936b08-3e1c-4b88-8929-dd902adf4094 (status PredictionStatus.PUBLISHED) by expert 57c6f24b-2c7c-45b1-99a5-a7aa18292c22; previous version preserved as revision 412c1bcc-843b-433e-a5ac-c04819056885
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:free:match_winner
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:premium:match_winner
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:pro:match_winner
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Updated prediction 9f936b08-3e1c-4b88-8929-dd902adf4094 (status PredictionStatus.PUBLISHED) by expert 57c6f24b-2c7c-45b1-99a5-a7aa18292c22; previous version preserved as revision acbd5e94-2713-4925-8b64-f837149ee962
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:free:match_winner
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:premium:match_winner
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:pro:match_winner
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/fb1209d0-47b4-499b-9afc-03e7ed337380 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:862 Updated prediction 9f936b08-3e1c-4b88-8929-dd902adf4094 (status PredictionStatus.PUBLISHED) by expert 57c6f24b-2c7c-45b1-99a5-a7aa18292c22; previous version preserved as revision 412c1bcc-843b-433e-a5ac-c04819056885
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:pro:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:862 Updated prediction 9f936b08-3e1c-4b88-8929-dd902adf4094 (status PredictionStatus.PUBLISHED) by expert 57c6f24b-2c7c-45b1-99a5-a7aa18292c22; previous version preserved as revision acbd5e94-2713-4925-8b64-f837149ee962
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:fb1209d0-47b4-499b-9afc-03e7ed337380:pro:match_winner
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/fb1209d0-47b4-499b-9afc-03e7ed337380 "HTTP/1.1 200 OK"
+____ test_reasoning_and_key_factors_are_named_as_changed_without_their_text ____
+
+client = <starlette.testclient.TestClient object at 0x10bf35710>
+db = <sqlalchemy.orm.session.Session object at 0x10bf35150>
+
+    def test_reasoning_and_key_factors_are_named_as_changed_without_their_text(client, db):
+        expert = _expert(db)
+        match = _match(db, FUTURE_KICKOFF, "textual")
+        prediction = _publish(db, match, expert, datetime.utcnow() - timedelta(hours=4))
+    
+        _edit(db, prediction, expert, home_win_prob=0.5, draw_prob=0.3, away_win_prob=0.2,
+              reasoning="second view", key_factors={"injuries": "none"})
+    
+        revision = _detail(client, match)["expert_prediction_revisions"][0]
+>       assert revision["changes"] == [{"field": "reasoning"}, {"field": "key_factors"}]
+E       KeyError: 'changes'
+
+tests/api/test_expert_revisions.py:451: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Updated prediction 90865ae2-7f91-495b-9495-337edcaa2e9a (status PredictionStatus.PUBLISHED) by expert 5dd6b64f-f9a1-41b9-a44c-f912b595fd26; previous version preserved as revision 747c4d19-0f56-40f6-b10b-bd6c6ce3252c
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:f2051212-5541-42e5-90da-0c14ae7902ca:free:match_winner
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:f2051212-5541-42e5-90da-0c14ae7902ca:premium:match_winner
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:f2051212-5541-42e5-90da-0c14ae7902ca:pro:match_winner
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/f2051212-5541-42e5-90da-0c14ae7902ca "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:862 Updated prediction 90865ae2-7f91-495b-9495-337edcaa2e9a (status PredictionStatus.PUBLISHED) by expert 5dd6b64f-f9a1-41b9-a44c-f912b595fd26; previous version preserved as revision 747c4d19-0f56-40f6-b10b-bd6c6ce3252c
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:f2051212-5541-42e5-90da-0c14ae7902ca:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:f2051212-5541-42e5-90da-0c14ae7902ca:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:f2051212-5541-42e5-90da-0c14ae7902ca:pro:match_winner
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/f2051212-5541-42e5-90da-0c14ae7902ca "HTTP/1.1 200 OK"
+__ test_edited_after_kickoff_uses_settlements_boundary[kickoff_offset1-True] ___
+
+client = <starlette.testclient.TestClient object at 0x10c191c10>
+db = <sqlalchemy.orm.session.Session object at 0x10bf48b50>
+kickoff_offset = datetime.timedelta(0), after = True
+
+    @pytest.mark.parametrize("kickoff_offset,after", [
+        (timedelta(microseconds=-1), True),   # kickoff a hair before the edit
+        (timedelta(0), True),                 # the edit AT kickoff: after kickoff, as settlement reads it
+        (timedelta(microseconds=1), False),   # kickoff a hair after the edit
+    ])
+    def test_edited_after_kickoff_uses_settlements_boundary(client, db, kickoff_offset, after):
+        """Readers and settlement must agree about the same edit.
+    
+        Settlement restores the prematch view from the first revision made AT or after kickoff, so an
+        edit at the exact instant is a post-kickoff edit there. The reader's flag used ``>`` and called
+        that same edit prematch.
+        """
+        expert = _expert(db)
+        match = _match(db, PAST_KICKOFF, "boundary", status=MatchStatus.LIVE)
+        prediction = _publish(db, match, expert, PAST_KICKOFF - timedelta(hours=6))
+        _edit(db, prediction, expert, home_win_prob=0.6, draw_prob=0.25, away_win_prob=0.15)
+        revision = _revision_rows(db, prediction)[0]
+        match.match_date = revision.created_at + kickoff_offset
+        db.flush()
+    
+        served = _detail(client, match)["expert_prediction_revisions"][0]
+>       assert served["edited_after_kickoff"] is after
+E       assert False is True
+
+tests/api/test_expert_revisions.py:476: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Updated prediction 34fd244c-b492-4300-bd03-9272bb9724c9 (status PredictionStatus.PUBLISHED) by expert 585787f1-a210-4ab2-8231-ed208d50109b; previous version preserved as revision b5ac4bd5-e0dd-4041-81c8-61d87d754b3f
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:20f48f71-3110-4e86-9af2-e5e2377349ff:free:match_winner
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:20f48f71-3110-4e86-9af2-e5e2377349ff:premium:match_winner
+2026-10-20 19:53:46 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:20f48f71-3110-4e86-9af2-e5e2377349ff:pro:match_winner
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/20f48f71-3110-4e86-9af2-e5e2377349ff "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:862 Updated prediction 34fd244c-b492-4300-bd03-9272bb9724c9 (status PredictionStatus.PUBLISHED) by expert 585787f1-a210-4ab2-8231-ed208d50109b; previous version preserved as revision b5ac4bd5-e0dd-4041-81c8-61d87d754b3f
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:20f48f71-3110-4e86-9af2-e5e2377349ff:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:20f48f71-3110-4e86-9af2-e5e2377349ff:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1251 Would invalidate cache key: prediction:20f48f71-3110-4e86-9af2-e5e2377349ff:pro:match_winner
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/20f48f71-3110-4e86-9af2-e5e2377349ff "HTTP/1.1 200 OK"
+_ test_published_after_kickoff_is_settlements_prematch_rule[published_offset0-False] _
+
+client = <starlette.testclient.TestClient object at 0x10bf2bcd0>
+db = <sqlalchemy.orm.session.Session object at 0x10be929d0>
+published_offset = datetime.timedelta(days=-1, seconds=79200), late = False
+
+    @pytest.mark.parametrize("published_offset,late", [
+        (timedelta(hours=-2), False),
+        (timedelta(microseconds=-1), False),
+        (timedelta(0), True),                 # published AT kickoff is not prematch evidence
+        (timedelta(minutes=30), True),
+    ])
+    def test_published_after_kickoff_is_settlements_prematch_rule(client, db, published_offset, late):
+        expert = _expert(db)
+        kickoff = LATE_KICKOFF
+        match = _match(db, kickoff, "late", status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, kickoff + published_offset)
+    
+        detail = _detail(client, match)
+>       assert detail["expert_predictions"][0]["published_after_kickoff"] is late
+E       KeyError: 'published_after_kickoff'
+
+tests/api/test_expert_revisions.py:496: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/4b289392-fcf6-48de-b096-7441fe86746b "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/4b289392-fcf6-48de-b096-7441fe86746b "HTTP/1.1 200 OK"
+_ test_published_after_kickoff_is_settlements_prematch_rule[published_offset1-False] _
+
+client = <starlette.testclient.TestClient object at 0x10c262e50>
+db = <sqlalchemy.orm.session.Session object at 0x10c263150>
+published_offset = datetime.timedelta(days=-1, seconds=86399, microseconds=999999)
+late = False
+
+    @pytest.mark.parametrize("published_offset,late", [
+        (timedelta(hours=-2), False),
+        (timedelta(microseconds=-1), False),
+        (timedelta(0), True),                 # published AT kickoff is not prematch evidence
+        (timedelta(minutes=30), True),
+    ])
+    def test_published_after_kickoff_is_settlements_prematch_rule(client, db, published_offset, late):
+        expert = _expert(db)
+        kickoff = LATE_KICKOFF
+        match = _match(db, kickoff, "late", status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, kickoff + published_offset)
+    
+        detail = _detail(client, match)
+>       assert detail["expert_predictions"][0]["published_after_kickoff"] is late
+E       KeyError: 'published_after_kickoff'
+
+tests/api/test_expert_revisions.py:496: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/fa7139b0-8499-4c08-b7e6-fe76d21332b9 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/fa7139b0-8499-4c08-b7e6-fe76d21332b9 "HTTP/1.1 200 OK"
+_ test_published_after_kickoff_is_settlements_prematch_rule[published_offset2-True] _
+
+client = <starlette.testclient.TestClient object at 0x10bee0550>
+db = <sqlalchemy.orm.session.Session object at 0x10bee1b90>
+published_offset = datetime.timedelta(0), late = True
+
+    @pytest.mark.parametrize("published_offset,late", [
+        (timedelta(hours=-2), False),
+        (timedelta(microseconds=-1), False),
+        (timedelta(0), True),                 # published AT kickoff is not prematch evidence
+        (timedelta(minutes=30), True),
+    ])
+    def test_published_after_kickoff_is_settlements_prematch_rule(client, db, published_offset, late):
+        expert = _expert(db)
+        kickoff = LATE_KICKOFF
+        match = _match(db, kickoff, "late", status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, kickoff + published_offset)
+    
+        detail = _detail(client, match)
+>       assert detail["expert_predictions"][0]["published_after_kickoff"] is late
+E       KeyError: 'published_after_kickoff'
+
+tests/api/test_expert_revisions.py:496: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/4e374890-1ba2-4aa1-807a-c1040eaea308 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/4e374890-1ba2-4aa1-807a-c1040eaea308 "HTTP/1.1 200 OK"
+_ test_published_after_kickoff_is_settlements_prematch_rule[published_offset3-True] _
+
+client = <starlette.testclient.TestClient object at 0x10c2eb010>
+db = <sqlalchemy.orm.session.Session object at 0x10c2e90d0>
+published_offset = datetime.timedelta(seconds=1800), late = True
+
+    @pytest.mark.parametrize("published_offset,late", [
+        (timedelta(hours=-2), False),
+        (timedelta(microseconds=-1), False),
+        (timedelta(0), True),                 # published AT kickoff is not prematch evidence
+        (timedelta(minutes=30), True),
+    ])
+    def test_published_after_kickoff_is_settlements_prematch_rule(client, db, published_offset, late):
+        expert = _expert(db)
+        kickoff = LATE_KICKOFF
+        match = _match(db, kickoff, "late", status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, kickoff + published_offset)
+    
+        detail = _detail(client, match)
+>       assert detail["expert_predictions"][0]["published_after_kickoff"] is late
+E       KeyError: 'published_after_kickoff'
+
+tests/api/test_expert_revisions.py:496: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/90b26101-8633-4e31-aafa-e2dfde76d331 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/90b26101-8633-4e31-aafa-e2dfde76d331 "HTTP/1.1 200 OK"
+_______ test_published_after_kickoff_is_null_when_either_time_is_unknown _______
+
+client = <starlette.testclient.TestClient object at 0x10c4c7910>
+db = <sqlalchemy.orm.session.Session object at 0x10c4c7990>
+
+    def test_published_after_kickoff_is_null_when_either_time_is_unknown(client, db):
+        """Unknown is not "before kickoff": a stored False would assert a prematch publication."""
+        expert = _expert(db)
+        match = _match(db, LATE_KICKOFF, "undated", status=MatchStatus.FINISHED)
+        undated = _publish(db, match, expert, None)
+    
+>       assert _detail(client, match)["expert_predictions"][0]["published_after_kickoff"] is None
+E       KeyError: 'published_after_kickoff'
+
+tests/api/test_expert_revisions.py:517: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/5a94778f-8909-419a-baf3-17c6625d950e "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/5a94778f-8909-419a-baf3-17c6625d950e "HTTP/1.1 200 OK"
+_____ test_each_public_expert_prediction_names_its_author_by_username_only _____
+
+client = <starlette.testclient.TestClient object at 0x10c4d6190>
+db = <sqlalchemy.orm.session.Session object at 0x10c4d7190>
+
+    def test_each_public_expert_prediction_names_its_author_by_username_only(client, db):
+        first, second = _named_expert(db, "one"), _named_expert(db, "two")
+        match = _match(db, FUTURE_KICKOFF + timedelta(days=2), "author")
+        mine = _publish(db, match, first, datetime.utcnow() - timedelta(hours=3))
+        theirs = _publish(db, match, second, datetime.utcnow() - timedelta(hours=2))
+    
+        response = client.get(f"/api/v1/matches/{match.id}")
+        assert response.status_code == 200, response.text
+        detail = response.json()
+>       authors = {row["id"]: row["author"] for row in detail["expert_predictions"]}
+
+tests/api/test_expert_revisions.py:554: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <list_iterator object at 0x10c169c60>
+
+>   authors = {row["id"]: row["author"] for row in detail["expert_predictions"]}
+E   KeyError: 'author'
+
+tests/api/test_expert_revisions.py:554: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/fd8d1afc-a4e8-4316-87e6-68055cd321c5 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/fd8d1afc-a4e8-4316-87e6-68055cd321c5 "HTTP/1.1 200 OK"
+_ test_an_author_with_a_blank_username_is_served_without_a_name_and_never_by_email _
+
+client = <starlette.testclient.TestClient object at 0x10bf37610>
+db = <sqlalchemy.orm.session.Session object at 0x10c4b7fd0>
+
+    def test_an_author_with_a_blank_username_is_served_without_a_name_and_never_by_email(client, db):
+        expert = _named_expert(db, "blank")
+        expert.username = "   "
+        match = _match(db, FUTURE_KICKOFF + timedelta(days=2), "blankauthor")
+        _publish(db, match, expert, datetime.utcnow() - timedelta(hours=3))
+        db.flush()
+    
+        response = client.get(f"/api/v1/matches/{match.id}")
+        assert response.status_code == 200, response.text
+>       assert response.json()["expert_predictions"][0]["author"] == {"id": str(expert.id), "username": None}
+E       KeyError: 'author'
+
+tests/api/test_expert_revisions.py:578: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/23ac888e-fc05-4749-9c8f-11a826bbf440 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/23ac888e-fc05-4749-9c8f-11a826bbf440 "HTTP/1.1 200 OK"
+_____________ test_the_authors_cost_one_batched_query_per_request ______________
+
+client = <starlette.testclient.TestClient object at 0x10c5125d0>
+db = <sqlalchemy.orm.session.Session object at 0x10c512510>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c512ed0>
+
+    def test_the_authors_cost_one_batched_query_per_request(client, db, monkeypatch):
+        """Two matches by two experts, and two experts on one match: one users query either way.
+    
+        The measured-record summary the brief carries is replaced by a fixed one here, so the only
+        reader of the users table left in the request is the author lookup being counted.
+        """
+        from app.services.match_brief import unknown_scoring_summary
+        monkeypatch.setattr("app.api.v1.endpoints.matches.current_scoring_summary",
+                            lambda db=None: unknown_scoring_summary("not measured in this test"))
+        first, second = _named_expert(db, "qa"), _named_expert(db, "qb")
+        kickoff = FUTURE_KICKOFF + timedelta(days=3)
+        one = _match(db, kickoff, "batch1")
+        two = _match(db, kickoff + timedelta(hours=1), "batch2")
+        _publish(db, one, first, datetime.utcnow() - timedelta(hours=3))
+        _publish(db, two, second, datetime.utcnow() - timedelta(hours=3))
+        _publish(db, one, second, datetime.utcnow() - timedelta(hours=2))
+        db.commit()
+    
+>       assert _count_user_queries(db, client, f"/api/v1/matches?date={kickoff.date().isoformat()}&refresh=false") == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = _count_user_queries(<sqlalchemy.orm.session.Session object at 0x10c512510>, <starlette.testclient.TestClient object at 0x10c5125d0>, '/api/v1/matches?date=2026-12-07&refresh=false')
+
+tests/api/test_expert_revisions.py:617: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:46 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches?date=2026-12-07&refresh=false "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches?date=2026-12-07&refresh=false "HTTP/1.1 200 OK"
+_ test_an_expert_with_no_username_is_labelled_unknown_expert_never_by_email[] __
+
+db = <sqlalchemy.orm.session.Session object at 0x10bf290d0>, blank = ''
+
+    @pytest.mark.parametrize("blank", ["", "   "])
+    def test_an_expert_with_no_username_is_labelled_unknown_expert_never_by_email(db, blank):
+        """GET /performance/sources needs no sign-in, and it labelled such an expert ``username or email``.
+    
+        A blank username is reachable: the column is NOT NULL but accepts '', and the profile endpoint
+        accepted three spaces as a username until it learned to strip them.
+        """
+        import json
+    
+        match = away_win(db)
+        user = _expert(db, "nameless")
+        user.username = blank
+        _prediction(db, match, user)
+        db.flush()
+    
+        settle(db)
+    
+        source = measured(db, user)
+        assert source is not None and source["scored"] == 1
+>       assert source["source_label"] == "unknown expert"
+E       AssertionError: assert 'nameless-d78dd069@test.local' == 'unknown expert'
+E         - unknown expert
+E         + nameless-d78dd069@test.local
+
+tests/services/test_expert_history.py:1015: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:47 - app.services.settlement - INFO - settlement soccer-regulation-time-v2: 1 match(es) considered, expert {'settled': 1, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.settlement:settlement.py:1036 settlement soccer-regulation-time-v2: 1 match(es) considered, expert {'settled': 1, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}
+_ test_an_expert_with_no_username_is_labelled_unknown_expert_never_by_email[   ] _
+
+db = <sqlalchemy.orm.session.Session object at 0x10c48bc90>, blank = '   '
+
+    @pytest.mark.parametrize("blank", ["", "   "])
+    def test_an_expert_with_no_username_is_labelled_unknown_expert_never_by_email(db, blank):
+        """GET /performance/sources needs no sign-in, and it labelled such an expert ``username or email``.
+    
+        A blank username is reachable: the column is NOT NULL but accepts '', and the profile endpoint
+        accepted three spaces as a username until it learned to strip them.
+        """
+        import json
+    
+        match = away_win(db)
+        user = _expert(db, "nameless")
+        user.username = blank
+        _prediction(db, match, user)
+        db.flush()
+    
+        settle(db)
+    
+        source = measured(db, user)
+        assert source is not None and source["scored"] == 1
+>       assert source["source_label"] == "unknown expert"
+E       AssertionError: assert '   ' == 'unknown expert'
+E         Strings contain only whitespace, escaping them using repr()
+E         - 'unknown expert'
+E         + '   '
+
+tests/services/test_expert_history.py:1015: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-20 19:53:47 - app.services.settlement - INFO - settlement soccer-regulation-time-v2: 1 match(es) considered, expert {'settled': 1, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.settlement:settlement.py:1036 settlement soccer-regulation-time-v2: 1 match(es) considered, expert {'settled': 1, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/api/test_users_me.py::test_a_blank_name_is_read_as_a_clear_and_is_still_counted_as_sent
+FAILED tests/api/test_users_me.py::test_a_username_cannot_be_blanked_in_the_schema[]
+FAILED tests/api/test_users_me.py::test_a_username_cannot_be_blanked_in_the_schema[   ]
+FAILED tests/api/test_users_me.py::test_a_username_cannot_be_blanked_in_the_schema[None]
+FAILED tests/api/test_users_me.py::test_strings_are_stripped - AssertionError...
+FAILED tests/api/test_users_me.py::test_a_user_with_no_names_can_change_their_username_from_the_full_form
+FAILED tests/api/test_users_me.py::test_an_explicit_null_clears_a_name_and_leaves_the_other_fields_alone
+FAILED tests/api/test_users_me.py::test_an_explicit_null_or_blank_clears_the_avatar_and_the_last_name
+FAILED tests/api/test_users_me.py::test_an_empty_body_changes_nothing - asser...
+FAILED tests/api/test_users_me.py::test_values_are_stored_stripped - Assertio...
+FAILED tests/api/test_users_me.py::test_a_username_cannot_be_blanked[] - asse...
+FAILED tests/api/test_users_me.py::test_a_username_cannot_be_blanked[   ] - A...
+FAILED tests/api/test_users_me.py::test_a_username_cannot_be_blanked[None] - ...
+FAILED tests/api/test_users_me.py::test_a_taken_username_is_still_a_conflict[  {taken}  ]
+FAILED tests/api/test_users_me.py::test_a_password_change_stores_the_new_hash_revokes_refresh_tokens_and_claims_nothing_more
+FAILED tests/api/test_expert_revisions.py::test_a_btts_only_edit_keeps_every_market_in_the_revision_and_lists_only_the_btts_changes
+FAILED tests/api/test_expert_revisions.py::test_a_conviction_moved_between_zero_and_null_is_a_change_in_both_directions
+FAILED tests/api/test_expert_revisions.py::test_reasoning_and_key_factors_are_named_as_changed_without_their_text
+FAILED tests/api/test_expert_revisions.py::test_edited_after_kickoff_uses_settlements_boundary[kickoff_offset1-True]
+FAILED tests/api/test_expert_revisions.py::test_published_after_kickoff_is_settlements_prematch_rule[published_offset0-False]
+FAILED tests/api/test_expert_revisions.py::test_published_after_kickoff_is_settlements_prematch_rule[published_offset1-False]
+FAILED tests/api/test_expert_revisions.py::test_published_after_kickoff_is_settlements_prematch_rule[published_offset2-True]
+FAILED tests/api/test_expert_revisions.py::test_published_after_kickoff_is_settlements_prematch_rule[published_offset3-True]
+FAILED tests/api/test_expert_revisions.py::test_published_after_kickoff_is_null_when_either_time_is_unknown
+FAILED tests/api/test_expert_revisions.py::test_each_public_expert_prediction_names_its_author_by_username_only
+FAILED tests/api/test_expert_revisions.py::test_an_author_with_a_blank_username_is_served_without_a_name_and_never_by_email
+FAILED tests/api/test_expert_revisions.py::test_the_authors_cost_one_batched_query_per_request
+FAILED tests/services/test_expert_history.py::test_an_expert_with_no_username_is_labelled_unknown_expert_never_by_email[]
+FAILED tests/services/test_expert_history.py::test_an_expert_with_no_username_is_labelled_unknown_expert_never_by_email[   ]
+29 failed, 9 passed, 18 warnings in 3.43s
+# exit=1

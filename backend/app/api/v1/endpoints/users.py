@@ -61,9 +61,18 @@ async def update_current_user_profile(
     **Permission**: Any authenticated user
 
     Allows users to update their profile information (first_name, last_name, username, avatar_url).
+
+    Only the fields the request names are touched. A named first_name, last_name or avatar_url
+    carrying null or a blank string clears it; a username can be changed but never blanked (422)
+    and must not belong to anyone else (409). See ``UserUpdateRequest``.
     """
-    # Check if username is being updated and is unique
-    if update_data.username and update_data.username != current_user.username:
+    # The keys the body actually carried. `is not None` cannot be the test: it reads an explicit
+    # null - "clear this" - as "not sent", and a name could then never be removed.
+    supplied = update_data.model_fields_set
+    changed = False
+
+    # The schema has stripped it and refused a blank one, so a named username is a real one here.
+    if "username" in supplied and update_data.username != current_user.username:
         existing_user = db.query(User).filter(
             User.username == update_data.username,
             User.id != current_user.id
@@ -75,21 +84,18 @@ async def update_current_user_profile(
                 detail="Username already taken"
             )
         current_user.username = update_data.username
+        changed = True
 
-    # Update other fields if provided
-    if update_data.first_name is not None:
-        current_user.first_name = update_data.first_name
+    for field in ("first_name", "last_name", "avatar_url"):
+        if field in supplied and getattr(update_data, field) != getattr(current_user, field):
+            setattr(current_user, field, getattr(update_data, field))
+            changed = True
 
-    if update_data.last_name is not None:
-        current_user.last_name = update_data.last_name
-
-    if update_data.avatar_url is not None:
-        current_user.avatar_url = update_data.avatar_url
-
-    current_user.updated_at = datetime.utcnow()
-
-    db.commit()
-    db.refresh(current_user)
+    # A request that changes nothing claims no change: updated_at moves only when a field did.
+    if changed:
+        current_user.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(current_user)
 
     # Invalidate user cache
     cache_service.delete_user_cache(str(current_user.id))
@@ -108,7 +114,12 @@ async def change_current_user_password(
 
     **Permission**: Any authenticated user
 
-    Requires current password for verification. Logs out from all devices after password change.
+    Requires current password for verification. The caller should sign in again with the new
+    password.
+
+    What this does NOT do, so neither this docstring nor the response claims it: sign the user out
+    on other devices. Access tokens are stateless and stay valid until they expire, and the refresh
+    tokens deleted below are not consulted by /auth/refresh, which checks only its blacklist.
     """
     # Validate passwords match
     if password_data.new_password != password_data.confirm_password:
@@ -130,12 +141,13 @@ async def change_current_user_password(
 
     db.commit()
 
-    # Revoke all refresh tokens (logout from all devices)
+    # Deletes the user's stored refresh-token keys. It does not sign anyone out (see the docstring),
+    # which is why the message below no longer says it does.
     revoke_user_refresh_tokens(str(current_user.id))
 
     # TODO: Send confirmation email
 
-    return MessageResponse(message="Password changed successfully. You have been logged out from all devices.")
+    return MessageResponse(message="Password changed successfully. Sign in again with your new password.")
 
 
 @router.put("/me/preferences", response_model=MessageResponse)

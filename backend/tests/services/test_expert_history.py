@@ -990,3 +990,29 @@ def test_a_revision_records_a_withheld_conviction_as_null_not_as_zero(db):
 
     from app.services.expert_prediction import prediction_snapshot
     assert prediction_snapshot(created)["confidence_score"] is None
+
+
+# ------------------------------------------- the public label of an expert is never their email
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_an_expert_with_no_username_is_labelled_unknown_expert_never_by_email(db, blank):
+    """GET /performance/sources needs no sign-in, and it labelled such an expert ``username or email``.
+
+    A blank username is reachable: the column is NOT NULL but accepts '', and the profile endpoint
+    accepted three spaces as a username until it learned to strip them.
+    """
+    import json
+
+    match = away_win(db)
+    user = _expert(db, "nameless")
+    user.username = blank
+    _prediction(db, match, user)
+    db.flush()
+
+    settle(db)
+
+    source = measured(db, user)
+    assert source is not None and source["scored"] == 1
+    assert source["source_label"] == "unknown expert"
+    payload = S.measurement(db, start=(KICKOFF - timedelta(days=1)).date(),
+                            end=(KICKOFF + timedelta(days=1)).date())
+    assert user.email not in json.dumps(payload, default=str)

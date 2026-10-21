@@ -3,8 +3,8 @@ User Schemas
 Pydantic models for user-related API requests and responses
 """
 
-from pydantic import BaseModel, EmailStr, Field, field_serializer
-from typing import List, Optional
+from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
+from typing import Any, List, Optional
 from datetime import datetime
 from uuid import UUID
 
@@ -58,11 +58,43 @@ class UserPermissionsResponse(BaseModel):
 
 
 class UserUpdateRequest(BaseModel):
-    """User update request schema"""
+    """User update request schema.
+
+    A partial update, and which KEYS were sent matters as much as their values; the endpoint reads
+    ``model_fields_set`` to tell them apart:
+
+        key absent              -> the field is left exactly as it is
+        "first_name": null      -> cleared (first_name, last_name and avatar_url are optional)
+        "first_name": ""        -> cleared too: a blank is what a cleared form field sends
+        "username": "" or null  -> refused (422): an account always has a username
+
+    Every string is stripped first, so "  " is blank and " taken " is "taken" - which is what the
+    duplicate check compares.
+    """
     username: Optional[str] = Field(None, min_length=3, max_length=50)
     first_name: Optional[str] = Field(None, min_length=1, max_length=100)
     last_name: Optional[str] = Field(None, min_length=1, max_length=100)
     avatar_url: Optional[str] = Field(None, max_length=500)
+
+    @field_validator('first_name', 'last_name', 'avatar_url', mode='before')
+    @classmethod
+    def blank_clears(cls, value: Any) -> Any:
+        """A blank optional field is a clear, not a too-short value (it used to be refused with 422).
+
+        An account whose name was never supplied sends '' from the profile form for it on every
+        save, and refusing that blocked the username and avatar changes sent beside it.
+        """
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+    @field_validator('username', mode='before')
+    @classmethod
+    def username_is_never_blank(cls, value: Any) -> Any:
+        """Only runs when the key was sent: an absent username is simply not being changed."""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            raise ValueError("username cannot be blank")
+        return value.strip() if isinstance(value, str) else value
 
 
 class UserRoleUpdateRequest(BaseModel):

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.predictions import Match, Prediction, PredictionStatus
 from app.models.provider_data import ProviderEntityRef
+from app.models.users import User
 from app.schemas.matches import (
     serialize_expert_prediction,
     serialize_forecast,
@@ -137,6 +138,24 @@ def _published_predictions(db: Session, match_ids: List[uuid.UUID]) -> Dict[uuid
     return best
 
 
+def _public_authors(db: Session, predictions, known: Optional[Dict[uuid.UUID, Dict[str, Any]]] = None
+                    ) -> Dict[uuid.UUID, Dict[str, Any]]:
+    """The public identity of each prediction's author, ``{"id", "username"}``, keyed by user id.
+
+    ONE query for the whole set, never one per prediction or per match, and it selects the two
+    columns it serves and nothing else: an expert's email, names and avatar never leave the users
+    table on a public payload. A blank username is served as None rather than replaced by anything
+    else. ``known`` is a lookup the caller already made in this request; only authors it lacks are
+    queried, so a request that has them all asks nothing more.
+    """
+    found: Dict[uuid.UUID, Dict[str, Any]] = dict(known or {})
+    wanted = {p.created_by for p in predictions if p is not None and p.created_by is not None} - set(found)
+    if wanted:
+        for row in db.query(User.id, User.username).filter(User.id.in_(list(wanted))).all():
+            found[row.id] = {"id": str(row.id), "username": (row.username or "").strip() or None}
+    return found
+
+
 def _league_refs(db: Session, league_ids) -> Dict:
     refs = db.query(ProviderEntityRef).filter(ProviderEntityRef.entity_type == "league",
                                               ProviderEntityRef.entity_id.in_(list(league_ids))).all() if league_ids else []
@@ -147,7 +166,8 @@ def _league_refs(db: Session, league_ids) -> Dict:
 
 
 def build_match_payloads(db: Session, matches: List[Match], service: MatchDataService, forecasts: ForecastService,
-                         full_brief: bool = False) -> List[Dict[str, Any]]:
+                         full_brief: bool = False,
+                         authors: Optional[Dict[uuid.UUID, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """Serialise matches with their forecast, expert prediction and evidence brief.
 
     The brief is assembled from values this loop already holds, so it costs no database query per
@@ -161,11 +181,15 @@ def build_match_payloads(db: Session, matches: List[Match], service: MatchDataSe
     to opening a ``SessionLocal`` of its own whenever its sixty-second cache was cold — a second
     session and a second transaction inside a request that already had one, on the hot path of
     every match list and every match page.
+
+    The experts' public names are looked up the same way: once, for every match in the list
+    (``authors`` is a lookup the caller already made, see ``match_detail``).
     """
     teams = service.registry.team_names(matches)
     leagues = service.registry.leagues_by_id(matches)
     league_refs = _league_refs(db, leagues.keys())
     experts = _published_predictions(db, [m.id for m in matches])
+    authors = _public_authors(db, experts.values(), known=authors)
     # Nothing to describe means nothing to measure: an empty day costs no measurement at all.
     scoring = current_scoring_summary(db) if matches else None
     payloads = []
@@ -173,7 +197,9 @@ def build_match_payloads(db: Session, matches: List[Match], service: MatchDataSe
         record = forecasts.forecast_for_match(match)
         freshness = forecasts.freshness(record, match)
         forecast = serialize_forecast(record, freshness)
-        expert = serialize_expert_prediction(experts.get(match.id))
+        best = experts.get(match.id)
+        expert = serialize_expert_prediction(best, kickoff=match.match_date,
+                                             author=authors.get(best.created_by) if best else None)
         payload = serialize_match(match, teams, leagues, forecast, expert, league_refs)
         brief = build_brief(match=payload, forecast=forecast, freshness=freshness, expert=expert,
                             scoring=scoring)
@@ -383,10 +409,14 @@ async def match_detail(match_id: str, db: Session = Depends(get_db)):
     match = service.match_by_id(resolved)
     if match is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
-    payload = build_match_payloads(db, [match], service, forecasts, full_brief=True)[0]
     experts = db.query(Prediction).filter(Prediction.match_id == match.id, Prediction.status == PredictionStatus.PUBLISHED,
                                           Prediction.deleted_at.is_(None)).order_by(Prediction.priority_level.desc()).all()
-    payload["expert_predictions"] = [serialize_expert_prediction(p) for p in experts]
+    # Every author on this match, looked up once and handed to the payload builder, so the page
+    # costs one users query however many experts published on it.
+    authors = _public_authors(db, experts)
+    payload = build_match_payloads(db, [match], service, forecasts, full_brief=True, authors=authors)[0]
+    payload["expert_predictions"] = [
+        serialize_expert_prediction(p, kickoff=match.match_date, author=authors.get(p.created_by)) for p in experts]
     # An expert may correct a published view. The versions that correction replaced are preserved,
     # so the reader can see that the view changed and when, rather than only the latest numbers.
     # One query for every prediction on this match, never one per prediction.

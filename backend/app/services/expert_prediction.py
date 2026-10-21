@@ -156,6 +156,40 @@ def _changes_summary(old: Dict[str, Any], new: Dict[str, Any]) -> str:
     return "; ".join(changed)
 
 
+#: Text fields a revision names as changed without repeating their contents: the earlier text is
+#: already in the revision's own ``values``, and a diff of prose is not something to render.
+REVISION_TEXT_FIELDS: Tuple[str, ...] = ("reasoning", "key_factors")
+
+
+def revision_changes(old: Any, new: Any) -> Optional[List[Dict[str, Any]]]:
+    """What one edit changed, structured, from the two snapshots its revision row stores.
+
+    The same diff ``_changes_summary`` wrote as audit text, in the same field order, but as data a
+    reader can label and format in its own language rather than a string of column names and
+    Python reprs ("confidence_score 0.0 -> None"). The audit text is left exactly as it is; this
+    is computed when the revision is served, so every stored row gets it with no migration.
+
+    * a numeric field: ``{"field", "from", "to"}``. 0 and null are different values - a conviction
+      of 0 withdrawn is a change from 0.0 to null - so a market published, withdrawn or revalued
+      each shows up as what it was;
+    * reasoning, key_factors: ``{"field"}`` alone.
+
+    A numeric field one of the two snapshots does not record is left out rather than reported as a
+    change from or to null, which would be an invention. ``None`` (not ``[]``) when the row does not
+    carry both snapshots: then nothing can be said about what changed, which is not "nothing did".
+    """
+    if not isinstance(old, dict) or not isinstance(new, dict) or not old or not new:
+        return None
+    changes: List[Dict[str, Any]] = []
+    for name in REVISION_VALUE_FIELDS:
+        if name in old and name in new and old[name] != new[name]:
+            changes.append({"field": name, "from": old[name], "to": new[name]})
+    for name in REVISION_TEXT_FIELDS:
+        if old.get(name) != new.get(name):
+            changes.append({"field": name})
+    return changes
+
+
 def _canonical_metadata(name: Optional[str]) -> Optional[dict]:
     """``league_metadata`` carrying the canonical key for this competition name, or None.
 

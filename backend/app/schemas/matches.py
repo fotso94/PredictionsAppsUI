@@ -109,7 +109,17 @@ def serialize_league(league: Optional[League], refs: Optional[Iterable[ProviderE
             **_classification(meta.get("canonical_key"))}
 
 
-def serialize_expert_prediction(prediction: Optional[Prediction]) -> Optional[Dict[str, Any]]:
+def serialize_expert_prediction(prediction: Optional[Prediction], kickoff: Optional[datetime] = None,
+                                author: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    """One published expert prediction as readers see it.
+
+    ``published_after_kickoff`` is settlement's own prematch rule applied to this row: True when it
+    was published AT or after ``kickoff`` (the match's kickoff), which settlement refuses to score;
+    False when before; None when either time is unknown, because unknown is not "before".
+
+    ``author`` is the public identity only - ``{"id", "username"}`` from the caller's one batched
+    lookup - and never the expert's email, names or avatar. None when the caller has none.
+    """
     if prediction is None:
         return None
     return {
@@ -122,6 +132,8 @@ def serialize_expert_prediction(prediction: Optional[Prediction]) -> Optional[Di
         "total_goals_over_35_prob": _f(prediction.total_goals_over_35_prob), "total_goals_under_35_prob": _f(prediction.total_goals_under_35_prob),
         "total_goals_confidence": _f(prediction.total_goals_confidence),
         "reasoning": prediction.reasoning, "published_at": _iso(prediction.published_at), "created_by": str(prediction.created_by),
+        "published_after_kickoff": _at_or_after_kickoff(prediction.published_at, kickoff),
+        "author": author,
     }
 
 
@@ -132,6 +144,17 @@ def _naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
     return dt.astimezone(timezone.utc).replace(tzinfo=None) if dt.tzinfo else dt
 
 
+def _at_or_after_kickoff(instant: Optional[datetime], kickoff: Optional[datetime]) -> Optional[bool]:
+    """Settlement's kickoff boundary, :func:`app.services.settlement.at_or_after_kickoff`, on naive UTC.
+
+    Delegated rather than restated, so what a reader is told about a row is what settlement decides
+    about it. Imported here rather than at the top: settlement imports this module, through
+    ``app.services.expert_prediction``.
+    """
+    from app.services.settlement import at_or_after_kickoff
+    return at_or_after_kickoff(_naive_utc(instant), _naive_utc(kickoff))
+
+
 def serialize_prediction_revision(revision, index: int, kickoff: Optional[datetime] = None) -> Dict[str, Any]:
     """One preserved earlier version of an expert prediction.
 
@@ -139,9 +162,15 @@ def serialize_prediction_revision(revision, index: int, kickoff: Optional[dateti
     carried, so a reader can see what was on screen and when - not merely that something changed.
     Revisions are append-only, so ``revision`` 1 is always the original and stays readable however
     many corrections follow, including corrections made after kickoff.
+
+    ``changes`` is what the edit changed, structured (see ``revision_changes``); ``changes_summary``
+    is the audit text written at the time, kept for existing callers and not meant for display.
+    ``edited_after_kickoff`` uses settlement's boundary: an edit AT kickoff is after it, exactly as
+    settlement reads it when it restores the version that stood.
     """
+    from app.services.expert_prediction import revision_changes  # local: that module imports this one
+
     values = revision.old_values or {}
-    recorded, kicked_off = _naive_utc(revision.created_at), _naive_utc(kickoff)
     return {
         "id": str(revision.id),
         "prediction_id": str(revision.prediction_id),
@@ -150,8 +179,9 @@ def serialize_prediction_revision(revision, index: int, kickoff: Optional[dateti
         "replaced_at": _iso(revision.created_at),
         "edited_by": str(revision.user_id) if revision.user_id else None,
         "changes_summary": revision.changes_summary,
+        "changes": revision_changes(revision.old_values, revision.new_values),
         # None when the kickoff is unknown: a stored False would assert "before kickoff".
-        "edited_after_kickoff": (recorded > kicked_off) if (recorded and kicked_off) else None,
+        "edited_after_kickoff": _at_or_after_kickoff(revision.created_at, kickoff),
         "published_at": values.get("published_at"),
         "values": values,
     }
