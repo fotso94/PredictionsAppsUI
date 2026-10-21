@@ -40,6 +40,7 @@ backups/
 frontend/e2e/screenshots/
 frontend/e2e/.artifacts/
 frontend/e2e/.report/
+frontend/e2e/.guard-artifacts/
 frontend/test-results/
 
 # Raw output of scripts/test_evidence.py: full Playwright JSON, traces (which hold the QA password

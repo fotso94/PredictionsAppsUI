@@ -1,4 +1,5 @@
 import { APIRequestContext, request } from '@playwright/test';
+import { loadCommittedPolicy, origin } from './target-policy';
 
 /**
  * The isolated pair, for the browser tests that WRITE.
@@ -13,22 +14,17 @@ import { APIRequestContext, request } from '@playwright/test';
  *
  * Two guards, because a wrong URL is a configuration slip and must fail loudly rather than write
  * to the wrong database: the isolated API may not be the same origin as the main one, and the
- * backend it reaches must say (GET /health, `database`) that it serves a database other than the
- * live one. A backend too old to say is refused too.
+ * backend it reaches must say (GET /health, `database`) that it serves an APPROVED isolated
+ * database - an allowlist from backend/app/core/isolation_targets.json, not "anything but the live
+ * one", so soccer_predictions_dev or a typo is refused as well. A backend too old to say is refused
+ * too. These are the per-spec second line: the run's isolation preflight (e2e/global-preflight.ts)
+ * has already judged the isolated pair - every Redis database included - before any spec loaded.
  */
 
 export const ISOLATED_API = process.env.E2E_ISOLATED_API_URL || 'http://127.0.0.1:8001';
 export const ISOLATED_BASE = process.env.E2E_ISOLATED_BASE_URL || 'http://localhost:3101';
 const MAIN_API = process.env.E2E_API_URL || 'http://127.0.0.1:8000';
-/** The database the :8000 backend serves. Nothing that records a slip may reach it. */
-const LIVE_DATABASE = 'soccer_predictions';
-
-const origin = (url: string): string => {
-  const parsed = new URL(url);
-  // 127.0.0.1 and localhost are one machine; a port is what tells the two backends apart.
-  const host = parsed.hostname === 'localhost' ? '127.0.0.1' : parsed.hostname;
-  return `${parsed.protocol}//${host}:${parsed.port || (parsed.protocol === 'https:' ? '443' : '80')}`;
-};
+const POLICY = loadCommittedPolicy();
 
 /** An API context on the isolated backend, refused unless it really is isolated. */
 export async function isolatedApiContext(): Promise<APIRequestContext> {
@@ -49,9 +45,14 @@ export async function isolatedApiContext(): Promise<APIRequestContext> {
     throw new Error(`the backend at ${ISOLATED_API} does not say which database it serves; `
       + 'it predates that field - restart it on the current code');
   }
-  if (body.database === LIVE_DATABASE) {
+  if (POLICY.live.databases.includes(body.database)) {
     await api.dispose();
-    throw new Error(`the backend at ${ISOLATED_API} serves the live database ${LIVE_DATABASE}; refusing to write to it`);
+    throw new Error(`the backend at ${ISOLATED_API} serves the live database ${body.database}; refusing to write to it`);
+  }
+  if (!POLICY.isolated.databases.includes(body.database)) {
+    await api.dispose();
+    throw new Error(`the backend at ${ISOLATED_API} serves ${body.database}, which is not an approved isolated database `
+      + `(${POLICY.isolated.databases.join(', ')}); refusing to write to it`);
   }
   return api;
 }

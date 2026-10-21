@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.core.redis import LOOPBACK_HOSTS, redis_targets_in_use
 from app.core.source_identity import source_identity
 from app.api.v1.api import api_router
 from app.db.init_db import init_db
@@ -117,6 +118,23 @@ def _database_name() -> str:
     return urlsplit(settings.DATABASE_URL or "").path.lstrip("/") or settings.POSTGRES_DB
 
 
+def _redis_in_use() -> dict:
+    """Every Redis database this process can open - the default client's and the six roles' - and
+    the one server they are on, by port and whether it is this machine. Never a host name or a URL.
+    The browser tests' preflight (frontend/e2e/support/isolation-preflight.ts) refuses an isolated
+    backend unless this says it uses only the isolated pair's databases."""
+    try:
+        targets = redis_targets_in_use()
+    except Exception:  # noqa: BLE001 - a health check must answer; the preflight refuses a null
+        return {"redis_databases": None, "redis_server": None}
+    servers = {(host, port) for _, host, port, _ in targets}
+    host, port = next(iter(servers))
+    return {
+        "redis_databases": sorted({db for _, _, _, db in targets}),
+        "redis_server": {"port": port, "loopback": host in LOOPBACK_HOSTS} if len(servers) == 1 else None,
+    }
+
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint, and this process's own account of what it loaded.
@@ -125,7 +143,8 @@ async def health_check():
     commit, the application files that differed from that commit, and a digest of the application
     tree it loaded. The tools that judge evidence against the running code measure it against the
     checkout (backend/scripts/prove_journey.py, scripts/test_evidence.py) instead of inferring it
-    from file timestamps. The database is named, never its URL.
+    from file timestamps. The database is named, never its URL; so are the Redis databases in use
+    and whether the scheduler runs (see _redis_in_use), which the browser preflight checks.
     """
     identity = source_identity()
     return {
@@ -134,6 +153,8 @@ async def health_check():
         "version": app.version,
         "started_at": identity["started_at"],
         "database": _database_name(),
+        **_redis_in_use(),
+        "scheduler_enabled": bool(settings.SYNC_SCHEDULER_ENABLED),
         "source": identity,
     }
 

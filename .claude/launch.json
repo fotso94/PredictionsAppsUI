@@ -51,6 +51,9 @@
         "GAMEFORECAST_API_KEY": "",
         "API_FOOTBALL_KEY": "",
         "THESPORTSDB_KEY": "",
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "6379",
+        "REDIS_DB": "10",
         "REDIS_DB_SESSIONS": "10",
         "REDIS_DB_PREDICTIONS": "11",
         "REDIS_DB_EXPERT_TOOLS": "12",
@@ -59,7 +62,7 @@
         "REDIS_DB_RATE_LIMIT": "15",
         "BACKEND_CORS_ORIGINS": "[\"http://localhost:3101\",\"http://127.0.0.1:3101\"]"
       },
-      "_note": "The isolated backend for the write-producing browser tests (Playwright project live-isolated): the e2e clone of the live database, scheduler off, email off (EMAIL_ENABLED defaults to true, and a QA registration or password reset here must never send a real message), every provider door closed, its own Redis databases. scripts/local-servers.sh starts the same thing detached from the app, with the same environment."
+      "_note": "The isolated backend for the write-producing browser tests (Playwright project live-isolated): the e2e clone of the live database, scheduler off, email off (EMAIL_ENABLED defaults to true, and a QA registration or password reset here must never send a real message), every provider door closed, its own Redis databases - REDIS_DB included, or the default client stays on .env's database 0, the live sessions database. scripts/local-servers.sh starts the same thing detached from the app, with the same environment, after running the isolation preflight (python -m app.core.target_guard --role isolated-backend) over it."
     },
     {
       "name": "frontend-isolated",

@@ -1255,8 +1255,9 @@ def test_database_refusals():
     default = "postgresql://u:p@localhost:5432/soccer_predictions_test"
     own = "postgresql://u:p@localhost:5432/soccer_predictions_test_evidence"
     assert te.database_refusals(own, default, True) == []
-    assert "does not say it is a test database" in te.database_refusals(
-        "postgresql://u:p@localhost:5432/soccer_predictions", default, True)[0]
+    # Which database is acceptable is the isolation preflight's decision, by exact target
+    # (test_the_isolation_preflight_decides_the_backend_targets): a word in the name is not a rule.
+    assert te.database_refusals("postgresql://u:p@localhost:5432/soccer_predictions", default, True) == []
     assert "ignores TEST_DATABASE_URL" in te.database_refusals(own, default, False)[0]
     assert te.database_refusals(None, None, False) == ["no backend test database: set TEST_DATABASE_URL"]
     assert te.describe_database_url(own) == {"scheme": "postgresql", "host": "localhost", "port": 5432,
@@ -1358,3 +1359,57 @@ def test_run_child_returns_the_childs_own_exit_code(tmp_path):
                        console, echo=False)
     assert ran["exit_code"] == 7 and ran["interrupted"] is False
     assert console.read_text() == "  1 failed\n"
+
+
+# ----------------------------------------------------------------------------- the isolation preflight
+GUARD_REFUSED = {"ok": False, "role": "backend-tests", "codes": ["conflict:unsplit-value", "missing:redis"],
+                 "refusals": [{"code": "conflict:unsplit-value",
+                               "message": "TEST_DATABASE_URL contains whitespace or a NAME= assignment"},
+                              {"code": "missing:redis", "message": "neither REDIS_URL nor both REDIS_HOST and "
+                                                                    "REDIS_PORT are set"}],
+                 "targets": {"test database": "localhost:5432/soccer_predictions_test"}, "policy_sha256": "ab" * 32}
+
+
+def test_the_isolation_preflight_decides_the_backend_targets():
+    """The unsplit shell variable of 2026-10-20 still contains the word "test", which was the only
+    rule here; the backend's own preflight (app.core.target_guard) now decides, and every one of
+    its reasons is a refusal of the run."""
+    refusals = te.target_guard_refusals(GUARD_REFUSED, 78)
+    assert len(refusals) == 2
+    assert "TEST_DATABASE_URL contains whitespace" in refusals[0] and "isolation preflight" in refusals[0]
+    assert te.target_guard_refusals({**GUARD_REFUSED, "ok": True, "codes": [], "refusals": []}, 0) == []
+    assert "could not run" in te.target_guard_refusals(None, 1)[0]
+    # A verdict and an exit code that disagree are not trusted either way.
+    assert "could not run" in te.target_guard_refusals({**GUARD_REFUSED, "ok": True, "refusals": []}, 78)[0]
+
+
+def test_the_preflight_judges_the_environment_the_backend_suite_will_get(monkeypatch):
+    seen = {}
+
+    def fake_run_text(argv, cwd=None, env_extra=None, timeout=60, base_env=None):
+        seen.update(argv=list(argv), cwd=cwd, env=dict(base_env or {}))
+        return 78, "noise\n" + json.dumps(GUARD_REFUSED) + "\n"
+
+    monkeypatch.setattr(te, "run_text", fake_run_text)
+    env = {"TEST_DATABASE_URL": "postgresql://u:p@localhost:5432/soccer_predictions_test", "POSTGRES_DB": "x"}
+    code, verdict = te.run_target_guard(env)
+    assert code == 78 and verdict == GUARD_REFUSED
+    assert seen["argv"][1:] == ["-m", "app.core.target_guard", "--role", "backend-tests", "--json"]
+    assert seen["cwd"] == te.BACKEND and seen["env"] == env
+
+
+def test_the_service_probe_cannot_connect_before_the_guard():
+    """The probe reaches the database and Redis, so its first statement is the guard itself."""
+    first = [line for line in te.BACKEND_PROBE.strip().splitlines() if line.strip()][0]
+    assert first == "from app.core.target_guard import enforce; enforce(role='backend-tests', layer='test_evidence probe')"
+
+
+def test_each_playwright_project_names_its_stack():
+    """playwright.config.ts defines live and live-isolated only for E2E_STACK=live / live-isolated."""
+    raw = Path("/r")
+    assert te.playwright_env("live-isolated", raw, "http://localhost:3100", "http://127.0.0.1:8000",
+                             "http://localhost:3101", "http://127.0.0.1:8001")["E2E_STACK"] == "live-isolated"
+    assert te.playwright_env("live", raw, "http://localhost:3100", "http://127.0.0.1:8000")["E2E_STACK"] == "live"
+    for project in ("mocked-desktop", "mocked-mobile", "mocked-mobile-360"):
+        assert te.playwright_env(project, raw, "http://localhost:3100", "http://127.0.0.1:8000")["E2E_STACK"] == "mocked"
+        assert te.stack_for(project) == "mocked"

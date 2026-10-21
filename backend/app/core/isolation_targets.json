@@ -1,0 +1,58 @@
+{
+  "format": "isolation-targets/1",
+  "about": "What a test run may connect to. Read by app/core/target_guard.py (the backend tests and the isolated backend's start) and by frontend/e2e/support/target-policy.ts (the browser tests' preflight). Every comparison is exact: a host is recognised only as one of loopback_hosts, by its exact text and without a lookup; a database by its exact name; a Redis database by server port and number. Nothing is matched by a substring. Protected targets are checked first and win over any approval. A missing or malformed file, or one that approves a protected target for a role that may not use it, refuses every run.",
+  "loopback_hosts": ["localhost", "127.0.0.1", "::1"],
+  "protected": {
+    "postgres_databases": [
+      {"database": "soccer_predictions", "class": "live", "why": "the live database (main backend :8000)"},
+      {"database": "soccer_predictions_dev", "class": "live", "why": "the hand-staged dev copy"},
+      {"database": "soccer_predictions_qa", "class": "live", "why": "the QA copy"},
+      {"database": "soccer_predictions_e2e", "class": "isolated-pair", "why": "the isolated pair's database (backend :8001)"}
+    ],
+    "redis": [
+      {"port": 6379, "databases": [0, 1, 2, 3, 4, 5], "class": "live", "why": "the live Redis databases (main backend :8000)"},
+      {"port": 6379, "databases": [10, 11, 12, 13, 14, 15], "class": "isolated-pair", "why": "the isolated pair's Redis databases (backend :8001)"}
+    ]
+  },
+  "roles": {
+    "backend-tests": {
+      "about": "The pytest suite. `test` is TEST_DATABASE_URL and the application settings' database, which must be one and the same; `race` is RACE_TEST_DATABASE_URL; `application` is every Redis client the application opens (the default and the six REDIS_DB_* roles); `lease` is LEASE_TEST_REDIS_URL's three databases.",
+      "may_use": [],
+      "postgres": {
+        "test": [
+          {"host": "loopback", "port": 5432, "database": "soccer_predictions_test", "why": "the shared server's test database; the session fixture drops every table it created"},
+          {"host": "loopback", "port": 5440, "database": "forecast_race_test", "why": "guard-race-pg, the throwaway PostgreSQL"}
+        ],
+        "race": [
+          {"host": "loopback", "port": 5440, "database": "forecast_race_test", "why": "guard-race-pg, the throwaway PostgreSQL"}
+        ]
+      },
+      "redis": {
+        "application": [
+          {"host": "loopback", "port": 6390, "databases": "all", "why": "guard-test-redis, the throwaway Redis: the whole server"}
+        ],
+        "lease": [
+          {"host": "loopback", "port": 6390, "databases": "all", "why": "guard-test-redis, the throwaway Redis: the whole server"}
+        ]
+      }
+    },
+    "isolated-backend": {
+      "about": "The isolated backend (:8001) as scripts/local-servers.sh starts it, and what the browser preflight requires its GET /health to report.",
+      "may_use": ["isolated-pair"],
+      "postgres": {
+        "application": [
+          {"host": "loopback", "port": 5432, "database": "soccer_predictions_e2e", "why": "the e2e clone"}
+        ]
+      },
+      "redis": {
+        "application": [
+          {"host": "loopback", "port": 6379, "databases": [10, 11, 12, 13, 14, 15], "why": "the isolated pair's own databases on the shared server, one by one, not the server"}
+        ]
+      }
+    }
+  },
+  "browser": {
+    "live": {"frontend_ports": [3100], "backend_ports": [8000]},
+    "isolated": {"frontend_ports": [3101], "backend_ports": [8001], "role": "isolated-backend"}
+  }
+}

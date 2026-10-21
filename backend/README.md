@@ -216,25 +216,63 @@ The application uses multiple Redis databases for different purposes:
 
 ## 🧪 Testing
 
-`pyproject.toml` sets `addopts = "-v --cov=app --cov-report=html --cov-report=term-missing"`, so a
-bare `pytest` always runs coverage and writes an HTML report. Override it with `-o addopts=""` for a
-plain run — that is the canonical command:
+Every run writes its targets on the command line. **The suite refuses to start otherwise**: its
+isolation preflight (`app/core/target_guard.py`) judges every database and Redis database the run
+would use against the committed allowlist (`app/core/isolation_targets.json`) before anything can
+connect, and exits 78 with a credential-free explanation when something is missing, live,
+unapproved or contradictory. `backend/.env` is the live configuration (in a worktree it is a link
+to the main checkout's), so a value that only comes from it never counts.
 
 ```bash
-# canonical: plain, quiet run (Python 3.11, the environment the desktop app can launch)
-./venv311/bin/python -m pytest -o addopts="" -q
+# the throwaway Redis the suite's application Redis is approved on (the whole server):
+docker run -d --rm --pull never --name guard-test-redis -p 127.0.0.1:6390:6390 redis:7-alpine \
+  redis-server --port 6390 --save "" --appendonly no
 
-# a single file
+# canonical: plain, quiet run (Python 3.11). Each variable written out - never through a shell
+# variable: zsh does not split `env $VARS cmd`, which is how two runs once fell back to .env.
+cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test \
+  POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 \
+  SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false \
+  ./venv311/bin/python -m pytest -o addopts="" -q
+
+# a single file: the same variables, then
 ./venv311/bin/python -m pytest -o addopts="" tests/test_health.py
 
-# with coverage (the pyproject default)
-./venv311/bin/python -m pytest
+# with the real-Redis lease tests and the PostgreSQL race tests, which otherwise skip: add
+#   LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9
+#   RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test
+# after starting the throwaway PostgreSQL:
+docker run -d --rm --pull never --name guard-race-pg -e POSTGRES_HOST_AUTH_METHOD=trust \
+  -e POSTGRES_DB=forecast_race_test -p 127.0.0.1:5440:5440 --tmpfs /var/lib/postgresql/data \
+  postgres:15-alpine -c port=5440
 
-# beside another run: the suite drops every table it created when it ends, so give each
-# concurrent run its own database
-TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test_mine \
-  ./venv311/bin/python -m pytest -o addopts="" -q
+# what the preflight would decide, without running anything (exit 0 or 78; --json for tools)
+./venv311/bin/python -m app.core.target_guard --role backend-tests
 ```
+
+What the preflight requires, and refuses:
+
+- **Explicit settings.** `TEST_DATABASE_URL`; `POSTGRES_DB` (or `DATABASE_URL`); `REDIS_HOST` and
+  `REDIS_PORT` (or `REDIS_URL`); `SYNC_SCHEDULER_ENABLED=false` and `EMAIL_ENABLED=false`. Set and
+  not blank; a lowercase spelling does not count.
+- **Approved targets only, by exact comparison.** The test database and the application settings'
+  database must be one and the same, `soccer_predictions_test` on this machine's :5432 (or the
+  throwaway `forecast_race_test` on :5440). Every Redis database the application opens - the
+  default client's (`REDIS_DB`) and the six `REDIS_DB_*` roles - must be on the throwaway :6390. A
+  host is this machine only as `localhost`, `127.0.0.1` or `::1`; no name is trusted for containing
+  "test".
+- **Never a live or isolated-pair target**, on any host or port: the databases `soccer_predictions`,
+  `soccer_predictions_dev`, `soccer_predictions_qa` and `soccer_predictions_e2e`, and Redis :6379.
+- **No conflicting overrides**: a `DATABASE_URL`/`REDIS_URL` from `.env` overriding the variables
+  you set, a URL and its parts that disagree, a `REDIS_URL` with a query string or no database, URL
+  parameters that redirect PostgreSQL, `PG*` variables, two roles on one Redis database, a value
+  with whitespace in it (an unsplit shell variable), a race database equal to the test database, or
+  lease databases that overlap the application's.
+
+It runs first from `backend/conftest.py` (pytest loads it before any other conftest or test
+module), again after collection, and from `tests/__init__.py` for a run that skips the rootdir
+conftest. `scripts/test_evidence.py` runs the command-line check with the suite's own environment
+before it probes the services.
 
 `venv` (Apple's Command Line Tools Python 3.9) passes the same suite where macOS lets it read the
 repository folder; see docs/known-limitations.md, "Running it locally".
@@ -245,10 +283,13 @@ prints. Build the environment with `python3.11` as the setup section above descr
 
 What the suite needs:
 
-- Most tests are pure unit tests and need nothing.
-- `tests/test_cache_services.py` needs **Redis**.
-- The database-backed tests need **PostgreSQL** (`TEST_DATABASE_URL`, default
-  `soccer_predictions_test`).
+- Most tests are pure unit tests and need nothing beyond the variables above.
+- `tests/test_cache_services.py` needs **Redis** (the throwaway :6390).
+- The database-backed tests need **PostgreSQL** (`TEST_DATABASE_URL`, `soccer_predictions_test`).
+  The session fixture drops every table it created when it ends, so two runs must not share it: a
+  second run beside another points `TEST_DATABASE_URL` and `POSTGRES_SERVER`/`POSTGRES_PORT`/
+  `POSTGRES_DB` at the throwaway `forecast_race_test` on 127.0.0.1:5440 (and leaves
+  `RACE_TEST_DATABASE_URL` unset, which must differ from it).
 
 **No test makes a real provider request.** `tests/conftest.py` blanks every provider credential and
 the providers are driven through `httpx.MockTransport`. Keep it that way: the provider allowances are

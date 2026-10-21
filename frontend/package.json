@@ -13,8 +13,9 @@
     "type-check": "tsc --noEmit",
     "e2e": "playwright test",
     "e2e:mocked": "playwright test --project=mocked-desktop --project=mocked-mobile --project=mocked-mobile-360",
-    "e2e:live": "playwright test --project=live",
-    "e2e:live-isolated": "playwright test --project=live-isolated",
+    "e2e:live": "E2E_STACK=live playwright test --project=live",
+    "e2e:live-isolated": "E2E_STACK=live-isolated E2E_ISOLATED_BASE_URL=http://localhost:3101 E2E_ISOLATED_API_URL=http://127.0.0.1:8001 playwright test --project=live-isolated --workers=1",
+    "e2e:guard": "playwright test --config=playwright.guard.config.ts && node --test e2e/guard/refusal-runs.test.mjs",
     "e2e:evidence": "../backend/venv311/bin/python ../scripts/test_evidence.py run",
     "e2e:report": "playwright show-report e2e/.report"
   },

@@ -70,14 +70,28 @@ steps.
 | `npm run type-check` | `tsc --noEmit` |
 | `npm run lint` | ESLint, `--max-warnings 0` |
 | `npm run lint:fix` | ESLint with `--fix` |
-| `npm run e2e` | Every Playwright project |
+| `npm run e2e` | The mocked projects (the live ones exist only with `E2E_STACK`, below) |
 | `npm run e2e:mocked` | The deterministic mocked desktop + mobile projects |
-| `npm run e2e:live` | The expert publishing flow against the local backend |
+| `npm run e2e:live` | `E2E_STACK=live`: the two anonymous specs against the main pair (:3100/:8000) |
+| `npm run e2e:live-isolated` | `E2E_STACK=live-isolated` with the isolated URLs: every spec that signs in, against the isolated pair (:3101/:8001) |
+| `npm run e2e:guard` | The isolation preflight's own tests (`playwright.guard.config.ts`, then `e2e/guard/refusal-runs.test.mjs`) |
 | `npm run e2e:report` | Open the last Playwright HTML report |
 
 `e2e:mocked` stubs every backend call from the captured payloads in `e2e/fixtures/`, so it spends no
 provider allowance. `e2e:live` needs the local stack running and creates only its own clearly-marked
 QA records.
+
+**Which projects exist, and the preflight.** `playwright.config.ts` defines `live` only with
+`E2E_STACK=live` and `live-isolated` only with `E2E_STACK=live-isolated` (any other value refuses the
+run), so a bare `playwright test` is mocked-only and the two real stacks never run together. Its
+`globalSetup` (`e2e/global-preflight.ts`) runs before any spec file is loaded: every target of every
+defined project is judged against `backend/app/core/isolation_targets.json` - the backend guard's
+allowlist - by exact host class and port, and a mocked frontend URL that is a backend's port is
+refused. For `live-isolated` it then sends one GET to the isolated backend's `/health` (it must
+serve the e2e database, open only Redis databases 10-15 and run no scheduler) and loads the isolated
+frontend once with every request aborted in the browser, to see that its API calls go to the
+isolated backend. `E2E_ISOLATED_BASE_URL` and `E2E_ISOLATED_API_URL` must be set; nothing defaults.
+A refusal names every problem and says what was sent (nothing, or that one GET).
 
 ## Project structure
 

@@ -82,11 +82,18 @@ start_one() {
   echo "$name: started on :$port (pid $(listener_pid "$port"), log $log)"
 }
 
+# Every Redis database the isolated backend opens is written down, REDIS_DB included: without it the
+# default client (the one /api/v1/health/detailed pings, and every role equal to REDIS_DB) kept
+# .env's database 0 - the live instance's sessions database - while the six roles moved to 10-15.
+# The server is written down too, so nothing here depends on .env. start_isolated runs the
+# isolation preflight (backend/app/core/target_guard.py, role isolated-backend) over exactly this
+# environment before it starts anything, and refuses on any problem.
 ISOLATED_ENV=(
   "POSTGRES_DB=$E2E_DB"
   "SYNC_SCHEDULER_ENABLED=false"
   "EMAIL_ENABLED=false"
   "LIVESCORE_API_KEY=" "LIVESCORE_API_SECRET=" "GAMEFORECAST_API_KEY=" "API_FOOTBALL_KEY=" "THESPORTSDB_KEY="
+  "REDIS_HOST=localhost" "REDIS_PORT=6379" "REDIS_DB=10"
   "REDIS_DB_SESSIONS=10" "REDIS_DB_PREDICTIONS=11" "REDIS_DB_EXPERT_TOOLS=12"
   "REDIS_DB_ML_MODELS=13" "REDIS_DB_MATCH_DATA=14" "REDIS_DB_RATE_LIMIT=15"
   'BACKEND_CORS_ORIGINS=["http://localhost:3101","http://127.0.0.1:3101"]'
@@ -102,6 +109,11 @@ start_isolated() {
   if ! docker exec "$CONTAINER" psql -U postgres -tAc "select 1 from pg_database where datname='$E2E_DB'" 2>/dev/null | grep -q 1; then
     echo "the e2e database $E2E_DB does not exist yet; creating it from $LIVE_DB"
     reset_e2e_db
+  fi
+  if [ -z "$(listener_pid 8001)" ] && ! ( cd "$ROOT/backend" && env "${ISOLATED_ENV[@]}" \
+      ./venv311/bin/python -m app.core.target_guard --role isolated-backend ); then
+    echo "backend-isolated: refused by the isolation preflight above; nothing was started" >&2
+    return 1
   fi
   start_one backend-isolated 8001 "$ROOT/backend" "$RUN/backend-isolated.log" -- \
     env "${ISOLATED_ENV[@]}" ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001

@@ -34,9 +34,18 @@ the repair window uses. Logs and pids are in
 
 Blank credentials make every provider "not configured": a page that asks for a refresh gets a
 clean refusal and spends nothing. Redis databases 10–15 keep the isolated backend's sessions,
-caches and budget counters apart from the live instance's 0–5. `GET /health` on either backend
-says which database it serves (`database`), and `frontend/e2e/support/isolated.ts` refuses to run
-a write-producing test against a backend that answers `soccer_predictions`.
+caches and budget counters apart from the live instance's 0–5 - all of them, `REDIS_DB` included:
+until 2026-10-21 the isolated environment set only the six `REDIS_DB_*` roles, so its default
+client (the one `/api/v1/health/detailed` pings) stayed on `.env`'s database 0, the live sessions
+database. `scripts/local-servers.sh` now sets `REDIS_HOST`, `REDIS_PORT` and `REDIS_DB` too, and
+runs the isolation preflight (`python -m app.core.target_guard --role isolated-backend`) over that
+environment before it starts the backend. `GET /health` on either backend says which database it
+serves (`database`), every Redis database it opens (`redis_databases`), on which Redis port and
+whether that is this machine (`redis_server`), and whether its scheduler runs
+(`scheduler_enabled`). The browser tests' preflight (`frontend/e2e/global-preflight.ts`) requires
+those to name the e2e database, Redis databases 10–15 only and no scheduler, and
+`frontend/e2e/support/isolated.ts` accepts only an approved isolated database
+(`backend/app/core/isolation_targets.json`) for every write-producing test.
 
 ## The e2e database is a copy, and is refreshed as one
 
@@ -68,10 +77,14 @@ cd backend && POSTGRES_DB=soccer_predictions_e2e ./venv311/bin/alembic upgrade h
 
 ```bash
 cd frontend && npm run e2e:live-isolated
-# the URLs, when they differ from the defaults:
-E2E_ISOLATED_BASE_URL=http://localhost:3101 E2E_ISOLATED_API_URL=http://127.0.0.1:8001 npx playwright test --project=live-isolated
+# which is:
+E2E_STACK=live-isolated E2E_ISOLATED_BASE_URL=http://localhost:3101 E2E_ISOLATED_API_URL=http://127.0.0.1:8001 \
+  npx playwright test --project=live-isolated --workers=1
 ```
 
-The `live` project keeps using `E2E_BASE_URL` / `E2E_API_URL` (default :3100 / :8000). The mocked
-projects need neither backend; they stub every `/api/v1` call. The test-evidence runner
-(`scripts/test_evidence.py run`) runs all six suites and refuses to start unless both pairs are up.
+The project exists only with `E2E_STACK=live-isolated`, and both isolated URLs must be set; the
+preflight refuses the run otherwise, and refuses a pair that is not the isolated one (see above),
+before any spec loads. The `live` project exists only with `E2E_STACK=live` and keeps using
+`E2E_BASE_URL` / `E2E_API_URL` (default :3100 / :8000). The mocked projects need neither backend;
+they stub every `/api/v1` call. The test-evidence runner (`scripts/test_evidence.py run`) sets
+`E2E_STACK` per project, runs all six suites and refuses to start unless both pairs are up.

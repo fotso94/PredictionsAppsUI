@@ -24,6 +24,9 @@ WHAT `run` DOES
          one on disk; a backend that publishes no source identity is refused when its process
          started before the newest change to its app/**/*.py, which can only infer that it is
          running older code;
+       - for the backend suite, the backend's isolation preflight (python -m app.core.target_guard,
+         run in the backend interpreter with exactly the environment the suite will get) refuses
+         its database or Redis targets. Only then are they probed;
        - for the backend suite, the test database or Redis does not answer. The database-backed
          modules would then skip, and the run would still exit green.
     2. A watcher samples every 15 seconds. Another test runner, a server restart, a new HEAD or a
@@ -59,6 +62,10 @@ EXIT CODES
     verify  0 every check holds, 1 otherwise
 
 USAGE
+    The backend suite's settings are exported first, each written out (backend/README.md,
+    "Testing"): TEST_DATABASE_URL, POSTGRES_DB, REDIS_HOST, REDIS_PORT, SYNC_SCHEDULER_ENABLED=false
+    and EMAIL_ENABLED=false. The preflight refuses the run otherwise, and says which is missing.
+
     backend/venv311/bin/python scripts/test_evidence.py run
     backend/venv311/bin/python scripts/test_evidence.py run --dry-run
     backend/venv311/bin/python scripts/test_evidence.py run --suites backend --allow-dirty
@@ -693,8 +700,11 @@ def describe_database_url(url: Optional[str]) -> Dict[str, Any]:
 
 
 #: Run in the backend's own interpreter, so the database and Redis are reached exactly as the tests
-#: reach them. Only exception class names come back: a message can carry the URL.
+#: reach them. Only exception class names come back: a message can carry the URL. It runs only after
+#: the isolation preflight approved the same environment, and its first statement is that preflight
+#: again, so it cannot reach a target the suite would be refused.
 BACKEND_PROBE = r'''
+from app.core.target_guard import enforce; enforce(role='backend-tests', layer='test_evidence probe')
 import json, os
 result = {}
 try:
@@ -715,9 +725,48 @@ print("PROBE " + json.dumps(result))
 '''
 
 
+def backend_suite_env(database_url: Optional[str]) -> Dict[str, str]:
+    """The environment the backend suite runs with (cmd_run), which the preflight judges and probes."""
+    return child_env({"TEST_DATABASE_URL": database_url or "", "PYTHONUNBUFFERED": "1"})
+
+
+TARGET_GUARD_ARGS = ("-m", "app.core.target_guard", "--role", "backend-tests", "--json")
+
+
+def run_target_guard(env: Dict[str, str]) -> Tuple[int, Optional[Dict[str, Any]]]:
+    """(exit code, verdict) of the backend's isolation preflight over `env`. It connects to nothing:
+    it resolves the settings and URLs the suite would use and judges them against the committed
+    allowlist (backend/app/core/isolation_targets.json)."""
+    code, out = run_text([str(VENV_PYTHON), *TARGET_GUARD_ARGS], cwd=BACKEND, timeout=60, base_env=env)
+    for line in reversed(out.splitlines()):
+        line = line.strip()
+        if line.startswith("{"):
+            try:
+                verdict = json.loads(line)
+            except ValueError:
+                continue
+            return code, verdict if isinstance(verdict, dict) else None
+    return code, None
+
+
+def target_guard_refusals(verdict: Optional[Dict[str, Any]], exit_code: int) -> List[str]:
+    """Every reason the preflight gave, as refusals of this run. A verdict that is missing, or that
+    disagrees with its own exit code, is not trusted either way."""
+    readable = (isinstance(verdict, dict) and isinstance(verdict.get("ok"), bool)
+                and exit_code in (0, 78) and verdict["ok"] == (exit_code == 0))
+    if not readable:
+        return [f"the isolation preflight (python -m app.core.target_guard) could not run or gave no readable verdict "
+                f"(exit {exit_code}); refusing rather than assuming the backend suite's targets are safe"]
+    if verdict["ok"]:
+        return []
+    reasons = [f"the isolation preflight refuses the backend suite's targets: [{r.get('code')}] {r.get('message')}"
+               for r in verdict.get("refusals") or [] if isinstance(r, dict)]
+    return reasons or ["the isolation preflight refuses the backend suite's targets (no reason given)"]
+
+
 def probe_backend_services(database_url: str) -> Dict[str, str]:
     code, out = run_text([str(VENV_PYTHON), "-c", BACKEND_PROBE], cwd=BACKEND,
-                         env_extra={"TEST_DATABASE_URL": database_url}, timeout=60)
+                         base_env=backend_suite_env(database_url), timeout=60)
     for line in out.splitlines():
         if line.startswith("PROBE "):
             try:
@@ -1030,6 +1079,12 @@ def recorded_filter(name: str, argv: Sequence[str]) -> Tuple[bool, Optional[str]
     return command_shape(argv) == command_shape(expected), grep
 
 
+def stack_for(project: str) -> str:
+    """The E2E_STACK a project needs: playwright.config.ts defines `live` and `live-isolated` only when
+    E2E_STACK names them, and its preflight (e2e/global-preflight.ts) judges the stack's targets."""
+    return project if project in ("live", "live-isolated") else "mocked"
+
+
 def playwright_env(project: str, raw: Path, base_url: str, api_url: str,
                    isolated_base_url: Optional[str] = None, isolated_api_url: Optional[str] = None) -> Dict[str, str]:
     # Both output files must be set: a JSON or JUnit reporter without one prints its whole report
@@ -1047,6 +1102,7 @@ def playwright_env(project: str, raw: Path, base_url: str, api_url: str,
         "FORCE_COLOR": "0",
         "E2E_BASE_URL": base_url,
         "E2E_API_URL": api_url,
+        "E2E_STACK": stack_for(project),
     }
 
 
@@ -1968,6 +2024,11 @@ def _render_environment(summary: Dict[str, Any], suites: List[Dict[str, Any]]) -
                 f"{database.get('database')} (from {database.get('source')}); "
                 f"conftest.py reads TEST_DATABASE_URL: {reads}",
                 f"- PostgreSQL: {database.get('postgres')}; Redis: {database.get('redis')}", ""]
+        guard = database.get("target_guard")
+        if isinstance(guard, dict):   # recorded since the isolation preflight existed; older summaries lack it
+            out[-1:-1] = [f"- Isolation preflight (app.core.target_guard): "
+                          f"{'approved' if guard.get('exit_code') == 0 else 'refused'}, policy sha256 "
+                          f"{str(guard.get('policy_sha256'))[:12]}"]
     out += ["## Tools", ""] + _table(["Tool", "Version"], list((summary.get("tools") or {}).items())) + [""]
     out += ["## Commands", ""]
     for s in suites:
@@ -2391,7 +2452,17 @@ def preflight(opts: Options) -> Tuple[Dict[str, Any], List[str], Optional[str]]:
         database = describe_database_url(database_url)
         database.update(source=source, conftest_reads_env=reads_env)
         refusals += database_refusals(database_url, default, reads_env)
+        guard_ok = False
         if database_url and VENV_PYTHON.exists():
+            guard_code, verdict = run_target_guard(backend_suite_env(database_url))
+            guard_refusals_found = target_guard_refusals(verdict, guard_code)
+            refusals += guard_refusals_found
+            guard_ok = not guard_refusals_found
+            database["target_guard"] = {"exit_code": guard_code,
+                                        "codes": (verdict or {}).get("codes"),
+                                        "targets": (verdict or {}).get("targets"),
+                                        "policy_sha256": (verdict or {}).get("policy_sha256")}
+        if database_url and VENV_PYTHON.exists() and guard_ok:
             database.update(probe_backend_services(database_url))
             for service in ("postgres", "redis"):
                 if database.get(service) != "ok":
@@ -2405,14 +2476,12 @@ def preflight(opts: Options) -> Tuple[Dict[str, Any], List[str], Optional[str]]:
 
 
 def database_refusals(url: Optional[str], conftest_default: Optional[str], conftest_reads_env: bool) -> List[str]:
-    """The backend suite's session fixture drops every table it created when it ends, so the
-    database it is pointed at must be a test database, and conftest.py must really use it."""
+    """The backend suite's session fixture drops every table it created when it ends, so conftest.py
+    must really use the database it is given. WHICH databases are acceptable is not decided here:
+    a word in the name was the rule once, and the unsplit shell variable of 2026-10-20 still
+    contained it. The isolation preflight decides, by exact target (run_target_guard)."""
     if not url:
         return ["no backend test database: set TEST_DATABASE_URL"]
-    name = describe_database_url(url).get("database") or ""
-    if "test" not in name.lower():
-        return [f"the backend suite drops every table it creates when it ends; refusing database '{name}', "
-                "whose name does not say it is a test database"]
     if not conftest_reads_env and conftest_default and url != conftest_default:
         return ["backend/tests/conftest.py ignores TEST_DATABASE_URL, so its session fixture would still create "
                 f"and drop tables in '{describe_database_url(conftest_default).get('database')}'"]
@@ -2530,6 +2599,11 @@ def print_preflight(record: Dict[str, Any], refusals: Sequence[str], opts: Optio
     if database:
         say(f"test db     {database.get('host')}:{database.get('port')}/{database.get('database')} "
             f"({database.get('source')}): postgres {database.get('postgres')}, redis {database.get('redis')}")
+        guard = database.get("target_guard") or {}
+        if guard:
+            say(f"isolation   backend-tests {'approved' if guard.get('exit_code') == 0 else 'REFUSED'} by "
+                f"app.core.target_guard (policy {str(guard.get('policy_sha256'))[:12]}; "
+                f"{', '.join(guard.get('codes') or []) or 'no problems'})")
     say(f"guard       {len(record['guard_at_start'])} other test run(s) found")
     partial = f"  [PARTIAL: {'; '.join(opts.partial_reasons)}]" if opts.partial_reasons else ""
     say(f"suites      {', '.join(opts.suites)}{partial}")
@@ -2570,7 +2644,8 @@ def cmd_dry_run(opts: Options, record: Dict[str, Any], refusals: Sequence[str], 
             # rewrite the shared e2e/.report.
             argv = [str(PLAYWRIGHT_BIN), "test", "--list", f"--project={suite}", "--reporter=list"]
             argv += ["--grep", opts.grep] if opts.grep else []
-            code, out = run_text(argv, cwd=FRONTEND, timeout=600, base_env=child_env({"FORCE_COLOR": "0"}))
+            code, out = run_text(argv, cwd=FRONTEND, timeout=600,
+                                 base_env=child_env({"FORCE_COLOR": "0", "E2E_STACK": stack_for(suite)}))
             match = re.search(r"^Total: (\d+) tests? in (\d+) files?", out, re.M)
             planned, errors = (int(match.group(1)) if match else None), 0
         (raw / f"{suite}.plan.txt").write_text(out, encoding="utf-8")

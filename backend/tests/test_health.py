@@ -71,6 +71,38 @@ def test_health_names_the_database_and_never_its_url(client: TestClient):
     assert not settings.POSTGRES_PASSWORD or settings.POSTGRES_PASSWORD not in rendered
 
 
+def test_health_publishes_every_redis_database_the_process_uses(client: TestClient):
+    """The browser preflight (frontend/e2e/support/isolation-preflight.ts) refuses an isolated backend
+    unless it says which Redis databases it uses - the default client's and the six roles' - on
+    which server, and that its scheduler is off. Database indexes and a port, never a host or a URL."""
+    from redis.connection import parse_url
+
+    from app.core.redis import redis_url_for
+
+    data = client.get("/health").json()
+    used = sorted({parse_url(redis_url_for(db))["db"] for db in (
+        None, settings.REDIS_DB_SESSIONS, settings.REDIS_DB_PREDICTIONS, settings.REDIS_DB_EXPERT_TOOLS,
+        settings.REDIS_DB_ML_MODELS, settings.REDIS_DB_MATCH_DATA, settings.REDIS_DB_RATE_LIMIT)})
+    assert data["redis_databases"] == used
+    default = parse_url(redis_url_for(None))
+    assert data["redis_server"] == {"port": default["port"],
+                                    "loopback": default.get("host", "localhost") in ("localhost", "127.0.0.1", "::1")}
+    assert data["scheduler_enabled"] is settings.SYNC_SCHEDULER_ENABLED
+    rendered = json.dumps(data)
+    assert "://" not in rendered and str(default.get("host")) not in json.dumps(data["redis_server"])
+
+
+def test_health_names_the_default_redis_database_not_only_the_roles(client: TestClient, monkeypatch):
+    """The isolated backend was started with REDIS_DB_* = 10-15 but no REDIS_DB, so its default
+    client - the one /api/v1/health/detailed pings - stayed on .env's database 0, the live sessions
+    database. That database must show up here."""
+    monkeypatch.setattr(settings, "REDIS_URL", "redis://localhost:6390/0")
+    monkeypatch.setattr(settings, "REDIS_DB", 0)
+    for index, role in enumerate(("SESSIONS", "PREDICTIONS", "EXPERT_TOOLS", "ML_MODELS", "MATCH_DATA", "RATE_LIMIT")):
+        monkeypatch.setattr(settings, f"REDIS_DB_{role}", 10 + index)
+    assert client.get("/health").json()["redis_databases"] == [0, 10, 11, 12, 13, 14, 15]
+
+
 def test_api_health_check(client: TestClient):
     """Test API v1 health check"""
     response = client.get("/api/v1/health")

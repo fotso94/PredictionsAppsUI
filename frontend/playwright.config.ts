@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { parseStack } from './e2e/support/target-policy';
 
 /**
  * Two kinds of browser test, kept apart on purpose:
@@ -22,13 +23,54 @@ import { defineConfig, devices } from '@playwright/test';
  * They assume the local stack is already running (scripts/local-servers.sh start all):
  *   backend  http://127.0.0.1:8000   frontend  http://localhost:3100
  *   isolated backend  http://127.0.0.1:8001   isolated frontend  http://localhost:3101
+ *
+ * WHICH PROJECTS EXIST. The mocked projects always do. `live` exists only with E2E_STACK=live and
+ * `live-isolated` only with E2E_STACK=live-isolated (any other value refuses the run as the config
+ * loads), so a bare `playwright test` is mocked-only, `--project=live` without the opt-in is
+ * "project not found", and the two real stacks can never run in one invocation:
+ *   npm run e2e:mocked | npm run e2e:live | npm run e2e:live-isolated
+ *
+ * BEFORE ANY TEST. globalSetup (e2e/global-preflight.ts) runs the isolation preflight before
+ * Playwright loads a spec file: every target of every defined project is resolved and judged
+ * against backend/app/core/isolation_targets.json, and for live-isolated the isolated backend's
+ * GET /health and the isolated frontend's real API origin are checked. A refusal stops the run
+ * with nothing sent anywhere, or after only that one GET. Never add a webServer entry here: it
+ * would start a server before the preflight.
  */
+const STACK = parseStack(process.env.E2E_STACK);
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3100';
 const ISOLATED_BASE_URL = process.env.E2E_ISOLATED_BASE_URL || 'http://localhost:3101';
+
+// A hint, from the runner process only: a live project asked for without its opt-in is reported by
+// Playwright as "not found", which on its own does not say why.
+if (!process.env.TEST_WORKER_INDEX) {
+  const asked = process.argv.flatMap((arg, i, all) => (arg.startsWith('--project=') ? [arg.slice(10)]
+    : arg === '--project' && all[i + 1] ? [all[i + 1]] : []));
+  for (const project of asked.filter((name) => (name === 'live' || name === 'live-isolated') && name !== STACK)) {
+    console.error(`hint: the ${project} project exists only with E2E_STACK=${project} (npm run e2e:${project})`);
+  }
+}
+
+const liveProjects = [
+  {
+    name: 'live',
+    testMatch: /live\/.*\.spec\.ts/,
+    use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+  },
+].filter(() => STACK === 'live');
+
+const isolatedProjects = [
+  {
+    name: 'live-isolated',
+    testMatch: /live-isolated\/.*\.spec\.ts/,
+    use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, baseURL: ISOLATED_BASE_URL },
+  },
+].filter(() => STACK === 'live-isolated');
 
 export default defineConfig({
   testDir: './e2e',
   outputDir: './e2e/.artifacts',
+  globalSetup: './e2e/global-preflight.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
@@ -108,15 +150,7 @@ export default defineConfig({
       testMatch: /mocked\/(navigation-continuity|national-teams|overdue-results|parlay-builder|match-data-state|expert-management|revision-history|expert-composer-localisation)\.spec\.ts/,
       use: { ...devices['Galaxy S8'] },
     },
-    {
-      name: 'live',
-      testMatch: /live\/.*\.spec\.ts/,
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
-    },
-    {
-      name: 'live-isolated',
-      testMatch: /live-isolated\/.*\.spec\.ts/,
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, baseURL: ISOLATED_BASE_URL },
-    },
+    ...liveProjects,
+    ...isolatedProjects,
   ],
 });
