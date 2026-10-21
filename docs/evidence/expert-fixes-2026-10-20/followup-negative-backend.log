@@ -1,0 +1,632 @@
+# FOLLOW-UP (2a): negative demonstrations, backend - every unsafe class run through the REAL pytest entry point over the whole suite, behind tripwires
+# code under test: HEAD 1a6109fe of expert-fixes (working tree clean)
+# run at 2026-10-21T16:15:26Z by followup-tools/negative_backend.py <worktree>/backend (kept beside this log): each case is a subprocess `python -c <harness> -q -p no:cacheprovider -o addopts= -rs tests` from <worktree>/backend, where the harness is tests/core/test_target_guard.py's own BOOT tripwire (extracted verbatim up to its mode switch) followed by runpy.run_module('pytest', run_name='__main__'), i.e. exactly what python -m pytest runs. The tripwire records and BLOCKS every socket connect and name lookup, psycopg2.connect and httpx request, and records imports of app.main, tests.conftest and app.db.session
+# environment: empty except PATH/HOME/LANG/TMPDIR plus an approved base (TEST_DATABASE_URL and POSTGRES_* on the throwaway guard-race-pg 127.0.0.1:5440/forecast_race_test, REDIS_HOST/REDIS_PORT on the throwaway guard-test-redis 127.0.0.1:6390, both switches false, fake passwords in TEST_DATABASE_URL and POSTGRES_PASSWORD) with ONE unsafe class changed per case. Every unsafe target is a port nothing listens on or TEST-NET-1 (192.0.2.1), never a live service; the settings' own fallback is backend/.env (a link to the main checkout's configuration), read by the settings only, and by the harness only to check that none of its 11 secret values appears in any output (never printed)
+# classes: 1 missing overrides (1a, 1b), 2 live database name (2a, 2b), 3 live Redis target, 4 live Redis database (4a URL, 4b lease, 4c the isolated pair's 10-15), 5 conflicting settings (5a-5e); plus a CONTROL on the canary showing the tripwire catches what a test body reaches for
+# expected: CONTROL exit 0 with only approved throwaway attempts (all blocked); every negative exit 78, zero tripwire entries (no attempt, no app import), REFUSED with "Nothing has connected", its codes, no credential, no test collected or run. The harness exits 0 only when all 14 hold
+====================================================================================================
+== CONTROL: the approved base (throwaway targets only) on the canary - the tripwire really catches what a test body reaches for
+   change from the approved base: GUARD_CANARY_HTTP_URL='http://127.0.0.1:58552/'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -rP -p no:cacheprovider -o addopts= tests/core/guard_canary.py   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+.                                                                        [100%]
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/_pytest/config/__init__.py:1204
+  <worktree>/backend/venv311/lib/python3.11/site-packages/_pytest/config/__init__.py:1204: PytestAssertRewriteWarning: Module already imported so cannot be rewritten: anyio
+    self._mark_plugins_for_rewrite(hook)
+
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  <worktree>/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  <worktree>/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  <worktree>/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  <worktree>/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  <worktree>/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  <worktree>/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+______________________ test_canary_reaches_every_service _______________________
+----------------------------- Captured stdout call -----------------------------
+CANARY {"http": {"error": "ConnectError", "ok": false}, "redis_default": {"error": "ConnectionError", "ok": false}, "redis_expert_tools": {"error": "ConnectionError", "ok": false}, "redis_match_data": {"error": "ConnectionError", "ok": false}, "redis_ml_models": {"error": "ConnectionError", "ok": false}, "redis_predictions": {"error": "ConnectionError", "ok": false}, "redis_rate_limit": {"error": "ConnectionError", "ok": false}, "redis_sessions": {"error": "ConnectionError", "ok": false}, "settings_database": {"error": "OperationalError", "ok": false}, "test_database": {"error": "OperationalError", "ok": false}}
+target guard: backend-tests approved - settings database 127.0.0.1:5440/forecast_race_test; test database 127.0.0.1:5440/forecast_race_test; redis default (REDIS_DB) 127.0.0.1:6390/0; redis REDIS_DB_SESSIONS 127.0.0.1:6390/0; redis REDIS_DB_PREDICTIONS 127.0.0.1:6390/1; redis REDIS_DB_EXPERT_TOOLS 127.0.0.1:6390/2; redis REDIS_DB_ML_MODELS 127.0.0.1:6390/3; redis REDIS_DB_MATCH_DATA 127.0.0.1:6390/4; redis REDIS_DB_RATE_LIMIT 127.0.0.1:6390/5 (policy sha256 e2abbcc34d12)
+1 passed, 19 warnings in 0.01s
+-- exit=0
+-- tripwire: connection attempts 10; imports of app.main/tests.conftest/app.db.session 2
+     import app.main
+     import app.db.session
+     psycopg2.connect 127.0.0.1:5440/forecast_race_test
+     psycopg2.connect 127.0.0.1:5440/forecast_race_test
+     socket.getaddrinfo 127.0.0.1:6390
+     socket.getaddrinfo 127.0.0.1:6390
+     socket.getaddrinfo 127.0.0.1:6390
+     socket.getaddrinfo 127.0.0.1:6390
+     socket.getaddrinfo 127.0.0.1:6390
+     socket.getaddrinfo 127.0.0.1:6390
+     socket.getaddrinfo 127.0.0.1:6390
+     httpx 127.0.0.1:58552
+-- refusal codes: []
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- CONTROL HOLDS: exit 0, the canary ran, and every attempt (all blocked) went to an approved throwaway target or the canary's dead HTTP port
+====================================================================================================
+== 1a. missing overrides: TEST_DATABASE_URL, SYNC_SCHEDULER_ENABLED and EMAIL_ENABLED unset (the conftest default and the .env/class defaults would fill them)
+   change from the approved base: TEST_DATABASE_URL unset, SYNC_SCHEDULER_ENABLED unset, EMAIL_ENABLED unset
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 5 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [missing:TEST_DATABASE_URL] TEST_DATABASE_URL is not set: 29 test modules would fall back to their literal default, and nothing would say which database the run really uses
+  2. [missing:SYNC_SCHEDULER_ENABLED] SYNC_SCHEDULER_ENABLED is not set; .env and the class default leave it on (the TestClient lifespan starts the scheduler)
+  3. [missing:EMAIL_ENABLED] EMAIL_ENABLED is not set; .env and the class default leave it on
+  4. [flag:SYNC_SCHEDULER_ENABLED] SYNC_SCHEDULER_ENABLED resolves to true; it must be false for backend-tests
+  5. [flag:EMAIL_ENABLED] EMAIL_ENABLED resolves to true; it must be false for backend-tests
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:5440/forecast_race_test   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  redis default (REDIS_DB)     127.0.0.1:6390/0   <- environment REDIS_HOST/REDIS_PORT
+  redis REDIS_DB_SESSIONS      127.0.0.1:6390/0   <- the default's server; not exported: REDIS_DB_SESSIONS from .env or the class default
+  redis REDIS_DB_PREDICTIONS   127.0.0.1:6390/1   <- the default's server; not exported: REDIS_DB_PREDICTIONS from .env or the class default
+  redis REDIS_DB_EXPERT_TOOLS  127.0.0.1:6390/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     127.0.0.1:6390/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    127.0.0.1:6390/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    127.0.0.1:6390/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['flag:EMAIL_ENABLED', 'flag:SYNC_SCHEDULER_ENABLED', 'missing:EMAIL_ENABLED', 'missing:SYNC_SCHEDULER_ENABLED', 'missing:TEST_DATABASE_URL']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 1b. missing override: REDIS_PORT unset with REDIS_HOST on TEST-NET-1 (the port would come from backend/.env)
+   change from the approved base: REDIS_HOST='192.0.2.1', REDIS_PORT unset
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 8 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [missing:redis] neither REDIS_URL nor both REDIS_HOST and REDIS_PORT are set (REDIS_PORT missing), so the Redis server comes from .env or the class default - the live one
+  2. [live-redis] redis default (REDIS_DB) is 192.0.2.1:6379 database 0: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  3. [live-redis] redis REDIS_DB_SESSIONS is 192.0.2.1:6379 database 0: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  4. [live-redis] redis REDIS_DB_PREDICTIONS is 192.0.2.1:6379 database 1: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  5. [live-redis] redis REDIS_DB_EXPERT_TOOLS is 192.0.2.1:6379 database 2: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  6. [live-redis] redis REDIS_DB_ML_MODELS is 192.0.2.1:6379 database 3: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  7. [live-redis] redis REDIS_DB_MATCH_DATA is 192.0.2.1:6379 database 4: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  8. [live-redis] redis REDIS_DB_RATE_LIMIT is 192.0.2.1:6379 database 5: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:5440/forecast_race_test   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  test database                127.0.0.1:5440/forecast_race_test   <- environment TEST_DATABASE_URL
+  redis default (REDIS_DB)     192.0.2.1:6379/0   <- environment REDIS_HOST
+  redis REDIS_DB_SESSIONS      192.0.2.1:6379/0   <- the default's server; not exported: REDIS_DB_SESSIONS from .env or the class default
+  redis REDIS_DB_PREDICTIONS   192.0.2.1:6379/1   <- the default's server; not exported: REDIS_DB_PREDICTIONS from .env or the class default
+  redis REDIS_DB_EXPERT_TOOLS  192.0.2.1:6379/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     192.0.2.1:6379/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    192.0.2.1:6379/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    192.0.2.1:6379/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['live-redis', 'missing:redis']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 2a. live database by name: soccer_predictions, on a port nothing listens on
+   change from the approved base: TEST_DATABASE_URL='postgresql://postgres:***@127.0.0.1:58552/soccer_predictions', POSTGRES_PORT='58552', POSTGRES_DB='soccer_predictions'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 2 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [live-database] settings database (127.0.0.1:58552/soccer_predictions) is the live database (main backend :8000). It is refused on any host and port.
+  2. [live-database] test database (127.0.0.1:58552/soccer_predictions) is the live database (main backend :8000). It is refused on any host and port.
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:58552/soccer_predictions   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  test database                127.0.0.1:58552/soccer_predictions   <- environment TEST_DATABASE_URL
+  redis default (REDIS_DB)     127.0.0.1:6390/0   <- environment REDIS_HOST/REDIS_PORT
+  redis REDIS_DB_SESSIONS      127.0.0.1:6390/0   <- the default's server; not exported: REDIS_DB_SESSIONS from .env or the class default
+  redis REDIS_DB_PREDICTIONS   127.0.0.1:6390/1   <- the default's server; not exported: REDIS_DB_PREDICTIONS from .env or the class default
+  redis REDIS_DB_EXPERT_TOOLS  127.0.0.1:6390/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     127.0.0.1:6390/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    127.0.0.1:6390/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    127.0.0.1:6390/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['live-database']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 2b. live database by name: soccer_predictions_dev through DATABASE_URL (POSTGRES_DB unset), on a port nothing listens on
+   change from the approved base: POSTGRES_DB unset, POSTGRES_SERVER unset, POSTGRES_PORT unset, DATABASE_URL='postgresql://postgres:***@127.0.0.1:58552/soccer_predictions_dev', TEST_DATABASE_URL='postgresql://postgres:***@127.0.0.1:58552/soccer_predictions_dev'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 2 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [live-database] settings database (127.0.0.1:58552/soccer_predictions_dev) is the hand-staged dev copy. It is refused on any host and port.
+  2. [live-database] test database (127.0.0.1:58552/soccer_predictions_dev) is the hand-staged dev copy. It is refused on any host and port.
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:58552/soccer_predictions_dev   <- environment DATABASE_URL
+  test database                127.0.0.1:58552/soccer_predictions_dev   <- environment TEST_DATABASE_URL
+  redis default (REDIS_DB)     127.0.0.1:6390/0   <- environment REDIS_HOST/REDIS_PORT
+  redis REDIS_DB_SESSIONS      127.0.0.1:6390/0   <- the default's server; not exported: REDIS_DB_SESSIONS from .env or the class default
+  redis REDIS_DB_PREDICTIONS   127.0.0.1:6390/1   <- the default's server; not exported: REDIS_DB_PREDICTIONS from .env or the class default
+  redis REDIS_DB_EXPERT_TOOLS  127.0.0.1:6390/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     127.0.0.1:6390/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    127.0.0.1:6390/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    127.0.0.1:6390/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['live-database']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 3. live Redis server: REDIS_HOST/REDIS_PORT naming port 6379 (on TEST-NET-1)
+   change from the approved base: REDIS_HOST='192.0.2.1', REDIS_PORT='6379'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 7 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [live-redis] redis default (REDIS_DB) is 192.0.2.1:6379 database 0: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  2. [live-redis] redis REDIS_DB_SESSIONS is 192.0.2.1:6379 database 0: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  3. [live-redis] redis REDIS_DB_PREDICTIONS is 192.0.2.1:6379 database 1: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  4. [live-redis] redis REDIS_DB_EXPERT_TOOLS is 192.0.2.1:6379 database 2: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  5. [live-redis] redis REDIS_DB_ML_MODELS is 192.0.2.1:6379 database 3: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  6. [live-redis] redis REDIS_DB_MATCH_DATA is 192.0.2.1:6379 database 4: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  7. [live-redis] redis REDIS_DB_RATE_LIMIT is 192.0.2.1:6379 database 5: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:5440/forecast_race_test   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  test database                127.0.0.1:5440/forecast_race_test   <- environment TEST_DATABASE_URL
+  redis default (REDIS_DB)     192.0.2.1:6379/0   <- environment REDIS_HOST/REDIS_PORT
+  redis REDIS_DB_SESSIONS      192.0.2.1:6379/0   <- the default's server; not exported: REDIS_DB_SESSIONS from .env or the class default
+  redis REDIS_DB_PREDICTIONS   192.0.2.1:6379/1   <- the default's server; not exported: REDIS_DB_PREDICTIONS from .env or the class default
+  redis REDIS_DB_EXPERT_TOOLS  192.0.2.1:6379/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     192.0.2.1:6379/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    192.0.2.1:6379/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    192.0.2.1:6379/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['live-redis']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 4a. a live Redis database named by URL: REDIS_URL=redis://192.0.2.1:6379/3 (REDIS_HOST/REDIS_PORT unset, REDIS_DB=3)
+   change from the approved base: REDIS_HOST unset, REDIS_PORT unset, REDIS_URL='redis://192.0.2.1:6379/3', REDIS_DB='3'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 8 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [conflict:redis-url-vs-parts] REDIS_URL (192.0.2.1:6379/3) and REDIS_HOST/REDIS_PORT/REDIS_DB (localhost:6379/3) are both set and disagree; REDIS_URL silently wins
+  2. [live-redis] redis default (REDIS_DB) is 192.0.2.1:6379 database 3: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  3. [live-redis] redis REDIS_DB_SESSIONS is 192.0.2.1:6379 database 0: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  4. [live-redis] redis REDIS_DB_PREDICTIONS is 192.0.2.1:6379 database 1: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  5. [live-redis] redis REDIS_DB_EXPERT_TOOLS is 192.0.2.1:6379 database 2: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  6. [live-redis] redis REDIS_DB_ML_MODELS is 192.0.2.1:6379 database 3: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  7. [live-redis] redis REDIS_DB_MATCH_DATA is 192.0.2.1:6379 database 4: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  8. [live-redis] redis REDIS_DB_RATE_LIMIT is 192.0.2.1:6379 database 5: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:5440/forecast_race_test   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  test database                127.0.0.1:5440/forecast_race_test   <- environment TEST_DATABASE_URL
+  redis default (REDIS_DB)     192.0.2.1:6379/3   <- environment REDIS_URL/REDIS_DB
+  redis REDIS_DB_SESSIONS      192.0.2.1:6379/0   <- the default's server; not exported: REDIS_DB_SESSIONS from .env or the class default
+  redis REDIS_DB_PREDICTIONS   192.0.2.1:6379/1   <- the default's server; not exported: REDIS_DB_PREDICTIONS from .env or the class default
+  redis REDIS_DB_EXPERT_TOOLS  192.0.2.1:6379/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     192.0.2.1:6379/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    192.0.2.1:6379/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    192.0.2.1:6379/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['conflict:redis-url-vs-parts', 'live-redis']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 4b. the lease tests' databases on the live server: LEASE_TEST_REDIS_URL=redis://192.0.2.1:6379/0 (the lease tests flush 0-2)
+   change from the approved base: LEASE_TEST_REDIS_URL='redis://192.0.2.1:6379/0'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 3 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [live-redis] lease redis is 192.0.2.1:6379 database 0: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  2. [live-redis] lease redis is 192.0.2.1:6379 database 1: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  3. [live-redis] lease redis is 192.0.2.1:6379 database 2: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:5440/forecast_race_test   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  test database                127.0.0.1:5440/forecast_race_test   <- environment TEST_DATABASE_URL
+  redis default (REDIS_DB)     127.0.0.1:6390/0   <- environment REDIS_HOST/REDIS_PORT
+  redis REDIS_DB_SESSIONS      127.0.0.1:6390/0   <- the default's server; not exported: REDIS_DB_SESSIONS from .env or the class default
+  redis REDIS_DB_PREDICTIONS   127.0.0.1:6390/1   <- the default's server; not exported: REDIS_DB_PREDICTIONS from .env or the class default
+  redis REDIS_DB_EXPERT_TOOLS  127.0.0.1:6390/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     127.0.0.1:6390/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    127.0.0.1:6390/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    127.0.0.1:6390/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+  lease redis                  192.0.2.1:6379/0,1,2   <- environment LEASE_TEST_REDIS_URL
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['live-redis']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 4c. the isolated pair's Redis databases 10-15 on port 6379 (TEST-NET-1), every one written down
+   change from the approved base: REDIS_HOST='192.0.2.1', REDIS_PORT='6379', REDIS_DB='10', REDIS_DB_SESSIONS='10', REDIS_DB_PREDICTIONS='11', REDIS_DB_EXPERT_TOOLS='12', REDIS_DB_ML_MODELS='13', REDIS_DB_MATCH_DATA='14', REDIS_DB_RATE_LIMIT='15'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 7 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [isolated-pair-redis] redis default (REDIS_DB) is 192.0.2.1:6379 database 10: the isolated pair's Redis databases (backend :8001). Role backend-tests may not use them.
+  2. [isolated-pair-redis] redis REDIS_DB_SESSIONS is 192.0.2.1:6379 database 10: the isolated pair's Redis databases (backend :8001). Role backend-tests may not use them.
+  3. [isolated-pair-redis] redis REDIS_DB_PREDICTIONS is 192.0.2.1:6379 database 11: the isolated pair's Redis databases (backend :8001). Role backend-tests may not use them.
+  4. [isolated-pair-redis] redis REDIS_DB_EXPERT_TOOLS is 192.0.2.1:6379 database 12: the isolated pair's Redis databases (backend :8001). Role backend-tests may not use them.
+  5. [isolated-pair-redis] redis REDIS_DB_ML_MODELS is 192.0.2.1:6379 database 13: the isolated pair's Redis databases (backend :8001). Role backend-tests may not use them.
+  6. [isolated-pair-redis] redis REDIS_DB_MATCH_DATA is 192.0.2.1:6379 database 14: the isolated pair's Redis databases (backend :8001). Role backend-tests may not use them.
+  7. [isolated-pair-redis] redis REDIS_DB_RATE_LIMIT is 192.0.2.1:6379 database 15: the isolated pair's Redis databases (backend :8001). Role backend-tests may not use them.
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:5440/forecast_race_test   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  test database                127.0.0.1:5440/forecast_race_test   <- environment TEST_DATABASE_URL
+  redis default (REDIS_DB)     192.0.2.1:6379/10   <- environment REDIS_HOST/REDIS_PORT/REDIS_DB
+  redis REDIS_DB_SESSIONS      192.0.2.1:6379/10   <- the default's server; environment REDIS_DB_SESSIONS
+  redis REDIS_DB_PREDICTIONS   192.0.2.1:6379/11   <- the default's server; environment REDIS_DB_PREDICTIONS
+  redis REDIS_DB_EXPERT_TOOLS  192.0.2.1:6379/12   <- the default's server; environment REDIS_DB_EXPERT_TOOLS
+  redis REDIS_DB_ML_MODELS     192.0.2.1:6379/13   <- the default's server; environment REDIS_DB_ML_MODELS
+  redis REDIS_DB_MATCH_DATA    192.0.2.1:6379/14   <- the default's server; environment REDIS_DB_MATCH_DATA
+  redis REDIS_DB_RATE_LIMIT    192.0.2.1:6379/15   <- the default's server; environment REDIS_DB_RATE_LIMIT
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['isolated-pair-redis']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 5a. conflicting settings: TEST_DATABASE_URL is not the database the settings resolve to (POSTGRES_PORT on a dead port)
+   change from the approved base: POSTGRES_PORT='58552'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 2 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [unapproved-database] settings database (127.0.0.1:58552/forecast_race_test) is not an approved target for backend-tests; approved: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test.
+  2. [conflict:test-vs-settings-database] TEST_DATABASE_URL (127.0.0.1:5440/forecast_race_test) is not the database the application settings resolve to (127.0.0.1:58552/forecast_race_test): the TestClient lifespan, deps.SessionLocal and the scheduler connect with the settings, not with TEST_DATABASE_URL
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:58552/forecast_race_test   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  test database                127.0.0.1:5440/forecast_race_test   <- environment TEST_DATABASE_URL
+  redis default (REDIS_DB)     127.0.0.1:6390/0   <- environment REDIS_HOST/REDIS_PORT
+  redis REDIS_DB_SESSIONS      127.0.0.1:6390/0   <- the default's server; not exported: REDIS_DB_SESSIONS from .env or the class default
+  redis REDIS_DB_PREDICTIONS   127.0.0.1:6390/1   <- the default's server; not exported: REDIS_DB_PREDICTIONS from .env or the class default
+  redis REDIS_DB_EXPERT_TOOLS  127.0.0.1:6390/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     127.0.0.1:6390/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    127.0.0.1:6390/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    127.0.0.1:6390/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['conflict:test-vs-settings-database', 'unapproved-database']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 5b. conflicting settings: REDIS_URL and REDIS_HOST/REDIS_PORT both set and disagreeing
+   change from the approved base: REDIS_URL='redis://127.0.0.1:58552/0'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 8 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [conflict:redis-url-vs-parts] REDIS_URL (127.0.0.1:58552/0) and REDIS_HOST/REDIS_PORT/REDIS_DB (127.0.0.1:6390/0) are both set and disagree; REDIS_URL silently wins
+  2. [unapproved-redis] redis default (REDIS_DB) (127.0.0.1:58552 database 0) is not an approved target for backend-tests; approved: loopback:6390/any.
+  3. [unapproved-redis] redis REDIS_DB_SESSIONS (127.0.0.1:58552 database 0) is not an approved target for backend-tests; approved: loopback:6390/any.
+  4. [unapproved-redis] redis REDIS_DB_PREDICTIONS (127.0.0.1:58552 database 1) is not an approved target for backend-tests; approved: loopback:6390/any.
+  5. [unapproved-redis] redis REDIS_DB_EXPERT_TOOLS (127.0.0.1:58552 database 2) is not an approved target for backend-tests; approved: loopback:6390/any.
+  6. [unapproved-redis] redis REDIS_DB_ML_MODELS (127.0.0.1:58552 database 3) is not an approved target for backend-tests; approved: loopback:6390/any.
+  7. [unapproved-redis] redis REDIS_DB_MATCH_DATA (127.0.0.1:58552 database 4) is not an approved target for backend-tests; approved: loopback:6390/any.
+  8. [unapproved-redis] redis REDIS_DB_RATE_LIMIT (127.0.0.1:58552 database 5) is not an approved target for backend-tests; approved: loopback:6390/any.
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:5440/forecast_race_test   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  test database                127.0.0.1:5440/forecast_race_test   <- environment TEST_DATABASE_URL
+  redis default (REDIS_DB)     127.0.0.1:58552/0   <- environment REDIS_URL/REDIS_HOST/REDIS_PORT
+  redis REDIS_DB_SESSIONS      127.0.0.1:58552/0   <- the default's server; not exported: REDIS_DB_SESSIONS from .env or the class default
+  redis REDIS_DB_PREDICTIONS   127.0.0.1:58552/1   <- the default's server; not exported: REDIS_DB_PREDICTIONS from .env or the class default
+  redis REDIS_DB_EXPERT_TOOLS  127.0.0.1:58552/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     127.0.0.1:58552/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    127.0.0.1:58552/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    127.0.0.1:58552/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['conflict:redis-url-vs-parts', 'unapproved-redis']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 5c. conflicting settings: TEST_DATABASE_URL whose query string redirects host, port and database
+   change from the approved base: TEST_DATABASE_URL='postgresql://postgres:***@127.0.0.1:5440/forecast_race_test?host=127.0.0.1&port=58552&dbname=soccer_predictions'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 3 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [conflict:postgres-url] test database has the URL parameter(s) dbname, host, port, which override the host, port or database in the URL itself (it really goes to 127.0.0.1:58552/soccer_predictions)
+  2. [live-database] test database (127.0.0.1:58552/soccer_predictions) is the live database (main backend :8000). It is refused on any host and port.
+  3. [conflict:test-vs-settings-database] TEST_DATABASE_URL (127.0.0.1:58552/soccer_predictions) is not the database the application settings resolve to (127.0.0.1:5440/forecast_race_test): the TestClient lifespan, deps.SessionLocal and the scheduler connect with the settings, not with TEST_DATABASE_URL
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:5440/forecast_race_test   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  test database                127.0.0.1:58552/soccer_predictions   <- environment TEST_DATABASE_URL
+  redis default (REDIS_DB)     127.0.0.1:6390/0   <- environment REDIS_HOST/REDIS_PORT
+  redis REDIS_DB_SESSIONS      127.0.0.1:6390/0   <- the default's server; not exported: REDIS_DB_SESSIONS from .env or the class default
+  redis REDIS_DB_PREDICTIONS   127.0.0.1:6390/1   <- the default's server; not exported: REDIS_DB_PREDICTIONS from .env or the class default
+  redis REDIS_DB_EXPERT_TOOLS  127.0.0.1:6390/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     127.0.0.1:6390/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    127.0.0.1:6390/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    127.0.0.1:6390/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['conflict:postgres-url', 'conflict:test-vs-settings-database', 'live-database']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 5d. conflicting settings: the unsplit shell variable (TEST_DATABASE_URL holding the next assignments, as zsh's env $V left it)
+   change from the approved base: TEST_DATABASE_URL='postgresql://postgres:***@127.0.0.1:5440/forecast_race_test POSTGRES_DB=forecast_race_test REDIS_HOST=127.0.0.1'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 1 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [conflict:unsplit-value] TEST_DATABASE_URL contains whitespace or begins with a NAME= assignment - what an unsplit shell variable produces (zsh does not split `env $VARS cmd`): one variable gets the whole string and the others are never set. Write each variable on the command line.
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:5440/forecast_race_test   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  test database                (unreadable)   <- environment TEST_DATABASE_URL
+  redis default (REDIS_DB)     127.0.0.1:6390/0   <- environment REDIS_HOST/REDIS_PORT
+  redis REDIS_DB_SESSIONS      127.0.0.1:6390/0   <- the default's server; not exported: REDIS_DB_SESSIONS from .env or the class default
+  redis REDIS_DB_PREDICTIONS   127.0.0.1:6390/1   <- the default's server; not exported: REDIS_DB_PREDICTIONS from .env or the class default
+  redis REDIS_DB_EXPERT_TOOLS  127.0.0.1:6390/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     127.0.0.1:6390/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    127.0.0.1:6390/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    127.0.0.1:6390/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['conflict:unsplit-value']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+== 5e. conflicting settings: two Redis roles on one database, and the race database equal to the test database
+   change from the approved base: REDIS_DB_SESSIONS='3', REDIS_DB_PREDICTIONS='3', RACE_TEST_DATABASE_URL='postgresql://postgres:***@127.0.0.1:5440/forecast_race_test'
+   $ cd <worktree>/backend && python -c <tripwire BOOT> -q -p no:cacheprovider -o addopts= -rs tests   (the harness then runs pytest's own __main__ via runpy, as python -m pytest does)
+-- output (stdout+stderr, as the person would see it):
+
+REFUSED: the isolation preflight (role backend-tests, at backend/conftest.py) found 2 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [conflict:race-same-as-test] RACE_TEST_DATABASE_URL (127.0.0.1:5440/forecast_race_test) is the test database; the race tests TRUNCATE ... CASCADE every table, so they need a database of their own
+  2. [conflict:redis-db-collision] REDIS_DB_ML_MODELS, REDIS_DB_PREDICTIONS, REDIS_DB_SESSIONS share a database; every role has one of its own
+
+Resolved targets (credentials are never shown):
+  settings database            127.0.0.1:5440/forecast_race_test   <- environment POSTGRES_SERVER/POSTGRES_PORT/POSTGRES_DB
+  test database                127.0.0.1:5440/forecast_race_test   <- environment TEST_DATABASE_URL
+  race database                127.0.0.1:5440/forecast_race_test   <- environment RACE_TEST_DATABASE_URL
+  redis default (REDIS_DB)     127.0.0.1:6390/0   <- environment REDIS_HOST/REDIS_PORT
+  redis REDIS_DB_SESSIONS      127.0.0.1:6390/3   <- the default's server; environment REDIS_DB_SESSIONS
+  redis REDIS_DB_PREDICTIONS   127.0.0.1:6390/3   <- the default's server; environment REDIS_DB_PREDICTIONS
+  redis REDIS_DB_EXPERT_TOOLS  127.0.0.1:6390/2   <- the default's server; not exported: REDIS_DB_EXPERT_TOOLS from .env or the class default
+  redis REDIS_DB_ML_MODELS     127.0.0.1:6390/3   <- the default's server; not exported: REDIS_DB_ML_MODELS from .env or the class default
+  redis REDIS_DB_MATCH_DATA    127.0.0.1:6390/4   <- the default's server; not exported: REDIS_DB_MATCH_DATA from .env or the class default
+  redis REDIS_DB_RATE_LIMIT    127.0.0.1:6390/5   <- the default's server; not exported: REDIS_DB_RATE_LIMIT from .env or the class default
+
+Approved for backend-tests (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres test: loopback:5432/soccer_predictions_test, loopback:5440/forecast_race_test
+  postgres race: loopback:5440/forecast_race_test
+  redis application: loopback:6390 (every database)
+  redis lease: loopback:6390 (every database)
+
+Write every target on the command line, with the throwaway Redis started (backend/README.md, "Testing"):
+  cd backend && TEST_DATABASE_URL=postgresql://postgres:<password>@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest -o addopts="" -q
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+-- exit=78
+-- tripwire: connection attempts 0; imports of app.main/tests.conftest/app.db.session 0
+-- refusal codes: ['conflict:race-same-as-test', 'conflict:redis-db-collision']
+-- credentials in the output: injected fake secrets none; backend/.env secret values found 0 of 11 checked (values never printed)
+-- NEGATIVE HOLDS: exit 78, zero tripwire entries, refusal printed, expected codes present, no credential, no test collected or run
+====================================================================================================
+SUMMARY (case | exit | connection attempts | recorded imports | holds)
+  CONTROL    exit=0   attempts=10 imports=2 HOLDS
+  1a. missing overrides exit=78  attempts=0 imports=0 HOLDS
+  1b. missing override exit=78  attempts=0 imports=0 HOLDS
+  2a. live database by name exit=78  attempts=0 imports=0 HOLDS
+  2b. live database by name exit=78  attempts=0 imports=0 HOLDS
+  3. live Redis server exit=78  attempts=0 imports=0 HOLDS
+  4a. a live Redis database named by URL exit=78  attempts=0 imports=0 HOLDS
+  4b. the lease tests' databases on the live server exit=78  attempts=0 imports=0 HOLDS
+  4c. the isolated pair's Redis databases 10-15 on port 6379 (TEST-NET-1), every one written down exit=78  attempts=0 imports=0 HOLDS
+  5a. conflicting settings exit=78  attempts=0 imports=0 HOLDS
+  5b. conflicting settings exit=78  attempts=0 imports=0 HOLDS
+  5c. conflicting settings exit=78  attempts=0 imports=0 HOLDS
+  5d. conflicting settings exit=78  attempts=0 imports=0 HOLDS
+  5e. conflicting settings exit=78  attempts=0 imports=0 HOLDS
+14 of 14 hold
+# (scrubbed: worktree path -> <worktree> x10, scratchpad -> <scratchpad> x0, system temp dir -> <tmp> x0, home prefix -> ~ x0, pytest temp user -> <user> x0, test database password -> *** x0; terminal colour codes stripped; nothing else edited)
+# exit=0

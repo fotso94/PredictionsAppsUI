@@ -1,0 +1,18 @@
+# FOLLOW-UP verification, POSTFLIGHT: the servers, the isolated backend's identity and the throwaway services after every run
+# code under test: HEAD 1a6109fe of expert-fixes; :8000 and :3100 kept their pids (27221, 91426) throughout and were sent nothing; the only requests in this check are GET http://127.0.0.1:8001/health
+== postflight at 2026-10-21T16:25:37Z, after every run
+backend            :8000  pid 27221  started Mon Oct 19 21:01:46 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/backend
+frontend           :3100  pid 91426  started Wed Oct  7 23:26:34 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/frontend
+backend-isolated   :8001  pid 2407   started Wed Oct 21 12:10:26 2026      cwd <worktree>/backend
+frontend-isolated  :3101  pid 1982   started Tue Oct 20 19:25:26 2026      cwd <worktree>/frontend
+-- GET http://127.0.0.1:8001/health (selected fields)
+{"status": "healthy", "started_at": "2026-10-21T16:10:26Z", "database": "soccer_predictions_e2e", "redis_databases": [10, 11, 12, 13, 14, 15], "redis_server": {"port": 6379, "loopback": true}, "scheduler_enabled": false}
+source.commit 1a6109fe37167275eb0a6d980b3ebc5162707fb4 | dirty app files [] | app_tree_sha256 02195dc15f1d73967cbe01b0b004bb258be82528f7268425109ae4152a94bb8b | app_files 93
+-- throwaway containers (docker ps -a, by name):
+  guard-test-redis and guard-race-pg removed (docker rm -f, by name)
+-- listeners on 6390 / 5440: 0 / 0
+-- other test runners:
+  none
+-- git: HEAD 1a6109fe37167275eb0a6d980b3ebc5162707fb4; tracked changes: 0
+# (scrubbed: worktree path -> <worktree> x2, scratchpad -> <scratchpad> x0, system temp dir -> <tmp> x0, home prefix -> ~ x2, pytest temp user -> <user> x0, test database password -> *** x0; terminal colour codes stripped; nothing else edited)
+# exit=0

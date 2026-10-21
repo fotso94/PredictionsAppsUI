@@ -1,0 +1,32 @@
+# FOLLOW-UP (1d): the REAL playwright.config.ts started with unsafe settings, each run behind net-tripwire.cjs (e2e/guard/refusal-runs.test.mjs)
+# code under test: HEAD 1a6109fe of expert-fixes (working tree clean)
+# run at 2026-10-21T16:12:02Z; cd <worktree>/frontend && node --test --test-reporter=spec e2e/guard/refusal-runs.test.mjs; one Playwright run at a time. The approved isolated-pair case sends its one GET to :8001 (the isolated backend, restarted on HEAD in followup-preflight.log); nothing to :8000 or :3100
+# expected: 18 passed (as on b6c35b28)
+✔ the live-isolated project does not exist unless E2E_STACK selects it (303.2865ms)
+✔ the live project does not exist unless E2E_STACK selects it (276.760667ms)
+✔ an E2E_STACK that is not exactly one stack is refused when the configuration loads (850.619291ms)
+✔ live-isolated pointed at servers the policy does not name is refused before any test (278.736959ms)
+✔ live-isolated with no isolated API URL is refused, not defaulted (283.495292ms)
+✔ the live backend or frontend named as the isolated pair is refused before anything is sent (280.325833ms)
+✔ an isolated API that is also the main API is refused (276.635083ms)
+✔ a mocked run whose frontend URL is a backend is refused (276.188875ms)
+✔ a URL carrying a password is refused and the password is never printed (281.740917ms)
+✔ an approved mocked run starts and passes, and Node reaches for no server but the web font host (1635.529ms)
+✔ the approved isolated pair passes the preflight: one GET to the isolated backend and nothing else from Node (651.452ms)
+✔ a mocked run never uses the live frontend: the default is the isolated one, and :3100 is refused (791.931375ms)
+✔ live specs run under another configuration (no global setup) refuse before their first request (540.354917ms)
+✔ live and live-isolated specs named from the repository root (no configuration at all) refuse too (959.196458ms)
+✔ workers refuse when no preflight passed in their runner, as in watch mode, which ignores a failed global setup (569.669375ms)
+✔ in a checkout called PredictionsAppsUI-mocked, each project selects only its own directory (956.25775ms)
+✔ in a checkout called PredictionsAppsUI-live, each project selects only its own directory (401.96825ms)
+✔ in a checkout called PredictionsAppsUI-live-isolated, each project selects only its own directory (1103.6475ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10754.37725
+# (scrubbed: worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp> x0, home prefix -> ~ x0, pytest temp user -> <user> x0, test database password -> *** x0; terminal colour codes stripped; nothing else edited)
+# exit=0

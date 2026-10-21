@@ -1,0 +1,128 @@
+# FOLLOW-UP (2b): negative demonstrations, browser - ten unsafe Playwright configurations run with the REAL playwright.config.ts, each behind the Node network tripwire
+# code under test: HEAD 1a6109fe of expert-fixes (working tree clean)
+# run at 2026-10-21T16:16:56Z by followup-tools/negative_browser.sh (kept beside this log): cd <worktree>/frontend, an empty environment plus PATH/HOME/TMPDIR/LANG and the variables shown, e2e/guard/net-tripwire.cjs in NODE_OPTIONS (every TCP connect from the runner or a worker recorded and BLOCKED), --output to a temporary directory and --reporter=line, one run after another
+# runs that name a live port select no test (--grep matching nothing), so nothing could run against live even without the preflight; run 4 carries a fake password in the isolated API URL to show it is never printed (it is written *** in the command echo only)
+# expected: each run exit non-zero with its refusal text, no test started, the password absent, 'connections: 0'; the script exits 0 only when all 10 hold
+================================================================ run 1: E2E_STACK=live-isolated with neither isolated URL set
+$ env E2E_STACK=live-isolated ./node_modules/.bin/playwright test --project=live-isolated
+isolation preflight: REFUSED - 2 problem(s); no test was loaded or started
+  1. [missing:E2E_ISOLATED_BASE_URL] E2E_ISOLATED_BASE_URL is not set; live-isolated writes what it cannot remove, so the isolated pair is never assumed: name it (npm run e2e:live-isolated sets both)
+  2. [missing:E2E_ISOLATED_API_URL] E2E_ISOLATED_API_URL is not set; live-isolated writes what it cannot remove, so the isolated pair is never assumed: name it (npm run e2e:live-isolated sets both)
+  (nothing was sent to any server)
+  How to run: npm run e2e:mocked; npm run e2e:live-isolated (sets E2E_STACK=live-isolated and the isolated URLs); E2E_STACK=live for the live project. The allowlist is backend/app/core/isolation_targets.json.
+Error: the isolation preflight refused this run (above); no test was loaded or started
+exit=1
+node network tripwire: 1 process(es) guarded; connections: 0
+checks: exit non-zero yes; expected refusal text /missing:E2E_ISOLATED_API_URL/ yes; a test started no; the URL password in the output no
+NEGATIVE HOLDS
+================================================================ run 2: the live pair named as the isolated pair (selects no test)
+$ env E2E_STACK=live-isolated E2E_ISOLATED_API_URL=http://127.0.0.1:8000 E2E_ISOLATED_BASE_URL=http://localhost:3100 ./node_modules/.bin/playwright test --project=live-isolated --grep __the_isolation_guard_selects_no_test__
+isolation preflight: REFUSED - 3 problem(s); no test was loaded or started
+  1. [live-target] E2E_ISOLATED_BASE_URL (http://localhost:3100) is the live frontend's port; live-isolated never runs against the main pair
+  2. [live-target] E2E_ISOLATED_API_URL (http://127.0.0.1:8000) is the live backend's port; live-isolated never runs against the main pair
+  3. [conflict:same-origin] E2E_ISOLATED_API_URL (http://127.0.0.1:8000) is also the main API (E2E_API_URL, http://127.0.0.1:8000); a write-producing test runs only against the isolated pair
+  (nothing was sent to any server)
+  How to run: npm run e2e:mocked; npm run e2e:live-isolated (sets E2E_STACK=live-isolated and the isolated URLs); E2E_STACK=live for the live project. The allowlist is backend/app/core/isolation_targets.json.
+Error: the isolation preflight refused this run (above); no test was loaded or started
+exit=1
+node network tripwire: 1 process(es) guarded; connections: 0
+checks: exit non-zero yes; expected refusal text /live-target/ yes; a test started no; the URL password in the output no
+NEGATIVE HOLDS
+================================================================ run 3: a mocked run on the live frontend :3100 (selects no test)
+$ env E2E_BASE_URL=http://localhost:3100 ./node_modules/.bin/playwright test --project=mocked-desktop --grep __the_isolation_guard_selects_no_test__
+isolation preflight: REFUSED - 1 problem(s); no test was loaded or started
+  1. [live-target] the mocked projects' frontend (http://localhost:3100) is the live frontend's port; mocked specs load their pages from the isolated frontend (http://localhost:3101, the default) or another frontend that is not live, never from the main pair
+  (nothing was sent to any server)
+  How to run: npm run e2e:mocked; npm run e2e:live-isolated (sets E2E_STACK=live-isolated and the isolated URLs); E2E_STACK=live for the live project. The allowlist is backend/app/core/isolation_targets.json.
+Error: the isolation preflight refused this run (above); no test was loaded or started
+exit=1
+node network tripwire: 1 process(es) guarded; connections: 0
+checks: exit non-zero yes; expected refusal text /live-target/ yes; a test started no; the URL password in the output no
+NEGATIVE HOLDS
+================================================================ run 4: an isolated API URL carrying a password (the password must never be printed)
+$ env E2E_STACK=live-isolated E2E_ISOLATED_API_URL=http://qa:***@127.0.0.1:8001 E2E_ISOLATED_BASE_URL=http://localhost:3101 ./node_modules/.bin/playwright test --project=live-isolated   (the URL password is written *** in this echo only)
+isolation preflight: REFUSED - 1 problem(s); no test was loaded or started
+  1. [malformed-url] E2E_ISOLATED_API_URL carries credentials in the URL; they are not shown, and are refused
+  (nothing was sent to any server)
+  How to run: npm run e2e:mocked; npm run e2e:live-isolated (sets E2E_STACK=live-isolated and the isolated URLs); E2E_STACK=live for the live project. The allowlist is backend/app/core/isolation_targets.json.
+Error: the isolation preflight refused this run (above); no test was loaded or started
+exit=1
+node network tripwire: 1 process(es) guarded; connections: 0
+checks: exit non-zero yes; expected refusal text /REFUSED/ yes; a test started no; the URL password in the output no
+NEGATIVE HOLDS
+================================================================ run 5: a port the policy does not list (nothing listens on 8002)
+$ env E2E_STACK=live-isolated E2E_ISOLATED_API_URL=http://127.0.0.1:8002 E2E_ISOLATED_BASE_URL=http://localhost:3101 ./node_modules/.bin/playwright test --project=live-isolated
+isolation preflight: REFUSED - 1 problem(s); no test was loaded or started
+  1. [unapproved-target] E2E_ISOLATED_API_URL (http://127.0.0.1:8002) is not an approved isolated backend port (8001)
+  (nothing was sent to any server)
+  How to run: npm run e2e:mocked; npm run e2e:live-isolated (sets E2E_STACK=live-isolated and the isolated URLs); E2E_STACK=live for the live project. The allowlist is backend/app/core/isolation_targets.json.
+Error: the isolation preflight refused this run (above); no test was loaded or started
+exit=1
+node network tripwire: 1 process(es) guarded; connections: 0
+checks: exit non-zero yes; expected refusal text /unapproved-target/ yes; a test started no; the URL password in the output no
+NEGATIVE HOLDS
+================================================================ run 6: an isolated API that is also E2E_API_URL
+$ env E2E_STACK=live-isolated E2E_ISOLATED_API_URL=http://127.0.0.1:8001 E2E_ISOLATED_BASE_URL=http://localhost:3101 E2E_API_URL=http://localhost:8001 ./node_modules/.bin/playwright test --project=live-isolated
+isolation preflight: REFUSED - 1 problem(s); no test was loaded or started
+  1. [conflict:same-origin] E2E_ISOLATED_API_URL (http://127.0.0.1:8001) is also the main API (E2E_API_URL, http://localhost:8001); a write-producing test runs only against the isolated pair
+  (nothing was sent to any server)
+  How to run: npm run e2e:mocked; npm run e2e:live-isolated (sets E2E_STACK=live-isolated and the isolated URLs); E2E_STACK=live for the live project. The allowlist is backend/app/core/isolation_targets.json.
+Error: the isolation preflight refused this run (above); no test was loaded or started
+exit=1
+node network tripwire: 1 process(es) guarded; connections: 0
+checks: exit non-zero yes; expected refusal text /conflict:same-origin/ yes; a test started no; the URL password in the output no
+NEGATIVE HOLDS
+================================================================ run 7: a mocked run whose frontend URL is the isolated backend
+$ env E2E_BASE_URL=http://127.0.0.1:8001 ./node_modules/.bin/playwright test --project=mocked-desktop
+isolation preflight: REFUSED - 1 problem(s); no test was loaded or started
+  1. [conflict:frontend-is-backend] E2E_BASE_URL (http://127.0.0.1:8001) is a backend's port, not a frontend: the mocked projects would load their pages from a backend
+  (nothing was sent to any server)
+  How to run: npm run e2e:mocked; npm run e2e:live-isolated (sets E2E_STACK=live-isolated and the isolated URLs); E2E_STACK=live for the live project. The allowlist is backend/app/core/isolation_targets.json.
+Error: the isolation preflight refused this run (above); no test was loaded or started
+exit=1
+node network tripwire: 1 process(es) guarded; connections: 0
+checks: exit non-zero yes; expected refusal text /conflict:frontend-is-backend/ yes; a test started no; the URL password in the output no
+NEGATIVE HOLDS
+================================================================ run 8: E2E_STACK naming both real stacks
+$ env E2E_STACK=live,live-isolated ./node_modules/.bin/playwright test
+Error: E2E_STACK must be one of: unset, mocked, live, live-isolated (got "live,live-isolated"). It selects which Playwright projects exist: live and live-isolated are defined only when it names them, and a run never mixes the two. Use npm run e2e:live-isolated, or E2E_STACK=live-isolated with the isolated URLs.
+    at parseStack (file://<worktree>/frontend/e2e/support/target-policy.ts:63:9)
+    at file://<worktree>/frontend/playwright.config.ts:58:15
+    at ModuleJob.run (node:internal/modules/esm/module_job:371:25)
+    at onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:702:26)
+    at requireOrImport (<worktree>/frontend/node_modules/playwright/lib/common/index.js:1081:12)
+    at loadUserConfig (<worktree>/frontend/node_modules/playwright/lib/common/index.js:1268:46)
+    at loadConfig (<worktree>/frontend/node_modules/playwright/lib/common/index.js:1275:22)
+    at Object.loadConfigFromFile (<worktree>/frontend/node_modules/playwright/lib/common/index.js:1490:10)
+    at runTests (<worktree>/frontend/node_modules/playwright/lib/cli/testActions.js:46:18)
+    at _Command.<anonymous> (<worktree>/frontend/node_modules/playwright/lib/program.js:55:7)
+exit=1
+node network tripwire: 1 process(es) guarded; connections: 0
+checks: exit non-zero yes; expected refusal text /E2E_STACK must be one of/ yes; a test started no; the URL password in the output no
+NEGATIVE HOLDS
+================================================================ run 9: the live-isolated project asked for without E2E_STACK
+$ ./node_modules/.bin/playwright test --project=live-isolated
+hint: the live-isolated project exists only with E2E_STACK=live-isolated (npm run e2e:live-isolated)
+Error: Project(s) "live-isolated" not found. Available projects: "mocked-desktop", "mocked-mobile", "mocked-mobile-360"
+    at Object.filterProjects (<worktree>/frontend/node_modules/playwright/lib/runner/index.js:2170:11)
+    at runTests (<worktree>/frontend/node_modules/playwright/lib/cli/testActions.js:61:30)
+    at _Command.<anonymous> (<worktree>/frontend/node_modules/playwright/lib/program.js:55:7)
+exit=1
+node network tripwire: 1 process(es) guarded; connections: 0
+checks: exit non-zero yes; expected refusal text /not found/ yes; a test started no; the URL password in the output no
+NEGATIVE HOLDS
+================================================================ run 10: the live project asked for without E2E_STACK (selects no test)
+$ ./node_modules/.bin/playwright test --project=live --grep __the_isolation_guard_selects_no_test__
+hint: the live project exists only with E2E_STACK=live (npm run e2e:live)
+Error: Project(s) "live" not found. Available projects: "mocked-desktop", "mocked-mobile", "mocked-mobile-360"
+    at Object.filterProjects (<worktree>/frontend/node_modules/playwright/lib/runner/index.js:2170:11)
+    at runTests (<worktree>/frontend/node_modules/playwright/lib/cli/testActions.js:61:30)
+    at _Command.<anonymous> (<worktree>/frontend/node_modules/playwright/lib/program.js:55:7)
+exit=1
+node network tripwire: 1 process(es) guarded; connections: 0
+checks: exit non-zero yes; expected refusal text /not found/ yes; a test started no; the URL password in the output no
+NEGATIVE HOLDS
+================================================================
+10 of 10 hold
+# (scrubbed: worktree path -> <worktree> x14, scratchpad -> <scratchpad> x0, system temp dir -> <tmp> x0, home prefix -> ~ x0, pytest temp user -> <user> x0, test database password -> *** x0; terminal colour codes stripped; nothing else edited)
+# exit=0

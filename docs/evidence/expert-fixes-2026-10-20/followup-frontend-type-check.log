@@ -1,0 +1,11 @@
+# FOLLOW-UP (5a): frontend type-check
+# code under test: HEAD 1a6109fe of expert-fixes (working tree clean)
+# run at 2026-10-21T16:24:45Z; cd <worktree>/frontend && npm run type-check
+# scope note: tsc --noEmit uses tsconfig.json, whose include is ["src"]; playwright.config.ts and e2e/ are not type-checked by this script (they are linted by 5b and loaded by every Playwright run above)
+# expected: no output after the command line
+
+> soccer-predictions-frontend@1.0.0 type-check
+> tsc --noEmit
+
+# (scrubbed: worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp> x0, home prefix -> ~ x0, pytest temp user -> <user> x0, test database password -> *** x0; terminal colour codes stripped; nothing else edited)
+# exit=0

@@ -1,0 +1,9 @@
+# FOLLOW-UP (1b): scripts/tests, the evidence runner's tests (its guard probe and the isolated frontend for mocked runs included)
+# code under test: HEAD 1a6109fe of expert-fixes (working tree clean)
+# run at 2026-10-21T16:11Z; cd <worktree> && backend/venv311/bin/python -m pytest scripts/tests -q -p no:cacheprovider -o addopts="" -rs
+# expected: 94 passed (as on b6c35b28)
+........................................................................ [ 76%]
+......................                                                   [100%]
+94 passed in 1.60s
+# (scrubbed: worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp> x0, home prefix -> ~ x0, pytest temp user -> <user> x0, test database password -> *** x0; terminal colour codes stripped; nothing else edited)
+# exit=0

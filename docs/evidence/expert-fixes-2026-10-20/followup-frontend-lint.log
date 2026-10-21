@@ -1,0 +1,10 @@
+# FOLLOW-UP (5b): frontend lint (eslint --max-warnings 0 over the whole frontend, playwright.config.ts and e2e/ included)
+# code under test: HEAD 1a6109fe of expert-fixes (working tree clean)
+# run at 2026-10-21T16:24:47Z; cd <worktree>/frontend && npm run lint
+# expected: no output after the command line
+
+> soccer-predictions-frontend@1.0.0 lint
+> eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
+
+# (scrubbed: worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp> x0, home prefix -> ~ x0, pytest temp user -> <user> x0, test database password -> *** x0; terminal colour codes stripped; nothing else edited)
+# exit=0

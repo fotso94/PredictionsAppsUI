@@ -1,0 +1,82 @@
+# FOLLOW-UP verification of the guard follow-up, PREFLIGHT
+# code under test: HEAD 1a6109fe of expert-fixes (the guard follow-up is b6c35b28; the commits after it touch docs/ only); working tree clean
+# what was checked: git status; no other test runner; the isolated backend's GET /health source identity against the checkout's own app tree digest
+# outcome: the running isolated backend (pid 13053) had loaded commit b8b5f8bc with four dirty app files (app tree b4a1d04d..., 92 files), not HEAD (02195dc1..., 93 files), so backend-isolated alone was stopped and started with scripts/local-servers.sh, whose start runs the guard (role isolated-backend) first. :8000, :3100 and :3101 kept their pids and were sent nothing; the only requests were GET http://127.0.0.1:8001/health. The local times in the status lines are the machine's (UTC-4)
+# run at 2026-10-21T16:10:20Z
+== git: branch expert-fixes, HEAD 1a6109fe37167275eb0a6d980b3ebc5162707fb4
+git status --porcelain --untracked-files=all: [0 line(s)]
+== other test runners (pytest, playwright test, node --test); the long-lived @playwright/mcp browser-tool servers are not test runners
+  none
+== listeners (scripts/local-servers.sh status, which only lists local sockets)
+backend            :8000  pid 27221  started Mon Oct 19 21:01:46 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/backend
+frontend           :3100  pid 91426  started Wed Oct  7 23:26:34 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/frontend
+backend-isolated   :8001  pid 13053  started Wed Oct 21 08:13:14 2026      cwd <worktree>/backend
+frontend-isolated  :3101  pid 1982   started Tue Oct 20 19:25:26 2026      cwd <worktree>/frontend
+== the checkout's app tree digest (backend/app, the source_identity algorithm reimplemented with the standard library)
+02195dc15f1d73967cbe01b0b004bb258be82528f7268425109ae4152a94bb8b 93
+== isolated backend before: GET http://127.0.0.1:8001/health (selected fields)
+{"status": "healthy", "started_at": "2026-10-21T12:13:14Z", "database": "soccer_predictions_e2e", "redis_databases": [10, 11, 12, 13, 14, 15], "redis_server": {"port": 6379, "loopback": true}, "scheduler_enabled": false}
+source.commit b8b5f8bced2a99d79ce9a6d96484844428baf9cc | dirty app files ['backend/app/core/isolation_targets.json', 'backend/app/core/redis.py', 'backend/app/core/target_guard.py', 'backend/app/main.py'] | app_tree_sha256 b4a1d04df8d98426c9f3dd2c08390bb96abcf413f4b0a24676a4640bfbfd5570 | app_files 92
+pid 13053 cwd <worktree>/backend
+-- its environment's isolation keys (provider keys as empty / NON-EMPTY only):
+BACKEND_CORS_ORIGINS=["http://localhost:3101","http://127.0.0.1:3101"]
+EMAIL_ENABLED=false
+POSTGRES_DB=soccer_predictions_e2e
+REDIS_DB=10
+REDIS_DB_EXPERT_TOOLS=12
+REDIS_DB_MATCH_DATA=14
+REDIS_DB_ML_MODELS=13
+REDIS_DB_PREDICTIONS=11
+REDIS_DB_RATE_LIMIT=15
+REDIS_DB_SESSIONS=10
+REDIS_HOST=localhost
+REDIS_PORT=6379
+SYNC_SCHEDULER_ENABLED=false
+LIVESCORE_API_KEY empty
+LIVESCORE_API_SECRET empty
+GAMEFORECAST_API_KEY empty
+API_FOOTBALL_KEY empty
+THESPORTSDB_KEY empty
+== restart: the running tree (b4a1d04d..., commit b8b5f8bc with 4 dirty app files) is not the checkout's (02195dc1...): stop and start backend-isolated only
+$ scripts/local-servers.sh stop backend-isolated
+backend-isolated: stopped (was pid 13053)
+stop exit=0
+$ scripts/local-servers.sh start backend-isolated   (runs python -m app.core.target_guard --role isolated-backend over ISOLATED_ENV first)
+target guard: isolated-backend approved - settings database localhost:5432/soccer_predictions_e2e; redis default (REDIS_DB) localhost:6379/10; redis REDIS_DB_SESSIONS localhost:6379/10; redis REDIS_DB_PREDICTIONS localhost:6379/11; redis REDIS_DB_EXPERT_TOOLS localhost:6379/12; redis REDIS_DB_ML_MODELS localhost:6379/13; redis REDIS_DB_MATCH_DATA localhost:6379/14; redis REDIS_DB_RATE_LIMIT localhost:6379/15 (policy sha256 e2abbcc34d12)
+backend-isolated: started on :8001 (pid 2407, log <worktree>/.local-run/backend-isolated.log)
+frontend-isolated: already listening on :3101 (pid 1982)
+start exit=0
+== after the restart, at 2026-10-21T16:10:41Z
+backend            :8000  pid 27221  started Mon Oct 19 21:01:46 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/backend
+frontend           :3100  pid 91426  started Wed Oct  7 23:26:34 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/frontend
+backend-isolated   :8001  pid 2407   started Wed Oct 21 12:10:26 2026      cwd <worktree>/backend
+frontend-isolated  :3101  pid 1982   started Tue Oct 20 19:25:26 2026      cwd <worktree>/frontend
+-- GET http://127.0.0.1:8001/health (selected fields)
+{"status": "healthy", "started_at": "2026-10-21T16:10:26Z", "database": "soccer_predictions_e2e", "redis_databases": [10, 11, 12, 13, 14, 15], "redis_server": {"port": 6379, "loopback": true}, "scheduler_enabled": false}
+source.commit 1a6109fe37167275eb0a6d980b3ebc5162707fb4 | dirty app files [] | app_tree_sha256 02195dc15f1d73967cbe01b0b004bb258be82528f7268425109ae4152a94bb8b | app_files 93
+pid 2407 cwd <worktree>/backend
+command: ~/Documents/DevProjects/PredictionsAppsUI/backend/venv311/bin/python3.11 ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001
+-- its environment's isolation keys (provider keys as empty / NON-EMPTY only):
+BACKEND_CORS_ORIGINS=["http://localhost:3101","http://127.0.0.1:3101"]
+EMAIL_ENABLED=false
+POSTGRES_DB=soccer_predictions_e2e
+REDIS_DB=10
+REDIS_DB_EXPERT_TOOLS=12
+REDIS_DB_MATCH_DATA=14
+REDIS_DB_ML_MODELS=13
+REDIS_DB_PREDICTIONS=11
+REDIS_DB_RATE_LIMIT=15
+REDIS_DB_SESSIONS=10
+REDIS_HOST=localhost
+REDIS_PORT=6379
+SYNC_SCHEDULER_ENABLED=false
+LIVESCORE_API_KEY empty
+LIVESCORE_API_SECRET empty
+GAMEFORECAST_API_KEY empty
+API_FOOTBALL_KEY empty
+THESPORTSDB_KEY empty
+-- the checkout's app tree digest, again:
+02195dc15f1d73967cbe01b0b004bb258be82528f7268425109ae4152a94bb8b 93
+HEAD 1a6109fe37167275eb0a6d980b3ebc5162707fb4
+# (scrubbed: worktree path -> <worktree> x7, scratchpad -> <scratchpad> x0, system temp dir -> <tmp> x0, home prefix -> ~ x5, pytest temp user -> <user> x0, test database password -> *** x0; terminal colour codes stripped; nothing else edited)
+# exit=0
