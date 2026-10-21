@@ -58,14 +58,14 @@
  * the "0%" further down, which is the thing a market left out must NEVER be shown as.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { ArrowLeftIcon, ArrowRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { Match } from '@/types'
 import { footballDataService } from '@/services/football-data.service'
 import { localDateString, STORED_ONLY } from '@/services/match-data-source'
-import { filterLiveAndScheduledMatches } from '@/utils/matchFilters'
+import { filterLiveAndScheduledMatches, hasMatchKickedOff } from '@/utils/matchFilters'
 import { getErrorMessage } from '@/utils/errors'
 import CompetitionChip from '@/components/ui/CompetitionChip'
 import EmptyState from '@/components/ui/EmptyState'
@@ -120,6 +120,14 @@ const PickerRow: React.FC<{ match: Match; actionLabel: string; onChoose: (match:
   // Re-derived from the instant on every render, in the chosen zone. `match.time` is the mapper's
   // one-off formatting and stands in only when the payload carried no instant to format.
   const kickoff = formatTime(match.kickoffUtc) ?? match.time
+  /*
+   * Kicked off — by the clock or by the status — so a prediction published now is never scored.
+   * The fixture is still offered (that is the posting policy, unchanged); the row says what a
+   * publish on it would be. The row's accessible name is its aria-label, which hides the badges
+   * from a screen reader, so this one is also the button's accessible DESCRIPTION.
+   */
+  const kickedOff = hasMatchKickedOff(match)
+  const kickedOffId = useId()
 
   return (
     <li className="border-b border-dark-800 last:border-b-0">
@@ -134,6 +142,7 @@ const PickerRow: React.FC<{ match: Match; actionLabel: string; onChoose: (match:
           competition: match.league.name,
           time: kickoff,
         })}
+        aria-describedby={kickedOff ? kickedOffId : undefined}
       >
         <div className="flex w-full items-center gap-2">
           <span className="flex w-12 flex-shrink-0 flex-col items-center text-center">
@@ -156,6 +165,11 @@ const PickerRow: React.FC<{ match: Match; actionLabel: string; onChoose: (match:
 
         <span className="flex flex-wrap gap-1 pl-14">
           <span className={clsx('rounded-full px-2 py-0.5 text-[11px]', coverage.className)}>{coverage.label}</span>
+          {kickedOff && (
+            <span id={kickedOffId} data-testid="picker-kicked-off" className="rounded-md bg-warning-900/40 px-2 py-0.5 text-[11px] text-warning-200">
+              {t('expert.picker.kickedOff')}
+            </span>
+          )}
         </span>
       </button>
     </li>

@@ -24,7 +24,7 @@ import { confidenceStatement } from '@/components/match-detail/evidence'
 import { footballDataService } from '@/services/football-data.service'
 import { describeError } from '@/services/backend-match-data.service'
 import { ProviderStatus } from '@/services/match-data-source'
-import { providerLabel, betLabels } from '@/utils/predictionLabels'
+import { providerLabel, betLabels, publicExpertName } from '@/utils/predictionLabels'
 import { isMatchLive, isMatchFinished, getMatchStatusText, getMatchStatusBadgeClasses } from '@/utils/matchFilters'
 import { resultDelay } from '@/utils/resultDelay'
 import { ResultDelayLabel, ResultDelayNotice } from '@/components/ui/ResultDelayNotice'
@@ -286,6 +286,7 @@ const MatchDataCaveat: React.FC<{ kind: 'kickoff' | 'live'; className?: string }
  * refresh, so opening this page spends no provider allowance.
  */
 const MatchDetailPage: React.FC = () => {
+  const t = useT()
   const { id } = useParams<{ id: string }>()
   const [match, setMatch] = useState<Match | null>(null)
   const [loading, setLoading] = useState(true)
@@ -644,31 +645,58 @@ const MatchDetailPage: React.FC = () => {
                 confidenceNote={confidenceStatement(brief?.reliability.expert.detail, 'expert', experts[0])}
                 derivedBands={!expertConfidencePublished}
                 testId="expert-predictions"
-                /* A correction appends; the view it replaced stays readable. */
+                /* A correction appends; the view it replaced stays readable, under its author. */
                 footer={revisions.length > 0
-                  ? <RevisionHistory revisions={revisions} className="border-t border-dark-700 pt-4" />
+                  ? (
+                    <RevisionHistory
+                      revisions={revisions}
+                      authors={experts.map(expert => ({ predictionId: expert.predictionId, name: publicExpertName(expert.author) }))}
+                      className="border-t border-dark-700 pt-4"
+                    />
+                  )
                   : null}
               >
-                {experts.map((expert, index) => (
-                  <div key={index} className={index > 0 ? 'pt-6 border-t border-dark-700' : ''}>
-                    <MarketTable prediction={expert} brief={brief} source="expert" />
-                    {expert.analysis && (
-                      <p className="mt-4 text-sm text-secondary-300 whitespace-pre-line">{expert.analysis}</p>
-                    )}
-                    <p className="mt-2 text-xs text-secondary-500">
-                      Expert · {expert.source_type || 'expert_manual'}
+                {experts.map((expert, index) => {
+                  const name = publicExpertName(expert.author)
+                  const publishedAt = expert.publishedAt ? formatDateTime(backendInstant(expert.publishedAt).at) : null
+                  return (
+                    <div key={expert.predictionId ?? index} className={index > 0 ? 'pt-6 border-t border-dark-700' : ''}>
                       {/*
-                        The reader's chosen zone, not the device's. `new Date(iso).toLocaleString()`
-                        formatted in whatever zone the machine happens to sit in and read an
-                        offset-less backend timestamp as local rather than as the UTC it is — two
-                        errors that can compound to a whole day. When an expert published is the
-                        fact that decides whether their prediction was prematch, so the zone it is
-                        read in is not cosmetic.
+                        Settlement never scores a prediction published at or after kick-off. Said
+                        only when the backend says `published_after_kickoff: true`: null is an
+                        unknown time, not a late one, and before kick-off needs no label.
                       */}
-                      {expert.publishedAt ? ` · published ${formatDateTime(backendInstant(expert.publishedAt).at) ?? ''}` : ''}
-                    </p>
-                  </div>
-                ))}
+                      {expert.publishedAfterKickoff === true && (
+                        <div className="mb-3" data-testid="expert-late-publication">
+                          <span className="inline-block rounded-md border border-orange-700 px-1.5 py-0.5 text-[11px] leading-4 text-orange-200">
+                            {t('reader.expert.publishedAfterKickoff')}
+                          </span>
+                          <p className="mt-1 text-xs text-secondary-400">{t('reader.expert.publishedAfterKickoffDetail')}</p>
+                        </div>
+                      )}
+                      <MarketTable prediction={expert} brief={brief} source="expert" />
+                      {expert.analysis && (
+                        <p className="mt-4 text-sm text-secondary-300 whitespace-pre-line">{expert.analysis}</p>
+                      )}
+                      {/*
+                        Who published it, by the public username the backend serves, and the
+                        generic label when there is none. This printed `Expert · expert_manual`:
+                        the source enum standing where a name belongs.
+
+                        The time is in the reader's chosen zone, not the device's.
+                        `new Date(iso).toLocaleString()` formatted in whatever zone the machine
+                        happens to sit in and read an offset-less backend timestamp as local rather
+                        than as the UTC it is — two errors that can compound to a whole day. When an
+                        expert published is the fact that decides whether their prediction was
+                        prematch, so the zone it is read in is not cosmetic.
+                      */}
+                      <p className="mt-2 text-xs text-secondary-500" data-testid="expert-byline">
+                        {name ? t('reader.expert.byline', { name }) : t('source.expert')}
+                        {publishedAt ? ` · ${t('reader.brief.published', { when: publishedAt })}` : ''}
+                      </p>
+                    </div>
+                  )
+                })}
               </SourcePanel>
             )}
 

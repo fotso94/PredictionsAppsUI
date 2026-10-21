@@ -312,11 +312,52 @@ const reader = {
   'reader.revisions.replaced': 'replaced {when}',
   'reader.revisions.editedAfterKickoff': 'edited after kick-off',
   'reader.revisions.whatChanged': 'What changed: ',
-  /** The four figures an earlier version carried. Short column labels, not sentences. */
+  /** Column labels for an earlier version's 1X2 figures. Short labels, not sentences. */
   'reader.revisions.home': 'Home',
   'reader.revisions.draw': 'Draw',
   'reader.revisions.away': 'Away',
-  'reader.revisions.confidence': 'Confidence',
+  /**
+   * The expert's own stated conviction in a market — the composer's word for it ("Your conviction
+   * in this call"), and a claim, never an accuracy. This key was `reader.revisions.confidence`,
+   * "Confidence", while only the 1X2 figure was shown; the BTTS and total-goals convictions are
+   * shown now as well, and one word for all three is the composer's.
+   */
+  'reader.revisions.conviction': 'Conviction',
+  /** The total-goals conviction covers both lines at once, so it has a heading of its own. */
+  'reader.revisions.totalGoals': 'Total goals (both lines)',
+  /**
+   * A field this version's snapshot does not carry AT ALL. Not "not set" (the expert published
+   * nothing there) and not "left out" (both halves of a market null): the version simply did not
+   * record it, and saying anything more would be inventing it.
+   */
+  'reader.revisions.notRecorded': 'not recorded in this version',
+  /** Each prediction's earlier versions are headed with its author. `{name}` is the public username. */
+  'reader.revisions.byAuthor': 'Earlier versions of the prediction by {name}',
+  'reader.revisions.byUnnamed': 'Earlier versions of an expert’s prediction',
+  /**
+   * What an edit changed, one line per figure, built from the backend's structured `changes` and
+   * never from its audit text (`btts_yes_prob 0.6 -> 0.4`). `{field}` is the fieldLabel below,
+   * `{market}` and `{side}` the reader's own words for them; `{from}` and `{to}` are formatted
+   * percentages. A change from a figure to none, or from none to a figure, says so rather than
+   * printing a missing value as a number.
+   */
+  'reader.revisions.fieldLabel': '{market} – {side}',
+  'reader.revisions.change.value': '{field}: {from} → {to}',
+  'reader.revisions.change.set': '{field}: {to} (no value before)',
+  'reader.revisions.change.withdrawn': '{field}: withdrawn (was {from})',
+  'reader.revisions.change.reasoning': 'Reasoning rewritten',
+  'reader.revisions.change.keyFactors': 'Key factors changed',
+
+  // ─── the expert card, on a match page ───────────────────────────────────────────────────
+  /** `{name}` is the expert's public username, which is all the public payload carries. */
+  'reader.expert.byline': 'By {name}',
+  /**
+   * Settlement's prematch rule, said where the prediction is: one published at or after kick-off
+   * is never scored (`prematch_only` in the published rules). Shown only when the backend says
+   * `published_after_kickoff: true`; unknown is not "late", and before kick-off needs no label.
+   */
+  'reader.expert.publishedAfterKickoff': 'Published after kick-off · not scored',
+  'reader.expert.publishedAfterKickoffDetail': 'Only an expert prediction published before kick-off is scored. This one was published at or after kick-off, so it is shown here but left out of the measured record.',
 
   // ─── the evidence panel, on a match page ────────────────────────────────────────────────
   'reader.brief.heading': 'What this page knows about the match',

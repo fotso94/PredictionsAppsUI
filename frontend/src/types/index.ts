@@ -363,6 +363,23 @@ export interface MatchPredictions {
   /** False when the provider published no model-run time: the UI must say the generation time is unknown. */
   generationTimeKnown?: boolean;
   publishedAt?: string | null;
+  /**
+   * EXPERT PREDICTIONS ONLY. The prediction's own id, which is what its earlier versions point at
+   * (`ExpertPredictionRevision.prediction_id`), so the history can be grouped under its author.
+   */
+  predictionId?: string | null;
+  /**
+   * EXPERT PREDICTIONS ONLY. The public identity the backend serves, `{id, username}` and nothing
+   * else (never an email or a name). Null when the backend sent none; `username` is null when the
+   * account has no usable one. See `publicExpertName` in src/utils/predictionLabels.ts.
+   */
+  author?: { id: string; username: string | null } | null;
+  /**
+   * EXPERT PREDICTIONS ONLY. Settlement's own prematch rule applied to this row: true when it was
+   * published AT or after kick-off, which is never scored; false before; null when either time is
+   * unknown, which is not "before".
+   */
+  publishedAfterKickoff?: boolean | null;
   /** Observations the backend made about the provider payload, reported verbatim and never corrected.
    *  `warning` is a reason to doubt the numbers; `note` is bookkeeping that does not undermine them. */
   anomalies?: ForecastAnomaly[];

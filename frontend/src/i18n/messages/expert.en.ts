@@ -285,6 +285,12 @@ const expert = {
    * formatted by `formatIsoDate`, and the zone beside it is `matchday.timesIn`.
    */
   'expert.picker.dayShown': 'Fixtures for {date}',
+  /**
+   * On a fixture whose kick-off has passed (or that is already in play). Still offered — the
+   * backend accepts a publish — but settlement never scores a prediction published at or after
+   * kick-off, so the row says so before the expert opens it.
+   */
+  'expert.picker.kickedOff': 'Kicked off — a prediction published now is not scored',
 
   // ─── the composer ───────────────────────────────────────────────────────────────────────
   'expert.compose.title': 'Write a prediction',
@@ -307,6 +313,15 @@ const expert = {
   'expert.compose.fixThenPreview': 'Fix the fields marked above, then preview.',
   /** A statement of fact about what the button does, and it stays one in every language. */
   'expert.compose.publishImmediate': 'Publishing makes this public immediately.',
+  /**
+   * Above the editor, on a fixture whose kick-off has passed. `{time}` is the kick-off in the
+   * reader's chosen zone; the second form is for a fixture in play whose kick-off time is unknown.
+   * Readers see such a prediction labelled `reader.expert.publishedAfterKickoff`.
+   */
+  'expert.compose.kickoffPassed': 'Kick-off was {time}. A prediction published now is shown to readers as published after kick-off and is not scored in your measured record.',
+  'expert.compose.kickoffPassedNoTime': 'This match has kicked off. A prediction published now is shown to readers as published after kick-off and is not scored in your measured record.',
+  /** The same fact, in the preview, where the expert reads what is about to be published. */
+  'expert.preview.kickedOff': 'Published now, this prediction will be labelled as published after kick-off and will not be scored.',
   'expert.compose.publishFailed': 'The prediction could not be published.',
   'expert.compose.advancedIds': 'Advanced: fixture identifiers',
   'expert.compose.internalMatchId': 'Internal match id:',
@@ -342,6 +357,13 @@ const expert = {
   'expert.mine.published': 'Published: {timestamp}',
   'expert.mine.editNote': 'Percentages, not decimals — type {typed} for {whole}. Saving keeps this prediction published and preserves the version you are replacing, so readers can still see the view you published before.',
   'expert.mine.fixThenSave': 'Fix the fields marked above, then save.',
+  /**
+   * In the editor, on a prediction whose fixture has kicked off. Settlement scores the version that
+   * stood at kick-off (`prematch_expert_view`), so an edit now changes what readers see and not the
+   * record. "Can count" rather than "is scored": a prediction withdrawn before kick-off, or
+   * published after it, has no version that counts, and this must not promise one.
+   */
+  'expert.edit.afterKickoff': 'This match has kicked off. Readers will see your edit, but it does not change what is scored: only the version that stood at kick-off can count in your measured record.',
   'expert.mine.matchOutcome': 'Match Outcome',
   'expert.mine.homeWin': 'Home Win',
   'expert.mine.draw': 'Draw',

@@ -1,0 +1,19 @@
+
+Running 13 tests using 1 worker
+
+  ✓   1 [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:77:1 › an expert reaches the form without ever seeing a match id (1.8s)
+  ✓   2 [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:91:1 › the form suggests no probability of its own (2.7s)
+  ✓   3 [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:109:1 › a percentage typed as 55 is stored as 0.55 and published immediately (2.7s)
+  ✓   4 [live-isolated] › e2e/live-isolated/expert-management.spec.ts:153:1 › twenty-one real predictions: paged by the backend total, and deleting the 21st steps back (2.4s)
+  ✓   5 [live-isolated] › e2e/live-isolated/expert-management.spec.ts:192:1 › Unpublish and Publish on My Predictions change the real record, and the dashboard agrees (6.6s)
+  ✓   6 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:52:1 › a published prediction needs no approval and is public immediately (1.0s)
+  ✓   7 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:74:1 › an expert prediction is shown apart from the model forecast (1.0s)
+  ✓   8 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:87:1 › editing a published prediction updates the public view (1.1s)
+  ✓   9 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:111:1 › deleting a prediction removes it from the public view immediately (1.1s)
+  ✓  10 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:128:1 › a record the suite creates is classified as test data, by a flag and not by its text (117ms)
+  ✓  11 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:147:1 › the QA label in the reasoning is a label, not a mechanism (113ms)
+[qa-account] removing a record that carries the legacy reasoning label but no is_test_data classification. Either the backend is running without ALLOW_TEST_DATA_CLASSIFICATION, or the record was created through the composer UI, which does not yet ask for the classification.
+  ✓  12 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:155:1 › an expert signs in through the UI and reaches the match picker (2.1s)
+  ✓  13 [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author (642ms)
+
+  13 passed (25.4s)

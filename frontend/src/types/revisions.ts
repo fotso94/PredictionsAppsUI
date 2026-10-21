@@ -17,6 +17,11 @@
  * `values` is the whole published view as it stood before the edit, not a diff, so it can be read
  * back without reconstructing it from `changes_summary`.
  */
+/**
+ * A field a snapshot does not carry is ABSENT (undefined), which is different from null: null is
+ * "the expert published nothing here", absent is "this version did not record the field at all".
+ * The type says null; RevisionHistory checks for the key itself.
+ */
 export interface ExpertPredictionRevisionValues {
   home_win_prob: number | null;
   draw_prob: number | null;
@@ -39,6 +44,20 @@ export interface ExpertPredictionRevisionValues {
   updated_at: string | null;
 }
 
+/**
+ * One thing an edit changed, as the backend computes it from the two snapshots the revision row
+ * stores (`revision_changes` in backend/app/services/expert_prediction.py).
+ *
+ * A numeric field carries `from` and `to`, and 0 is kept apart from null: a conviction of 0
+ * withdrawn is a change from 0 to null. `reasoning` and `key_factors` carry the field name only,
+ * because the earlier text is already in the version's own `values`.
+ */
+export interface ExpertPredictionRevisionChange {
+  field: string;
+  from?: number | null;
+  to?: number | null;
+}
+
 export interface ExpertPredictionRevision {
   id: string;
   prediction_id: string;
@@ -48,10 +67,17 @@ export interface ExpertPredictionRevision {
   replaced_at: string | null;
   edited_by: string | null;
   /**
-   * The backend's own description of what changed, e.g.
-   * "home_win_prob 0.33 -> 0.51; reasoning changed". Empty string when nothing of substance did.
+   * The backend's AUDIT text, e.g. "home_win_prob 0.33 -> 0.51; reasoning changed": column names
+   * and Python values, written when the edit was saved. It is not for display and is not
+   * rendered; `changes` is what the page builds its sentences from.
    */
   changes_summary: string | null;
+  /**
+   * What the edit changed, structured. Absent from a backend older than the field, and null when
+   * the row does not carry both snapshots: either way nothing can be said about what changed,
+   * which is not the same as "nothing did", so the page then says nothing.
+   */
+  changes?: ExpertPredictionRevisionChange[] | null;
   /**
    * NULL when the kickoff time is unknown — a `false` would assert "edited before kickoff", which
    * is a claim we cannot make without a kickoff to compare against.

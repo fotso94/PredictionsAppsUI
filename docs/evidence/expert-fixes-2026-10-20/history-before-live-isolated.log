@@ -1,0 +1,42 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author (638ms)
+
+
+  1) [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author 
+
+    Error: the earlier BTTS yes figure is not on the page
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "60%"
+    Received string:    "Earlier published versions This view was updated once, most recently on 20 Oct 2026, 23:23. Each earlier version is kept exactly as it was published; a correction is added to the record rather than replacing it. Version 1 · as first published replaced 20 Oct 2026, 23:23 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% [e2e-qa] revision history, first version"
+
+      112 |   await expect(page.getByTestId('expert-revisions')).toBeVisible();
+      113 |   const shown = normalise(await page.getByTestId('expert-revisions').innerText());
+    > 114 |   expect(shown, 'the earlier BTTS yes figure is not on the page').toContain(normalise(await percentIn(page, 0.6)));
+          |                                                                   ^
+      115 |   expect(shown, 'the raw audit text reached the page').not.toMatch(/btts_yes_prob|->/);
+      116 |
+      117 |   await expect(group).toHaveCount(1);
+        at <worktree>/frontend/e2e/live-isolated/revision-history.spec.ts:114:67
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-revision-his-4f774-what-changed-and-the-author-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/live-isolated-revision-his-4f774-what-changed-and-the-author-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/live-isolated-revision-his-4f774-what-changed-and-the-author-live-isolated/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-revision-his-4f774-what-changed-and-the-author-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/live-isolated-revision-his-4f774-what-changed-and-the-author-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author 

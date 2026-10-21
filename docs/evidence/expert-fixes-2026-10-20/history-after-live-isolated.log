@@ -1,0 +1,6 @@
+
+Running 1 test using 1 worker
+
+  ✓  1 [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author (674ms)
+
+  1 passed (1.6s)

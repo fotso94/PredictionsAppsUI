@@ -2,6 +2,7 @@ import React from 'react'
 import clsx from 'clsx'
 import { ComposerValues, OPTIONAL_MARKET_LABEL, OptionalMarketKey, publishableValues } from './composer'
 import { formatPercentValue, parsePercent } from './percent'
+import { useT } from '@/i18n/react'
 
 /**
  * Exactly what a reader will see, before the expert commits to it.
@@ -18,6 +19,12 @@ import { formatPercentValue, parsePercent } from './percent'
 export interface PublishPreviewProps {
   values: ComposerValues
   fixture: { homeTeam: string; awayTeam: string; competition: string | null; kickoff: string | null } | null
+  /**
+   * The fixture has kicked off, so what is about to be published will be labelled late and never
+   * scored. The sentence comes from the catalogue, in the reader's language, although the rest of
+   * this panel is still English.
+   */
+  kickedOff?: boolean
   className?: string
 }
 
@@ -46,7 +53,8 @@ const NotPublished: React.FC<{ market: OptionalMarketKey }> = ({ market }) => (
   </div>
 )
 
-const PublishPreview: React.FC<PublishPreviewProps> = ({ values, fixture, className }) => {
+const PublishPreview: React.FC<PublishPreviewProps> = ({ values, fixture, kickedOff = false, className }) => {
+  const t = useT()
   const payload = publishableValues(values)
   const conviction = shown(values.conviction)
 
@@ -56,6 +64,16 @@ const PublishPreview: React.FC<PublishPreviewProps> = ({ values, fixture, classN
       <p className="mt-1 text-xs text-secondary-400">
         This is what readers will see. Publishing puts it on the public match page straight away.
       </p>
+
+      {kickedOff && (
+        <p
+          className="mt-3 rounded-lg border border-warning-700 bg-warning-900/30 px-3 py-2 text-xs text-warning-200"
+          role="status"
+          data-testid="preview-kickoff-warning"
+        >
+          {t('expert.preview.kickedOff')}
+        </p>
+      )}
 
       {fixture && (
         <div className="mt-3 rounded-lg border border-dark-700 bg-dark-900/60 p-3">

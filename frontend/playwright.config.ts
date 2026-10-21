@@ -93,9 +93,14 @@ export default defineConfig({
        * expert's record grew a fifth tile and each My Predictions card a fourth action, and its
        * French labels are the longer ones. It measures sideways scroll, cut-short tile labels and
        * actions outside their card at whatever width it runs, and 360 is the one that binds.
+       *
+       * revision-history.spec.ts joins it for the same reason: an earlier version now shows every
+       * market it carried, in labelled cells whose French labels (« Conviction déclarée », « Plus
+       * de 2,5 ») are the longer ones, and a picker row can carry a two-line kicked-off badge. It
+       * measures sideways scroll on the match page, both pickers and the composer.
        */
       name: 'mocked-mobile-360',
-      testMatch: /mocked\/(navigation-continuity|national-teams|overdue-results|parlay-builder|match-data-state|expert-management)\.spec\.ts/,
+      testMatch: /mocked\/(navigation-continuity|national-teams|overdue-results|parlay-builder|match-data-state|expert-management|revision-history)\.spec\.ts/,
       use: { ...devices['Galaxy S8'] },
     },
     {

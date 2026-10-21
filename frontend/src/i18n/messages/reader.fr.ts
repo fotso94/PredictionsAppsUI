@@ -214,7 +214,27 @@ const reader: Area<'reader'> = {
   'reader.revisions.home': 'Domicile',
   'reader.revisions.draw': 'Match nul',
   'reader.revisions.away': 'Extérieur',
-  'reader.revisions.confidence': 'Confiance',
+  /** REVIEW. « Conviction déclarée »: the claim the expert made, as the expert area words it
+   *  (« Conviction moyenne »), and not the English word on its own, which the identical-string
+   *  guard would read as a translation nobody did. */
+  'reader.revisions.conviction': 'Conviction déclarée',
+  'reader.revisions.totalGoals': 'Total de buts (les deux lignes)',
+  'reader.revisions.notRecorded': 'non enregistré dans cette version',
+  'reader.revisions.byAuthor': 'Versions précédentes du pronostic de {name}',
+  'reader.revisions.byUnnamed': 'Versions précédentes du pronostic d’un expert',
+  'reader.revisions.fieldLabel': '{market} – {side}',
+  'reader.revisions.change.value': '{field}\u00a0: {from} → {to}',
+  /** « valeur » carries the agreement, so nothing has to agree with a market name of either gender. */
+  'reader.revisions.change.set': '{field}\u00a0: {to} (aucune valeur auparavant)',
+  'reader.revisions.change.withdrawn': '{field}\u00a0: valeur retirée (auparavant {from})',
+  'reader.revisions.change.reasoning': 'Analyse réécrite',
+  'reader.revisions.change.keyFactors': 'Facteurs clés modifiés',
+
+  // ─── the expert card, on a match page ───────────────────────────────────────────────────
+  'reader.expert.byline': 'Par {name}',
+  /** REVIEW. « non comptabilisé »: not counted in the « bilan mesuré », the expert area's name for the measured record. */
+  'reader.expert.publishedAfterKickoff': 'Publié après le coup d’envoi · non comptabilisé',
+  'reader.expert.publishedAfterKickoffDetail': 'Seul un pronostic d’expert publié avant le coup d’envoi est comptabilisé. Celui-ci a été publié au coup d’envoi ou après\u00a0: il est affiché ici, mais n’entre pas dans le bilan mesuré.',
 
   // ─── the evidence panel, on a match page ────────────────────────────────────────────────
   'reader.brief.heading': 'Ce que cette page sait du match',

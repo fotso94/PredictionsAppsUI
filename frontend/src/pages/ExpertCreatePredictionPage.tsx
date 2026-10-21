@@ -78,6 +78,7 @@ import {
   UNASSIGNED, writeDraft,
 } from '@/components/expert/draft'
 import { relativeTime } from '@/components/ui/freshness'
+import { hasMatchKickedOff } from '@/utils/matchFilters'
 import { formatDateTime, formatNumber, formatPercentValue } from '@/i18n'
 import { useT } from '@/i18n/react'
 import Emphasised from '@/i18n/Emphasised'
@@ -211,6 +212,16 @@ const FixtureComposer: React.FC<FixtureComposerProps> = ({
   const kickoffLine = (fixture && formatDateTime(fixture.kickoffUtc))
     ?? (fixture ? `${fixture.date} ${fixture.time}`.trim() : '')
 
+  /*
+   * A fixture that has kicked off is still open to a publish — that is the posting policy, and it
+   * is not changed here — but settlement never scores a prediction published at or after kick-off,
+   * and readers see it labelled as late. The expert is told so above the editor and in the
+   * preview, BEFORE pressing publish rather than by discovering it in their record. Computed on
+   * each render, so it appears on the next keystroke if the kick-off passes while the page is open.
+   */
+  const kickedOff = fixture !== null && hasMatchKickedOff(fixture)
+  const kickoffAt = fixture ? formatDateTime(fixture.kickoffUtc) : null
+
   /** The restore notice is two sentences and keeps both of them whole. */
   const restoredAgo = restoredAt ? relativeTime(restoredAt) : null
   const fixtureLabel = fixture
@@ -321,6 +332,18 @@ const FixtureComposer: React.FC<FixtureComposerProps> = ({
           {t('expert.compose.changeFixture')}
         </button>
       </div>
+
+      {kickedOff && (
+        <p
+          className="mt-4 rounded-lg border border-warning-700 bg-warning-900/30 px-4 py-2.5 text-sm text-warning-200"
+          role="status"
+          data-testid="composer-kickoff-warning"
+        >
+          {kickoffAt
+            ? t('expert.compose.kickoffPassed', { time: kickoffAt })
+            : t('expert.compose.kickoffPassedNoTime')}
+        </p>
+      )}
 
       {notice && (
         <p className="mt-4 rounded-lg border border-primary-800 bg-dark-900/60 px-4 py-2.5 text-xs text-secondary-200" role="status">
@@ -434,7 +457,7 @@ const FixtureComposer: React.FC<FixtureComposerProps> = ({
               )}
             </div>
 
-            {previewOpen && <PublishPreview values={values} fixture={draftFixtureOf(fixture)} />}
+            {previewOpen && <PublishPreview values={values} fixture={draftFixtureOf(fixture)} kickedOff={kickedOff} />}
           </div>
 
           {/* ------------------------------------------------------------- the evidence */}

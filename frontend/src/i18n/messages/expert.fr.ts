@@ -251,6 +251,7 @@ const expert: Area<'expert'> = {
   'expert.picker.emptyDayTitle': 'Aucune rencontre sur laquelle écrire ce jour-là',
   'expert.picker.emptyDayBody': 'Les rencontres terminées, reportées et annulées sont écartées. Essayez un autre jour.',
   'expert.picker.dayShown': 'Rencontres du {date}',
+  'expert.picker.kickedOff': 'Coup d’envoi passé — un pronostic publié maintenant n’est pas comptabilisé',
 
   // ─── the composer ───────────────────────────────────────────────────────────────────────
   'expert.compose.title': 'Rédiger un pronostic',
@@ -273,6 +274,9 @@ const expert: Area<'expert'> = {
   'expert.compose.fixThenPreview': 'Corrigez les champs signalés ci-dessus, puis affichez l’aperçu.',
   /** Indicative, never a conditional: publishing DOES make this public, right now. */
   'expert.compose.publishImmediate': 'Publier rend ceci public immédiatement.',
+  'expert.compose.kickoffPassed': 'Le coup d’envoi a eu lieu le {time}. Un pronostic publié maintenant est signalé aux lecteurs comme publié après le coup d’envoi et n’est pas comptabilisé dans votre bilan mesuré.',
+  'expert.compose.kickoffPassedNoTime': 'Ce match a commencé. Un pronostic publié maintenant est signalé aux lecteurs comme publié après le coup d’envoi et n’est pas comptabilisé dans votre bilan mesuré.',
+  'expert.preview.kickedOff': 'Publié maintenant, ce pronostic sera signalé comme publié après le coup d’envoi et ne sera pas comptabilisé.',
   'expert.compose.publishFailed': 'Le pronostic n’a pas pu être publié.',
   'expert.compose.advancedIds': 'Avancé\u00a0: identifiants de la rencontre',
   'expert.compose.internalMatchId': 'Identifiant de match interne\u00a0:',
@@ -304,6 +308,7 @@ const expert: Area<'expert'> = {
   'expert.mine.published': 'Publié\u00a0: {timestamp}',
   'expert.mine.editNote': 'Des pourcentages, pas des décimales — tapez {typed} pour {whole}. Enregistrer garde ce pronostic publié et conserve la version que vous remplacez, afin que les lecteurs puissent encore voir l’avis que vous aviez publié avant.',
   'expert.mine.fixThenSave': 'Corrigez les champs signalés ci-dessus, puis enregistrez.',
+  'expert.edit.afterKickoff': 'Ce match a commencé. Les lecteurs verront votre modification, mais elle ne change rien à ce qui est comptabilisé\u00a0: seule la version en place au coup d’envoi peut compter dans votre bilan mesuré.',
   'expert.mine.matchOutcome': 'Issue du match',
   'expert.mine.homeWin': 'Victoire à domicile',
   'expert.mine.draw': 'Match nul',

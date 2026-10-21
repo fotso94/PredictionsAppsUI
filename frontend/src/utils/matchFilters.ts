@@ -33,6 +33,25 @@ export function isMatchFinished(match: Match): boolean {
 }
 
 /**
+ * Whether a prediction published on this fixture NOW would be published at or after kick-off.
+ *
+ * Settlement scores only an expert prediction published BEFORE kick-off, and its boundary is
+ * `at_or_after_kickoff` (backend/app/services/settlement.py): at kick-off counts as after it. So
+ * this is true from the kick-off instant on, by this device's clock, and whenever the stored status
+ * already says the match is under way or over. A fixture still marked `scheduled` after its
+ * kick-off — the provider has not caught up — has kicked off all the same, which is the case a
+ * status-only check misses. False when the kick-off is unknown and the status says nothing.
+ *
+ * It labels and warns; it does not refuse. Such fixtures stay on offer, as the posting policy has
+ * them.
+ */
+export function hasMatchKickedOff(match: Pick<Match, 'status' | 'kickoffUtc'>, now: number = Date.now()): boolean {
+  if (match.status === 'live' || match.status === 'halftime' || match.status === 'finished') return true;
+  const kickoff = match.kickoffUtc ? Date.parse(match.kickoffUtc) : NaN;
+  return !Number.isNaN(kickoff) && now >= kickoff;
+}
+
+/**
  * Check if a match is postponed or cancelled
  */
 export function isMatchPostponedOrCancelled(match: Match): boolean {

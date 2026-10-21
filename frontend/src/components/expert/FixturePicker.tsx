@@ -1,14 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { ArrowRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { Match } from '@/types'
 import { footballDataService } from '@/services/football-data.service'
 import { describeError } from '@/services/backend-match-data.service'
 import { localDateString, STORED_ONLY } from '@/services/match-data-source'
-import { filterLiveAndScheduledMatches } from '@/utils/matchFilters'
+import { filterLiveAndScheduledMatches, hasMatchKickedOff } from '@/utils/matchFilters'
 import CompetitionChip from '@/components/ui/CompetitionChip'
 import EmptyState from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useT } from '@/i18n/react'
 
 /**
  * One filtered fixture list — the expert's way of saying which match they are writing about.
@@ -68,8 +69,17 @@ function coverageNote(match: Match): { label: string; className: string } {
 const PickerRow: React.FC<{ match: Match; actionLabel: string; onChoose: (match: Match) => void }> = ({
   match, actionLabel, onChoose,
 }) => {
+  const t = useT()
   const coverage = coverageNote(match)
   const live = match.status === 'live' || match.status === 'halftime'
+  /*
+   * The same kicked-off badge as the match-selection page, from the catalogue so it is in the
+   * reader's language even though the rest of this component is not yet: it states what a publish
+   * would be (never scored), and the fixture stays on offer. Also the button's accessible
+   * description, since its aria-label hides the badges from a screen reader.
+   */
+  const kickedOff = hasMatchKickedOff(match)
+  const kickedOffId = useId()
 
   return (
     <li className="border-b border-dark-800 last:border-b-0">
@@ -78,6 +88,7 @@ const PickerRow: React.FC<{ match: Match; actionLabel: string; onChoose: (match:
         onClick={() => onChoose(match)}
         className="focus-ring-inset tap-target-row flex w-full flex-col gap-1 px-2 py-2.5 text-left transition-colors hover:bg-dark-800/60 sm:px-3"
         aria-label={`${actionLabel}: ${match.homeTeam.name} versus ${match.awayTeam.name}, ${match.league.name}, kick-off ${match.time}`}
+        aria-describedby={kickedOff ? kickedOffId : undefined}
       >
         <div className="flex w-full items-center gap-2">
           <span className="flex w-12 flex-shrink-0 flex-col items-center text-center">
@@ -100,6 +111,11 @@ const PickerRow: React.FC<{ match: Match; actionLabel: string; onChoose: (match:
 
         <span className="flex flex-wrap gap-1 pl-14">
           <span className={clsx('rounded-full px-2 py-0.5 text-[11px]', coverage.className)}>{coverage.label}</span>
+          {kickedOff && (
+            <span id={kickedOffId} data-testid="picker-kicked-off" className="rounded-md bg-warning-900/40 px-2 py-0.5 text-[11px] text-warning-200">
+              {t('expert.picker.kickedOff')}
+            </span>
+          )}
         </span>
       </button>
     </li>

@@ -1,0 +1,2080 @@
+
+Running 57 tests using 1 worker
+
+  ✘   1 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en (933ms)
+  ✘   2 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in en, never the backend's field names (936ms)
+  ✘   3 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in en (883ms)
+  ✘   4 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in en (10.9s)
+  ✘   5 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr (1.0s)
+  ✘   6 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in fr, never the backend's field names (887ms)
+  ✘   7 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in fr (926ms)
+  ✘   8 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in fr (10.9s)
+  ✘   9 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:335:1 › revisions are grouped per prediction, each under its own author (10.9s)
+  ✘  10 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:365:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label (967ms)
+  ✘  11 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:384:1 › a version recorded before a market existed says so, and no structured changes means no change line (881ms)
+  ✘  12 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:408:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened (10.9s)
+  ✘  13 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in en (10.9s)
+  ✘  14 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in en (10.9s)
+  ✘  15 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in en (10.5s)
+  ✘  16 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr (10.9s)
+  ✘  17 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in fr (11.0s)
+  ✘  18 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr (10.4s)
+  ✓  19 [mocked-desktop] › e2e/mocked/revision-history.spec.ts:576:1 › a prediction on a kicked-off fixture is still published when the expert presses publish (489ms)
+  ✘  20 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en (1.4s)
+  ✘  21 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in en, never the backend's field names (1.1s)
+  ✘  22 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in en (1.1s)
+  ✘  23 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in en (11.1s)
+  ✘  24 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr (1.2s)
+  ✘  25 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in fr, never the backend's field names (1.1s)
+  ✘  26 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in fr (1.1s)
+  ✘  27 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in fr (11.1s)
+  ✘  28 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:335:1 › revisions are grouped per prediction, each under its own author (11.1s)
+  ✘  29 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:365:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label (1.1s)
+  ✘  30 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:384:1 › a version recorded before a market existed says so, and no structured changes means no change line (1.2s)
+  ✘  31 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:408:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened (11.1s)
+  ✘  32 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in en (11.1s)
+  ✘  33 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in en (11.1s)
+  ✘  34 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in en (10.7s)
+  ✘  35 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr (11.1s)
+  ✘  36 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in fr (11.1s)
+  ✘  37 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr (10.7s)
+  ✓  38 [mocked-mobile] › e2e/mocked/revision-history.spec.ts:576:1 › a prediction on a kicked-off fixture is still published when the expert presses publish (563ms)
+  ✘  39 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en (1.2s)
+  ✘  40 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in en, never the backend's field names (899ms)
+  ✘  41 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in en (962ms)
+  ✘  42 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in en (10.9s)
+  ✘  43 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr (964ms)
+  ✘  44 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in fr, never the backend's field names (964ms)
+  ✘  45 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in fr (981ms)
+  ✘  46 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in fr (11.0s)
+  ✘  47 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:335:1 › revisions are grouped per prediction, each under its own author (10.9s)
+  ✘  48 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:365:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label (1.0s)
+  ✘  49 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:384:1 › a version recorded before a market existed says so, and no structured changes means no change line (929ms)
+  ✘  50 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:408:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened (11.0s)
+  ✘  51 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in en (10.9s)
+  ✘  52 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in en (10.9s)
+  ✘  53 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in en (10.5s)
+  ✘  54 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr (10.9s)
+  ✘  55 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in fr (10.9s)
+  ✘  56 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr (10.5s)
+  ✓  57 [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:576:1 › a prediction on a kicked-off fixture is still published when the expert presses publish (491ms)
+
+
+  1) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en 
+
+    Error: the earlier btts_yes_prob (0.6) is not on the earlier version
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "60%"
+    Received string:    "Version 1 · as first published replaced 17 Sept 2026, 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test."
+
+      225 |     for (const field of ['btts_yes_prob', 'btts_no_prob', 'total_goals_over_25_prob', 'total_goals_under_25_prob'] as const) {
+      226 |       const expected = await percentIn(page, language, EARLIER[field] as number);
+    > 227 |       expect(shown, `the earlier ${field} (${EARLIER[field]}) is not on the earlier version`).toContain(normalise(expected));
+          |                                                                                               ^
+      228 |     }
+      229 |
+      230 |     // Each published number in its own labelled cell, read back against the payload it came from.
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:227:95
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in en, never the backend's field names 
+
+    Error: the raw audit string reached the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6"
+    Received string:        "Earlier published versions This view was updated once, most recently on 17 Sept 2026, 10:30. Each earlier version is kept exactly as it was published; a correction is added to the record rather than replacing it. Version 1 · as first published replaced 17 Sept 2026, 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test."
+
+      273 |
+      274 |     const panel = normalise(await page.getByTestId('expert-revisions').innerText());
+    > 275 |     expect(panel, 'the raw audit string reached the page').not.toContain(RAW_SUMMARY);
+          |                                                                ^
+      276 |     expect(panel, 'a column name or a Python repr reached the page').not.toMatch(/btts_yes_prob|_prob\b|->|\bNone\b/);
+      277 |
+      278 |     const p60 = await percentIn(page, language, 0.6);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:275:64
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in en 
+
+    Error: the raw source enum is on the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "expert_manual"
+    Received string:        "Skip to the matches SP Soccer Predictions Home Matches Leagues Selections Dashboard Text-only Off Sign In Sign Up All matches on Tue 20 Oct Sign in to save Tottenham Hotspur Home VS Scheduled Aston Villa Away Premier League • 2026-10-20 • 12:30 • Matchday 5 • Tottenham Hotspur Stadium Stored data · fixtures and scores last checked 8 minutes ago Model forecasts last refreshed 40 minutes ago What was refreshed, and when What this page knows about the match The model makes a home win the most likely single outcome at 45%, with a draw at 30%. Model . Forecast published by the model provider Match result · Both teams to score · Total goals 2.5 · Total goals 3.5 · Exact score GameForecast model · fixture link: exact Expert . Prediction published by one of our experts Published for this fixture; the markets covered were not listed. published 17 Sept 2026, 09:00 The model forecast below is the one currently held for this fixture. Source: GameForecast model · 28 hours old Provider and refresh detail Markets not published, and why Expert . Prediction published by one of our experts Not published by this source Experts do not publish scoreline probabilities. Markets affected: Exact score 4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not. Expert Predictions 1 published Match Outcome Home Win (50%) Low Home 50% Draw 30% Away 20% Both Teams to Score No (Yes 40% / No 60%) High Over/Under 2.5 Goals Over 2.5 (Over 2.5 55% / Under 2.5 45%) High Over/Under 3.5 Goals Unavailable No expert prediction Most Likely Score Unavailable Not published by this source QA current reasoning for the revision history test. Expert · expert_manual · published 17 Sept 2026, 09:00 Confidence: The expert published no confidence value with this prediction. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Earlier published versions This view was updated once, most recently on 17 Sept 2026, 10:30. Each earlier version is kept exactly as it was published; a correction is added to the record rather than replacing it. Version 1 · as first published replaced 17 Sept 2026, 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test. Model Forecast GameForecast model Match Outcome Home Win (45%) Medium Home 45% Draw 30% Away 25% Both Teams to Score No (Yes 45% / No 55%) High Over/Under 2.5 Goals Under 2.5 (Over 2.5 45% / Under 2.5 55%) High Over/Under 3.5 Goals Under 3.5 (Over 3.5 30% / Under 3.5 70%) Most Likely Score 1-0 (20%) · other scorelines 1% Tottenham has shown defensive stability in their last two Premier League matches (0-0). Aston Villa is struggling offensively. The match is expected to be tight with few goals. Markets the provider flagged in its own payload: Home win · Under 2.5 goals · Both teams to score: No Listed as the provider published them. Nothing on this page is advice to place a bet. Source GameForecast model Provider’s model run 17 Sept 2026, 01:00 Provider last updated 14 Sept 2026, 01:00 Retrieved by this site 18 Sept 2026, 04:13 Fixture match exact Times in Douala, Yaoundé · UTC+01:00 Confidence: This provider publishes no confidence value with its forecasts. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Markets on this fixture Every selection the model forecast supports, with its published probability. Add one to your slip to compare it with selections from other fixtures. No model forecast is stored for this fixture, so there are no markets to choose from. Tottenham Hotspur → Aston Villa → Where this fixture came from Bookmaker odds are not available: no odds feed is configured on this installation. Slip 0 SP Soccer Predictions Fixtures, results and model forecasts for Europe’s top five leagues and the Champions League, alongside predictions published by registered experts. Every probability names its source. Nothing here is betting advice. Language and time zone Quick Links Today's matches Tomorrow's matches Leagues Dashboard (sign in required) Support Help Centre (not published yet) Contact Us (not published yet) Privacy Policy (not published yet) Terms of Service (not published yet) © 2026 Soccer Predictions. All rights reserved. Twitter Facebook Instagram"
+
+      297 |
+      298 |     const body = normalise(await page.locator('body').innerText());
+    > 299 |     expect(body, 'the raw source enum is on the page').not.toContain('expert_manual');
+          |                                                            ^
+      300 |
+      301 |     const byline = page.getByTestId('expert-byline');
+      302 |     await expect(byline).toHaveCount(1);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:299:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in en 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('expert-late-publication')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('expert-late-publication') with timeout 10000ms
+      - waiting for getByTestId('expert-late-publication')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      315 |
+      316 |     const chip = page.getByTestId('expert-late-publication');
+    > 317 |     await expect(chip).toHaveCount(1);
+          |                        ^
+      318 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoff'));
+      319 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoffDetail'));
+      320 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:317:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr 
+
+    Error: the earlier btts_yes_prob (0.6) is not on the earlier version
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "60 %"
+    Received string:    "Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026, 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test."
+
+      225 |     for (const field of ['btts_yes_prob', 'btts_no_prob', 'total_goals_over_25_prob', 'total_goals_under_25_prob'] as const) {
+      226 |       const expected = await percentIn(page, language, EARLIER[field] as number);
+    > 227 |       expect(shown, `the earlier ${field} (${EARLIER[field]}) is not on the earlier version`).toContain(normalise(expected));
+          |                                                                                               ^
+      228 |     }
+      229 |
+      230 |     // Each published number in its own labelled cell, read back against the payload it came from.
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:227:95
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in fr, never the backend's field names 
+
+    Error: the raw audit string reached the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6"
+    Received string:        "Versions publiées précédemment Cette vue a été mise à jour une fois, la dernière le 17 sept. 2026, 10:30. Chaque version antérieure est conservée exactement telle qu’elle a été publiée ; une correction s’ajoute au registre au lieu de le remplacer. Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026, 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test."
+
+      273 |
+      274 |     const panel = normalise(await page.getByTestId('expert-revisions').innerText());
+    > 275 |     expect(panel, 'the raw audit string reached the page').not.toContain(RAW_SUMMARY);
+          |                                                                ^
+      276 |     expect(panel, 'a column name or a Python repr reached the page').not.toMatch(/btts_yes_prob|_prob\b|->|\bNone\b/);
+      277 |
+      278 |     const p60 = await percentIn(page, language, 0.6);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:275:64
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in fr 
+
+    Error: the raw source enum is on the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "expert_manual"
+    Received string:        "Aller directement aux matchs SP Soccer Predictions Accueil Matchs Compétitions Sélections Tableau de bord Text-only Off Connexion Inscription All matches on Tue 20 Oct Se connecter pour enregistrer Tottenham Hotspur Home VS Scheduled Aston Villa Away Premier League • 2026-10-20 • 12:30 • Matchday 5 • Tottenham Hotspur Stadium Données stockées · dernière vérification des matchs et des scores il y a 8 minutes Dernière actualisation des prévisions du modèle il y a 40 minutes Ce qui a été actualisé, et quand Ce que cette page sait du match The model makes a home win the most likely single outcome at 45%, with a draw at 30%. Modèle . Prévision publiée par le fournisseur du modèle Résultat du match · Les deux équipes marquent · Total de buts 2,5 · Total de buts 3,5 · Score exact Modèle GameForecast · lien avec le match : exact Expert . Pronostic publié par l’un de nos experts Publié pour ce match ; les marchés couverts n’ont pas été listés. publié le 17 sept. 2026, 09:00 The model forecast below is the one currently held for this fixture. Source : Modèle GameForecast · 28 heures d’ancienneté Provider and refresh detail Markets not published, and why Expert . Pronostic publié par l’un de nos experts Non publié par cette source Experts do not publish scoreline probabilities. Markets affected: Score exact 4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not. Expert Predictions 1 published Match Outcome Home Win (50 %) Low Home 50 % Draw 30 % Away 20 % Both Teams to Score No (Yes 40 % / No 60 %) High Over/Under 2.5 Goals Over 2.5 (Over 2.5 55 % / Under 2.5 45 %) High Over/Under 3.5 Goals Indisponible Aucun pronostic d’expert Most Likely Score Indisponible Non publié par cette source QA current reasoning for the revision history test. Expert · expert_manual · published 17 sept. 2026, 09:00 Confidence: The expert published no confidence value with this prediction. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Versions publiées précédemment Cette vue a été mise à jour une fois, la dernière le 17 sept. 2026, 10:30. Chaque version antérieure est conservée exactement telle qu’elle a été publiée ; une correction s’ajoute au registre au lieu de le remplacer. Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026, 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test. Model Forecast Modèle GameForecast Match Outcome Home Win (45 %) Medium Home 45 % Draw 30 % Away 25 % Both Teams to Score No (Yes 45 % / No 55 %) High Over/Under 2.5 Goals Under 2.5 (Over 2.5 45 % / Under 2.5 55 %) High Over/Under 3.5 Goals Under 3.5 (Over 3.5 30 % / Under 3.5 70 %) Most Likely Score 1-0 (20 %) · other scorelines 1 % Tottenham has shown defensive stability in their last two Premier League matches (0-0). Aston Villa is struggling offensively. The match is expected to be tight with few goals. Markets the provider flagged in its own payload: Victoire à domicile · Moins de 2,5 buts · Les deux équipes marquent : non Listed as the provider published them. Nothing on this page is advice to place a bet. Source Modèle GameForecast Exécution du modèle du fournisseur 17 sept. 2026, 01:00 Dernière mise à jour du fournisseur 14 sept. 2026, 01:00 Récupéré par ce site 18 sept. 2026, 04:13 Correspondance du match exact Heures en Douala, Yaoundé · UTC+01:00 Confidence: This provider publishes no confidence value with its forecasts. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Marchés de cette rencontre Chaque sélection que la prévision du modèle permet, avec sa probabilité publiée. Ajoutez-en une à votre coupon pour la comparer à celles d’autres rencontres. Aucune prévision du modèle n’est enregistrée pour cette rencontre : il n’y a donc aucun marché à choisir. Tottenham Hotspur → Aston Villa → Where this fixture came from Bookmaker odds are not available: no odds feed is configured on this installation. Coupon 0 SP Soccer Predictions Matchs, résultats et prévisions du modèle pour les cinq grands championnats européens et la Champions League, ainsi que les pronostics publiés par des experts inscrits. Chaque probabilité indique sa source. Rien ici n’est un conseil de pari. Langue et fuseau horaire Liens rapides Matchs du jour Matchs de demain Compétitions Tableau de bord (connexion requise) Assistance Centre d’aide (pas encore publié) Nous contacter (pas encore publié) Politique de confidentialité (pas encore publié) Conditions d’utilisation (pas encore publié) © 2026 Soccer Predictions. Tous droits réservés. Twitter Facebook Instagram"
+
+      297 |
+      298 |     const body = normalise(await page.locator('body').innerText());
+    > 299 |     expect(body, 'the raw source enum is on the page').not.toContain('expert_manual');
+          |                                                            ^
+      300 |
+      301 |     const byline = page.getByTestId('expert-byline');
+      302 |     await expect(byline).toHaveCount(1);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:299:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in fr 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('expert-late-publication')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('expert-late-publication') with timeout 10000ms
+      - waiting for getByTestId('expert-late-publication')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      315 |
+      316 |     const chip = page.getByTestId('expert-late-publication');
+    > 317 |     await expect(chip).toHaveCount(1);
+          |                        ^
+      318 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoff'));
+      319 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoffDetail'));
+      320 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:317:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:335:1 › revisions are grouped per prediction, each under its own author 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('expert-revision-group')
+    Expected: 2
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('expert-revision-group') with timeout 10000ms
+      - waiting for getByTestId('expert-revision-group')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      343 |
+      344 |   const groups = page.getByTestId('expert-revision-group');
+    > 345 |   await expect(groups).toHaveCount(2);
+          |                        ^
+      346 |   const first = groups.nth(0);
+      347 |   const other = groups.nth(1);
+      348 |   await expect(first).toHaveAttribute('data-prediction-id', 'qa-pred-a');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:345:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:365:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label 
+
+    Error: the raw source enum stands in for a name
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "expert_manual"
+    Received string:        "Expert Predictions 1 published Match Outcome Home Win (50%) Low Home 50% Draw 30% Away 20% Both Teams to Score No (Yes 40% / No 60%) High Over/Under 2.5 Goals Over 2.5 (Over 2.5 55% / Under 2.5 45%) High Over/Under 3.5 Goals Unavailable No expert prediction Most Likely Score Unavailable Not published by this source QA current reasoning for the revision history test. Expert · expert_manual · published 17 Sept 2026, 09:00 Confidence: The expert published no confidence value with this prediction. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Earlier published versions This view was updated once, most recently on 17 Sept 2026, 10:30. Each earlier version is kept exactly as it was published; a correction is added to the record rather than replacing it. Version 1 · as first published replaced 17 Sept 2026, 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test."
+
+      368 |
+      369 |   expect(normalise(await page.getByTestId('expert-predictions').innerText()), 'the raw source enum stands in for a name')
+    > 370 |     .not.toContain('expert_manual');
+          |          ^
+      371 |   const byline = page.getByTestId('expert-byline');
+      372 |   await expect(byline).toHaveCount(1);
+      373 |   expect(normalise(await byline.innerText())).toMatch(new RegExp(`^${say('en', 'source.expert')}\\b`));
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:370:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:384:1 › a version recorded before a market existed says so, and no structured changes means no change line 
+
+    Error: the raw audit string reached the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6"
+    Received string:        "Versions publiées précédemment Cette vue a été mise à jour une fois, la dernière le 17 sept. 2026, 10:30. Chaque version antérieure est conservée exactement telle qu’elle a été publiée ; une correction s’ajoute au registre au lieu de le remplacer. Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026, 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test."
+
+      393 |   // named, as markets this version did not record.
+      394 |   expect(normalise(await page.getByTestId('expert-revisions').innerText()), 'the raw audit string reached the page')
+    > 395 |     .not.toContain(RAW_SUMMARY);
+          |          ^
+      396 |   await expect(market(page, 'btts'), 'a market the snapshot lacks is not named at all').toHaveCount(1);
+      397 |   await expect(market(page, 'btts')).toHaveAttribute('data-state', 'not-recorded');
+      398 |   await expect(market(page, 'btts')).toContainText(say('fr', 'reader.revisions.notRecorded'));
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:395:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:408:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('revision-change')
+    Expected: 4
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('revision-change') with timeout 10000ms
+      - waiting for getByTestId('revision-change')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      419 |   const label = (market: string, side: string, params: Record<string, string> = {}) =>
+      420 |     say('en', 'reader.revisions.fieldLabel', { market: say('en', market), side: say('en', side, params) });
+    > 421 |   await expect(lines).toHaveCount(4);
+          |                       ^
+      422 |   await expect(lines.nth(0)).toHaveText(say('en', 'reader.revisions.change.withdrawn', {
+      423 |     field: label('market.matchResult', 'reader.revisions.conviction'), from: await percentIn(page, 'en', 0),
+      424 |   }));
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:421:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in en 
+
+    Error: /expert/match-selection does not mark the kicked-off fixture
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - /expert/match-selection does not mark the kicked-off fixture locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off') with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      496 |       await expect(pickerRow(page, 'Fovu Baham'), `${path} no longer offers the kicked-off fixture`).toHaveCount(1);
+      497 |       await expect(pickerRow(page, 'Fovu Baham').getByTestId('picker-kicked-off'), `${path} does not mark the kicked-off fixture`)
+    > 498 |         .toHaveCount(1);
+          |          ^
+      499 |       await expect(pickerRow(page, 'Coton Sport').getByTestId('picker-kicked-off'), `${path} marked an upcoming fixture`)
+      500 |         .toHaveCount(0);
+      501 |       const kickedOff = say(language, 'expert.picker.kickedOff');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:498:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in en 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('composer-kickoff-warning')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('composer-kickoff-warning') with timeout 10000ms
+      - waiting for getByTestId('composer-kickoff-warning')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      516 |
+      517 |     const warning = page.getByTestId('composer-kickoff-warning');
+    > 518 |     await expect(warning).toHaveCount(1);
+          |                           ^
+      519 |     await expect(warning).toHaveAttribute('role', 'status');
+      520 |     // The sentence names the kickoff time; the words either side of it are the catalogue's.
+      521 |     const [before, after] = say(language, 'expert.compose.kickoffPassed', { time: '\u0000' }).split('\u0000');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:518:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in en 
+
+    Error: editing a prediction on a kicked-off fixture says nothing about scoring
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('edit-after-kickoff')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - editing a prediction on a kicked-off fixture says nothing about scoring getByTestId('edit-after-kickoff') with timeout 10000ms
+      - waiting for getByTestId('edit-after-kickoff')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      561 |     await expect(page.locator('#edit-kicked-conviction')).toBeVisible();
+      562 |     const shown = page.getByTestId('edit-after-kickoff');
+    > 563 |     await expect(shown, 'editing a prediction on a kicked-off fixture says nothing about scoring').toHaveCount(1);
+          |                                                                                                    ^
+      564 |     await expect(shown).toHaveAttribute('role', 'status');
+      565 |     await expect(shown).toHaveText(say(language, 'expert.edit.afterKickoff'));
+      566 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:563:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr 
+
+    Error: /expert/match-selection does not mark the kicked-off fixture
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - /expert/match-selection does not mark the kicked-off fixture locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off') with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      496 |       await expect(pickerRow(page, 'Fovu Baham'), `${path} no longer offers the kicked-off fixture`).toHaveCount(1);
+      497 |       await expect(pickerRow(page, 'Fovu Baham').getByTestId('picker-kicked-off'), `${path} does not mark the kicked-off fixture`)
+    > 498 |         .toHaveCount(1);
+          |          ^
+      499 |       await expect(pickerRow(page, 'Coton Sport').getByTestId('picker-kicked-off'), `${path} marked an upcoming fixture`)
+      500 |         .toHaveCount(0);
+      501 |       const kickedOff = say(language, 'expert.picker.kickedOff');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:498:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in fr 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('composer-kickoff-warning')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('composer-kickoff-warning') with timeout 10000ms
+      - waiting for getByTestId('composer-kickoff-warning')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      516 |
+      517 |     const warning = page.getByTestId('composer-kickoff-warning');
+    > 518 |     await expect(warning).toHaveCount(1);
+          |                           ^
+      519 |     await expect(warning).toHaveAttribute('role', 'status');
+      520 |     // The sentence names the kickoff time; the words either side of it are the catalogue's.
+      521 |     const [before, after] = say(language, 'expert.compose.kickoffPassed', { time: '\u0000' }).split('\u0000');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:518:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) [mocked-desktop] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr 
+
+    Error: editing a prediction on a kicked-off fixture says nothing about scoring
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('edit-after-kickoff')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - editing a prediction on a kicked-off fixture says nothing about scoring getByTestId('edit-after-kickoff') with timeout 10000ms
+      - waiting for getByTestId('edit-after-kickoff')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      561 |     await expect(page.locator('#edit-kicked-conviction')).toBeVisible();
+      562 |     const shown = page.getByTestId('edit-after-kickoff');
+    > 563 |     await expect(shown, 'editing a prediction on a kicked-off fixture says nothing about scoring').toHaveCount(1);
+          |                                                                                                    ^
+      564 |     await expect(shown).toHaveAttribute('role', 'status');
+      565 |     await expect(shown).toHaveText(say(language, 'expert.edit.afterKickoff'));
+      566 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:563:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en 
+
+    Error: the earlier btts_yes_prob (0.6) is not on the earlier version
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "60%"
+    Received string:    "Version 1 · as first published replaced 17 Sep 2026 at 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test."
+
+      225 |     for (const field of ['btts_yes_prob', 'btts_no_prob', 'total_goals_over_25_prob', 'total_goals_under_25_prob'] as const) {
+      226 |       const expected = await percentIn(page, language, EARLIER[field] as number);
+    > 227 |       expect(shown, `the earlier ${field} (${EARLIER[field]}) is not on the earlier version`).toContain(normalise(expected));
+          |                                                                                               ^
+      228 |     }
+      229 |
+      230 |     // Each published number in its own labelled cell, read back against the payload it came from.
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:227:95
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  20) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in en, never the backend's field names 
+
+    Error: the raw audit string reached the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6"
+    Received string:        "Earlier published versions This view was updated once, most recently on 17 Sep 2026 at 10:30. Each earlier version is kept exactly as it was published; a correction is added to the record rather than replacing it. Version 1 · as first published replaced 17 Sep 2026 at 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test."
+
+      273 |
+      274 |     const panel = normalise(await page.getByTestId('expert-revisions').innerText());
+    > 275 |     expect(panel, 'the raw audit string reached the page').not.toContain(RAW_SUMMARY);
+          |                                                                ^
+      276 |     expect(panel, 'a column name or a Python repr reached the page').not.toMatch(/btts_yes_prob|_prob\b|->|\bNone\b/);
+      277 |
+      278 |     const p60 = await percentIn(page, language, 0.6);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:275:64
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  21) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in en 
+
+    Error: the raw source enum is on the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "expert_manual"
+    Received string:        "Skip to the matches SP Sign In Open main menu All matches on Tue 20 Oct Sign in to save Tottenham Hotspur HOME VS Scheduled Aston Villa AWAY Premier League • 2026-10-20 • 12:30 • Matchday 5 • Tottenham Hotspur Stadium Stored data · fixtures and scores last checked 8 minutes ago Model forecasts last refreshed 40 minutes ago What was refreshed, and when What this page knows about the match The model makes a home win the most likely single outcome at 45%, with a draw at 30%. Model . Forecast published by the model provider Match result · Both teams to score · Total goals 2.5 · Total goals 3.5 · Exact score GameForecast model · fixture link: exact Expert . Prediction published by one of our experts Published for this fixture; the markets covered were not listed. published 17 Sep 2026 at 09:00 The model forecast below is the one currently held for this fixture. Source:GameForecast model · 28 hours old Provider and refresh detail Markets not published, and why Expert . Prediction published by one of our experts Not published by this source Experts do not publish scoreline probabilities. Markets affected: Exact score 4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not. Expert Predictions 1 published Match Outcome Home Win (50%) Low Home 50% Draw 30% Away 20% Both Teams to Score No (Yes 40% / No 60%) High Over/Under 2.5 Goals Over 2.5 (Over 2.5 55% / Under 2.5 45%) High Over/Under 3.5 Goals Unavailable No expert prediction Most Likely Score Unavailable Not published by this source QA current reasoning for the revision history test. Expert · expert_manual · published 17 Sep 2026 at 09:00 Confidence: The expert published no confidence value with this prediction. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Earlier published versions This view was updated once, most recently on 17 Sep 2026 at 10:30. Each earlier version is kept exactly as it was published; a correction is added to the record rather than replacing it. Version 1 · as first published replaced 17 Sep 2026 at 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test. Model Forecast GameForecast model Match Outcome Home Win (45%) Medium Home 45% Draw 30% Away 25% Both Teams to Score No (Yes 45% / No 55%) High Over/Under 2.5 Goals Under 2.5 (Over 2.5 45% / Under 2.5 55%) High Over/Under 3.5 Goals Under 3.5 (Over 3.5 30% / Under 3.5 70%) Most Likely Score 1-0 (20%) · other scorelines 1% Tottenham has shown defensive stability in their last two Premier League matches (0-0). Aston Villa is struggling offensively. The match is expected to be tight with few goals. Markets the provider flagged in its own payload: Home win · Under 2.5 goals · Both teams to score: No Listed as the provider published them. Nothing on this page is advice to place a bet. Source GameForecast model Provider’s model run 17 Sep 2026 at 01:00 Provider last updated 14 Sep 2026 at 01:00 Retrieved by this site 18 Sep 2026 at 04:13 Fixture match exact Times in Douala, Yaoundé · UTC+01:00 Confidence: This provider publishes no confidence value with its forecasts. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Markets on this fixture Every selection the model forecast supports, with its published probability. Add one to your slip to compare it with selections from other fixtures. No model forecast is stored for this fixture, so there are no markets to choose from. Tottenham Hotspur → Aston Villa → Where this fixture came from Bookmaker odds are not available: no odds feed is configured on this installation. Slip 0 SP Soccer Predictions Fixtures, results and model forecasts for Europe’s top five leagues and the Champions League, alongside predictions published by registered experts. Every probability names its source. Nothing here is betting advice. Language and time zone Quick Links Today's matches Tomorrow's matches Leagues Dashboard (sign in required) Support Help Centre (not published yet) Contact Us (not published yet) Privacy Policy (not published yet) Terms of Service (not published yet) © 2026 Soccer Predictions. All rights reserved. Twitter Facebook Instagram"
+
+      297 |
+      298 |     const body = normalise(await page.locator('body').innerText());
+    > 299 |     expect(body, 'the raw source enum is on the page').not.toContain('expert_manual');
+          |                                                            ^
+      300 |
+      301 |     const byline = page.getByTestId('expert-byline');
+      302 |     await expect(byline).toHaveCount(1);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:299:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  22) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in en 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('expert-late-publication')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('expert-late-publication') with timeout 10000ms
+      - waiting for getByTestId('expert-late-publication')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      315 |
+      316 |     const chip = page.getByTestId('expert-late-publication');
+    > 317 |     await expect(chip).toHaveCount(1);
+          |                        ^
+      318 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoff'));
+      319 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoffDetail'));
+      320 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:317:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  23) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr 
+
+    Error: the earlier btts_yes_prob (0.6) is not on the earlier version
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "60 %"
+    Received string:    "Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026 à 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test."
+
+      225 |     for (const field of ['btts_yes_prob', 'btts_no_prob', 'total_goals_over_25_prob', 'total_goals_under_25_prob'] as const) {
+      226 |       const expected = await percentIn(page, language, EARLIER[field] as number);
+    > 227 |       expect(shown, `the earlier ${field} (${EARLIER[field]}) is not on the earlier version`).toContain(normalise(expected));
+          |                                                                                               ^
+      228 |     }
+      229 |
+      230 |     // Each published number in its own labelled cell, read back against the payload it came from.
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:227:95
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in fr, never the backend's field names 
+
+    Error: the raw audit string reached the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6"
+    Received string:        "Versions publiées précédemment Cette vue a été mise à jour une fois, la dernière le 17 sept. 2026 à 10:30. Chaque version antérieure est conservée exactement telle qu’elle a été publiée ; une correction s’ajoute au registre au lieu de le remplacer. Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026 à 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test."
+
+      273 |
+      274 |     const panel = normalise(await page.getByTestId('expert-revisions').innerText());
+    > 275 |     expect(panel, 'the raw audit string reached the page').not.toContain(RAW_SUMMARY);
+          |                                                                ^
+      276 |     expect(panel, 'a column name or a Python repr reached the page').not.toMatch(/btts_yes_prob|_prob\b|->|\bNone\b/);
+      277 |
+      278 |     const p60 = await percentIn(page, language, 0.6);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:275:64
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  25) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in fr 
+
+    Error: the raw source enum is on the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "expert_manual"
+    Received string:        "Aller directement aux matchs SP Connexion Ouvrir le menu principal All matches on Tue 20 Oct Se connecter pour enregistrer Tottenham Hotspur HOME VS Scheduled Aston Villa AWAY Premier League • 2026-10-20 • 12:30 • Matchday 5 • Tottenham Hotspur Stadium Données stockées · dernière vérification des matchs et des scores il y a 8 minutes Dernière actualisation des prévisions du modèle il y a 40 minutes Ce qui a été actualisé, et quand Ce que cette page sait du match The model makes a home win the most likely single outcome at 45%, with a draw at 30%. Modèle . Prévision publiée par le fournisseur du modèle Résultat du match · Les deux équipes marquent · Total de buts 2,5 · Total de buts 3,5 · Score exact Modèle GameForecast · lien avec le match : exact Expert . Pronostic publié par l’un de nos experts Publié pour ce match ; les marchés couverts n’ont pas été listés. publié le 17 sept. 2026 à 09:00 The model forecast below is the one currently held for this fixture. Source :Modèle GameForecast · 28 heures d’ancienneté Provider and refresh detail Markets not published, and why Expert . Pronostic publié par l’un de nos experts Non publié par cette source Experts do not publish scoreline probabilities. Markets affected: Score exact 4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not. Expert Predictions 1 published Match Outcome Home Win (50 %) Low Home 50 % Draw 30 % Away 20 % Both Teams to Score No (Yes 40 % / No 60 %) High Over/Under 2.5 Goals Over 2.5 (Over 2.5 55 % / Under 2.5 45 %) High Over/Under 3.5 Goals Indisponible Aucun pronostic d’expert Most Likely Score Indisponible Non publié par cette source QA current reasoning for the revision history test. Expert · expert_manual · published 17 sept. 2026 à 09:00 Confidence: The expert published no confidence value with this prediction. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Versions publiées précédemment Cette vue a été mise à jour une fois, la dernière le 17 sept. 2026 à 10:30. Chaque version antérieure est conservée exactement telle qu’elle a été publiée ; une correction s’ajoute au registre au lieu de le remplacer. Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026 à 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test. Model Forecast Modèle GameForecast Match Outcome Home Win (45 %) Medium Home 45 % Draw 30 % Away 25 % Both Teams to Score No (Yes 45 % / No 55 %) High Over/Under 2.5 Goals Under 2.5 (Over 2.5 45 % / Under 2.5 55 %) High Over/Under 3.5 Goals Under 3.5 (Over 3.5 30 % / Under 3.5 70 %) Most Likely Score 1-0 (20 %) · other scorelines 1 % Tottenham has shown defensive stability in their last two Premier League matches (0-0). Aston Villa is struggling offensively. The match is expected to be tight with few goals. Markets the provider flagged in its own payload: Victoire à domicile · Moins de 2,5 buts · Les deux équipes marquent : non Listed as the provider published them. Nothing on this page is advice to place a bet. Source Modèle GameForecast Exécution du modèle du fournisseur 17 sept. 2026 à 01:00 Dernière mise à jour du fournisseur 14 sept. 2026 à 01:00 Récupéré par ce site 18 sept. 2026 à 04:13 Correspondance du match exact Heures en Douala, Yaoundé · UTC+01:00 Confidence: This provider publishes no confidence value with its forecasts. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Marchés de cette rencontre Chaque sélection que la prévision du modèle permet, avec sa probabilité publiée. Ajoutez-en une à votre coupon pour la comparer à celles d’autres rencontres. Aucune prévision du modèle n’est enregistrée pour cette rencontre : il n’y a donc aucun marché à choisir. Tottenham Hotspur → Aston Villa → Where this fixture came from Bookmaker odds are not available: no odds feed is configured on this installation. Coupon 0 SP Soccer Predictions Matchs, résultats et prévisions du modèle pour les cinq grands championnats européens et la Champions League, ainsi que les pronostics publiés par des experts inscrits. Chaque probabilité indique sa source. Rien ici n’est un conseil de pari. Langue et fuseau horaire Liens rapides Matchs du jour Matchs de demain Compétitions Tableau de bord (connexion requise) Assistance Centre d’aide (pas encore publié) Nous contacter (pas encore publié) Politique de confidentialité (pas encore publié) Conditions d’utilisation (pas encore publié) © 2026 Soccer Predictions. Tous droits réservés. Twitter Facebook Instagram"
+
+      297 |
+      298 |     const body = normalise(await page.locator('body').innerText());
+    > 299 |     expect(body, 'the raw source enum is on the page').not.toContain('expert_manual');
+          |                                                            ^
+      300 |
+      301 |     const byline = page.getByTestId('expert-byline');
+      302 |     await expect(byline).toHaveCount(1);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:299:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  26) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in fr 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('expert-late-publication')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('expert-late-publication') with timeout 10000ms
+      - waiting for getByTestId('expert-late-publication')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      315 |
+      316 |     const chip = page.getByTestId('expert-late-publication');
+    > 317 |     await expect(chip).toHaveCount(1);
+          |                        ^
+      318 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoff'));
+      319 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoffDetail'));
+      320 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:317:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:335:1 › revisions are grouped per prediction, each under its own author 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('expert-revision-group')
+    Expected: 2
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('expert-revision-group') with timeout 10000ms
+      - waiting for getByTestId('expert-revision-group')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      343 |
+      344 |   const groups = page.getByTestId('expert-revision-group');
+    > 345 |   await expect(groups).toHaveCount(2);
+          |                        ^
+      346 |   const first = groups.nth(0);
+      347 |   const other = groups.nth(1);
+      348 |   await expect(first).toHaveAttribute('data-prediction-id', 'qa-pred-a');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:345:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  28) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:365:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label 
+
+    Error: the raw source enum stands in for a name
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "expert_manual"
+    Received string:        "Expert Predictions 1 published Match Outcome Home Win (50%) Low Home 50% Draw 30% Away 20% Both Teams to Score No (Yes 40% / No 60%) High Over/Under 2.5 Goals Over 2.5 (Over 2.5 55% / Under 2.5 45%) High Over/Under 3.5 Goals Unavailable No expert prediction Most Likely Score Unavailable Not published by this source QA current reasoning for the revision history test. Expert · expert_manual · published 17 Sep 2026 at 09:00 Confidence: The expert published no confidence value with this prediction. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Earlier published versions This view was updated once, most recently on 17 Sep 2026 at 10:30. Each earlier version is kept exactly as it was published; a correction is added to the record rather than replacing it. Version 1 · as first published replaced 17 Sep 2026 at 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test."
+
+      368 |
+      369 |   expect(normalise(await page.getByTestId('expert-predictions').innerText()), 'the raw source enum stands in for a name')
+    > 370 |     .not.toContain('expert_manual');
+          |          ^
+      371 |   const byline = page.getByTestId('expert-byline');
+      372 |   await expect(byline).toHaveCount(1);
+      373 |   expect(normalise(await byline.innerText())).toMatch(new RegExp(`^${say('en', 'source.expert')}\\b`));
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:370:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  29) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:384:1 › a version recorded before a market existed says so, and no structured changes means no change line 
+
+    Error: the raw audit string reached the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6"
+    Received string:        "Versions publiées précédemment Cette vue a été mise à jour une fois, la dernière le 17 sept. 2026 à 10:30. Chaque version antérieure est conservée exactement telle qu’elle a été publiée ; une correction s’ajoute au registre au lieu de le remplacer. Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026 à 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test."
+
+      393 |   // named, as markets this version did not record.
+      394 |   expect(normalise(await page.getByTestId('expert-revisions').innerText()), 'the raw audit string reached the page')
+    > 395 |     .not.toContain(RAW_SUMMARY);
+          |          ^
+      396 |   await expect(market(page, 'btts'), 'a market the snapshot lacks is not named at all').toHaveCount(1);
+      397 |   await expect(market(page, 'btts')).toHaveAttribute('data-state', 'not-recorded');
+      398 |   await expect(market(page, 'btts')).toContainText(say('fr', 'reader.revisions.notRecorded'));
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:395:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  30) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:408:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('revision-change')
+    Expected: 4
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('revision-change') with timeout 10000ms
+      - waiting for getByTestId('revision-change')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      419 |   const label = (market: string, side: string, params: Record<string, string> = {}) =>
+      420 |     say('en', 'reader.revisions.fieldLabel', { market: say('en', market), side: say('en', side, params) });
+    > 421 |   await expect(lines).toHaveCount(4);
+          |                       ^
+      422 |   await expect(lines.nth(0)).toHaveText(say('en', 'reader.revisions.change.withdrawn', {
+      423 |     field: label('market.matchResult', 'reader.revisions.conviction'), from: await percentIn(page, 'en', 0),
+      424 |   }));
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:421:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  31) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in en 
+
+    Error: /expert/match-selection does not mark the kicked-off fixture
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - /expert/match-selection does not mark the kicked-off fixture locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off') with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      496 |       await expect(pickerRow(page, 'Fovu Baham'), `${path} no longer offers the kicked-off fixture`).toHaveCount(1);
+      497 |       await expect(pickerRow(page, 'Fovu Baham').getByTestId('picker-kicked-off'), `${path} does not mark the kicked-off fixture`)
+    > 498 |         .toHaveCount(1);
+          |          ^
+      499 |       await expect(pickerRow(page, 'Coton Sport').getByTestId('picker-kicked-off'), `${path} marked an upcoming fixture`)
+      500 |         .toHaveCount(0);
+      501 |       const kickedOff = say(language, 'expert.picker.kickedOff');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:498:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  32) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in en 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('composer-kickoff-warning')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('composer-kickoff-warning') with timeout 10000ms
+      - waiting for getByTestId('composer-kickoff-warning')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      516 |
+      517 |     const warning = page.getByTestId('composer-kickoff-warning');
+    > 518 |     await expect(warning).toHaveCount(1);
+          |                           ^
+      519 |     await expect(warning).toHaveAttribute('role', 'status');
+      520 |     // The sentence names the kickoff time; the words either side of it are the catalogue's.
+      521 |     const [before, after] = say(language, 'expert.compose.kickoffPassed', { time: '\u0000' }).split('\u0000');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:518:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  33) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in en 
+
+    Error: editing a prediction on a kicked-off fixture says nothing about scoring
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('edit-after-kickoff')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - editing a prediction on a kicked-off fixture says nothing about scoring getByTestId('edit-after-kickoff') with timeout 10000ms
+      - waiting for getByTestId('edit-after-kickoff')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      561 |     await expect(page.locator('#edit-kicked-conviction')).toBeVisible();
+      562 |     const shown = page.getByTestId('edit-after-kickoff');
+    > 563 |     await expect(shown, 'editing a prediction on a kicked-off fixture says nothing about scoring').toHaveCount(1);
+          |                                                                                                    ^
+      564 |     await expect(shown).toHaveAttribute('role', 'status');
+      565 |     await expect(shown).toHaveText(say(language, 'expert.edit.afterKickoff'));
+      566 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:563:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  34) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr 
+
+    Error: /expert/match-selection does not mark the kicked-off fixture
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - /expert/match-selection does not mark the kicked-off fixture locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off') with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      496 |       await expect(pickerRow(page, 'Fovu Baham'), `${path} no longer offers the kicked-off fixture`).toHaveCount(1);
+      497 |       await expect(pickerRow(page, 'Fovu Baham').getByTestId('picker-kicked-off'), `${path} does not mark the kicked-off fixture`)
+    > 498 |         .toHaveCount(1);
+          |          ^
+      499 |       await expect(pickerRow(page, 'Coton Sport').getByTestId('picker-kicked-off'), `${path} marked an upcoming fixture`)
+      500 |         .toHaveCount(0);
+      501 |       const kickedOff = say(language, 'expert.picker.kickedOff');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:498:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  35) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in fr 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('composer-kickoff-warning')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('composer-kickoff-warning') with timeout 10000ms
+      - waiting for getByTestId('composer-kickoff-warning')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      516 |
+      517 |     const warning = page.getByTestId('composer-kickoff-warning');
+    > 518 |     await expect(warning).toHaveCount(1);
+          |                           ^
+      519 |     await expect(warning).toHaveAttribute('role', 'status');
+      520 |     // The sentence names the kickoff time; the words either side of it are the catalogue's.
+      521 |     const [before, after] = say(language, 'expert.compose.kickoffPassed', { time: '\u0000' }).split('\u0000');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:518:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  36) [mocked-mobile] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr 
+
+    Error: editing a prediction on a kicked-off fixture says nothing about scoring
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('edit-after-kickoff')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - editing a prediction on a kicked-off fixture says nothing about scoring getByTestId('edit-after-kickoff') with timeout 10000ms
+      - waiting for getByTestId('edit-after-kickoff')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      561 |     await expect(page.locator('#edit-kicked-conviction')).toBeVisible();
+      562 |     const shown = page.getByTestId('edit-after-kickoff');
+    > 563 |     await expect(shown, 'editing a prediction on a kicked-off fixture says nothing about scoring').toHaveCount(1);
+          |                                                                                                    ^
+      564 |     await expect(shown).toHaveAttribute('role', 'status');
+      565 |     await expect(shown).toHaveText(say(language, 'expert.edit.afterKickoff'));
+      566 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:563:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  37) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en 
+
+    Error: the earlier btts_yes_prob (0.6) is not on the earlier version
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "60%"
+    Received string:    "Version 1 · as first published replaced 17 Sept 2026, 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test."
+
+      225 |     for (const field of ['btts_yes_prob', 'btts_no_prob', 'total_goals_over_25_prob', 'total_goals_under_25_prob'] as const) {
+      226 |       const expected = await percentIn(page, language, EARLIER[field] as number);
+    > 227 |       expect(shown, `the earlier ${field} (${EARLIER[field]}) is not on the earlier version`).toContain(normalise(expected));
+          |                                                                                               ^
+      228 |     }
+      229 |
+      230 |     // Each published number in its own labelled cell, read back against the payload it came from.
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:227:95
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-an-de1cc-nd-not-set-kept-apart-in-en-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  38) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in en, never the backend's field names 
+
+    Error: the raw audit string reached the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6"
+    Received string:        "Earlier published versions This view was updated once, most recently on 17 Sept 2026, 10:30. Each earlier version is kept exactly as it was published; a correction is added to the record rather than replacing it. Version 1 · as first published replaced 17 Sept 2026, 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test."
+
+      273 |
+      274 |     const panel = normalise(await page.getByTestId('expert-revisions').innerText());
+    > 275 |     expect(panel, 'the raw audit string reached the page').not.toContain(RAW_SUMMARY);
+          |                                                                ^
+      276 |     expect(panel, 'a column name or a Python repr reached the page').not.toMatch(/btts_yes_prob|_prob\b|->|\bNone\b/);
+      277 |
+      278 |     const p60 = await percentIn(page, language, 0.6);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:275:64
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-wh-1ad08-r-the-backend-s-field-names-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  39) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in en 
+
+    Error: the raw source enum is on the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "expert_manual"
+    Received string:        "Skip to the matches SP Sign In Open main menu All matches on Tue 20 Oct Sign in to save Tottenham Hotspur HOME VS Scheduled Aston Villa AWAY Premier League • 2026-10-20 • 12:30 • Matchday 5 • Tottenham Hotspur Stadium Stored data · fixtures and scores last checked 8 minutes ago Model forecasts last refreshed 40 minutes ago What was refreshed, and when What this page knows about the match The model makes a home win the most likely single outcome at 45%, with a draw at 30%. Model . Forecast published by the model provider Match result · Both teams to score · Total goals 2.5 · Total goals 3.5 · Exact score GameForecast model · fixture link: exact Expert . Prediction published by one of our experts Published for this fixture; the markets covered were not listed. published 17 Sept 2026, 09:00 The model forecast below is the one currently held for this fixture. Source: GameForecast model · 28 hours old Provider and refresh detail Markets not published, and why Expert . Prediction published by one of our experts Not published by this source Experts do not publish scoreline probabilities. Markets affected: Exact score 4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not. Expert Predictions 1 published Match Outcome Home Win (50%) Low Home 50% Draw 30% Away 20% Both Teams to Score No (Yes 40% / No 60%) High Over/Under 2.5 Goals Over 2.5 (Over 2.5 55% / Under 2.5 45%) High Over/Under 3.5 Goals Unavailable No expert prediction Most Likely Score Unavailable Not published by this source QA current reasoning for the revision history test. Expert · expert_manual · published 17 Sept 2026, 09:00 Confidence: The expert published no confidence value with this prediction. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Earlier published versions This view was updated once, most recently on 17 Sept 2026, 10:30. Each earlier version is kept exactly as it was published; a correction is added to the record rather than replacing it. Version 1 · as first published replaced 17 Sept 2026, 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test. Model Forecast GameForecast model Match Outcome Home Win (45%) Medium Home 45% Draw 30% Away 25% Both Teams to Score No (Yes 45% / No 55%) High Over/Under 2.5 Goals Under 2.5 (Over 2.5 45% / Under 2.5 55%) High Over/Under 3.5 Goals Under 3.5 (Over 3.5 30% / Under 3.5 70%) Most Likely Score 1-0 (20%) · other scorelines 1% Tottenham has shown defensive stability in their last two Premier League matches (0-0). Aston Villa is struggling offensively. The match is expected to be tight with few goals. Markets the provider flagged in its own payload: Home win · Under 2.5 goals · Both teams to score: No Listed as the provider published them. Nothing on this page is advice to place a bet. Source GameForecast model Provider’s model run 17 Sept 2026, 01:00 Provider last updated 14 Sept 2026, 01:00 Retrieved by this site 18 Sept 2026, 04:13 Fixture match exact Times in Douala, Yaoundé · UTC+01:00 Confidence: This provider publishes no confidence value with its forecasts. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Markets on this fixture Every selection the model forecast supports, with its published probability. Add one to your slip to compare it with selections from other fixtures. No model forecast is stored for this fixture, so there are no markets to choose from. Tottenham Hotspur → Aston Villa → Where this fixture came from Bookmaker odds are not available: no odds feed is configured on this installation. Slip 0 SP Soccer Predictions Fixtures, results and model forecasts for Europe’s top five leagues and the Champions League, alongside predictions published by registered experts. Every probability names its source. Nothing here is betting advice. Language and time zone Quick Links Today's matches Tomorrow's matches Leagues Dashboard (sign in required) Support Help Centre (not published yet) Contact Us (not published yet) Privacy Policy (not published yet) Terms of Service (not published yet) © 2026 Soccer Predictions. All rights reserved. Twitter Facebook Instagram"
+
+      297 |
+      298 |     const body = normalise(await page.locator('body').innerText());
+    > 299 |     expect(body, 'the raw source enum is on the page').not.toContain('expert_manual');
+          |                                                            ^
+      300 |
+      301 |     const byline = page.getByTestId('expert-byline');
+      302 |     await expect(byline).toHaveCount(1);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:299:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-4883a-il-or-the-source-enum-in-en-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  40) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in en 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('expert-late-publication')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('expert-late-publication') with timeout 10000ms
+      - waiting for getByTestId('expert-late-publication')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      315 |
+      316 |     const chip = page.getByTestId('expert-late-publication');
+    > 317 |     await expect(chip).toHaveCount(1);
+          |                        ^
+      318 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoff'));
+      319 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoffDetail'));
+      320 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:317:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-7b086-n-the-backend-says-so-in-en-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  41) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr 
+
+    Error: the earlier btts_yes_prob (0.6) is not on the earlier version
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "60 %"
+    Received string:    "Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026, 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test."
+
+      225 |     for (const field of ['btts_yes_prob', 'btts_no_prob', 'total_goals_over_25_prob', 'total_goals_under_25_prob'] as const) {
+      226 |       const expected = await percentIn(page, language, EARLIER[field] as number);
+    > 227 |       expect(shown, `the earlier ${field} (${EARLIER[field]}) is not on the earlier version`).toContain(normalise(expected));
+          |                                                                                               ^
+      228 |     }
+      229 |
+      230 |     // Each published number in its own labelled cell, read back against the payload it came from.
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:227:95
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-an-78741-nd-not-set-kept-apart-in-fr-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  42) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in fr, never the backend's field names 
+
+    Error: the raw audit string reached the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6"
+    Received string:        "Versions publiées précédemment Cette vue a été mise à jour une fois, la dernière le 17 sept. 2026, 10:30. Chaque version antérieure est conservée exactement telle qu’elle a été publiée ; une correction s’ajoute au registre au lieu de le remplacer. Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026, 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test."
+
+      273 |
+      274 |     const panel = normalise(await page.getByTestId('expert-revisions').innerText());
+    > 275 |     expect(panel, 'the raw audit string reached the page').not.toContain(RAW_SUMMARY);
+          |                                                                ^
+      276 |     expect(panel, 'a column name or a Python repr reached the page').not.toMatch(/btts_yes_prob|_prob\b|->|\bNone\b/);
+      277 |
+      278 |     const p60 = await percentIn(page, language, 0.6);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:275:64
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-wh-d6010-r-the-backend-s-field-names-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  43) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in fr 
+
+    Error: the raw source enum is on the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "expert_manual"
+    Received string:        "Aller directement aux matchs SP Connexion Ouvrir le menu principal All matches on Tue 20 Oct Se connecter pour enregistrer Tottenham Hotspur HOME VS Scheduled Aston Villa AWAY Premier League • 2026-10-20 • 12:30 • Matchday 5 • Tottenham Hotspur Stadium Données stockées · dernière vérification des matchs et des scores il y a 8 minutes Dernière actualisation des prévisions du modèle il y a 40 minutes Ce qui a été actualisé, et quand Ce que cette page sait du match The model makes a home win the most likely single outcome at 45%, with a draw at 30%. Modèle . Prévision publiée par le fournisseur du modèle Résultat du match · Les deux équipes marquent · Total de buts 2,5 · Total de buts 3,5 · Score exact Modèle GameForecast · lien avec le match : exact Expert . Pronostic publié par l’un de nos experts Publié pour ce match ; les marchés couverts n’ont pas été listés. publié le 17 sept. 2026, 09:00 The model forecast below is the one currently held for this fixture. Source : Modèle GameForecast · 28 heures d’ancienneté Provider and refresh detail Markets not published, and why Expert . Pronostic publié par l’un de nos experts Non publié par cette source Experts do not publish scoreline probabilities. Markets affected: Score exact 4 of 4 eligible prediction(s) on this installation with a kickoff in 2026-06-21 to 2026-09-19 have been scored, but no single source and market has reached the minimum of 30 scored predictions an accuracy figure is published from. The counts are published; the rate is not. Expert Predictions 1 published Match Outcome Home Win (50 %) Low Home 50 % Draw 30 % Away 20 % Both Teams to Score No (Yes 40 % / No 60 %) High Over/Under 2.5 Goals Over 2.5 (Over 2.5 55 % / Under 2.5 45 %) High Over/Under 3.5 Goals Indisponible Aucun pronostic d’expert Most Likely Score Indisponible Non publié par cette source QA current reasoning for the revision history test. Expert · expert_manual · published 17 sept. 2026, 09:00 Confidence: The expert published no confidence value with this prediction. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Versions publiées précédemment Cette vue a été mise à jour une fois, la dernière le 17 sept. 2026, 10:30. Chaque version antérieure est conservée exactement telle qu’elle a été publiée ; une correction s’ajoute au registre au lieu de le remplacer. Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026, 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test. Model Forecast Modèle GameForecast Match Outcome Home Win (45 %) Medium Home 45 % Draw 30 % Away 25 % Both Teams to Score No (Yes 45 % / No 55 %) High Over/Under 2.5 Goals Under 2.5 (Over 2.5 45 % / Under 2.5 55 %) High Over/Under 3.5 Goals Under 3.5 (Over 3.5 30 % / Under 3.5 70 %) Most Likely Score 1-0 (20 %) · other scorelines 1 % Tottenham has shown defensive stability in their last two Premier League matches (0-0). Aston Villa is struggling offensively. The match is expected to be tight with few goals. Markets the provider flagged in its own payload: Victoire à domicile · Moins de 2,5 buts · Les deux équipes marquent : non Listed as the provider published them. Nothing on this page is advice to place a bet. Source Modèle GameForecast Exécution du modèle du fournisseur 17 sept. 2026, 01:00 Dernière mise à jour du fournisseur 14 sept. 2026, 01:00 Récupéré par ce site 18 sept. 2026, 04:13 Correspondance du match exact Heures en Douala, Yaoundé · UTC+01:00 Confidence: This provider publishes no confidence value with its forecasts. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Marchés de cette rencontre Chaque sélection que la prévision du modèle permet, avec sa probabilité publiée. Ajoutez-en une à votre coupon pour la comparer à celles d’autres rencontres. Aucune prévision du modèle n’est enregistrée pour cette rencontre : il n’y a donc aucun marché à choisir. Tottenham Hotspur → Aston Villa → Where this fixture came from Bookmaker odds are not available: no odds feed is configured on this installation. Coupon 0 SP Soccer Predictions Matchs, résultats et prévisions du modèle pour les cinq grands championnats européens et la Champions League, ainsi que les pronostics publiés par des experts inscrits. Chaque probabilité indique sa source. Rien ici n’est un conseil de pari. Langue et fuseau horaire Liens rapides Matchs du jour Matchs de demain Compétitions Tableau de bord (connexion requise) Assistance Centre d’aide (pas encore publié) Nous contacter (pas encore publié) Politique de confidentialité (pas encore publié) Conditions d’utilisation (pas encore publié) © 2026 Soccer Predictions. Tous droits réservés. Twitter Facebook Instagram"
+
+      297 |
+      298 |     const body = normalise(await page.locator('body').innerText());
+    > 299 |     expect(body, 'the raw source enum is on the page').not.toContain('expert_manual');
+          |                                                            ^
+      300 |
+      301 |     const byline = page.getByTestId('expert-byline');
+      302 |     await expect(byline).toHaveCount(1);
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:299:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-795a3-il-or-the-source-enum-in-fr-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  44) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in fr 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('expert-late-publication')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('expert-late-publication') with timeout 10000ms
+      - waiting for getByTestId('expert-late-publication')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      315 |
+      316 |     const chip = page.getByTestId('expert-late-publication');
+    > 317 |     await expect(chip).toHaveCount(1);
+          |                        ^
+      318 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoff'));
+      319 |     await expect(chip).toContainText(say(language, 'reader.expert.publishedAfterKickoffDetail'));
+      320 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:317:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-7b883-n-the-backend-says-so-in-fr-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  45) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:335:1 › revisions are grouped per prediction, each under its own author 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('expert-revision-group')
+    Expected: 2
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('expert-revision-group') with timeout 10000ms
+      - waiting for getByTestId('expert-revision-group')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      343 |
+      344 |   const groups = page.getByTestId('expert-revision-group');
+    > 345 |   await expect(groups).toHaveCount(2);
+          |                        ^
+      346 |   const first = groups.nth(0);
+      347 |   const other = groups.nth(1);
+      348 |   await expect(first).toHaveAttribute('data-prediction-id', 'qa-pred-a');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:345:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-re-0d7e3-n-each-under-its-own-author-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  46) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:365:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label 
+
+    Error: the raw source enum stands in for a name
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "expert_manual"
+    Received string:        "Expert Predictions 1 published Match Outcome Home Win (50%) Low Home 50% Draw 30% Away 20% Both Teams to Score No (Yes 40% / No 60%) High Over/Under 2.5 Goals Over 2.5 (Over 2.5 55% / Under 2.5 45%) High Over/Under 3.5 Goals Unavailable No expert prediction Most Likely Score Unavailable Not published by this source QA current reasoning for the revision history test. Expert · expert_manual · published 17 Sept 2026, 09:00 Confidence: The expert published no confidence value with this prediction. The band shown beside each probability is derived from the strength of that probability alone. It is not a confidence this source stated, and it is not a measure of how often this source has been right. Earlier published versions This view was updated once, most recently on 17 Sept 2026, 10:30. Each earlier version is kept exactly as it was published; a correction is added to the record rather than replacing it. Version 1 · as first published replaced 17 Sept 2026, 10:30 What changed: btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Home 50% Draw 30% Away 20% Confidence 0% QA original reasoning for the revision history test."
+
+      368 |
+      369 |   expect(normalise(await page.getByTestId('expert-predictions').innerText()), 'the raw source enum stands in for a name')
+    > 370 |     .not.toContain('expert_manual');
+          |          ^
+      371 |   const byline = page.getByTestId('expert-byline');
+      372 |   await expect(byline).toHaveCount(1);
+      373 |   expect(normalise(await byline.innerText())).toMatch(new RegExp(`^${say('en', 'source.expert')}\\b`));
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:370:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-an-62d17-as-the-generic-Expert-label-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  47) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:384:1 › a version recorded before a market existed says so, and no structured changes means no change line 
+
+    Error: the raw audit string reached the page
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6"
+    Received string:        "Versions publiées précédemment Cette vue a été mise à jour une fois, la dernière le 17 sept. 2026, 10:30. Chaque version antérieure est conservée exactement telle qu’elle a été publiée ; une correction s’ajoute au registre au lieu de le remplacer. Version n° 1 · telle que publiée initialement remplacée le 17 sept. 2026, 10:30 Ce qui a changé : btts_yes_prob 0.6 -> 0.4; btts_no_prob 0.4 -> 0.6 Domicile 50 % Match nul 30 % Extérieur 20 % Confiance 0 % QA original reasoning for the revision history test."
+
+      393 |   // named, as markets this version did not record.
+      394 |   expect(normalise(await page.getByTestId('expert-revisions').innerText()), 'the raw audit string reached the page')
+    > 395 |     .not.toContain(RAW_SUMMARY);
+          |          ^
+      396 |   await expect(market(page, 'btts'), 'a market the snapshot lacks is not named at all').toHaveCount(1);
+      397 |   await expect(market(page, 'btts')).toHaveAttribute('data-state', 'not-recorded');
+      398 |   await expect(market(page, 'btts')).toContainText(say('fr', 'reader.revisions.notRecorded'));
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:395:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-a--2e0bd-hanges-means-no-change-line-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  48) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:408:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('revision-change')
+    Expected: 4
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('revision-change') with timeout 10000ms
+      - waiting for getByTestId('revision-change')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      419 |   const label = (market: string, side: string, params: Record<string, string> = {}) =>
+      420 |     say('en', 'reader.revisions.fieldLabel', { market: say('en', market), side: say('en', side, params) });
+    > 421 |   await expect(lines).toHaveCount(4);
+          |                       ^
+      422 |   await expect(lines.nth(0)).toHaveText(say('en', 'reader.revisions.change.withdrawn', {
+      423 |     field: label('market.matchResult', 'reader.revisions.conviction'), from: await percentIn(page, 'en', 0),
+      424 |   }));
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:421:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-a--f421c-text-each-say-what-happened-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  49) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in en 
+
+    Error: /expert/match-selection does not mark the kicked-off fixture
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - /expert/match-selection does not mark the kicked-off fixture locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off') with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      496 |       await expect(pickerRow(page, 'Fovu Baham'), `${path} no longer offers the kicked-off fixture`).toHaveCount(1);
+      497 |       await expect(pickerRow(page, 'Fovu Baham').getByTestId('picker-kicked-off'), `${path} does not mark the kicked-off fixture`)
+    > 498 |         .toHaveCount(1);
+          |          ^
+      499 |       await expect(pickerRow(page, 'Coton Sport').getByTestId('picker-kicked-off'), `${path} marked an upcoming fixture`)
+      500 |         .toHaveCount(0);
+      501 |       const kickedOff = say(language, 'expert.picker.kickedOff');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:498:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-bo-19c6f-ff-and-still-offer-it-in-en-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  50) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in en 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('composer-kickoff-warning')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('composer-kickoff-warning') with timeout 10000ms
+      - waiting for getByTestId('composer-kickoff-warning')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      516 |
+      517 |     const warning = page.getByTestId('composer-kickoff-warning');
+    > 518 |     await expect(warning).toHaveCount(1);
+          |                           ^
+      519 |     await expect(warning).toHaveAttribute('role', 'status');
+      520 |     // The sentence names the kickoff time; the words either side of it are the catalogue's.
+      521 |     const [before, after] = say(language, 'expert.compose.kickoffPassed', { time: '\u0000' }).split('\u0000');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:518:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-9ca77-e-that-has-kicked-off-in-en-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  51) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in en 
+
+    Error: editing a prediction on a kicked-off fixture says nothing about scoring
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('edit-after-kickoff')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - editing a prediction on a kicked-off fixture says nothing about scoring getByTestId('edit-after-kickoff') with timeout 10000ms
+      - waiting for getByTestId('edit-after-kickoff')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      561 |     await expect(page.locator('#edit-kicked-conviction')).toBeVisible();
+      562 |     const shown = page.getByTestId('edit-after-kickoff');
+    > 563 |     await expect(shown, 'editing a prediction on a kicked-off fixture says nothing about scoring').toHaveCount(1);
+          |                                                                                                    ^
+      564 |     await expect(shown).toHaveAttribute('role', 'status');
+      565 |     await expect(shown).toHaveText(say(language, 'expert.edit.afterKickoff'));
+      566 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:563:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-ed-bccb2-ickoff-is-what-counts-in-en-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  52) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr 
+
+    Error: /expert/match-selection does not mark the kicked-off fixture
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - /expert/match-selection does not mark the kicked-off fixture locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off') with timeout 10000ms
+      - waiting for locator('li').filter({ hasText: 'Fovu Baham' }).getByTestId('picker-kicked-off')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      496 |       await expect(pickerRow(page, 'Fovu Baham'), `${path} no longer offers the kicked-off fixture`).toHaveCount(1);
+      497 |       await expect(pickerRow(page, 'Fovu Baham').getByTestId('picker-kicked-off'), `${path} does not mark the kicked-off fixture`)
+    > 498 |         .toHaveCount(1);
+          |          ^
+      499 |       await expect(pickerRow(page, 'Coton Sport').getByTestId('picker-kicked-off'), `${path} marked an upcoming fixture`)
+      500 |         .toHaveCount(0);
+      501 |       const kickedOff = say(language, 'expert.picker.kickedOff');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:498:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-bo-dcb88-ff-and-still-offer-it-in-fr-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  53) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in fr 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('composer-kickoff-warning')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('composer-kickoff-warning') with timeout 10000ms
+      - waiting for getByTestId('composer-kickoff-warning')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      516 |
+      517 |     const warning = page.getByTestId('composer-kickoff-warning');
+    > 518 |     await expect(warning).toHaveCount(1);
+          |                           ^
+      519 |     await expect(warning).toHaveAttribute('role', 'status');
+      520 |     // The sentence names the kickoff time; the words either side of it are the catalogue's.
+      521 |     const [before, after] = say(language, 'expert.compose.kickoffPassed', { time: '\u0000' }).split('\u0000');
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:518:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-th-d3f32-e-that-has-kicked-off-in-fr-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  54) [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr 
+
+    Error: editing a prediction on a kicked-off fixture says nothing about scoring
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('edit-after-kickoff')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - editing a prediction on a kicked-off fixture says nothing about scoring getByTestId('edit-after-kickoff') with timeout 10000ms
+      - waiting for getByTestId('edit-after-kickoff')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      561 |     await expect(page.locator('#edit-kicked-conviction')).toBeVisible();
+      562 |     const shown = page.getByTestId('edit-after-kickoff');
+    > 563 |     await expect(shown, 'editing a prediction on a kicked-off fixture says nothing about scoring').toHaveCount(1);
+          |                                                                                                    ^
+      564 |     await expect(shown).toHaveAttribute('role', 'status');
+      565 |     await expect(shown).toHaveText(say(language, 'expert.edit.afterKickoff'));
+      566 |
+        at <worktree>/frontend/e2e/mocked/revision-history.spec.ts:563:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-revision-history-ed-21306-ickoff-is-what-counts-in-fr-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  54 failed
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in en, never the backend's field names 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in en 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in en 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in fr, never the backend's field names 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in fr 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in fr 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:335:1 › revisions are grouped per prediction, each under its own author 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:365:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:384:1 › a version recorded before a market existed says so, and no structured changes means no change line 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:408:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in en 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in en 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in en 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in fr 
+    [mocked-desktop] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in en, never the backend's field names 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in en 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in en 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in fr, never the backend's field names 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in fr 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in fr 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:335:1 › revisions are grouped per prediction, each under its own author 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:365:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:384:1 › a version recorded before a market existed says so, and no structured changes means no change line 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:408:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in en 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in en 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in en 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in fr 
+    [mocked-mobile] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in en, never the backend's field names 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in en 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in en 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:220:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:271:3 › what changed is a sentence in fr, never the backend's field names 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:295:3 › the card names the expert by username, never by email or the source enum, in fr 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:312:3 › the late-publication chip appears only when the backend says so, in fr 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:335:1 › revisions are grouped per prediction, each under its own author 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:365:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:384:1 › a version recorded before a market existed says so, and no structured changes means no change line 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:408:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in en 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in en 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in en 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:487:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:510:3 › the composer and its preview warn on a fixture that has kicked off, in fr 
+    [mocked-mobile-360] › e2e/mocked/revision-history.spec.ts:542:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr 
+  3 passed (6.3m)

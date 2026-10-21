@@ -81,7 +81,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { backendInstant, formatDate, formatDateTime, formatNumber, formatPercentValue } from '@/i18n';
 import { useT } from '@/i18n/react';
 import type { MessageKey } from '@/i18n';
-import { canTogglePublication, kickedOffNoteKey, publicationConfirmText } from '@/utils/publication';
+import { canTogglePublication, hasKickedOff, kickedOffNoteKey, publicationConfirmText } from '@/utils/publication';
 import PredictionMarketsEditor from '@/components/expert/PredictionMarketsEditor';
 import {
   buildUpdateRequest, ComposerValues, composerFromPrediction, publishedMarkets, validateComposer,
@@ -549,6 +549,22 @@ const ExpertMyPredictionsPage: React.FC = () => {
                       <p className="mb-4 text-sm text-secondary-300">
                         {t('expert.mine.editNote', percentExamples)}
                       </p>
+                      {/*
+                        After kickoff an edit changes what readers see, never what is scored:
+                        settlement restores the version that stood at kickoff. Said in the editor,
+                        before the save, with the same boundary as the publication notes (at
+                        kickoff is after it). Nothing before kickoff, and nothing when the kickoff
+                        is unknown.
+                      */}
+                      {hasKickedOff(prediction) && (
+                        <p
+                          className="mb-4 rounded-lg border border-warning-700 bg-warning-900/30 px-3 py-2 text-sm text-warning-200"
+                          role="status"
+                          data-testid="edit-after-kickoff"
+                        >
+                          {t('expert.edit.afterKickoff')}
+                        </p>
+                      )}
                       <PredictionMarketsEditor
                         values={editValues}
                         onChange={setEditValues}

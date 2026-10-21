@@ -88,6 +88,13 @@ export interface ApiExpertPrediction {
   reasoning: string | null;
   published_at: string | null;
   created_by: string;
+  /**
+   * Who published it, as readers may see them: `{id, username}` from one batched lookup, never the
+   * email, names or avatar. Optional because a backend older than the field does not send it.
+   */
+  author?: { id: string; username: string | null } | null;
+  /** True at or after kick-off (never scored), false before, null when unknown. Optional, as above. */
+  published_after_kickoff?: boolean | null;
 }
 
 export interface ApiForecast {
@@ -406,6 +413,9 @@ export function mapExpertPrediction(expert: ApiExpertPrediction): MatchPredictio
       exactScore: false, // experts do not publish a scoreline distribution
     },
     publishedAt: expert.published_at,
+    predictionId: expert.id ?? null,
+    author: expert.author ?? null,
+    publishedAfterKickoff: expert.published_after_kickoff ?? null,
   };
 }
 

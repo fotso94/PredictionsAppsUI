@@ -20,6 +20,19 @@ export const providerLabel = (name?: string | null): string => {
   }
 }
 
+/**
+ * The name an expert is shown under on a public page: the username the backend serves, or null.
+ *
+ * Null for no author, a blank username, and a username shaped like an email address. The backend
+ * serves usernames only, but nothing stops an account choosing an email as its username, and a
+ * public byline must never print one; the caller then shows the generic `source.expert` label.
+ * The source enum (`expert_manual`) is never a name and is never shown in its place.
+ */
+export const publicExpertName = (author?: { username?: string | null } | null): string | null => {
+  const name = (author?.username ?? '').trim()
+  return name && !name.includes('@') ? name : null
+}
+
 /** Short label describing where the shown prediction comes from. */
 export const predictionSourceLabel = (prediction: MatchPredictions | null | undefined): string => {
   if (!prediction) return t('prediction.none')
