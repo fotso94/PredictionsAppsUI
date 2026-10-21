@@ -1,0 +1,49 @@
+# RELEASE READINESS: why R1's three failures happen, from data already on disk (no new request beyond the GETs named here)
+# code under test: HEAD 2a82f16e; isolated backend pid 41147 (commit 2a82f16e, app tree 02195dc1..., database soccer_predictions_e2e)
+# sources: (1) GET http://127.0.0.1:8001/api/v1/matches?date=<d>&refresh=false, taken 2026-10-21T22:14:19Z (refresh=false is a database read; the isolated backend has no provider keys);
+#          (2) the public-match payloads and request bodies recorded in R1's own Playwright traces (e2e/.artifacts/*/trace.zip, unzipped to the scratchpad; not committed)
+#          (3) the helper every failing spec uses, frontend/e2e/support/qa-account.ts
+== (3) the helper: frontend/e2e/support/qa-account.ts lines 174-187
+ 174  export async function anyUpcomingMatch(api: APIRequestContext): Promise<ApiMatch | null> {
+ 175    for (let offset = 0; offset < 8; offset += 1) {
+ 176      const day = new Date();
+ 177      day.setUTCDate(day.getUTCDate() + offset);
+ 178      const iso = day.toISOString().slice(0, 10);
+ 179      // refresh=false keeps this a database read: no provider request is made
+ 180      const response = await api.get(`/api/v1/matches?date=${iso}&refresh=false`);
+ 181      if (!response.ok()) continue;
+ 182      const body = await response.json();
+ 183      const upcoming = (body.matches || []).find((m: ApiMatch) => m.status === 'scheduled');
+ 184      if (upcoming) return upcoming;
+ 185    }
+ 186    return null;
+ 187  }
+   used by all three failing specs: expert-delete-idempotent.spec.ts:51, expert-management.spec.ts:71, revision-history.spec.ts:44 (and by expert-publishing.spec.ts:27, whose tests do not assert the kickoff flags)
+== (1) the fixtures the helper can return, in the API's own order (public fixture data only)
+-- date=2026-10-21: 10 fixture(s), source database
+   e6bc0660-7f8f-4be3-a3c0-a430f4c7e241 status scheduled kickoff_utc 2026-10-21T16:45:00Z last_synced_at 2026-10-18T00:27:40.354053+00:00 (UEFA Champions League)
+   7211aab1-f374-4090-b1c5-f61113b0a868 status scheduled kickoff_utc 2026-10-21T16:45:00Z last_synced_at 2026-10-18T00:27:40.371237+00:00 (UEFA Champions League)
+   bfb14551-4ea3-42cb-b483-317a5ebff166 status scheduled kickoff_utc 2026-10-21T18:00:00Z last_synced_at 2026-10-18T00:27:47.868674+00:00 (La Liga)
+   dd7270a9-f996-4d4d-ad65-eec42b70a40b status scheduled kickoff_utc 2026-10-21T19:00:00Z last_synced_at 2026-10-18T00:27:40.470840+00:00 (UEFA Champions League)
+   16be7d32-d8b4-437d-a209-b8b170d0c786 status scheduled kickoff_utc 2026-10-21T19:00:00Z last_synced_at 2026-10-18T00:27:40.389625+00:00 (UEFA Champions League)
+   27417f9c-1257-45f6-9b4c-560f44e4d17b status scheduled kickoff_utc 2026-10-21T19:00:00Z last_synced_at 2026-10-18T00:27:40.422445+00:00 (UEFA Champions League)
+   dc596908-6a37-4fec-868c-af8dfccf14dc status scheduled kickoff_utc 2026-10-21T19:00:00Z last_synced_at 2026-10-18T00:27:40.454760+00:00 (UEFA Champions League)
+   488fed69-df6b-45d7-90dd-9e18654cc76c status scheduled kickoff_utc 2026-10-21T19:00:00Z last_synced_at 2026-10-18T00:27:40.406409+00:00 (UEFA Champions League)
+   0eb27210-2940-49e2-8bdd-f8137275f942 status scheduled kickoff_utc 2026-10-21T19:00:00Z last_synced_at 2026-10-18T00:27:40.437308+00:00 (UEFA Champions League)
+   43eaa010-7c53-418e-a506-2cb2ca89ba8c status scheduled kickoff_utc 2026-10-21T19:00:00Z last_synced_at 2026-10-18T00:27:40.487302+00:00 (UEFA Champions League)
+-- date=2026-10-22: 0 fixture(s), source database
+   2026-10-23: 5 fixtures, the first status scheduled kickoff_utc 2026-10-23T18:30:00Z (read at the same time)
+   => on 2026-10-21 (UTC) the helper returns e6bc0660..., status 'scheduled' in the clone but kicked off at 16:45:00Z; from 00:00Z on 2026-10-22 it skips the empty 2026-10-22 and returns the first 2026-10-23 fixture, kickoff 18:30:00Z
+== (2) what the failing tests actually used, from R1's traces
+-- expert-delete-idempotent-a-4799d-row-leaves-the-public-match: match_id in its publish request body: ['e6bc0660-7f8f-4be3-a3c0-a430f4c7e241']
+   public match e6bc0660... (status scheduled, kickoff_utc 2026-10-21T16:45:00Z): prediction 8b3dc2ff... published_at 2026-10-21T22:10:44.871472Z published_after_kickoff True withdrawn_before_kickoff False
+-- expert-management-Unpublis-d3267-rd-and-the-dashboard-agrees: match_id in its publish request body: ['e6bc0660-7f8f-4be3-a3c0-a430f4c7e241']
+-- revision-history-the-real--ccdd2-what-changed-and-the-author: match_id in its publish request body: ['e6bc0660-7f8f-4be3-a3c0-a430f4c7e241']
+   public match e6bc0660... (status scheduled, kickoff_utc 2026-10-21T16:45:00Z): prediction 7313d998... published_at 2026-10-21T22:13:11.445364Z published_after_kickoff True withdrawn_before_kickoff False
+== reading
+- The backend's flag is settlement's own rule (backend/app/schemas/matches.py:120-148, _at_or_after_kickoff(published_at, kickoff)): a prediction published at 22:10Z on a 16:45Z kickoff is after kickoff, so True is the correct answer. The unpublish dialog's extra paragraph is expert.publication.kickedOffUnpublish (frontend/src/i18n/messages/expert.en.ts:105), shown for a fixture past its kickoff.
+- The three specs assert the 'upcoming fixture' case (published_after_kickoff false; the plain unpublish text), but the helper selects by the stored status, which the clone never advances: the isolated backend runs with the scheduler off and was last synced 2026-10-18.
+- So the three tests pass only while the first 'scheduled' fixture of the current UTC date is still in the future. Their last full pass, FINAL run 8 (2759f592), started at 07:41:29Z on 2026-10-21, before that day's first kickoff (16:45Z). The two live-isolated runs recorded after it (guard-after-live-isolated-expert.log at 12:15Z and FOLLOWUP 4a at 16:19:35Z) ran only expert-composer and expert-publishing, which do not assert the kickoff flags; every other recorded pass of these specs on 2026-10-21 started before 07:42Z.
+- R1-rerun reproduced all three at 22:15:51Z, so the cause is deterministic, not flaky.
+# exit=0 (the diagnosis script's own)
+# (scrubbed: the scratchpad and worktree paths are not printed; fixture ids and kickoffs are public match data; prediction ids are the suite's own QA records on the isolated clone; no personal data)

@@ -1,0 +1,55 @@
+# RELEASE READINESS: the basis for REUSING evidence measured on earlier commits of expert-fixes, checked at HEAD 2a82f16e (working tree clean)
+# run at 2026-10-21T22:18:25Z (git reads; one 'playwright test --list', which runs no test and sends no request)
+== 1. what changed after each measured commit (git diff --name-only <commit>..HEAD)
+  b6c35b28..HEAD outside docs/: 0 file(s)
+  1a6109fe..HEAD outside docs/: 0 file(s)
+  2759f592..HEAD, by build or test input:
+    backend/app: 6 file(s)
+    backend/tests: 7 file(s)
+    backend/alembic: 0 file(s)
+    backend/requirements.txt: 0 file(s)
+    frontend/src: 0 file(s)
+    frontend/vite.config.ts: 0 file(s)
+    frontend/tsconfig*: 0 file(s)
+    frontend/index.html: 0 file(s)
+    frontend/public: 0 file(s)
+    frontend/package-lock.json: 0 file(s)
+    frontend/package.json: 1 file(s)
+    frontend/playwright.config.ts: 1 file(s)
+    frontend/e2e/mocked: 0 file(s)
+    frontend/e2e/fixtures: 0 file(s)
+    frontend/e2e/live-isolated: 0 file(s)
+    frontend/e2e/live: 0 file(s)
+    frontend/e2e/support: 7 file(s)
+    scripts: 3 file(s)
+    frontend/e2e/support files changed: isolated.ts isolation-preflight.ts live-stack.ts live-test.ts preflight-token.ts qa-account.ts target-policy.ts 
+    frontend/package.json: changed lines -    "e2e:live": "playwright test --project=live", -    "e2e:live-isolated": "playwright test --project=live-isolated", +    "e2e:live": "E2E_STACK=live playwright test --project=live", +    "e2e:live-isolated": "E2E_STACK=live-isolated E2E_ISOLATED_BASE_URL=http://localhost:3101 E2E_ISOLATED_API_URL=http://127.0.0.1:8001 playwright test --project=live-isolated --workers=1", +    "e2e:guard": "playwright test --config=playwright.guard.config.ts && node --test e2e/guard/refusal-runs.test.mjs", 
+    live-stack.ts non-comment changed lines: 0
+    support files the mocked specs import (grep of e2e/mocked/*.ts): support/api-stub support/auth support/live-stack support/vocabulary 
+== 2. the mocked projects select the same tests at HEAD as the 2759f592 runs
+$ cd <worktree>/frontend && env -u E2E_STACK E2E_BASE_URL=http://localhost:3101 ./node_modules/.bin/playwright test --list --project=mocked-desktop --project=mocked-mobile --project=mocked-mobile-360
+  Total: 1297 tests in 30 files; exit=0 (the runner's own $?); the full listing is release-readiness-mocked-list.log
+  compared, by (project, file:line:col, title), with every test line of final-mocked-desktop.log, final-mocked-mobile.log and final-mocked-mobile-360.log:
+  HEAD --list: 1297 {'mocked-desktop': 549, 'mocked-mobile': 549, 'mocked-mobile-360': 199}
+  final-mocked-*.log (2759f592): 1297 {'mocked-desktop': 549, 'mocked-mobile': 549, 'mocked-mobile-360': 199}
+  only in HEAD list: 0
+  only in 2759f592 runs: 0
+== 3. the reused logs' own summaries and exit codes (copied from each log)
+  followup-backend-full-suite.log (measured on 1a6109fe, run at 2026-10-21T16:17:44Z): 2003 passed, 20 warnings in 80.02s (0:01:20) | exit=0
+  followup-backend-guard.log (measured on 1a6109fe, run at 2026-10-21T16:11Z): 114 passed, 18 warnings in 9.61s | exit=0
+  followup-runner-tests.log (measured on 1a6109fe, run at 2026-10-21T16:11Z): 94 passed in 1.60s | exit=0
+  followup-browser-guard-specs.log (measured on 1a6109fe, run at 2026-10-21T16:11:49Z):   45 passed (7.2s) | exit=0
+  followup-browser-refusal-runs.log (measured on 1a6109fe, run at 2026-10-21T16:12:02Z): ℹ tests 18 ℹ pass 18 ℹ fail 0 ℹ skipped 0  | exit=0
+  followup-negative-backend.log (measured on 1a6109fe, run at 2026-10-21T16:15:26Z): its summary table lists 13 unsafe cases with exit=78 attempts=0 imports=0 HOLDS and the CONTROL with exit=0 HOLDS (plus one '-- ... HOLDS' line per case) | exit=0 (harness)
+  followup-negative-browser.log (measured on 1a6109fe, run at 2026-10-21T16:16:56Z): 10 run(s) exit=1 | exit=0 (script)
+  followup-frontend-type-check.log (measured on 1a6109fe, run at 2026-10-21T16:24:45Z): > tsc --noEmit | exit=0
+  followup-frontend-lint.log (measured on 1a6109fe, run at 2026-10-21T16:24:47Z): > eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0 | exit=0
+  final-frontend-build.log (measured on 2759f592, run at 2026-10-21T07:06:47Z): ✓ built in 1.70s | exit=0
+  final-mocked-desktop.log (measured on 2759f592, run at 2026-10-21T07:07:06Z):   2 skipped   547 passed (13.6m) | exit=0
+  final-mocked-mobile.log (measured on 2759f592, run at 2026-10-21T07:21:31Z):   549 passed (15.0m) | exit=0
+  final-mocked-mobile-360.log (measured on 2759f592, run at 2026-10-21T07:36:46Z):   199 passed (4.5m) | exit=0
+  followup-mocked-new-specs-desktop.log (measured on 1a6109fe, run at 2026-10-21T16:20:07Z):   96 passed (3.1m) | exit=0
+  followup-mocked-existing-per-project.log (measured on 1a6109fe, run at 2026-10-21T16:23:34Z):   147 passed (1.0m) | exit=0
+  followup-live-isolated-expert.log (measured on 1a6109fe, run at 2026-10-21T16:19:35Z):   10 passed (15.4s) | exit=0
+  bypass-after-mocked-defaults.log (measured on b6c35b28):   12 passed (15.8s) | exit=0
+# (no path, secret or personal data in this log)

@@ -1,0 +1,9 @@
+# RELEASE READINESS R2-type-check: rerun because the test fix touched frontend/e2e/support (type-check, lint and the guard suites read e2e/support)
+# code under test: expert-fixes HEAD 2a82f16e plus the one-file test fix in frontend/e2e/support/qa-account.ts
+# run at 2026-10-21T23:35:28Z; cd <worktree>/frontend && npm run type-check
+
+> soccer-predictions-frontend@1.0.0 type-check
+> tsc --noEmit
+
+# exit=0 (the runner's own $?)
+# (scrubbed: worktree path x0, scratchpad x0, home prefix x0, database password x0; terminal colour codes stripped; nothing else edited)

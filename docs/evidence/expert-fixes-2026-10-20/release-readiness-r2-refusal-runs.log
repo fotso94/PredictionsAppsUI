@@ -1,0 +1,31 @@
+# RELEASE READINESS R2-refusal-runs: rerun because the test fix touched frontend/e2e/support (type-check, lint and the guard suites read e2e/support)
+# code under test: expert-fixes HEAD 2a82f16e plus the one-file test fix in frontend/e2e/support/qa-account.ts
+# run at 2026-10-21T23:35:39Z; cd <worktree>/frontend && node --test e2e/guard/refusal-runs.test.mjs
+✔ the live-isolated project does not exist unless E2E_STACK selects it (281.373459ms)
+✔ the live project does not exist unless E2E_STACK selects it (274.795208ms)
+✔ an E2E_STACK that is not exactly one stack is refused when the configuration loads (856.717959ms)
+✔ live-isolated pointed at servers the policy does not name is refused before any test (288.476542ms)
+✔ live-isolated with no isolated API URL is refused, not defaulted (275.985209ms)
+✔ the live backend or frontend named as the isolated pair is refused before anything is sent (278.037125ms)
+✔ an isolated API that is also the main API is refused (285.2505ms)
+✔ a mocked run whose frontend URL is a backend is refused (280.185875ms)
+✔ a URL carrying a password is refused and the password is never printed (281.271125ms)
+✔ an approved mocked run starts and passes, and Node reaches for no server but the web font host (1468.819667ms)
+✔ the approved isolated pair passes the preflight: one GET to the isolated backend and nothing else from Node (593.725375ms)
+✔ a mocked run never uses the live frontend: the default is the isolated one, and :3100 is refused (782.788208ms)
+✔ live specs run under another configuration (no global setup) refuse before their first request (553.39525ms)
+✔ live and live-isolated specs named from the repository root (no configuration at all) refuse too (964.45325ms)
+✔ workers refuse when no preflight passed in their runner, as in watch mode, which ignores a failed global setup (560.1565ms)
+✔ in a checkout called PredictionsAppsUI-mocked, each project selects only its own directory (943.614666ms)
+✔ in a checkout called PredictionsAppsUI-live, each project selects only its own directory (385.809959ms)
+✔ in a checkout called PredictionsAppsUI-live-isolated, each project selects only its own directory (1093.152459ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10481.254041
+# exit=0 (the runner's own $?)
+# (scrubbed: worktree path x0, scratchpad x0, home prefix x0, database password x0; terminal colour codes stripped; nothing else edited)

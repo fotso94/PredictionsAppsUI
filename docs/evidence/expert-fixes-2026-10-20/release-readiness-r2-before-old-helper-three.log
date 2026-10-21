@@ -1,0 +1,123 @@
+# RELEASE READINESS R2-before: the 3 tests R1 failed, on the OLD helper (HEAD's qa-account.ts, restored into the working tree for this run only), to show the failure still reproduces now
+# code under test: expert-fixes HEAD 2a82f16e with frontend/e2e/support/qa-account.ts as committed at HEAD (git status clean during the run); isolated backend http://127.0.0.1:8001: pid 41147, cwd <worktree>/backend, /health database soccer_predictions_e2e, Redis databases 10-15, scheduler_enabled false, source.commit 2a82f16e, commit_dirty_app_files [], app_tree_sha256 02195dc15f1d73967cbe01b0b004bb258be82528f7268425109ae4152a94bb8b, started 2026-10-21T22:09:49Z (read just before R2); isolated frontend http://localhost:3101: Vite pid 1982, --mode dev8001
+# run at 2026-10-21T23:30:23Z (ended 23:30:32Z); cd <worktree>/frontend && E2E_STACK=live-isolated E2E_ISOLATED_BASE_URL=http://localhost:3101 E2E_ISOLATED_API_URL=http://127.0.0.1:8001 ./node_modules/.bin/playwright test e2e/live-isolated/expert-delete-idempotent.spec.ts:103 e2e/live-isolated/expert-management.spec.ts:192 e2e/live-isolated/revision-history.spec.ts:71 --project=live-isolated --workers=1 --reporter=list
+# outcome: 3 failed, exit 1, at the same assertions as R1 (published_after_kickoff true; the unpublish dialog's kicked-off notice). The old helper takes the first stored-'scheduled' fixture of today's UTC date; in the clone every 2026-10-21 fixture is still 'scheduled' but kicked off at 16:45-19:00Z
+isolation preflight: PASS (policy sha256 e2abbcc34d12)
+  mocked-desktop, mocked-mobile, mocked-mobile-360: frontend http://localhost:3101; every /api/v1 call is answered by the stubs
+  live-isolated: frontend http://localhost:3101 calls http://localhost:8001 (observed); backend http://127.0.0.1:8001: database soccer_predictions_e2e, Redis databases 10-15 on this machine's :6379, scheduler off
+  (only this was sent: GET http://127.0.0.1:8001/health; browser: loaded http://localhost:3101/ with every API request aborted in the browser (its first API call was to http://localhost:8001))
+
+Running 3 tests using 1 worker
+
+  ✘  1 [live-isolated] › e2e/live-isolated/expert-delete-idempotent.spec.ts:103:1 › a DELETE sent twice answers 200 both times with one deletion time, and the row leaves the public match (99ms)
+  ✘  2 [live-isolated] › e2e/live-isolated/expert-management.spec.ts:192:1 › Unpublish and Publish on My Predictions change the real record, and the dashboard agrees (3.6s)
+  ✘  3 [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author (756ms)
+
+
+  1) [live-isolated] › e2e/live-isolated/expert-delete-idempotent.spec.ts:103:1 › a DELETE sent twice answers 200 both times with one deletion time, and the row leaves the public match 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      107 |   expect(row, 'the new prediction is public before it is deleted').toBeTruthy();
+      108 |   // Published now, on an upcoming fixture, never withdrawn: it stands, and the payload says so.
+    > 109 |   expect(row.published_after_kickoff).toBe(false);
+          |                                       ^
+      110 |   expect(row.withdrawn_before_kickoff).toBe(false);
+      111 |
+      112 |   const first = await body(await remove(created.id), 'first DELETE');
+        at <worktree>/frontend/e2e/live-isolated/expert-delete-idempotent.spec.ts:109:39
+
+    Error Context: e2e/.artifacts/expert-delete-idempotent-a-4799d-row-leaves-the-public-match-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/expert-delete-idempotent-a-4799d-row-leaves-the-public-match-live-isolated/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/expert-delete-idempotent-a-4799d-row-leaves-the-public-match-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/expert-delete-idempotent-a-4799d-row-leaves-the-public-match-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [live-isolated] › e2e/live-isolated/expert-management.spec.ts:192:1 › Unpublish and Publish on My Predictions change the real record, and the dashboard agrees 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+      Array [
+    -   "Unpublish this prediction? Readers will no longer see it on the match page. You can publish it again later.",
+    +   "Unpublish this prediction? Readers will no longer see it on the match page. You can publish it again later.
+    +
+    + This match has kicked off. Unpublishing now hides this prediction from readers but does not change your measured record, which is decided by what stood at kick-off.",
+      ]
+
+      202 |   await card.getByRole('button', { name: 'Unpublish', exact: true }).click();
+      203 |   await expect.poll(() => writes).toEqual([`POST /api/v1/expert/predictions/${created.id}/toggle-publish`]);
+    > 204 |   expect(dialogs).toEqual([expertEn['expert.publication.confirmUnpublish']]);
+          |                   ^
+      205 |   await expect(card.getByRole('button', { name: 'Publish', exact: true })).toBeVisible();
+      206 |   expect(await totalOnServer('archived')).toBe(1);
+      207 |   // Off the public match page.
+        at <worktree>/frontend/e2e/live-isolated/expert-management.spec.ts:204:19
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/expert-management-Unpublis-d3267-rd-and-the-dashboard-agrees-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/expert-management-Unpublis-d3267-rd-and-the-dashboard-agrees-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/expert-management-Unpublis-d3267-rd-and-the-dashboard-agrees-live-isolated/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/expert-management-Unpublis-d3267-rd-and-the-dashboard-agrees-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/expert-management-Unpublis-d3267-rd-and-the-dashboard-agrees-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author 
+
+    Error: published before kickoff
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      140 |   // Ours was published before kickoff; the page carries a late chip for exactly the rows the
+      141 |   // backend flags, which on an upcoming fixture should be none.
+    > 142 |   expect(ours?.published_after_kickoff, 'published before kickoff').toBe(false);
+          |                                                                     ^
+      143 |   const late = (detail.expert_predictions as Array<Record<string, unknown>>)
+      144 |     .filter(row => row.published_after_kickoff === true).length;
+      145 |   await expect(page.getByTestId('expert-late-publication')).toHaveCount(late);
+        at <worktree>/frontend/e2e/live-isolated/revision-history.spec.ts:142:69
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/revision-history-the-real--ccdd2-what-changed-and-the-author-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/revision-history-the-real--ccdd2-what-changed-and-the-author-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/revision-history-the-real--ccdd2-what-changed-and-the-author-live-isolated/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/revision-history-the-real--ccdd2-what-changed-and-the-author-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/revision-history-the-real--ccdd2-what-changed-and-the-author-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [live-isolated] › e2e/live-isolated/expert-delete-idempotent.spec.ts:103:1 › a DELETE sent twice answers 200 both times with one deletion time, and the row leaves the public match 
+    [live-isolated] › e2e/live-isolated/expert-management.spec.ts:192:1 › Unpublish and Publish on My Predictions change the real record, and the dashboard agrees 
+    [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author 
+# exit=1 (the runner's own $?)
+# (scrubbed: worktree path x3, scratchpad x0, home prefix x0, database password x0; terminal colour codes stripped; nothing else edited)

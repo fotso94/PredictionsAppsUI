@@ -1,0 +1,16 @@
+# RELEASE READINESS R2-skips: parlay-journey + suggestion-journey with the json reporter, only to record the runner's own skip annotations (the list reporter does not print them)
+# code under test: as R2; isolated backend http://127.0.0.1:8001: pid 41147, cwd <worktree>/backend, /health database soccer_predictions_e2e, Redis databases 10-15, scheduler_enabled false, source.commit 2a82f16e, commit_dirty_app_files [], app_tree_sha256 02195dc15f1d73967cbe01b0b004bb258be82528f7268425109ae4152a94bb8b, started 2026-10-21T22:09:49Z (read just before R2); isolated frontend http://localhost:3101: Vite pid 1982, --mode dev8001
+# run at 2026-10-21T23:35:59Z; cd <worktree>/frontend && E2E_STACK=live-isolated E2E_ISOLATED_BASE_URL=http://localhost:3101 E2E_ISOLATED_API_URL=http://127.0.0.1:8001 ./node_modules/.bin/playwright test e2e/live-isolated/parlay-journey.spec.ts e2e/live-isolated/suggestion-journey.spec.ts --project=live-isolated --workers=1 --reporter=json ; summarised per test below (file:line | status | title | skip annotation), then the json stats
+# outcome: 2 passed, 3 skipped, exit 0. The skips are data guards: the clone's forecasts are never refreshed (scheduler off, no provider keys) and are out of date
+isolation preflight: PASS (policy sha256 e2abbcc34d12)
+  mocked-desktop, mocked-mobile, mocked-mobile-360: frontend http://localhost:3101; every /api/v1 call is answered by the stubs
+  live-isolated: frontend http://localhost:3101 calls http://localhost:8001 (observed); backend http://127.0.0.1:8001: database soccer_predictions_e2e, Redis databases 10-15 on this machine's :6379, scheduler off
+  (only this was sent: GET http://127.0.0.1:8001/health; browser: loaded http://localhost:3101/ with every API request aborted in the browser (its first API call was to http://localhost:8001))
+live-isolated/parlay-journey.spec.ts:58 | skipped | a real fixture → a selection → a saved, recorded combination, with no provider request | needs two upcoming fixtures with a stored forecast at http://127.0.0.1:8001; found 0
+live-isolated/parlay-journey.spec.ts:124 | skipped | suggestions come from stored forecasts and add to the slip without a provider request | no qualifying combination at http://127.0.0.1:8001: none of the 47 fixtures in the window qualifies: 47 with only an out-of-date forecast (left out unless out-of-date forecasts are included)
+live-isolated/suggestion-journey.spec.ts:108 | passed | the identity check rejects a wrong selection, a wrong snapshot and a wrong fixture | 
+live-isolated/suggestion-journey.spec.ts:125 | skipped | a suggested combination becomes a recorded slip through the page, selection for selection | the page's own request (legs=3, min_probability=0.6) returned no combination at http://127.0.0.1:8001: none of the 47 fixtures in the window qualifies: 47 with only an out-of-date forecast (left out unless out-of-date forecasts are included)
+live-isolated/suggestion-journey.spec.ts:196 | passed | a settled slip shows its results, and viewing it again changes nothing | 
+stats: {'expected': 2, 'unexpected': 0, 'skipped': 3, 'flaky': 0}
+# exit=0 (the runner's own $?)
+# (scrubbed: worktree path x0, scratchpad x0, home prefix x0, database password x0; terminal colour codes stripped; nothing else edited)

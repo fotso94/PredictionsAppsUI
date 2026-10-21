@@ -1,0 +1,219 @@
+# RELEASE READINESS run R1: the WHOLE live-isolated project (all 15 specs in e2e/live-isolated, --workers=1) on HEAD of expert-fixes
+# code under test: HEAD 2a82f16e of expert-fixes (working tree clean); last non-doc commit b6c35b28
+# isolated backend http://127.0.0.1:8001: pid 41147, cwd <worktree>/backend, /health database soccer_predictions_e2e, Redis 10-15 on loopback :6379, scheduler off, source.commit 2a82f16e, dirty app files [], app_tree_sha256 02195dc15f1d73967cbe01b0b004bb258be82528f7268425109ae4152a94bb8b (93 files), started 2026-10-21T22:09:49Z (release-readiness-preflight.log)
+# isolated frontend http://localhost:3101: Vite pid 1982, cwd <worktree>/frontend, --mode dev8001 (VITE_API_BASE_URL=http://localhost:8001)
+# run at 2026-10-21T22:10:09Z (ended 22:13:49Z); cd <worktree>/frontend && E2E_STACK=live-isolated E2E_ISOLATED_BASE_URL=http://localhost:3101 E2E_ISOLATED_API_URL=http://127.0.0.1:8001 ./node_modules/.bin/playwright test --project=live-isolated --workers=1 --reporter=list   (= npm run e2e:live-isolated, plus the list reporter)
+# expected: 66 tests in 15 specs, 63 passed, 3 skipped (the data guards of parlay-journey and suggestion-journey), exit 0
+# outcome: 60 passed, 3 failed, 3 skipped, exit 1. The 3 failures (expert-delete-idempotent :103, expert-management :192, revision-history :71) all attach their prediction to anyUpcomingMatch(), which takes the first status 'scheduled' fixture on today's UTC date. In the clone every 2026-10-21 fixture is still 'scheduled' (last synced 2026-10-18; the isolated backend runs with the scheduler off), but all ten kicked off at 16:45-19:00Z, before this run. The backend therefore marks the new prediction published_after_kickoff and the unpublish dialog adds its kicked-off notice. See RELEASE-READINESS-RUNS.md.
+isolation preflight: PASS (policy sha256 e2abbcc34d12)
+  mocked-desktop, mocked-mobile, mocked-mobile-360: frontend http://localhost:3101; every /api/v1 call is answered by the stubs
+  live-isolated: frontend http://localhost:3101 calls http://localhost:8001 (observed); backend http://127.0.0.1:8001: database soccer_predictions_e2e, Redis databases 10-15 on this machine's :6379, scheduler off
+  (only this was sent: GET http://127.0.0.1:8001/health; browser: loaded http://localhost:3101/ with every API request aborted in the browser (its first API call was to http://localhost:8001))
+
+Running 66 tests using 1 worker
+
+  ✓   1 [live-isolated] › e2e/live-isolated/account-profile.spec.ts:180:1 › the profile form edits, cancels, saves once and keeps what it saved, on the real backend (8.2s)
+[account-profile] observed: other browser, signed in before the change, reloads /profile: GET /users/me -> 200, still signed in
+[account-profile] observed: other browser's pre-change refresh token: POST /auth/refresh -> 200
+[account-profile] observed: this browser's pre-change refresh token after its sign-out: POST /auth/refresh -> 401
+[account-profile] observed: this browser's pre-change access token (no longer stored by the browser): GET /users/me -> 200
+  ✓   2 [live-isolated] › e2e/live-isolated/account-profile.spec.ts:259:1 › a password change signs this browser out, the new password works and the old one does not; a browser already signed in elsewhere stays signed in (11.1s)
+  ✓   3 [live-isolated] › e2e/live-isolated/expert-composer-french.spec.ts:113:1 › the French picker states a real fixture's forecast as the backend's list payload does (2.1s)
+  ✓   4 [live-isolated] › e2e/live-isolated/expert-composer-french.spec.ts:145:1 › a French decimal comma is stored as the same probability, and an edit reopens it with a comma (5.0s)
+  ✓   5 [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:77:1 › an expert reaches the form without ever seeing a match id (1.7s)
+  ✓   6 [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:91:1 › the form suggests no probability of its own (2.2s)
+  ✓   7 [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:109:1 › a percentage typed as 55 is stored as 0.55 and published immediately (2.7s)
+  ✘   8 [live-isolated] › e2e/live-isolated/expert-delete-idempotent.spec.ts:103:1 › a DELETE sent twice answers 200 both times with one deletion time, and the row leaves the public match (83ms)
+  ✓   9 [live-isolated] › e2e/live-isolated/expert-delete-idempotent.spec.ts:127:1 › two DELETEs sent at once: both 200, exactly one deletes, both report the same time (176ms)
+  ✓  10 [live-isolated] › e2e/live-isolated/expert-drafts.spec.ts:141:1 › A's draft survives B, through real match selection and reloads, and nothing is published (9.0s)
+[expert-journey] before: removed 0 QA prediction(s) left by earlier runs
+[expert-journey] 1: a wrong password was refused (401) and the right one signed in (200), landing on /expert/dashboard
+[expert-journey] 2: first name "QA" -> "QA-Journey" with one PUT; header updated; username qa_expert_local
+[expert-journey] 3: chose "Write a prediction: VfB Stuttgart versus Borussia Moenchengladbach, Bundesliga, kick-off 14:30"
+[expert-journey] 14a: 60/30/30 and a conviction of "seventy" were refused on the form; no create request was sent
+[expert-journey] 4: the typed draft (1X2, conviction, BTTS, over/under 2.5, reasoning) came back whole after a reload
+[expert-journey] observed: the preview does not show the BTTS conviction typed in the composer (65%)
+[expert-journey] observed: the preview does not show the goal-line conviction typed in the composer (60%)
+[expert-journey] 5: the preview shows the fixture, 1X2, the conviction, BTTS, over/under 2.5, 3.5 as not published, and the reasoning
+[expert-journey] 6: published b12b821a-393d-4048-a7eb-25e5df3964d8; classified as test data: true
+[expert-journey] 7: the anonymous reader sees the prediction, byline "By qa_expert_local · published 21 Oct 2026, 18:11"
+[expert-journey] 8: after a reload the anonymous reader still sees it, same byline
+[expert-journey] 9: BTTS 58/42 -> 45/55 and the reasoning rewritten through My Predictions, one PUT, still published
+[expert-journey] 10: version 1 shows 10 figures, 3.5 as left out, the first reasoning; changes: Both teams to score – No: 42% → 55% | Both teams to score – Yes: 58% → 45% | Reasoning rewritten
+[expert-journey] 11: unpublished after a confirmation; the anonymous reader no longer sees it, nor its earlier version
+[expert-journey] 12: published again; byline unchanged ("By qa_expert_local · published 21 Oct 2026, 18:11"), published_at unchanged (2026-10-21T22:11:05.071990Z)
+[expert-journey] 13: deleted through the UI (deleted_at 2026-10-21T22:11:13.687208Z); a repeated DELETE said already_deleted with the same deleted_at
+[expert-journey] 14b: the "Rejected" filter shows "No predictions found"
+[expert-journey] 15: first name restored to "QA" through the form, one PUT
+[expert-journey] writes: POST /api/v1/auth/login, POST /api/v1/auth/login, PUT /api/v1/users/me, POST /api/v1/expert/predictions/manual, PUT /api/v1/expert/predictions/{id}, POST /api/v1/expert/predictions/{id}/toggle-publish, POST /api/v1/expert/predictions/{id}/toggle-publish, DELETE /api/v1/expert/predictions/{id}, PUT /api/v1/users/me
+[expert-journey] after: cleanup removed 0 QA prediction(s)
+  ✓  11 [live-isolated] › e2e/live-isolated/expert-journey.spec.ts:263:1 › the owner journey: sign in, profile, compose, publish, read anonymously, edit, unpublish, publish, delete (24.3s)
+  ✓  12 [live-isolated] › e2e/live-isolated/expert-management.spec.ts:153:1 › twenty-one real predictions: paged by the backend total, and deleting the 21st steps back (2.5s)
+  ✘  13 [live-isolated] › e2e/live-isolated/expert-management.spec.ts:192:1 › Unpublish and Publish on My Predictions change the real record, and the dashboard agrees (2.9s)
+  ✓  14 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:52:1 › a published prediction needs no approval and is public immediately (1.4s)
+  ✓  15 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:74:1 › an expert prediction is shown apart from the model forecast (1.2s)
+  ✓  16 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:87:1 › editing a published prediction updates the public view (1.1s)
+  ✓  17 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:111:1 › deleting a prediction removes it from the public view immediately (1.1s)
+  ✓  18 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:128:1 › a record the suite creates is classified as test data, by a flag and not by its text (114ms)
+  ✓  19 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:147:1 › the QA label in the reasoning is a label, not a mechanism (117ms)
+[qa-account] removing a record that carries the legacy reasoning label but no is_test_data classification. Either the backend is running without ALLOW_TEST_DATA_CLASSIFICATION, or the record was created through the composer UI, which does not yet ask for the classification.
+  ✓  20 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:155:1 › an expert signs in through the UI and reaches the match picker (2.2s)
+[journey-proof] all providers BEFORE: {}
+  ✓  21 [live-isolated] › e2e/live-isolated/journey-proof.spec.ts:444:3 › LIVE: the personal journey, end to end, at 360px (9.6s)
+  ✓  22 [live-isolated] › e2e/live-isolated/journey-proof.spec.ts:444:3 › LIVE: the personal journey, end to end, at 390px (5.5s)
+  ✓  23 [live-isolated] › e2e/live-isolated/journey-proof.spec.ts:444:3 › LIVE: the personal journey, end to end, at 1440px (5.6s)
+  ✓  24 [live-isolated] › e2e/live-isolated/journey-proof.spec.ts:626:3 › LIVE: Back restores the previous list, its filters and its position at 360px (9.9s)
+  ✓  25 [live-isolated] › e2e/live-isolated/journey-proof.spec.ts:626:3 › LIVE: Back restores the previous list, its filters and its position at 390px (5.2s)
+  ✓  26 [live-isolated] › e2e/live-isolated/journey-proof.spec.ts:626:3 › LIVE: Back restores the previous list, its filters and its position at 1440px (5.1s)
+  ✓  27 [live-isolated] › e2e/live-isolated/journey-proof.spec.ts:720:1 › LIVE: a save resumed after sign-in on an already-saved match leaves one saved match, not two (2.9s)
+  ✓  28 [live-isolated] › e2e/live-isolated/journey-proof.spec.ts:767:1 › LIVE (one route failed in the browser): a feed short because a follow failed says so, and offers a retry (1.5s)
+  ✓  29 [live-isolated] › e2e/live-isolated/journey-proof.spec.ts:811:3 › LIVE: a save made from the keyboard leaves focus on the control that made it, at 360px (1.6s)
+  ✓  30 [live-isolated] › e2e/live-isolated/journey-proof.spec.ts:811:3 › LIVE: a save made from the keyboard leaves focus on the control that made it, at 390px (1.6s)
+[journey-proof] all providers AFTER:  {}
+  ✓  31 [live-isolated] › e2e/live-isolated/journey-proof.spec.ts:811:3 › LIVE: a save made from the keyboard leaves focus on the control that made it, at 1440px (1.6s)
+  -  32 [live-isolated] › e2e/live-isolated/parlay-journey.spec.ts:58:1 › a real fixture → a selection → a saved, recorded combination, with no provider request
+  -  33 [live-isolated] › e2e/live-isolated/parlay-journey.spec.ts:124:1 › suggestions come from stored forecasts and add to the slip without a provider request
+  ✓  34 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:193:5 › personal controls at 1440px › a reader can turn the forecasts off, keep the football, and find it still off after a reload (3.1s)
+  ✓  35 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:247:5 › personal controls at 1440px › pausing stops everything optional, says exactly what it is not, and gives the settings back (2.0s)
+  ✓  36 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:298:5 › personal controls at 1440px › a reader can download their own data, and what comes out is their own data (1.9s)
+  ✓  37 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:341:5 › personal controls at 1440px › the calendar download is a snapshot, says so beside the button, and implies no feed (1.8s)
+  ✓  38 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:398:5 › personal controls at 1440px › deletion asks once, is honest about what remains, and the server really has nothing left (2.1s)
+  ✓  39 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:461:5 › personal controls at 1440px › nothing on the panel nudges, and none of this spends a provider request (2.0s)
+  ✓  40 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:193:5 › personal controls at 390px › a reader can turn the forecasts off, keep the football, and find it still off after a reload (2.9s)
+  ✓  41 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:247:5 › personal controls at 390px › pausing stops everything optional, says exactly what it is not, and gives the settings back (1.9s)
+  ✓  42 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:298:5 › personal controls at 390px › a reader can download their own data, and what comes out is their own data (1.9s)
+  ✓  43 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:341:5 › personal controls at 390px › the calendar download is a snapshot, says so beside the button, and implies no feed (1.8s)
+  ✓  44 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:398:5 › personal controls at 390px › deletion asks once, is honest about what remains, and the server really has nothing left (2.0s)
+  ✓  45 [live-isolated] › e2e/live-isolated/personal-controls.spec.ts:461:5 › personal controls at 390px › nothing on the panel nudges, and none of this spends a provider request (2.0s)
+  ✓  46 [live-isolated] › e2e/live-isolated/return-journey.spec.ts:175:1 › a saved match that has been played shows its result in the feed (2.3s)
+  ✓  47 [live-isolated] › e2e/live-isolated/return-journey.spec.ts:203:1 › the results group is reachable from the top of the feed without scrolling for it (2.2s)
+  ✓  48 [live-isolated] › e2e/live-isolated/return-journey.spec.ts:223:1 › a followed team's upcoming fixtures appear in the feed, labelled with the follow (2.6s)
+  ✓  49 [live-isolated] › e2e/live-isolated/return-journey.spec.ts:249:1 › unfollowing a team on the dashboard takes its fixtures out of the feed at once (2.0s)
+  ✓  50 [live-isolated] › e2e/live-isolated/return-journey.spec.ts:275:1 › an account with nothing saved and nothing followed gets an honest empty feed (1.6s)
+  ✓  51 [live-isolated] › e2e/live-isolated/return-journey.spec.ts:299:1 › coming back to the tab picks up a change made elsewhere, and spends no provider request (8.2s)
+  ✓  52 [live-isolated] › e2e/live-isolated/return-journey.spec.ts:359:3 › on a 390px phone › the feed fits the screen and scrolls only downwards (2.0s)
+  ✘  53 [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author (676ms)
+  ✓  54 [live-isolated] › e2e/live-isolated/save-journey.spec.ts:195:1 › the star in the fixture list finishes the save across sign-in, and keeps the list it was pressed on (8.3s)
+  ✓  55 [live-isolated] › e2e/live-isolated/save-journey.spec.ts:249:1 › the save a visitor started finishes itself after sign-in, and the match is on the dashboard (2.8s)
+  ✓  56 [live-isolated] › e2e/live-isolated/save-journey.spec.ts:278:1 › the match-page control saves and unsaves, and says which it is (1.8s)
+  ✓  57 [live-isolated] › e2e/live-isolated/save-journey.spec.ts:328:1 › a save made from the keyboard never moves focus off the control that made it (1.6s)
+  ✓  58 [live-isolated] › e2e/live-isolated/save-journey.spec.ts:409:1 › the way back to results still carries the competition after a sign-in round trip (2.4s)
+  ✓  59 [live-isolated] › e2e/live-isolated/save-journey.spec.ts:448:1 › a "back to results" the fixture URL asks for must be a results list on this application (6.8s)
+  ✓  60 [live-isolated] › e2e/live-isolated/save-journey.spec.ts:484:1 › a return destination that leaves this application is refused (3.7s)
+  ✓  61 [live-isolated] › e2e/live-isolated/save-journey.spec.ts:533:1 › a save intent left over from hours ago is not acted on (1.5s)
+  ✓  62 [live-isolated] › e2e/live-isolated/save-journey.spec.ts:564:1 › the return-to-results action goes back to the filtered list the reader came from (1.6s)
+  ✓  63 [live-isolated] › e2e/live-isolated/save-journey.spec.ts:579:1 › a saved fixture that has been played shows its result (3.5s)
+  ✓  64 [live-isolated] › e2e/live-isolated/suggestion-journey.spec.ts:108:1 › the identity check rejects a wrong selection, a wrong snapshot and a wrong fixture (4ms)
+  -  65 [live-isolated] › e2e/live-isolated/suggestion-journey.spec.ts:125:1 › a suggested combination becomes a recorded slip through the page, selection for selection
+  ✓  66 [live-isolated] › e2e/live-isolated/suggestion-journey.spec.ts:196:1 › a settled slip shows its results, and viewing it again changes nothing (1.9s)
+
+
+  1) [live-isolated] › e2e/live-isolated/expert-delete-idempotent.spec.ts:103:1 › a DELETE sent twice answers 200 both times with one deletion time, and the row leaves the public match 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      107 |   expect(row, 'the new prediction is public before it is deleted').toBeTruthy();
+      108 |   // Published now, on an upcoming fixture, never withdrawn: it stands, and the payload says so.
+    > 109 |   expect(row.published_after_kickoff).toBe(false);
+          |                                       ^
+      110 |   expect(row.withdrawn_before_kickoff).toBe(false);
+      111 |
+      112 |   const first = await body(await remove(created.id), 'first DELETE');
+        at <worktree>/frontend/e2e/live-isolated/expert-delete-idempotent.spec.ts:109:39
+
+    Error Context: e2e/.artifacts/expert-delete-idempotent-a-4799d-row-leaves-the-public-match-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/expert-delete-idempotent-a-4799d-row-leaves-the-public-match-live-isolated/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/expert-delete-idempotent-a-4799d-row-leaves-the-public-match-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/expert-delete-idempotent-a-4799d-row-leaves-the-public-match-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [live-isolated] › e2e/live-isolated/expert-management.spec.ts:192:1 › Unpublish and Publish on My Predictions change the real record, and the dashboard agrees 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+      Array [
+    -   "Unpublish this prediction? Readers will no longer see it on the match page. You can publish it again later.",
+    +   "Unpublish this prediction? Readers will no longer see it on the match page. You can publish it again later.
+    +
+    + This match has kicked off. Unpublishing now hides this prediction from readers but does not change your measured record, which is decided by what stood at kick-off.",
+      ]
+
+      202 |   await card.getByRole('button', { name: 'Unpublish', exact: true }).click();
+      203 |   await expect.poll(() => writes).toEqual([`POST /api/v1/expert/predictions/${created.id}/toggle-publish`]);
+    > 204 |   expect(dialogs).toEqual([expertEn['expert.publication.confirmUnpublish']]);
+          |                   ^
+      205 |   await expect(card.getByRole('button', { name: 'Publish', exact: true })).toBeVisible();
+      206 |   expect(await totalOnServer('archived')).toBe(1);
+      207 |   // Off the public match page.
+        at <worktree>/frontend/e2e/live-isolated/expert-management.spec.ts:204:19
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/expert-management-Unpublis-d3267-rd-and-the-dashboard-agrees-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/expert-management-Unpublis-d3267-rd-and-the-dashboard-agrees-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/expert-management-Unpublis-d3267-rd-and-the-dashboard-agrees-live-isolated/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/expert-management-Unpublis-d3267-rd-and-the-dashboard-agrees-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/expert-management-Unpublis-d3267-rd-and-the-dashboard-agrees-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author 
+
+    Error: published before kickoff
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      140 |   // Ours was published before kickoff; the page carries a late chip for exactly the rows the
+      141 |   // backend flags, which on an upcoming fixture should be none.
+    > 142 |   expect(ours?.published_after_kickoff, 'published before kickoff').toBe(false);
+          |                                                                     ^
+      143 |   const late = (detail.expert_predictions as Array<Record<string, unknown>>)
+      144 |     .filter(row => row.published_after_kickoff === true).length;
+      145 |   await expect(page.getByTestId('expert-late-publication')).toHaveCount(late);
+        at <worktree>/frontend/e2e/live-isolated/revision-history.spec.ts:142:69
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/revision-history-the-real--ccdd2-what-changed-and-the-author-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/revision-history-the-real--ccdd2-what-changed-and-the-author-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/revision-history-the-real--ccdd2-what-changed-and-the-author-live-isolated/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/revision-history-the-real--ccdd2-what-changed-and-the-author-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/revision-history-the-real--ccdd2-what-changed-and-the-author-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [live-isolated] › e2e/live-isolated/expert-delete-idempotent.spec.ts:103:1 › a DELETE sent twice answers 200 both times with one deletion time, and the row leaves the public match 
+    [live-isolated] › e2e/live-isolated/expert-management.spec.ts:192:1 › Unpublish and Publish on My Predictions change the real record, and the dashboard agrees 
+    [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author 
+  3 skipped
+  60 passed (3.7m)
+# exit=1 (the runner's own $?)
+# (scrubbed: worktree path -> <worktree> x3, scratchpad -> <scratchpad> x0, system temp dir -> <tmp> x0, home prefix -> ~ x0, test database password -> *** x0; terminal colour codes stripped; nothing else edited)

@@ -1,0 +1,88 @@
+# RELEASE READINESS, PREFLIGHT
+# code under test: HEAD 2a82f16e of expert-fixes (the last commit that changes anything outside docs/ is b6c35b28); working tree checked below
+# what was checked: git status; no other test runner; live :8000 by one GET /health only (read-only identity, no other request); the isolated backend's GET /health source identity against the checkout's own app tree digest
+# run at 2026-10-21T22:09:47Z; the local times in the status lines are the machine's (UTC-4)
+== git: branch expert-fixes, HEAD 2a82f16ec74a4c439d208d4608a9e24f7a465001
+git status --porcelain --untracked-files=all: [0 line(s)]
+== other test runners (pytest, playwright test, node --test, test_evidence)
+  none
+== listeners (scripts/local-servers.sh status, which only lists local sockets)
+backend            :8000  pid 27221  started Mon Oct 19 21:01:46 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/backend
+frontend           :3100  pid 91426  started Wed Oct  7 23:26:34 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/frontend
+backend-isolated   :8001  pid 2407   started Wed Oct 21 12:10:26 2026      cwd <worktree>/backend
+frontend-isolated  :3101  pid 1982   started Tue Oct 20 19:25:26 2026      cwd <worktree>/frontend
+== the checkout's app tree digest (docs/evidence/expert-fixes-2026-10-20/followup-tools/tree_digest.py)
+02195dc15f1d73967cbe01b0b004bb258be82528f7268425109ae4152a94bb8b 93
+== live, read-only: one GET http://127.0.0.1:8000/health
+live :8000 GET /health: status healthy | started_at 2026-10-20T01:01:47Z | source.commit 96c22edd6848cdeac115c4e213de8ac0edcc9c79 | dirty app files [] | app_tree_sha256 f70e8f853979b4f52eb2d83e39650715ea48f1b6efda019103eeeb80ed716c41 | app_files 91 | pid 27221
+== isolated backend before: GET http://127.0.0.1:8001/health (selected fields)
+{"status": "healthy", "started_at": "2026-10-21T16:10:26Z", "database": "soccer_predictions_e2e", "redis_databases": [10, 11, 12, 13, 14, 15], "redis_server": {"port": 6379, "loopback": true}, "scheduler_enabled": false}
+source.commit 1a6109fe37167275eb0a6d980b3ebc5162707fb4 | dirty app files [] | app_tree_sha256 02195dc15f1d73967cbe01b0b004bb258be82528f7268425109ae4152a94bb8b | app_files 93 | source.started_at 2026-10-21T16:10:26Z
+pid 2407 cwd <worktree>/backend
+command: ~/Documents/DevProjects/PredictionsAppsUI/backend/venv311/bin/python3.11 ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001
+-- its environment's isolation keys (provider keys as empty / NON-EMPTY only):
+BACKEND_CORS_ORIGINS=["http://localhost:3101","http://127.0.0.1:3101"]
+EMAIL_ENABLED=false
+POSTGRES_DB=soccer_predictions_e2e
+REDIS_DB=10
+REDIS_DB_EXPERT_TOOLS=12
+REDIS_DB_MATCH_DATA=14
+REDIS_DB_ML_MODELS=13
+REDIS_DB_PREDICTIONS=11
+REDIS_DB_RATE_LIMIT=15
+REDIS_DB_SESSIONS=10
+REDIS_HOST=localhost
+REDIS_PORT=6379
+SYNC_SCHEDULER_ENABLED=false
+LIVESCORE_API_KEY empty
+LIVESCORE_API_SECRET empty
+GAMEFORECAST_API_KEY empty
+API_FOOTBALL_KEY empty
+THESPORTSDB_KEY empty
+== isolated frontend :3101
+pid 1982 cwd <worktree>/frontend
+command: node <worktree>/frontend/node_modules/.bin/vite --port 3101 --strictPort --mode dev8001
+   GET http://localhost:3101/src/utils/publication.ts -> 200; branch-only names in it: 2 line(s); the file at 96c22edd: does not exist
+   frontend/src identical to HEAD's on disk: yes; last commit touching frontend/src: 8c779e7b
+== restart: the running commit 1a6109fe is not HEAD 2a82f16e (the app tree is the same; the commits between change docs/ only: 0 non-doc file(s)). The task asks for a restart when the commit or the tree differs: stop and start backend-isolated only
+$ scripts/local-servers.sh stop backend-isolated
+backend-isolated: stopped (was pid 2407)
+stop exit=0
+$ scripts/local-servers.sh start backend-isolated   (runs python -m app.core.target_guard --role isolated-backend over ISOLATED_ENV first)
+target guard: isolated-backend approved - settings database localhost:5432/soccer_predictions_e2e; redis default (REDIS_DB) localhost:6379/10; redis REDIS_DB_SESSIONS localhost:6379/10; redis REDIS_DB_PREDICTIONS localhost:6379/11; redis REDIS_DB_EXPERT_TOOLS localhost:6379/12; redis REDIS_DB_ML_MODELS localhost:6379/13; redis REDIS_DB_MATCH_DATA localhost:6379/14; redis REDIS_DB_RATE_LIMIT localhost:6379/15 (policy sha256 e2abbcc34d12)
+backend-isolated: started on :8001 (pid 41147, log <worktree>/.local-run/backend-isolated.log)
+frontend-isolated: already listening on :3101 (pid 1982)
+start exit=0
+== after the restart, at 2026-10-21T22:09:50Z
+backend            :8000  pid 27221  started Mon Oct 19 21:01:46 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/backend
+frontend           :3100  pid 91426  started Wed Oct  7 23:26:34 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/frontend
+backend-isolated   :8001  pid 41147  started Wed Oct 21 18:09:49 2026      cwd <worktree>/backend
+frontend-isolated  :3101  pid 1982   started Tue Oct 20 19:25:26 2026      cwd <worktree>/frontend
+-- GET http://127.0.0.1:8001/health (selected fields)
+{"status": "healthy", "started_at": "2026-10-21T22:09:49Z", "database": "soccer_predictions_e2e", "redis_databases": [10, 11, 12, 13, 14, 15], "redis_server": {"port": 6379, "loopback": true}, "scheduler_enabled": false}
+source.commit 2a82f16ec74a4c439d208d4608a9e24f7a465001 | dirty app files [] | app_tree_sha256 02195dc15f1d73967cbe01b0b004bb258be82528f7268425109ae4152a94bb8b | app_files 93 | source.started_at 2026-10-21T22:09:49Z
+pid 41147 cwd <worktree>/backend
+command: ~/Documents/DevProjects/PredictionsAppsUI/backend/venv311/bin/python3.11 ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001
+-- its environment's isolation keys (provider keys as empty / NON-EMPTY only):
+BACKEND_CORS_ORIGINS=["http://localhost:3101","http://127.0.0.1:3101"]
+EMAIL_ENABLED=false
+POSTGRES_DB=soccer_predictions_e2e
+REDIS_DB=10
+REDIS_DB_EXPERT_TOOLS=12
+REDIS_DB_MATCH_DATA=14
+REDIS_DB_ML_MODELS=13
+REDIS_DB_PREDICTIONS=11
+REDIS_DB_RATE_LIMIT=15
+REDIS_DB_SESSIONS=10
+REDIS_HOST=localhost
+REDIS_PORT=6379
+SYNC_SCHEDULER_ENABLED=false
+LIVESCORE_API_KEY empty
+LIVESCORE_API_SECRET empty
+GAMEFORECAST_API_KEY empty
+API_FOOTBALL_KEY empty
+THESPORTSDB_KEY empty
+== live, read-only: one GET http://127.0.0.1:8000/health (unchanged by the above?)
+live :8000 GET /health: status healthy | started_at 2026-10-20T01:01:47Z | source.commit 96c22edd6848cdeac115c4e213de8ac0edcc9c79 | dirty app files [] | app_tree_sha256 f70e8f853979b4f52eb2d83e39650715ea48f1b6efda019103eeeb80ed716c41 | app_files 91 | pid 27221
+# exit=0 (the preflight script's own)
+# (scrubbed: worktree path -> <worktree>, home prefix -> ~; nothing else edited; no secret value was read or printed: provider keys are reported only as empty / NON-EMPTY)

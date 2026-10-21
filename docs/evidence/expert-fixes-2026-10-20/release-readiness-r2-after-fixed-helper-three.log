@@ -1,0 +1,18 @@
+# RELEASE READINESS R2-after: the same 3 tests, same data, 14 s later, on the FIXED helper (anyUpcomingMatch requires status 'scheduled' AND kick-off more than 30 min ahead)
+# code under test: expert-fixes HEAD 2a82f16e plus the one-file test fix in frontend/e2e/support/qa-account.ts (committed afterwards; no app file changed); isolated backend http://127.0.0.1:8001: pid 41147, cwd <worktree>/backend, /health database soccer_predictions_e2e, Redis databases 10-15, scheduler_enabled false, source.commit 2a82f16e, commit_dirty_app_files [], app_tree_sha256 02195dc15f1d73967cbe01b0b004bb258be82528f7268425109ae4152a94bb8b, started 2026-10-21T22:09:49Z (read just before R2); isolated frontend http://localhost:3101: Vite pid 1982, --mode dev8001
+# run at 2026-10-21T23:30:37Z (ended 23:30:48Z); the same command as R2-before
+# outcome: 3 passed, exit 0. At this time the helper skips the ten 2026-10-21 fixtures (all kicked off) and 2026-10-22 (no fixture) and takes a 2026-10-23 fixture (first kick-off 18:30Z)
+isolation preflight: PASS (policy sha256 e2abbcc34d12)
+  mocked-desktop, mocked-mobile, mocked-mobile-360: frontend http://localhost:3101; every /api/v1 call is answered by the stubs
+  live-isolated: frontend http://localhost:3101 calls http://localhost:8001 (observed); backend http://127.0.0.1:8001: database soccer_predictions_e2e, Redis databases 10-15 on this machine's :6379, scheduler off
+  (only this was sent: GET http://127.0.0.1:8001/health; browser: loaded http://localhost:3101/ with every API request aborted in the browser (its first API call was to http://localhost:8001))
+
+Running 3 tests using 1 worker
+
+  ✓  1 [live-isolated] › e2e/live-isolated/expert-delete-idempotent.spec.ts:103:1 › a DELETE sent twice answers 200 both times with one deletion time, and the row leaves the public match (180ms)
+  ✓  2 [live-isolated] › e2e/live-isolated/expert-management.spec.ts:192:1 › Unpublish and Publish on My Predictions change the real record, and the dashboard agrees (6.9s)
+  ✓  3 [live-isolated] › e2e/live-isolated/revision-history.spec.ts:71:1 › the real match page shows every market of the earlier version, what changed, and the author (653ms)
+
+  3 passed (10.1s)
+# exit=0 (the runner's own $?)
+# (scrubbed: worktree path x0, scratchpad x0, home prefix x0, database password x0; terminal colour codes stripped; nothing else edited)

@@ -1,0 +1,1303 @@
+# RELEASE READINESS: 'playwright test --list' of the three mocked projects at HEAD 2a82f16e (run at 2026-10-21T22:18:25Z; lists, runs nothing)
+# cd <worktree>/frontend && env -u E2E_STACK E2E_BASE_URL=http://localhost:3101 ./node_modules/.bin/playwright test --list --project=mocked-desktop --project=mocked-mobile --project=mocked-mobile-360
+Listing tests:
+  [mocked-desktop] › mocked/account-forms.spec.ts:274:3 › Edit by mouse opens the form and saves nothing
+  [mocked-desktop] › mocked/account-forms.spec.ts:274:3 › Edit by Enter opens the form and saves nothing
+  [mocked-desktop] › mocked/account-forms.spec.ts:274:3 › Edit by Space opens the form and saves nothing
+  [mocked-desktop] › mocked/account-forms.spec.ts:297:1 › Cancel sends nothing and puts every original value back
+  [mocked-desktop] › mocked/account-forms.spec.ts:324:1 › Save sends exactly one normalised PUT, the header follows without a reload, and it survives one
+  [mocked-desktop] › mocked/account-forms.spec.ts:365:1 › pressing Enter in a field saves once
+  [mocked-desktop] › mocked/account-forms.spec.ts:381:1 › a double activation of Save while it is in flight sends one PUT
+  [mocked-desktop] › mocked/account-forms.spec.ts:397:1 › clearing an optional name and the avatar sends null for each, and succeeds
+  [mocked-desktop] › mocked/account-forms.spec.ts:424:1 › an account whose names were never supplied can change its username
+  [mocked-desktop] › mocked/account-forms.spec.ts:463:3 › a stored username outside today's limits (two characters) does not block a name change, and is not rewritten
+  [mocked-desktop] › mocked/account-forms.spec.ts:463:3 › a stored username outside today's limits (stored with a trailing space) does not block a name change, and is not rewritten
+  [mocked-desktop] › mocked/account-forms.spec.ts:463:3 › a stored username outside today's limits (sixty-three characters) does not block a name change, and is not rewritten
+  [mocked-desktop] › mocked/account-forms.spec.ts:485:1 › a username that IS edited is still sent, trimmed
+  [mocked-desktop] › mocked/account-forms.spec.ts:498:1 › a failed save keeps the edits and says so, sends one request, and a retry sends exactly one more
+  [mocked-desktop] › mocked/account-forms.spec.ts:536:1 › after a failed save, Cancel puts the stored values back and sends nothing more
+  [mocked-desktop] › mocked/account-forms.spec.ts:560:1 › every profile field has an accessible name, and says what it holds
+  [mocked-desktop] › mocked/account-forms.spec.ts:593:1 › every password field has an accessible name and the autocomplete a password manager needs
+  [mocked-desktop] › mocked/account-forms.spec.ts:610:1 › a wrong current password is refused with the server's reason, and the reader stays signed in
+  [mocked-desktop] › mocked/account-forms.spec.ts:632:1 › a confirmation that does not match sends nothing
+  [mocked-desktop] › mocked/account-forms.spec.ts:655:1 › the password copy promises a sign-out of this browser, never of this device
+  [mocked-desktop] › mocked/account-forms.spec.ts:674:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in en
+  [mocked-desktop] › mocked/account-forms.spec.ts:674:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in fr
+  [mocked-desktop] › mocked/clutter.spec.ts:86:1 › the forecast table is far closer to the top of a phone than it was
+  [mocked-desktop] › mocked/clutter.spec.ts:105:1 › the home page is materially shorter on a phone, with nothing dropped
+  [mocked-desktop] › mocked/clutter.spec.ts:132:1 › the headings on the home page are written for a reader who wants football
+  [mocked-desktop] › mocked/clutter.spec.ts:158:1 › the quota explanation appears exactly once on a match detail page
+  [mocked-desktop] › mocked/clutter.spec.ts:197:1 › a paused refresh alone raises no site-wide banner, and a broken provider still does
+  [mocked-desktop] › mocked/clutter.spec.ts:211:1 › fixture freshness and forecast freshness are separately identifiable
+  [mocked-desktop] › mocked/clutter.spec.ts:238:1 › the technical detail is one tap away, not deleted
+  [mocked-desktop] › mocked/clutter.spec.ts:257:1 › the site-wide banner keeps its extra reports behind a disclosure
+  [mocked-desktop] › mocked/clutter.spec.ts:277:1 › no odds panel exists while no odds feed does
+  [mocked-desktop] › mocked/clutter.spec.ts:290:1 › the missing-expert explanation appears once
+  [mocked-desktop] › mocked/clutter.spec.ts:339:3 › neither page scrolls sideways at 360px, banner and all
+  [mocked-desktop] › mocked/clutter.spec.ts:339:3 › neither page scrolls sideways at 390px, banner and all
+  [mocked-desktop] › mocked/clutter.spec.ts:339:3 › neither page scrolls sideways at 1440px, banner and all
+  [mocked-desktop] › mocked/conviction-clearing.spec.ts:217:3 › clearing a value in the composer reaches the API as a withdrawal › a cleared conviction is sent as an explicit null
+  [mocked-desktop] › mocked/conviction-clearing.spec.ts:232:3 › clearing a value in the composer reaches the API as a withdrawal › a conviction that was not touched is sent unchanged, not withdrawn
+  [mocked-desktop] › mocked/conviction-clearing.spec.ts:246:3 › clearing a value in the composer reaches the API as a withdrawal › a conviction of zero is sent as zero and not as a withdrawal
+  [mocked-desktop] › mocked/conviction-clearing.spec.ts:259:3 › clearing a value in the composer reaches the API as a withdrawal › a cleared reasoning note is sent as an explicit null
+  [mocked-desktop] › mocked/conviction-clearing.spec.ts:271:3 › clearing a value in the composer reaches the API as a withdrawal › switching a market off sends both sides of the pair as null, never one
+  [mocked-desktop] › mocked/conviction-clearing.spec.ts:293:3 › clearing a value in the composer reaches the API as a withdrawal › a market switched on is sent whole, with both sides as numbers
+  [mocked-desktop] › mocked/conviction-clearing.spec.ts:311:3 › clearing a value in the composer reaches the API as a withdrawal › a conviction can be withdrawn while its market stays published
+  [mocked-desktop] › mocked/conviction-clearing.spec.ts:339:3 › clearing a value in the composer reaches the API as a withdrawal › an unbalanced pair is never sent at all
+  [mocked-desktop] › mocked/conviction-clearing.spec.ts:372:3 › a total the API cannot store is refused in the form › three outcomes that add to 99 are held back, and the form says to add 1
+  [mocked-desktop] › mocked/conviction-clearing.spec.ts:395:3 › a total the API cannot store is refused in the form › a pair that only rounds past the window at the fourth decimal is held back
+  [mocked-desktop] › mocked/dashboard-truthfulness.spec.ts:39:1 › the dashboard is not reachable without signing in
+  [mocked-desktop] › mocked/dashboard-truthfulness.spec.ts:50:1 › the dashboard shows no fabricated performance figures
+  [mocked-desktop] › mocked/dashboard-truthfulness.spec.ts:66:1 › the dashboard says plainly that no record has been scored
+  [mocked-desktop] › mocked/dashboard-truthfulness.spec.ts:81:1 › the coverage counts are labelled site-wide, not as the reader's own record
+  [mocked-desktop] › mocked/dashboard-truthfulness.spec.ts:101:1 › a dashboard whose coverage endpoint fails says so instead of showing a number
+  [mocked-desktop] › mocked/detail-refresh.spec.ts:111:3 › a match page that was left open › coming back to the tab shows the new score, the new state and the new age
+  [mocked-desktop] › mocked/detail-refresh.spec.ts:156:3 › a match page that was left open › a page that has just loaded and taken focus does not read again
+  [mocked-desktop] › mocked/detail-refresh.spec.ts:185:3 › a match page that was left open › a re-read that fails keeps the content and withdraws the age
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:327:1 › the English figures the composer prints are exactly what they were, and the French ones are French
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:368:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:414:1 › the French composer, from picker to published, carries no English the catalogue cannot account for
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:474:1 › a French decimal comma is sent as the same probability, and read back with a comma
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:513:1 › the French composer refuses bad input in French, and sends nothing
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:586:1 › switching to French with errors on screen re-renders them in French, untouched
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:616:1 › a French publish the server refuses says so around the server's own words
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:631:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:708:1 › the kick-off is drawn whole in the composer header and in the preview, at this width
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:739:1 › a picker that cannot reach the server says so in French, with no HTTP-client English
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:750:1 › a fixture that cannot be loaded says so in French, with the French reason
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:760:1 › a publish refused with no words from the server says so in French
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:780:1 › changing the zone re-times the composer picker and asks the backend for the new day window
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:824:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:824:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:884:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:904:3 › an edit reopens in the reader's decimals and is checked in fr
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:904:3 › an edit reopens in the reader's decimals and is checked in en
+  [mocked-desktop] › mocked/expert-composer-localisation.spec.ts:969:1 › the English composer reads exactly as it did
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:217:1 › A's draft survives opening B through match selection, reloads, and coming back
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:251:1 › changing fixture inside the composer carries nothing across, keeps the draft, and follows the URL
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:288:1 › opening a fixture without typing stores no draft and lists none
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:313:1 › every discard asks first, and removes only the draft it names
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:369:1 › publishing B clears B's draft and keeps A's
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:400:1 › another expert on this browser never sees the first one's draft
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:456:1 › a legacy draft is moved to its fixture once, and kept
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:482:1 › an empty legacy draft is dropped rather than offered
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:497:1 › a legacy draft with no fixture is listed as such, and moves to the fixture chosen for it
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:529:1 › a draft with no fixture never replaces a draft the chosen fixture already has
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:559:1 › the notice about one fixture's draft never shows on another fixture's composer after Back
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:598:1 › a discard confirmation returns focus where the expert was, by keyboard, in all three places
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:654:1 › a draft whose fixture kicked off is kept, and says it can no longer be published as prematch
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:677:1 › a browser that refuses to store the draft says so, and the words stay on the page
+  [mocked-desktop] › mocked/expert-drafts.spec.ts:706:1 › over fifty drafts, only the oldest whose fixture kicked off over a week ago is evicted
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:307:3 › every expert screen is in en and carries nothing from the other CATALOGUE
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:307:3 › every expert screen is in fr and carries nothing from the other CATALOGUE
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:360:3 › an unscored accuracy and an unclaimed conviction are sentences, not zeros, in en
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:398:3 › an average conviction of zero is a claim, not a blank, in en
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:427:3 › a market the expert never published reads as unset, not 0%, in en
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:459:3 › a conviction the expert never claimed reads as unset, not 0%, in en
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:504:3 › a conviction the expert deliberately set to zero still reads as 0%, in en
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:360:3 › an unscored accuracy and an unclaimed conviction are sentences, not zeros, in fr
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:398:3 › an average conviction of zero is a claim, not a blank, in fr
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:427:3 › a market the expert never published reads as unset, not 0%, in fr
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:459:3 › a conviction the expert never claimed reads as unset, not 0%, in fr
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:504:3 › a conviction the expert deliberately set to zero still reads as 0%, in fr
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:681:1 › every count on the expert screens is right at 0, 1, 2 and 11, in both languages
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:714:1 › no expert message counts something without being in the table above
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:779:3 › a kick-off and a timestamp are shown in the CHOSEN zone, not the device's, in en
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:779:3 › a kick-off and a timestamp are shown in the CHOSEN zone, not the device's, in fr
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:802:1 › the moderation list reads its timestamps in the chosen zone too
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:873:3 › a draft for another fixture is kept and listed in en, whole sentence and all
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:921:3 › a restored draft says so in en, and says it publishes nothing by itself
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:873:3 › a draft for another fixture is kept and listed in fr, whole sentence and all
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:921:3 › a restored draft says so in fr, and says it publishes nothing by itself
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:962:1 › a percentage typed as 55 in the French composer is still sent as 0.55
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:1043:1 › the English that was on the French composer is gone, and none of it has come back
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:1070:1 › no expert screen asks a provider to refresh
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:1185:1 › the French match picker carries no English the catalogue cannot account for
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:1261:1 › the French match picker says nothing in English when the day is empty or the load fails
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:1325:5 › a near-midnight kick-off reads in Africa/Douala, not the browser's zone, in fr
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:1325:5 › a near-midnight kick-off reads in Africa/Nairobi, not the browser's zone, in fr
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:1325:5 › a near-midnight kick-off reads in Africa/Douala, not the browser's zone, in en
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:1325:5 › a near-midnight kick-off reads in Africa/Nairobi, not the browser's zone, in en
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:1390:1 › changing the zone re-times and re-dates the match picker already on screen
+  [mocked-desktop] › mocked/expert-localisation.spec.ts:1431:1 › changing the zone asks the backend again, because the local day is a different window
+  [mocked-desktop] › mocked/expert-management.spec.ts:412:1 › exactly 20 predictions are one page: Next cannot be pressed and the heading says 20
+  [mocked-desktop] › mocked/expert-management.spec.ts:425:1 › a later page that has emptied since it was counted keeps Previous and says so
+  [mocked-desktop] › mocked/expert-management.spec.ts:455:1 › 21 predictions: page 2 holds the 21st, and deleting it steps back to page 1 with 20
+  [mocked-desktop] › mocked/expert-management.spec.ts:489:1 › the heading counts every prediction on every page, and Next stops at the last page
+  [mocked-desktop] › mocked/expert-management.spec.ts:510:1 › without an X-Total-Count header the page still knows whether a next page exists
+  [mocked-desktop] › mocked/expert-management.spec.ts:537:1 › changing the status filter on page 2 asks for the first page of that status
+  [mocked-desktop] › mocked/expert-management.spec.ts:555:1 › Unpublish and Publish on My Predictions: a confirmation each, one request each
+  [mocked-desktop] › mocked/expert-management.spec.ts:591:1 › the publication control is disabled while its request is in flight
+  [mocked-desktop] › mocked/expert-management.spec.ts:615:1 › after kickoff, the card and the confirmation say the measured record does not change
+  [mocked-desktop] › mocked/expert-management.spec.ts:649:1 › after kickoff, Delete asks with the note that the measured record does not change, on both pages
+  [mocked-desktop] › mocked/expert-management.spec.ts:694:1 › My Predictions and the dashboard say which predictions are not in the measured record, and no others
+  [mocked-desktop] › mocked/expert-management.spec.ts:738:1 › unpublishing the last row of a filtered later page steps back one page
+  [mocked-desktop] › mocked/expert-management.spec.ts:765:1 › the record adds up after publish, unpublish and republish, and after every reload
+  [mocked-desktop] › mocked/expert-management.spec.ts:793:1 › "Not published" counts everything that is not published, pending and rejected included
+  [mocked-desktop] › mocked/expert-management.spec.ts:804:1 › an older payload without the new counts still adds up, and claims no unpublished count
+  [mocked-desktop] › mocked/expert-management.spec.ts:815:1 › the recent list is called what it holds, and only a published row says when it was published
+  [mocked-desktop] › mocked/expert-management.spec.ts:834:1 › the dashboard asks before it unpublishes, as My Predictions does
+  [mocked-desktop] › mocked/expert-management.spec.ts:859:1 › in French the record, the recent list and the card actions fit this width
+  [mocked-desktop] › mocked/expert-management.spec.ts:903:1 › the copy this file reads is the catalogue's, in both languages
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:808:1 › MOCKED-ONLY: a favourites read held open across sign-out is discarded, not kept for the next session
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:851:1 › MOCKED-ONLY: a favourites read discarded at sign-out leaves no focus watcher behind it
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:882:1 › MOCKED-ONLY: a favourites read from the previous account does not land in the next account's session
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:912:1 › MOCKED-ONLY: a favourites read that FAILS after the account changed does not fail the new session
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:941:1 › MOCKED-ONLY: a favourites read that predates a save does not undo the save
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:976:1 › MOCKED-ONLY: a favourites read that predates a follow does not undo the follow
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1002:1 › MOCKED-ONLY: a favourites read that predates an unfollow does not reinstate it
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1046:1 › MOCKED-ONLY: a SAVE released after another account signs in does not put the first reader's row — or their private note — into the second's
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1087:1 › MOCKED-ONLY: a SAVE that FAILS after another account signs in does not roll the first reader's snapshot into the second's
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1118:1 › MOCKED-ONLY: an UNSAVE released after another account signs in does not remove the second reader's bookmark
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1151:1 › MOCKED-ONLY: an UNSAVE that FAILS after another account signs in does not restore the first reader's saves into the second's session
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1179:1 › MOCKED-ONLY: a FOLLOW released after another account signs in does not follow anything for the second reader
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1211:1 › MOCKED-ONLY: a FOLLOW that FAILS after another account signs in does not roll the first reader's snapshot into the second's
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1244:1 › MOCKED-ONLY: a rollback after a failed write keeps what a refresh legitimately brought in
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1278:1 › MOCKED-ONLY: a refresh landing between an optimistic removal and its answer does not resurrect the bookmark
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1315:1 › MOCKED-ONLY: a refresh landing in the middle of a save does not leave the save undone
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1343:1 › MOCKED-ONLY: a refresh landing in the middle of an unfollow does not leave the team in the followed list
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1400:1 › MOCKED-ONLY: a note edit that fails after the result has landed leaves the finished match finished
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1479:1 › MOCKED-ONLY: a note edit that SUCCEEDS after the result has landed leaves the finished match finished
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1558:1 › MOCKED-ONLY: a save answer carrying a FRESHER fixture than the tab holds is adopted, result and all
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1629:1 › MOCKED-ONLY: two unfollows answered in the reverse order leave both teams unfollowed
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1681:1 › MOCKED-ONLY: two note edits on one match answered in the reverse order leave the LAST edit standing
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1755:1 › MOCKED-ONLY: an unfollow answer must not delete a follow a refresh brought in from another device
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1861:1 › MOCKED-ONLY: two overlapping note edits that BOTH fail leave the note the server still holds, not the first edit
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:1936:1 › MOCKED-ONLY: when the first of two overlapping note edits SUCCEEDS, the second's failure falls back to it and not to the original
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:2005:1 › MOCKED-ONLY: the first of two overlapping note edits SUCCEEDS and is answered LAST, and its note is what the reader is left with
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:2093:1 › MOCKED-ONLY: a bookmark the server confirmed is not deleted by the failure of the write issued after it
+  [mocked-desktop] › mocked/favourites-consistency.spec.ts:2170:1 › MOCKED-ONLY: the older of two failed note edits does not undo a note a refresh brought in from the phone
+  [mocked-desktop] › mocked/forecast-display.spec.ts:15:3 › forecast probabilities › a 1% probability reads as 1%, not 100%
+  [mocked-desktop] › mocked/forecast-display.spec.ts:31:3 › forecast probabilities › probabilities are shown as whole percentages that never exceed 100
+  [mocked-desktop] › mocked/forecast-display.spec.ts:47:3 › missing markets › a forecast with no 1X2 market never shows a 0% outcome
+  [mocked-desktop] › mocked/forecast-display.spec.ts:65:3 › missing markets › a forecast with only both-teams-to-score still renders that market
+  [mocked-desktop] › mocked/forecast-display.spec.ts:81:3 › missing markets › a forecast with only an exact score does not invent the other markets
+  [mocked-desktop] › mocked/forecast-display.spec.ts:97:3 › missing markets › a match with no forecast at all says so plainly
+  [mocked-desktop] › mocked/forecast-display.spec.ts:114:3 › payload observations › numbers that do not add up are flagged, not quietly corrected
+  [mocked-desktop] › mocked/forecast-display.spec.ts:128:3 › payload observations › a harmless bookkeeping note does not raise a caution
+  [mocked-desktop] › mocked/forecast-display.spec.ts:144:3 › confidence attribution › a model forecast never claims a confidence the model did not publish
+  [mocked-desktop] › mocked/forecast-display.spec.ts:162:3 › bookmaker odds › absent odds are reported as unavailable, never invented
+  [mocked-desktop] › mocked/forecast-display.spec.ts:173:3 › page health › today renders without console errors or failed requests
+  [mocked-desktop] › mocked/forecast-display.spec.ts:183:3 › page health › a match detail page renders without console errors
+  [mocked-desktop] › mocked/freshness-truth.spec.ts:190:1 › a follow whose fixtures could not be read says so and offers a retry, while an empty one stays empty
+  [mocked-desktop] › mocked/freshness-truth.spec.ts:236:1 › retrying a failed follow recovers it, so an error is not left reading as a result
+  [mocked-desktop] › mocked/freshness-truth.spec.ts:274:1 › a task that is failing AND paused shows both, with the time it comes back
+  [mocked-desktop] › mocked/freshness-truth.spec.ts:308:1 › a forecast refresh the provider refused still says when it comes back
+  [mocked-desktop] › mocked/freshness-truth.spec.ts:342:1 › a task that ran and failed is not described as never having run
+  [mocked-desktop] › mocked/freshness-truth.spec.ts:379:1 › an attempt that is already late is reported as late, never as a moment in the past
+  [mocked-desktop] › mocked/freshness-truth.spec.ts:422:1 › with two tasks in trouble every sentence stays with the task it is about
+  [mocked-desktop] › mocked/freshness-truth.spec.ts:486:1 › a single failure is not described as a run, and its backoff is in the units the block uses
+  [mocked-desktop] › mocked/freshness-truth.spec.ts:547:1 › the Retry in the unreadable-follow empty state reports itself, like the row Retry beside it
+  [mocked-desktop] › mocked/freshness-truth.spec.ts:580:1 › the Retry on a feed shortened by an unreadable follow reports itself too
+  [mocked-desktop] › mocked/freshness.spec.ts:36:1 › a scheduler that has never run says so, and borrows no timestamp
+  [mocked-desktop] › mocked/freshness.spec.ts:59:1 › a scheduler that ran recently reports when, and stays quiet about it
+  [mocked-desktop] › mocked/freshness.spec.ts:79:1 › a paused refresh says when it resumes, not merely that it is paused
+  [mocked-desktop] › mocked/freshness.spec.ts:111:1 › a backend with no scheduler does not imply that one exists
+  [mocked-desktop] › mocked/freshness.spec.ts:123:1 › an unreachable status endpoint reads as unknown, never as current
+  [mocked-desktop] › mocked/freshness.spec.ts:140:1 › the match page carries the same freshness statement as the list
+  [mocked-desktop] › mocked/freshness.spec.ts:157:1 › with nothing scored the record says so, with the reason and the window
+  [mocked-desktop] › mocked/freshness.spec.ts:176:1 › a source with too few scored predictions gets a sentence, not a number
+  [mocked-desktop] › mocked/freshness.spec.ts:199:1 › a source with enough scored predictions shows the figure with its sample
+  [mocked-desktop] › mocked/freshness.spec.ts:224:1 › a failed performance request is not reported as "nothing measured"
+  [mocked-desktop] › mocked/freshness.spec.ts:242:1 › the freshness and record panels do not disturb what the pages already promise
+  [mocked-desktop] › mocked/journey-proof.spec.ts:475:3 › the personal journey, end to end, at 360px
+  [mocked-desktop] › mocked/journey-proof.spec.ts:475:3 › the personal journey, end to end, at 390px
+  [mocked-desktop] › mocked/journey-proof.spec.ts:475:3 › the personal journey, end to end, at 1440px
+  [mocked-desktop] › mocked/journey-proof.spec.ts:651:3 › Back restores the previous list and its scroll position at 360px
+  [mocked-desktop] › mocked/journey-proof.spec.ts:651:3 › Back restores the previous list and its scroll position at 390px
+  [mocked-desktop] › mocked/journey-proof.spec.ts:651:3 › Back restores the previous list and its scroll position at 1440px
+  [mocked-desktop] › mocked/journey-proof.spec.ts:718:1 › a save that resumes after sign-in on an already-saved match leaves one saved match, not two
+  [mocked-desktop] › mocked/journey-proof.spec.ts:754:1 › MOCKED-ONLY: pressing the save control twice before the first write lands issues one write
+  [mocked-desktop] › mocked/journey-proof.spec.ts:790:1 › MOCKED-ONLY: one unreadable follow reads as a failure with a retry, never as an empty feed
+  [mocked-desktop] › mocked/journey-proof.spec.ts:833:1 › MOCKED-ONLY: a feed that is short because a follow failed says so, and says which
+  [mocked-desktop] › mocked/journey-proof.spec.ts:856:3 › a save made from the keyboard leaves focus on the control that made it, at 360px
+  [mocked-desktop] › mocked/journey-proof.spec.ts:856:3 › a save made from the keyboard leaves focus on the control that made it, at 390px
+  [mocked-desktop] › mocked/journey-proof.spec.ts:856:3 › a save made from the keyboard leaves focus on the control that made it, at 1440px
+  [mocked-desktop] › mocked/localisation.spec.ts:156:3 › the core journey is in en and carries nothing from the other CATALOGUE
+  [mocked-desktop] › mocked/localisation.spec.ts:156:3 › the core journey is in fr and carries nothing from the other CATALOGUE
+  [mocked-desktop] › mocked/localisation.spec.ts:196:5 › the English the backend supplies on a French page is counted, not overlooked
+  [mocked-desktop] › mocked/localisation.spec.ts:427:3 › the auth and account screens are in en and carry nothing from the other CATALOGUE
+  [mocked-desktop] › mocked/localisation.spec.ts:467:3 › both states of the reset screen are in en
+  [mocked-desktop] › mocked/localisation.spec.ts:498:3 › the save-intent notice on sign-in is in en, with the fixture named as published
+  [mocked-desktop] › mocked/localisation.spec.ts:427:3 › the auth and account screens are in fr and carry nothing from the other CATALOGUE
+  [mocked-desktop] › mocked/localisation.spec.ts:467:3 › both states of the reset screen are in fr
+  [mocked-desktop] › mocked/localisation.spec.ts:498:3 › the save-intent notice on sign-in is in fr, with the fixture named as published
+  [mocked-desktop] › mocked/localisation.spec.ts:553:3 › the backend's own words are not translated in en
+  [mocked-desktop] › mocked/localisation.spec.ts:553:3 › the backend's own words are not translated in fr
+  [mocked-desktop] › mocked/localisation.spec.ts:605:1 › the four catalogue areas claim no key twice
+  [mocked-desktop] › mocked/localisation.spec.ts:629:1 › the two catalogues hold the same keys, and no French entry is still its English
+  [mocked-desktop] › mocked/localisation.spec.ts:649:1 › the language a reader chose survives a reload, and the other one does not come back
+  [mocked-desktop] › mocked/localisation.spec.ts:672:1 › language, time zone and country are three separate choices
+  [mocked-desktop] › mocked/localisation.spec.ts:696:1 › a measured sentence is one sentence in French, not English fragments
+  [mocked-desktop] › mocked/localisation.spec.ts:715:1 › a French page counts one as singular where the English rule would not
+  [mocked-desktop] › mocked/localisation.spec.ts:1516:1 › every count-bearing French string has the right form at 0, 1, 2 and 11
+  [mocked-desktop] › mocked/localisation.spec.ts:1531:1 › the English counts this package changed are right at 0, 1, 2 and 11
+  [mocked-desktop] › mocked/localisation.spec.ts:1544:1 › every message with a plural is in the table above
+  [mocked-desktop] › mocked/localisation.spec.ts:1561:1 › French puts zero with the singular and English puts it with the plural
+  [mocked-desktop] › mocked/localisation.spec.ts:1589:1 › a count handed over already formatted still selects its branch, and prints back unchanged
+  [mocked-desktop] › mocked/localisation.spec.ts:1612:1 › the strings their component gives no count to do not inflect
+  [mocked-desktop] › mocked/localisation.spec.ts:1640:1 › the device this suite runs on is on none of the zones a test chooses
+  [mocked-desktop] › mocked/localisation.spec.ts:1664:1 › a midnight kick-off in Africa/Douala belongs to the Douala day, whatever the device thinks
+  [mocked-desktop] › mocked/localisation.spec.ts:1684:1 › the day asked for, and the window it is bounded by, follow the chosen zone
+  [mocked-desktop] › mocked/localisation.spec.ts:1703:1 › a chosen zone that observes daylight saving bounds its 25-hour day with two offsets
+  [mocked-desktop] › mocked/localisation.spec.ts:1739:1 › both ends of a 25-hour chosen day are shown, and the hour after it is not
+  [mocked-desktop] › mocked/localisation.spec.ts:1772:1 › a rescheduled fixture moves to its new day and new time, in the chosen zone
+  [mocked-desktop] › mocked/localisation.spec.ts:1808:1 › changing the zone re-asks for the day and re-times the fixtures already on screen
+  [mocked-desktop] › mocked/localisation.spec.ts:1849:3 › Member Since follows the chosen zone and language, not the device's, in en
+  [mocked-desktop] › mocked/localisation.spec.ts:1849:3 › Member Since follows the chosen zone and language, not the device's, in fr
+  [mocked-desktop] › mocked/localisation.spec.ts:1888:1 › a timestamp that carries its own offset is shown without the caveat
+  [mocked-desktop] › mocked/localisation.spec.ts:1921:1 › an offset-less timestamp is read as the UTC the server wrote, not in the device's zone
+  [mocked-desktop] › mocked/localisation.spec.ts:1956:1 › the subscription price is written the way the reader's language writes money
+  [mocked-desktop] › mocked/localisation.spec.ts:1967:1 › the same price in French is not the English one
+  [mocked-desktop] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in en nothing is clipped or scrolls sideways at 360px
+  [mocked-desktop] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in fr nothing is clipped or scrolls sideways at 360px
+  [mocked-desktop] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in en nothing is clipped or scrolls sideways at 390px
+  [mocked-desktop] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in fr nothing is clipped or scrolls sideways at 390px
+  [mocked-desktop] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in en nothing is clipped or scrolls sideways at 1440px
+  [mocked-desktop] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in fr nothing is clipped or scrolls sideways at 1440px
+  [mocked-desktop] › mocked/localisation.spec.ts:2073:1 › nothing this package added asks a provider for anything
+  [mocked-desktop] › mocked/low-data.spec.ts:143:1 › text-only mode is off until the reader asks, and the crests load while it is
+  [mocked-desktop] › mocked/low-data.spec.ts:158:1 › with text-only mode on, not one crest is requested
+  [mocked-desktop] › mocked/low-data.spec.ts:192:1 › the choice persists, and turning it off brings the crests back
+  [mocked-desktop] › mocked/low-data.spec.ts:217:1 › the switch says what the mode does, and does not promise offline reading
+  [mocked-desktop] › mocked/low-data.spec.ts:234:1 › the switch does not push the wide header into a sideways scroll
+  [mocked-desktop] › mocked/low-data.spec.ts:256:1 › nor does it overflow for an expert, who carries a sixth entry on that bar
+  [mocked-desktop] › mocked/low-data.spec.ts:275:1 › a lazily loaded route still arrives, and the shell never leaves the screen
+  [mocked-desktop] › mocked/low-data.spec.ts:289:1 › a chunk that arrives quickly says nothing at all
+  [mocked-desktop] › mocked/low-data.spec.ts:310:1 › a chunk that is slow says so, honestly, and draws no fixtures it does not have
+  [mocked-desktop] › mocked/low-data.spec.ts:350:1 › a chunk that never arrives says so, and blames the download rather than the page
+  [mocked-desktop] › mocked/low-data.spec.ts:373:1 › and leaving by that navigation actually works, rather than carrying the failure along
+  [mocked-desktop] › mocked/low-data.spec.ts:401:1 › the reading mode changes not one word about how old the data is
+  [mocked-desktop] › mocked/low-data.spec.ts:428:1 › filtering, changing the day, reloading and switching the mode spend nothing
+  [mocked-desktop] › mocked/match-data-state.spec.ts:183:5 › fixture and result updates blocked, in en › the banner leads with one plain sentence and keeps every source in its disclosure
+  [mocked-desktop] › mocked/match-data-state.spec.ts:224:5 › fixture and result updates blocked, in en › the lead never promises forecasts the forecast source cannot give
+  [mocked-desktop] › mocked/match-data-state.spec.ts:239:5 › fixture and result updates blocked, in en › the freshness line states the last provider write, never a refresh minutes ago
+  [mocked-desktop] › mocked/match-data-state.spec.ts:268:5 › fixture and result updates blocked, in en › the match page keeps its forecast and says what cannot change
+  [mocked-desktop] › mocked/match-data-state.spec.ts:294:5 › fixture and result updates blocked, in en › an overdue row on the day list says result updates are unavailable
+  [mocked-desktop] › mocked/match-data-state.spec.ts:303:5 › fixture and result updates blocked, in en › an empty day says it cannot fill itself while updates are blocked
+  [mocked-desktop] › mocked/match-data-state.spec.ts:312:5 › fixture and result updates blocked, in en › a selection waiting for its result says it cannot settle for now, in the slip and the history
+  [mocked-desktop] › mocked/match-data-state.spec.ts:334:5 › fixture and result updates blocked, in en › suggestions say they use only stored fixtures and count the forecasts waiting
+  [mocked-desktop] › mocked/match-data-state.spec.ts:347:5 › every other state leaves the pages as they were, in en › healthy: none of it, and the fixture age no longer comes from recover or settle
+  [mocked-desktop] › mocked/match-data-state.spec.ts:378:5 › every other state leaves the pages as they were, in en › degraded: the banner keeps its old rules and nothing new appears
+  [mocked-desktop] › mocked/match-data-state.spec.ts:388:5 › every other state leaves the pages as they were, in en › an older backend with no block gets exactly the banner it always had
+  [mocked-desktop] › mocked/match-data-state.spec.ts:183:5 › fixture and result updates blocked, in fr › the banner leads with one plain sentence and keeps every source in its disclosure
+  [mocked-desktop] › mocked/match-data-state.spec.ts:224:5 › fixture and result updates blocked, in fr › the lead never promises forecasts the forecast source cannot give
+  [mocked-desktop] › mocked/match-data-state.spec.ts:239:5 › fixture and result updates blocked, in fr › the freshness line states the last provider write, never a refresh minutes ago
+  [mocked-desktop] › mocked/match-data-state.spec.ts:268:5 › fixture and result updates blocked, in fr › the match page keeps its forecast and says what cannot change
+  [mocked-desktop] › mocked/match-data-state.spec.ts:294:5 › fixture and result updates blocked, in fr › an overdue row on the day list says result updates are unavailable
+  [mocked-desktop] › mocked/match-data-state.spec.ts:303:5 › fixture and result updates blocked, in fr › an empty day says it cannot fill itself while updates are blocked
+  [mocked-desktop] › mocked/match-data-state.spec.ts:312:5 › fixture and result updates blocked, in fr › a selection waiting for its result says it cannot settle for now, in the slip and the history
+  [mocked-desktop] › mocked/match-data-state.spec.ts:334:5 › fixture and result updates blocked, in fr › suggestions say they use only stored fixtures and count the forecasts waiting
+  [mocked-desktop] › mocked/match-data-state.spec.ts:347:5 › every other state leaves the pages as they were, in fr › healthy: none of it, and the fixture age no longer comes from recover or settle
+  [mocked-desktop] › mocked/match-data-state.spec.ts:378:5 › every other state leaves the pages as they were, in fr › degraded: the banner keeps its old rules and nothing new appears
+  [mocked-desktop] › mocked/match-data-state.spec.ts:388:5 › every other state leaves the pages as they were, in fr › an older backend with no block gets exactly the banner it always had
+  [mocked-desktop] › mocked/match-data-state.spec.ts:407:1 › at 360px in French the blocked banner fits, its disclosure included
+  [mocked-desktop] › mocked/match-data-state.spec.ts:429:1 › nothing in the blocked state asks a provider for anything
+  [mocked-desktop] › mocked/national-teams.spec.ts:451:1 › a national-team fixture appears on its date like any other, under its own competition
+  [mocked-desktop] › mocked/national-teams.spec.ts:465:1 › an otherwise empty day shows its national-team fixtures, and says that is what they are
+  [mocked-desktop] › mocked/national-teams.spec.ts:480:1 › the note is about the day and never appears on a day that has club football too
+  [mocked-desktop] › mocked/national-teams.spec.ts:485:1 › a day of fixtures that state no classification claims nothing and hides nothing
+  [mocked-desktop] › mocked/national-teams.spec.ts:499:1 › the club / national filter is offered on a day that holds both, and narrows to each
+  [mocked-desktop] › mocked/national-teams.spec.ts:519:1 › the filter is in the URL, so a narrowed day is a link and survives Back
+  [mocked-desktop] › mocked/national-teams.spec.ts:535:1 › a link that arrives with the filter set can always see it and take it off
+  [mocked-desktop] › mocked/national-teams.spec.ts:551:1 › the filter sheet offers the same choice, and the summary chip removes it
+  [mocked-desktop] › mocked/national-teams.spec.ts:572:1 › a national-team fixture opens, names its competition and says what is published for it
+  [mocked-desktop] › mocked/national-teams.spec.ts:589:1 › following a country does not follow its women's squad, which is a different row
+  [mocked-desktop] › mocked/national-teams.spec.ts:614:1 › the follow list tells two squads of one country apart, which their name cannot
+  [mocked-desktop] › mocked/national-teams.spec.ts:633:1 › a national-team fixture can be saved from the day list, through the same star as any other
+  [mocked-desktop] › mocked/national-teams.spec.ts:646:1 › an expert picking a fixture to write about is offered the national-team ones too
+  [mocked-desktop] › mocked/national-teams.spec.ts:665:1 › a tie won on penalties shows the scoreline people remember beside the one markets settle on
+  [mocked-desktop] › mocked/national-teams.spec.ts:691:1 › everything this feature says is in French for a reader who chose French
+  [mocked-desktop] › mocked/national-teams.spec.ts:705:1 › the filter and the squad note are in French too
+  [mocked-desktop] › mocked/national-teams.spec.ts:715:1 › a country's squad is named in French on the team page
+  [mocked-desktop] › mocked/national-teams.spec.ts:727:1 › a national-team kick-off is shown in the reader's own zone, not UTC
+  [mocked-desktop] › mocked/national-teams.spec.ts:739:1 › the longest competition and country names do not push the page sideways
+  [mocked-desktop] › mocked/national-teams.spec.ts:755:1 › the match page for the longest names does not push the page sideways either
+  [mocked-desktop] › mocked/national-teams.spec.ts:779:1 › the whole journey: find it, narrow to it, open it, save it, read its result
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:218:3 › the home page does not scroll sideways, signed out
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:226:3 › the home page does not scroll sideways, signed in
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:218:3 › the matches list does not scroll sideways, signed out
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:226:3 › the matches list does not scroll sideways, signed in
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:218:3 › a match detail page does not scroll sideways, signed out
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:226:3 › a match detail page does not scroll sideways, signed in
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:218:3 › the leagues index does not scroll sideways, signed out
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:226:3 › the leagues index does not scroll sideways, signed in
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:241:1 › the menu button is reachable and opens the menu
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:274:1 › opening a team from the foot of a match page lands at the top of the team page
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:293:1 › Back from the team page returns to where the match page was left
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:404:1 › Back to a list that arrives after the restore window still lands where the reader was
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:558:1 › a page that finishes growing after the restore reaches the offset leaves the reader on it
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:738:3 › a reader who takes the page back with a keypress during a slow restore keeps it
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:738:3 › a reader who takes the page back with a scrollbar drag during a slow restore keeps it
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:795:1 › past its cap the restore gives up, and the page growing afterwards does not move the reader
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:870:1 › a fresh document does not inherit the offset the last document left in this tab
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:937:1 › Back from a fixture restores the filtered list, its filters and its position
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:988:1 › Escape closes the filter sheet and gives focus back to the button that opened it
+  [mocked-desktop] › mocked/navigation-continuity.spec.ts:1013:1 › Escape closes the header menu and gives focus back to the menu button
+  [mocked-desktop] › mocked/navigation.spec.ts:14:3 › / renders and does not scroll sideways
+  [mocked-desktop] › mocked/navigation.spec.ts:14:3 › /predictions/today renders and does not scroll sideways
+  [mocked-desktop] › mocked/navigation.spec.ts:14:3 › /predictions/tomorrow renders and does not scroll sideways
+  [mocked-desktop] › mocked/navigation.spec.ts:14:3 › /leagues renders and does not scroll sideways
+  [mocked-desktop] › mocked/navigation.spec.ts:26:1 › every internal link points at a route that renders
+  [mocked-desktop] › mocked/navigation.spec.ts:45:1 › no image falls back to a third-party placeholder host
+  [mocked-desktop] › mocked/navigation.spec.ts:56:1 › every image either loads or falls back to a local asset
+  [mocked-desktop] › mocked/navigation.spec.ts:72:1 › the home page publishes no unmeasured performance claim
+  [mocked-desktop] › mocked/navigation.spec.ts:89:1 › the footer makes no promise the site does not keep
+  [mocked-desktop] › mocked/navigation.spec.ts:103:1 › the footer copyright year is current, not frozen
+  [mocked-desktop] › mocked/navigation.spec.ts:163:1 › search lists the clubs and competitions that match
+  [mocked-desktop] › mocked/navigation.spec.ts:185:1 › a search with no matches says so instead of showing a blank panel
+  [mocked-desktop] › mocked/navigation.spec.ts:205:1 › a failed search reports the failure, not an empty result
+  [mocked-desktop] › mocked/navigation.spec.ts:229:1 › the competition filter says it is loading rather than not existing
+  [mocked-desktop] › mocked/overdue-results.spec.ts:838:3 › [en] the day list says a result is overdue where the kickoff time would be
+  [mocked-desktop] › mocked/overdue-results.spec.ts:885:3 › [en] the day list distinguishes a fixture that has been given up on
+  [mocked-desktop] › mocked/overdue-results.spec.ts:914:3 › [en] THE MATCH THAT IS GENUINELY IN PLAY keeps its running minute and its score
+  [mocked-desktop] › mocked/overdue-results.spec.ts:931:3 › [en] A TIE PLAYED PAST THE DEADLINE KEEPS ITS MINUTE AND ITS SCORE
+  [mocked-desktop] › mocked/overdue-results.spec.ts:838:3 › [fr] the day list says a result is overdue where the kickoff time would be
+  [mocked-desktop] › mocked/overdue-results.spec.ts:885:3 › [fr] the day list distinguishes a fixture that has been given up on
+  [mocked-desktop] › mocked/overdue-results.spec.ts:914:3 › [fr] THE MATCH THAT IS GENUINELY IN PLAY keeps its running minute and its score
+  [mocked-desktop] › mocked/overdue-results.spec.ts:931:3 › [fr] A TIE PLAYED PAST THE DEADLINE KEEPS ITS MINUTE AND ITS SCORE
+  [mocked-desktop] › mocked/overdue-results.spec.ts:966:3 › [en] the day list tells an unreachable provider apart from an empty answer
+  [mocked-desktop] › mocked/overdue-results.spec.ts:999:3 › [en] the match page says what the last check found, and only what it found
+  [mocked-desktop] › mocked/overdue-results.spec.ts:966:3 › [fr] the day list tells an unreachable provider apart from an empty answer
+  [mocked-desktop] › mocked/overdue-results.spec.ts:999:3 › [fr] the match page says what the last check found, and only what it found
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1077:3 › [en] no sentence in the catalogue says a result cannot exist, and a held-back check names no failure
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1121:3 › [en] THE FOUR THINGS A READER CAN BE TOLD, on one day list beside a live match and a tie in extra time
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1192:3 › [en] a check held back by our own allowance is said as ours, and not as the provider's failure
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1221:3 › [en] a check that never left is worded by WHY it never left: only our own allowance is called ours
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1269:3 › [en] a stop the retry budget made says it was our allowance; the backend's prose stays off the page
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1290:3 › [en] a stop on a corrected count says "at most", exactly as the backend does
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1308:3 › [en] a check that read our own stored copy says so, and claims no call
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1326:3 › [en] a fixture put back under the retry schedule reads overdue and still asked about, not Unresolved
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1366:3 › [en] an outcome with no sentence of its own adds none, and the overdue statement stands
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1077:3 › [fr] no sentence in the catalogue says a result cannot exist, and a held-back check names no failure
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1121:3 › [fr] THE FOUR THINGS A READER CAN BE TOLD, on one day list beside a live match and a tie in extra time
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1192:3 › [fr] a check held back by our own allowance is said as ours, and not as the provider's failure
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1221:3 › [fr] a check that never left is worded by WHY it never left: only our own allowance is called ours
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1269:3 › [fr] a stop the retry budget made says it was our allowance; the backend's prose stays off the page
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1290:3 › [fr] a stop on a corrected count says "at most", exactly as the backend does
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1308:3 › [fr] a check that read our own stored copy says so, and claims no call
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1326:3 › [fr] a fixture put back under the retry schedule reads overdue and still asked about, not Unresolved
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1366:3 › [fr] an outcome with no sentence of its own adds none, and the overdue statement stands
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1389:3 › [en] the match page states an overdue result instead of a scoreline
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1420:3 › [en] the match page says how often the provider answered, and does not credit a removed rule's stop to our allowance
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1453:3 › [en] THE UNRESOLVED STATE THE OWNER CHECKED reads Unresolved on its row and its page
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1502:3 › [en] WHAT UNRESOLVED MAY NOT SAY: the backend's claim about an archive never reaches the page
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1527:3 › [en] the match page of a live fixture is untouched by any of this
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1537:3 › [en] the match page of a tie in extra time shows the tie, not a warning
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1548:3 › [en] a provider we cannot reach is said at the top of the page, and the fixture stays overdue
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1389:3 › [fr] the match page states an overdue result instead of a scoreline
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1420:3 › [fr] the match page says how often the provider answered, and does not credit a removed rule's stop to our allowance
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1453:3 › [fr] THE UNRESOLVED STATE THE OWNER CHECKED reads Unresolved on its row and its page
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1502:3 › [fr] WHAT UNRESOLVED MAY NOT SAY: the backend's claim about an archive never reaches the page
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1527:3 › [fr] the match page of a live fixture is untouched by any of this
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1537:3 › [fr] the match page of a tie in extra time shows the tie, not a warning
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1548:3 › [fr] a provider we cannot reach is said at the top of the page, and the fixture stays overdue
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1665:1 › a saved fixture whose result never arrived is not filed under "In play now"
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1707:1 › with nothing actually in play the dashboard says nothing about anything being in play
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1720:1 › the day list this file drives asks for its own local day and spends nothing extra
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1732:1 › a fixture that was called off is never described as late for a result
+  [mocked-desktop] › mocked/overdue-results.spec.ts:1747:1 › a payload that carries no deadline produces no claim, and the row says what it always said
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:399:5 › [en] mocked: markets and the slip › every served market renders with its number, source and rule; nothing unpublished is selectable
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:440:5 › [en] mocked: markets and the slip › signed out: one selection per fixture, a draft that survives a reload, and a copied slip that invents nothing
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:493:5 › [en] mocked: markets and the slip › signing in hands the browser draft to the account, and a refused leg is reported, not dropped silently
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:530:5 › [en] mocked: markets and the slip › a draft left open crosses kickoff visibly, and recording makes the slip immutable
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:572:5 › [en] mocked: markets and the slip › history shows what became of each leg, with the rule, and never guesses
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:618:5 › [en] mocked: markets and the slip › suggestions explain every leg, admit a shortfall, and add to the slip
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:399:5 › [fr] mocked: markets and the slip › every served market renders with its number, source and rule; nothing unpublished is selectable
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:440:5 › [fr] mocked: markets and the slip › signed out: one selection per fixture, a draft that survives a reload, and a copied slip that invents nothing
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:493:5 › [fr] mocked: markets and the slip › signing in hands the browser draft to the account, and a refused leg is reported, not dropped silently
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:530:5 › [fr] mocked: markets and the slip › a draft left open crosses kickoff visibly, and recording makes the slip immutable
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:572:5 › [fr] mocked: markets and the slip › history shows what became of each leg, with the rule, and never guesses
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:618:5 › [fr] mocked: markets and the slip › suggestions explain every leg, admit a shortfall, and add to the slip
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:738:1 › mocked: a slip write that lands after the account changed does not reach the next account
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:792:3 › mocked: a draft transfer whose first request fails while the account changes never sends a selection under the new account
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:792:3 › mocked: a draft transfer whose first request succeeds while the account changes never sends a selection under the new account
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:843:3 › mocked: a transfer whose second leg fails (refused) completes the SAME slip after a reload, with no duplicate
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:843:3 › mocked: a transfer whose second leg fails (answer lost) completes the SAME slip after a reload, with no duplicate
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:887:3 › mocked: a transfer whose FIRST request fails (refused) ends in one slip after a reload, never two
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:887:3 › mocked: a transfer whose FIRST request fails (answer lost) ends in one slip after a reload, never two
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:928:1 › mocked: a refused replacement leaves the original selection on the slip
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:953:1 › mocked: an older suggestions answer does not overwrite the newer filters' results
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:987:1 › mocked: a void selection shows the recorded price and the effective one, and withholds what it cannot compute
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:1024:3 › [en] mocked: an empty suggestion result names its real cause, not the probability
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:1024:3 › [fr] mocked: an empty suggestion result names its real cause, not the probability
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:1046:1 › mocked: a draw-no-bet selection withholds the combined chance and keeps each leg's own
+  [mocked-desktop] › mocked/parlay-builder.spec.ts:1070:1 › mocked: the page stays inside the viewport at every width and logs no error
+  [mocked-desktop] › mocked/provider-states.spec.ts:15:1 › an exhausted daily allowance reads as paused, not unavailable
+  [mocked-desktop] › mocked/provider-states.spec.ts:26:1 › an expired or rejected trial is surfaced to the reader
+  [mocked-desktop] › mocked/provider-states.spec.ts:36:1 › a day with no fixtures shows an empty state, not an error
+  [mocked-desktop] › mocked/provider-states.spec.ts:46:1 › a backend failure shows an error state, not an empty day
+  [mocked-desktop] › mocked/provider-states.spec.ts:59:1 › the status banner stays away when every provider is healthy
+  [mocked-desktop] › mocked/provider-states.spec.ts:66:1 › a loading state appears before the data arrives
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:355:3 › the reader pages are in en and carry nothing from the other catalogue
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:396:3 › the provenance, revision and evidence panels are in en
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:355:3 › the reader pages are in fr and carry nothing from the other catalogue
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:396:3 › the provenance, revision and evidence panels are in fr
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:428:3 › the labels French shares with English are on the en page unchanged
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:428:3 › the labels French shares with English are on the fr page unchanged
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:462:1 › the backend’s own sentences are rendered verbatim on the French page
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:516:3 › every en count label in the reader area reads the same at 0, 1, 2 and 11
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:516:3 › every fr count label in the reader area reads the same at 0, 1, 2 and 11
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:543:3 › the competition page shows 0 fixtures and 0 teams in French without moving its labels
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:543:3 › the competition page shows 1 fixtures and 1 teams in French without moving its labels
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:543:3 › the competition page shows 2 fixtures and 2 teams in French without moving its labels
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:543:3 › the competition page shows 11 fixtures and 11 teams in French without moving its labels
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:595:1 › the dashboard’s saved and in-play counts are whole French sentences with the numeral picked out
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:646:1 › the device this suite runs on is on neither zone these tests choose
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:654:1 › the three provenance times are shown in the chosen zone, on the chosen zone’s day
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:685:1 › a revision’s replacement time and an expert’s publication time follow the chosen zone
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:716:1 › the competition’s fixture window is asked for in the reader’s zone, not the device’s
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:738:1 › no reader page asks a provider for anything
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:835:3 › the follow control is in en, in both states, beside both nouns
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:901:3 › the follow count against the limit is right at 0, 1 and several in en
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:946:3 › the confirmation read out after a follow is in en
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:835:3 › the follow control is in fr, in both states, beside both nouns
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:901:3 › the follow count against the limit is right at 0, 1 and several in fr
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:946:3 › the confirmation read out after a follow is in fr
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:994:3 › a signed-out reader is invited to sign in in en, and is given no count
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:1011:3 › a failed favourites read says so in en rather than showing an empty star
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:994:3 › a signed-out reader is invited to sign in in fr, and is given no count
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:1011:3 › a failed favourites read says so in fr rather than showing an empty star
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:1169:1 › at 360px the French expert dashboard keeps its saved-ago line inside the box that holds it
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:1249:3 › at 360px in French a published row keeps its kick-off: a name that fits, so the line wraps and nothing is abbreviated
+  [mocked-desktop] › mocked/reader-localisation.spec.ts:1249:3 › at 360px in French a published row keeps its kick-off: a name longer than the row, so the name is abbreviated and the kick-off is not
+  [mocked-desktop] › mocked/result-language.spec.ts:37:1 › with forecasts scored, no screen claims nothing has been scored
+  [mocked-desktop] › mocked/result-language.spec.ts:50:1 › below the minimum sample, the page still does not claim nothing has been scored
+  [mocked-desktop] › mocked/result-language.spec.ts:64:1 › with nothing scored the honest nothing-scored state still renders
+  [mocked-desktop] › mocked/result-language.spec.ts:84:1 › correct outcomes and sample size are separately labelled
+  [mocked-desktop] › mocked/result-language.spec.ts:108:1 › a hit count on a small sample cannot be read as a sample size
+  [mocked-desktop] › mocked/result-language.spec.ts:122:1 › below the minimum sample no percentage appears and the refusal is a sentence
+  [mocked-desktop] › mocked/result-language.spec.ts:155:1 › the empty-date state says what is stored, not what exists, and offers an action
+  [mocked-desktop] › mocked/result-language.spec.ts:178:1 › the filtered-empty state stays distinct from the nothing-stored one
+  [mocked-desktop] › mocked/result-language.spec.ts:235:3 › the rewritten copy stays inside its container at 360px
+  [mocked-desktop] › mocked/result-language.spec.ts:252:3 › the computed footnote stays inside its container at 360px
+  [mocked-desktop] › mocked/result-language.spec.ts:273:3 › the empty-date state stays inside its container at 360px
+  [mocked-desktop] › mocked/result-language.spec.ts:235:3 › the rewritten copy stays inside its container at 390px
+  [mocked-desktop] › mocked/result-language.spec.ts:252:3 › the computed footnote stays inside its container at 390px
+  [mocked-desktop] › mocked/result-language.spec.ts:273:3 › the empty-date state stays inside its container at 390px
+  [mocked-desktop] › mocked/result-language.spec.ts:235:3 › the rewritten copy stays inside its container at 1440px
+  [mocked-desktop] › mocked/result-language.spec.ts:252:3 › the computed footnote stays inside its container at 1440px
+  [mocked-desktop] › mocked/result-language.spec.ts:273:3 › the empty-date state stays inside its container at 1440px
+  [mocked-desktop] › mocked/result-language.spec.ts:305:1 › a list of fixtures none of which has been played says so, counted from the list
+  [mocked-desktop] › mocked/result-language.spec.ts:319:1 › once a listed fixture has been played the page stops claiming nothing has been scored
+  [mocked-desktop] › mocked/result-language.spec.ts:340:1 › a fixture still in play is not reported as finished
+  [mocked-desktop] › mocked/result-language.spec.ts:358:1 › the rest of the footnote — the part that is about the page, not the data — survives
+  [mocked-desktop] › mocked/result-language.spec.ts:406:1 › the match page prints the scoring position the payload measured, not one of its own
+  [mocked-desktop] › mocked/result-language.spec.ts:420:1 › with nothing scored the match page still carries the honest nothing-scored sentence
+  [mocked-desktop] › mocked/revision-history.spec.ts:218:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en
+  [mocked-desktop] › mocked/revision-history.spec.ts:269:3 › what changed is a sentence in en, never the backend's field names
+  [mocked-desktop] › mocked/revision-history.spec.ts:293:3 › the card names the expert by username, never by email or the source enum, in en
+  [mocked-desktop] › mocked/revision-history.spec.ts:310:3 › the late-publication chip appears only when the backend says so, in en
+  [mocked-desktop] › mocked/revision-history.spec.ts:338:3 › a prediction withdrawn before kick-off and published again after it says it is not scored, in en
+  [mocked-desktop] › mocked/revision-history.spec.ts:218:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr
+  [mocked-desktop] › mocked/revision-history.spec.ts:269:3 › what changed is a sentence in fr, never the backend's field names
+  [mocked-desktop] › mocked/revision-history.spec.ts:293:3 › the card names the expert by username, never by email or the source enum, in fr
+  [mocked-desktop] › mocked/revision-history.spec.ts:310:3 › the late-publication chip appears only when the backend says so, in fr
+  [mocked-desktop] › mocked/revision-history.spec.ts:338:3 › a prediction withdrawn before kick-off and published again after it says it is not scored, in fr
+  [mocked-desktop] › mocked/revision-history.spec.ts:378:1 › revisions are grouped per prediction, each under its own author
+  [mocked-desktop] › mocked/revision-history.spec.ts:408:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label
+  [mocked-desktop] › mocked/revision-history.spec.ts:427:1 › a version recorded before a market existed says so, and no structured changes means no change line
+  [mocked-desktop] › mocked/revision-history.spec.ts:451:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened
+  [mocked-desktop] › mocked/revision-history.spec.ts:530:3 › both pickers mark a fixture that has kicked off, and still offer it, in en
+  [mocked-desktop] › mocked/revision-history.spec.ts:555:3 › the composer and its preview warn on a fixture that has kicked off, in en
+  [mocked-desktop] › mocked/revision-history.spec.ts:587:3 › editing after kickoff says the version that stood at kickoff is what counts, in en
+  [mocked-desktop] › mocked/revision-history.spec.ts:530:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr
+  [mocked-desktop] › mocked/revision-history.spec.ts:555:3 › the composer and its preview warn on a fixture that has kicked off, in fr
+  [mocked-desktop] › mocked/revision-history.spec.ts:587:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr
+  [mocked-desktop] › mocked/revision-history.spec.ts:621:1 › a prediction on a kicked-off fixture is still published when the expert presses publish
+  [mocked-desktop] › mocked/saved-lifecycle.spec.ts:287:1 › MOCKED-ONLY: a saved fixture goes from upcoming to in play to finished while the tab stays in front
+  [mocked-desktop] › mocked/saved-lifecycle.spec.ts:334:1 › MOCKED-ONLY: with automatic updates off, a saved fixture due to kick off is not polled
+  [mocked-desktop] › mocked/saved-lifecycle.spec.ts:408:1 › MOCKED-ONLY: a fixture reached only through a followed team is noticed when it kicks off, with the tab never leaving the front
+  [mocked-desktop] › mocked/saved-lifecycle.spec.ts:448:1 › MOCKED-ONLY: with automatic updates off, a followed fixture due to kick off is not polled either
+  [mocked-desktop] › mocked/scoreline.spec.ts:86:1 › a tie won on penalties names the shoot-out beside the score, not as the score
+  [mocked-desktop] › mocked/scoreline.spec.ts:99:1 › a tie decided in extra time publishes the 90-minute score the markets settle on
+  [mocked-desktop] › mocked/scoreline.spec.ts:109:1 › an ordinary match gets no period line at all
+  [mocked-desktop] › mocked/scoreline.spec.ts:119:1 › a period the source never supplied is shown as nothing, never as 0-0
+  [mocked-desktop] › mocked/scoreline.spec.ts:139:1 › the shoot-out is named in French for a reader who chose French
+  [mocked-desktop] › mocked/scoreline.spec.ts:149:1 › the extra-time lines are in French too
+  [mocked-desktop] › mocked/scoreline.spec.ts:160:1 › the fixture list carries the shoot-out too, in the short form the row has space for
+  [mocked-desktop] › mocked/timezone.spec.ts:54:3 › a viewer in New York › today asks the backend for the viewer's local calendar day
+  [mocked-desktop] › mocked/timezone.spec.ts:61:3 › a viewer in New York › tomorrow asks for the day after the viewer's local day
+  [mocked-desktop] › mocked/timezone.spec.ts:73:3 › a viewer in Auckland, far ahead of UTC › today is the Auckland day, not the UTC day
+  [mocked-desktop] › mocked/timezone.spec.ts:94:3 › a viewer in Los Angeles, far behind UTC › a late-evening kickoff still belongs to today
+  [mocked-desktop] › mocked/timezone.spec.ts:102:3 › a viewer in Los Angeles, far behind UTC › a kickoff just outside the local day is not shown as today
+  [mocked-desktop] › mocked/timezone.spec.ts:132:3 › a daylight-saving transition day in Lisbon › the requested day matches the viewer's calendar
+  [mocked-desktop] › mocked/timezone.spec.ts:139:3 › a daylight-saving transition day in Lisbon › both ends of a 25-hour local day are shown
+  [mocked-desktop] › mocked/timezone.spec.ts:146:3 › a daylight-saving transition day in Lisbon › the hours either side of a 25-hour local day are not
+  [mocked-desktop] › mocked/timezone.spec.ts:170:3 › a daylight-saving transition day in New York › the requested day matches the viewer's calendar
+  [mocked-desktop] › mocked/timezone.spec.ts:177:3 › a daylight-saving transition day in New York › the client bounds the day with the offset at each end, not one offset twice
+  [mocked-desktop] › mocked/timezone.spec.ts:191:3 › a daylight-saving transition day in New York › both ends of a 25-hour local day are shown
+  [mocked-desktop] › mocked/timezone.spec.ts:198:3 › a daylight-saving transition day in New York › the first hour of the next local day is not
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:114:1 › an empty day names when the competitions play again, and who plays
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:132:1 › the same answer reads as French for a French reader
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:149:1 › a calendar that was read and lists nothing says so
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:162:1 › a calendar nobody could read is reported as not known, never as no football
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:177:1 › a request that fails adds nothing at all to the empty state
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:192:1 › an answer that missed some calendars does not speak for the ones it missed
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:208:1 › a partial answer with nothing in it is not reported as a calendar with nothing in it
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:256:1 › a day that could not find out does not stop the next empty day from asking
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:297:1 › an answer already given is not paid for again on the next empty day
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:314:1 › a day with fixtures on it never asks when football resumes
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:484:1 › an answer is kept up to the age limit and asked again past it, kickoff or no kickoff
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:511:1 › an answer whose kickoff has passed is asked again, long before it is old
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:534:1 › an answer that names nothing to come expires on the clock like any other
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:566:1 › a kickoff that passes while the reader is away is re-asked when they come back to the tab
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:588:1 › coming back to the tab asks nothing when the answer on screen is still good
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:617:1 › a tab that is not in front does no work when the events arrive
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:668:1 › a refresh that fails leaves the notice the reader was reading on screen
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:699:1 › a refresh the backend refuses to spend on leaves the notice alone
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:739:1 › a return that could not find out is not re-asked by the return after it
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:801:1 › automatic updates switched off stops the note re-asking when the reader comes back
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:820:1 › the same reader with automatic updates on does get the refresh
+  [mocked-desktop] › mocked/upcoming-empty-state.spec.ts:847:1 › empty days opened faster than the answer arrives share the one request
+  [mocked-mobile] › mocked/account-forms.spec.ts:274:3 › Edit by mouse opens the form and saves nothing
+  [mocked-mobile] › mocked/account-forms.spec.ts:274:3 › Edit by Enter opens the form and saves nothing
+  [mocked-mobile] › mocked/account-forms.spec.ts:274:3 › Edit by Space opens the form and saves nothing
+  [mocked-mobile] › mocked/account-forms.spec.ts:297:1 › Cancel sends nothing and puts every original value back
+  [mocked-mobile] › mocked/account-forms.spec.ts:324:1 › Save sends exactly one normalised PUT, the header follows without a reload, and it survives one
+  [mocked-mobile] › mocked/account-forms.spec.ts:365:1 › pressing Enter in a field saves once
+  [mocked-mobile] › mocked/account-forms.spec.ts:381:1 › a double activation of Save while it is in flight sends one PUT
+  [mocked-mobile] › mocked/account-forms.spec.ts:397:1 › clearing an optional name and the avatar sends null for each, and succeeds
+  [mocked-mobile] › mocked/account-forms.spec.ts:424:1 › an account whose names were never supplied can change its username
+  [mocked-mobile] › mocked/account-forms.spec.ts:463:3 › a stored username outside today's limits (two characters) does not block a name change, and is not rewritten
+  [mocked-mobile] › mocked/account-forms.spec.ts:463:3 › a stored username outside today's limits (stored with a trailing space) does not block a name change, and is not rewritten
+  [mocked-mobile] › mocked/account-forms.spec.ts:463:3 › a stored username outside today's limits (sixty-three characters) does not block a name change, and is not rewritten
+  [mocked-mobile] › mocked/account-forms.spec.ts:485:1 › a username that IS edited is still sent, trimmed
+  [mocked-mobile] › mocked/account-forms.spec.ts:498:1 › a failed save keeps the edits and says so, sends one request, and a retry sends exactly one more
+  [mocked-mobile] › mocked/account-forms.spec.ts:536:1 › after a failed save, Cancel puts the stored values back and sends nothing more
+  [mocked-mobile] › mocked/account-forms.spec.ts:560:1 › every profile field has an accessible name, and says what it holds
+  [mocked-mobile] › mocked/account-forms.spec.ts:593:1 › every password field has an accessible name and the autocomplete a password manager needs
+  [mocked-mobile] › mocked/account-forms.spec.ts:610:1 › a wrong current password is refused with the server's reason, and the reader stays signed in
+  [mocked-mobile] › mocked/account-forms.spec.ts:632:1 › a confirmation that does not match sends nothing
+  [mocked-mobile] › mocked/account-forms.spec.ts:655:1 › the password copy promises a sign-out of this browser, never of this device
+  [mocked-mobile] › mocked/account-forms.spec.ts:674:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in en
+  [mocked-mobile] › mocked/account-forms.spec.ts:674:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in fr
+  [mocked-mobile] › mocked/clutter.spec.ts:86:1 › the forecast table is far closer to the top of a phone than it was
+  [mocked-mobile] › mocked/clutter.spec.ts:105:1 › the home page is materially shorter on a phone, with nothing dropped
+  [mocked-mobile] › mocked/clutter.spec.ts:132:1 › the headings on the home page are written for a reader who wants football
+  [mocked-mobile] › mocked/clutter.spec.ts:158:1 › the quota explanation appears exactly once on a match detail page
+  [mocked-mobile] › mocked/clutter.spec.ts:197:1 › a paused refresh alone raises no site-wide banner, and a broken provider still does
+  [mocked-mobile] › mocked/clutter.spec.ts:211:1 › fixture freshness and forecast freshness are separately identifiable
+  [mocked-mobile] › mocked/clutter.spec.ts:238:1 › the technical detail is one tap away, not deleted
+  [mocked-mobile] › mocked/clutter.spec.ts:257:1 › the site-wide banner keeps its extra reports behind a disclosure
+  [mocked-mobile] › mocked/clutter.spec.ts:277:1 › no odds panel exists while no odds feed does
+  [mocked-mobile] › mocked/clutter.spec.ts:290:1 › the missing-expert explanation appears once
+  [mocked-mobile] › mocked/clutter.spec.ts:339:3 › neither page scrolls sideways at 360px, banner and all
+  [mocked-mobile] › mocked/clutter.spec.ts:339:3 › neither page scrolls sideways at 390px, banner and all
+  [mocked-mobile] › mocked/clutter.spec.ts:339:3 › neither page scrolls sideways at 1440px, banner and all
+  [mocked-mobile] › mocked/conviction-clearing.spec.ts:217:3 › clearing a value in the composer reaches the API as a withdrawal › a cleared conviction is sent as an explicit null
+  [mocked-mobile] › mocked/conviction-clearing.spec.ts:232:3 › clearing a value in the composer reaches the API as a withdrawal › a conviction that was not touched is sent unchanged, not withdrawn
+  [mocked-mobile] › mocked/conviction-clearing.spec.ts:246:3 › clearing a value in the composer reaches the API as a withdrawal › a conviction of zero is sent as zero and not as a withdrawal
+  [mocked-mobile] › mocked/conviction-clearing.spec.ts:259:3 › clearing a value in the composer reaches the API as a withdrawal › a cleared reasoning note is sent as an explicit null
+  [mocked-mobile] › mocked/conviction-clearing.spec.ts:271:3 › clearing a value in the composer reaches the API as a withdrawal › switching a market off sends both sides of the pair as null, never one
+  [mocked-mobile] › mocked/conviction-clearing.spec.ts:293:3 › clearing a value in the composer reaches the API as a withdrawal › a market switched on is sent whole, with both sides as numbers
+  [mocked-mobile] › mocked/conviction-clearing.spec.ts:311:3 › clearing a value in the composer reaches the API as a withdrawal › a conviction can be withdrawn while its market stays published
+  [mocked-mobile] › mocked/conviction-clearing.spec.ts:339:3 › clearing a value in the composer reaches the API as a withdrawal › an unbalanced pair is never sent at all
+  [mocked-mobile] › mocked/conviction-clearing.spec.ts:372:3 › a total the API cannot store is refused in the form › three outcomes that add to 99 are held back, and the form says to add 1
+  [mocked-mobile] › mocked/conviction-clearing.spec.ts:395:3 › a total the API cannot store is refused in the form › a pair that only rounds past the window at the fourth decimal is held back
+  [mocked-mobile] › mocked/dashboard-truthfulness.spec.ts:39:1 › the dashboard is not reachable without signing in
+  [mocked-mobile] › mocked/dashboard-truthfulness.spec.ts:50:1 › the dashboard shows no fabricated performance figures
+  [mocked-mobile] › mocked/dashboard-truthfulness.spec.ts:66:1 › the dashboard says plainly that no record has been scored
+  [mocked-mobile] › mocked/dashboard-truthfulness.spec.ts:81:1 › the coverage counts are labelled site-wide, not as the reader's own record
+  [mocked-mobile] › mocked/dashboard-truthfulness.spec.ts:101:1 › a dashboard whose coverage endpoint fails says so instead of showing a number
+  [mocked-mobile] › mocked/detail-refresh.spec.ts:111:3 › a match page that was left open › coming back to the tab shows the new score, the new state and the new age
+  [mocked-mobile] › mocked/detail-refresh.spec.ts:156:3 › a match page that was left open › a page that has just loaded and taken focus does not read again
+  [mocked-mobile] › mocked/detail-refresh.spec.ts:185:3 › a match page that was left open › a re-read that fails keeps the content and withdraws the age
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:327:1 › the English figures the composer prints are exactly what they were, and the French ones are French
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:368:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:414:1 › the French composer, from picker to published, carries no English the catalogue cannot account for
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:474:1 › a French decimal comma is sent as the same probability, and read back with a comma
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:513:1 › the French composer refuses bad input in French, and sends nothing
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:586:1 › switching to French with errors on screen re-renders them in French, untouched
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:616:1 › a French publish the server refuses says so around the server's own words
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:631:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:708:1 › the kick-off is drawn whole in the composer header and in the preview, at this width
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:739:1 › a picker that cannot reach the server says so in French, with no HTTP-client English
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:750:1 › a fixture that cannot be loaded says so in French, with the French reason
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:760:1 › a publish refused with no words from the server says so in French
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:780:1 › changing the zone re-times the composer picker and asks the backend for the new day window
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:824:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:824:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:884:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:904:3 › an edit reopens in the reader's decimals and is checked in fr
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:904:3 › an edit reopens in the reader's decimals and is checked in en
+  [mocked-mobile] › mocked/expert-composer-localisation.spec.ts:969:1 › the English composer reads exactly as it did
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:217:1 › A's draft survives opening B through match selection, reloads, and coming back
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:251:1 › changing fixture inside the composer carries nothing across, keeps the draft, and follows the URL
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:288:1 › opening a fixture without typing stores no draft and lists none
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:313:1 › every discard asks first, and removes only the draft it names
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:369:1 › publishing B clears B's draft and keeps A's
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:400:1 › another expert on this browser never sees the first one's draft
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:456:1 › a legacy draft is moved to its fixture once, and kept
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:482:1 › an empty legacy draft is dropped rather than offered
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:497:1 › a legacy draft with no fixture is listed as such, and moves to the fixture chosen for it
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:529:1 › a draft with no fixture never replaces a draft the chosen fixture already has
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:559:1 › the notice about one fixture's draft never shows on another fixture's composer after Back
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:598:1 › a discard confirmation returns focus where the expert was, by keyboard, in all three places
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:654:1 › a draft whose fixture kicked off is kept, and says it can no longer be published as prematch
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:677:1 › a browser that refuses to store the draft says so, and the words stay on the page
+  [mocked-mobile] › mocked/expert-drafts.spec.ts:706:1 › over fifty drafts, only the oldest whose fixture kicked off over a week ago is evicted
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:307:3 › every expert screen is in en and carries nothing from the other CATALOGUE
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:307:3 › every expert screen is in fr and carries nothing from the other CATALOGUE
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:360:3 › an unscored accuracy and an unclaimed conviction are sentences, not zeros, in en
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:398:3 › an average conviction of zero is a claim, not a blank, in en
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:427:3 › a market the expert never published reads as unset, not 0%, in en
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:459:3 › a conviction the expert never claimed reads as unset, not 0%, in en
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:504:3 › a conviction the expert deliberately set to zero still reads as 0%, in en
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:360:3 › an unscored accuracy and an unclaimed conviction are sentences, not zeros, in fr
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:398:3 › an average conviction of zero is a claim, not a blank, in fr
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:427:3 › a market the expert never published reads as unset, not 0%, in fr
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:459:3 › a conviction the expert never claimed reads as unset, not 0%, in fr
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:504:3 › a conviction the expert deliberately set to zero still reads as 0%, in fr
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:681:1 › every count on the expert screens is right at 0, 1, 2 and 11, in both languages
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:714:1 › no expert message counts something without being in the table above
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:779:3 › a kick-off and a timestamp are shown in the CHOSEN zone, not the device's, in en
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:779:3 › a kick-off and a timestamp are shown in the CHOSEN zone, not the device's, in fr
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:802:1 › the moderation list reads its timestamps in the chosen zone too
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:873:3 › a draft for another fixture is kept and listed in en, whole sentence and all
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:921:3 › a restored draft says so in en, and says it publishes nothing by itself
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:873:3 › a draft for another fixture is kept and listed in fr, whole sentence and all
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:921:3 › a restored draft says so in fr, and says it publishes nothing by itself
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:962:1 › a percentage typed as 55 in the French composer is still sent as 0.55
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:1043:1 › the English that was on the French composer is gone, and none of it has come back
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:1070:1 › no expert screen asks a provider to refresh
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:1185:1 › the French match picker carries no English the catalogue cannot account for
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:1261:1 › the French match picker says nothing in English when the day is empty or the load fails
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:1325:5 › a near-midnight kick-off reads in Africa/Douala, not the browser's zone, in fr
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:1325:5 › a near-midnight kick-off reads in Africa/Nairobi, not the browser's zone, in fr
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:1325:5 › a near-midnight kick-off reads in Africa/Douala, not the browser's zone, in en
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:1325:5 › a near-midnight kick-off reads in Africa/Nairobi, not the browser's zone, in en
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:1390:1 › changing the zone re-times and re-dates the match picker already on screen
+  [mocked-mobile] › mocked/expert-localisation.spec.ts:1431:1 › changing the zone asks the backend again, because the local day is a different window
+  [mocked-mobile] › mocked/expert-management.spec.ts:412:1 › exactly 20 predictions are one page: Next cannot be pressed and the heading says 20
+  [mocked-mobile] › mocked/expert-management.spec.ts:425:1 › a later page that has emptied since it was counted keeps Previous and says so
+  [mocked-mobile] › mocked/expert-management.spec.ts:455:1 › 21 predictions: page 2 holds the 21st, and deleting it steps back to page 1 with 20
+  [mocked-mobile] › mocked/expert-management.spec.ts:489:1 › the heading counts every prediction on every page, and Next stops at the last page
+  [mocked-mobile] › mocked/expert-management.spec.ts:510:1 › without an X-Total-Count header the page still knows whether a next page exists
+  [mocked-mobile] › mocked/expert-management.spec.ts:537:1 › changing the status filter on page 2 asks for the first page of that status
+  [mocked-mobile] › mocked/expert-management.spec.ts:555:1 › Unpublish and Publish on My Predictions: a confirmation each, one request each
+  [mocked-mobile] › mocked/expert-management.spec.ts:591:1 › the publication control is disabled while its request is in flight
+  [mocked-mobile] › mocked/expert-management.spec.ts:615:1 › after kickoff, the card and the confirmation say the measured record does not change
+  [mocked-mobile] › mocked/expert-management.spec.ts:649:1 › after kickoff, Delete asks with the note that the measured record does not change, on both pages
+  [mocked-mobile] › mocked/expert-management.spec.ts:694:1 › My Predictions and the dashboard say which predictions are not in the measured record, and no others
+  [mocked-mobile] › mocked/expert-management.spec.ts:738:1 › unpublishing the last row of a filtered later page steps back one page
+  [mocked-mobile] › mocked/expert-management.spec.ts:765:1 › the record adds up after publish, unpublish and republish, and after every reload
+  [mocked-mobile] › mocked/expert-management.spec.ts:793:1 › "Not published" counts everything that is not published, pending and rejected included
+  [mocked-mobile] › mocked/expert-management.spec.ts:804:1 › an older payload without the new counts still adds up, and claims no unpublished count
+  [mocked-mobile] › mocked/expert-management.spec.ts:815:1 › the recent list is called what it holds, and only a published row says when it was published
+  [mocked-mobile] › mocked/expert-management.spec.ts:834:1 › the dashboard asks before it unpublishes, as My Predictions does
+  [mocked-mobile] › mocked/expert-management.spec.ts:859:1 › in French the record, the recent list and the card actions fit this width
+  [mocked-mobile] › mocked/expert-management.spec.ts:903:1 › the copy this file reads is the catalogue's, in both languages
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:808:1 › MOCKED-ONLY: a favourites read held open across sign-out is discarded, not kept for the next session
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:851:1 › MOCKED-ONLY: a favourites read discarded at sign-out leaves no focus watcher behind it
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:882:1 › MOCKED-ONLY: a favourites read from the previous account does not land in the next account's session
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:912:1 › MOCKED-ONLY: a favourites read that FAILS after the account changed does not fail the new session
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:941:1 › MOCKED-ONLY: a favourites read that predates a save does not undo the save
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:976:1 › MOCKED-ONLY: a favourites read that predates a follow does not undo the follow
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1002:1 › MOCKED-ONLY: a favourites read that predates an unfollow does not reinstate it
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1046:1 › MOCKED-ONLY: a SAVE released after another account signs in does not put the first reader's row — or their private note — into the second's
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1087:1 › MOCKED-ONLY: a SAVE that FAILS after another account signs in does not roll the first reader's snapshot into the second's
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1118:1 › MOCKED-ONLY: an UNSAVE released after another account signs in does not remove the second reader's bookmark
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1151:1 › MOCKED-ONLY: an UNSAVE that FAILS after another account signs in does not restore the first reader's saves into the second's session
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1179:1 › MOCKED-ONLY: a FOLLOW released after another account signs in does not follow anything for the second reader
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1211:1 › MOCKED-ONLY: a FOLLOW that FAILS after another account signs in does not roll the first reader's snapshot into the second's
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1244:1 › MOCKED-ONLY: a rollback after a failed write keeps what a refresh legitimately brought in
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1278:1 › MOCKED-ONLY: a refresh landing between an optimistic removal and its answer does not resurrect the bookmark
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1315:1 › MOCKED-ONLY: a refresh landing in the middle of a save does not leave the save undone
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1343:1 › MOCKED-ONLY: a refresh landing in the middle of an unfollow does not leave the team in the followed list
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1400:1 › MOCKED-ONLY: a note edit that fails after the result has landed leaves the finished match finished
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1479:1 › MOCKED-ONLY: a note edit that SUCCEEDS after the result has landed leaves the finished match finished
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1558:1 › MOCKED-ONLY: a save answer carrying a FRESHER fixture than the tab holds is adopted, result and all
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1629:1 › MOCKED-ONLY: two unfollows answered in the reverse order leave both teams unfollowed
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1681:1 › MOCKED-ONLY: two note edits on one match answered in the reverse order leave the LAST edit standing
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1755:1 › MOCKED-ONLY: an unfollow answer must not delete a follow a refresh brought in from another device
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1861:1 › MOCKED-ONLY: two overlapping note edits that BOTH fail leave the note the server still holds, not the first edit
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:1936:1 › MOCKED-ONLY: when the first of two overlapping note edits SUCCEEDS, the second's failure falls back to it and not to the original
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:2005:1 › MOCKED-ONLY: the first of two overlapping note edits SUCCEEDS and is answered LAST, and its note is what the reader is left with
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:2093:1 › MOCKED-ONLY: a bookmark the server confirmed is not deleted by the failure of the write issued after it
+  [mocked-mobile] › mocked/favourites-consistency.spec.ts:2170:1 › MOCKED-ONLY: the older of two failed note edits does not undo a note a refresh brought in from the phone
+  [mocked-mobile] › mocked/forecast-display.spec.ts:15:3 › forecast probabilities › a 1% probability reads as 1%, not 100%
+  [mocked-mobile] › mocked/forecast-display.spec.ts:31:3 › forecast probabilities › probabilities are shown as whole percentages that never exceed 100
+  [mocked-mobile] › mocked/forecast-display.spec.ts:47:3 › missing markets › a forecast with no 1X2 market never shows a 0% outcome
+  [mocked-mobile] › mocked/forecast-display.spec.ts:65:3 › missing markets › a forecast with only both-teams-to-score still renders that market
+  [mocked-mobile] › mocked/forecast-display.spec.ts:81:3 › missing markets › a forecast with only an exact score does not invent the other markets
+  [mocked-mobile] › mocked/forecast-display.spec.ts:97:3 › missing markets › a match with no forecast at all says so plainly
+  [mocked-mobile] › mocked/forecast-display.spec.ts:114:3 › payload observations › numbers that do not add up are flagged, not quietly corrected
+  [mocked-mobile] › mocked/forecast-display.spec.ts:128:3 › payload observations › a harmless bookkeeping note does not raise a caution
+  [mocked-mobile] › mocked/forecast-display.spec.ts:144:3 › confidence attribution › a model forecast never claims a confidence the model did not publish
+  [mocked-mobile] › mocked/forecast-display.spec.ts:162:3 › bookmaker odds › absent odds are reported as unavailable, never invented
+  [mocked-mobile] › mocked/forecast-display.spec.ts:173:3 › page health › today renders without console errors or failed requests
+  [mocked-mobile] › mocked/forecast-display.spec.ts:183:3 › page health › a match detail page renders without console errors
+  [mocked-mobile] › mocked/freshness-truth.spec.ts:190:1 › a follow whose fixtures could not be read says so and offers a retry, while an empty one stays empty
+  [mocked-mobile] › mocked/freshness-truth.spec.ts:236:1 › retrying a failed follow recovers it, so an error is not left reading as a result
+  [mocked-mobile] › mocked/freshness-truth.spec.ts:274:1 › a task that is failing AND paused shows both, with the time it comes back
+  [mocked-mobile] › mocked/freshness-truth.spec.ts:308:1 › a forecast refresh the provider refused still says when it comes back
+  [mocked-mobile] › mocked/freshness-truth.spec.ts:342:1 › a task that ran and failed is not described as never having run
+  [mocked-mobile] › mocked/freshness-truth.spec.ts:379:1 › an attempt that is already late is reported as late, never as a moment in the past
+  [mocked-mobile] › mocked/freshness-truth.spec.ts:422:1 › with two tasks in trouble every sentence stays with the task it is about
+  [mocked-mobile] › mocked/freshness-truth.spec.ts:486:1 › a single failure is not described as a run, and its backoff is in the units the block uses
+  [mocked-mobile] › mocked/freshness-truth.spec.ts:547:1 › the Retry in the unreadable-follow empty state reports itself, like the row Retry beside it
+  [mocked-mobile] › mocked/freshness-truth.spec.ts:580:1 › the Retry on a feed shortened by an unreadable follow reports itself too
+  [mocked-mobile] › mocked/freshness.spec.ts:36:1 › a scheduler that has never run says so, and borrows no timestamp
+  [mocked-mobile] › mocked/freshness.spec.ts:59:1 › a scheduler that ran recently reports when, and stays quiet about it
+  [mocked-mobile] › mocked/freshness.spec.ts:79:1 › a paused refresh says when it resumes, not merely that it is paused
+  [mocked-mobile] › mocked/freshness.spec.ts:111:1 › a backend with no scheduler does not imply that one exists
+  [mocked-mobile] › mocked/freshness.spec.ts:123:1 › an unreachable status endpoint reads as unknown, never as current
+  [mocked-mobile] › mocked/freshness.spec.ts:140:1 › the match page carries the same freshness statement as the list
+  [mocked-mobile] › mocked/freshness.spec.ts:157:1 › with nothing scored the record says so, with the reason and the window
+  [mocked-mobile] › mocked/freshness.spec.ts:176:1 › a source with too few scored predictions gets a sentence, not a number
+  [mocked-mobile] › mocked/freshness.spec.ts:199:1 › a source with enough scored predictions shows the figure with its sample
+  [mocked-mobile] › mocked/freshness.spec.ts:224:1 › a failed performance request is not reported as "nothing measured"
+  [mocked-mobile] › mocked/freshness.spec.ts:242:1 › the freshness and record panels do not disturb what the pages already promise
+  [mocked-mobile] › mocked/journey-proof.spec.ts:475:3 › the personal journey, end to end, at 360px
+  [mocked-mobile] › mocked/journey-proof.spec.ts:475:3 › the personal journey, end to end, at 390px
+  [mocked-mobile] › mocked/journey-proof.spec.ts:475:3 › the personal journey, end to end, at 1440px
+  [mocked-mobile] › mocked/journey-proof.spec.ts:651:3 › Back restores the previous list and its scroll position at 360px
+  [mocked-mobile] › mocked/journey-proof.spec.ts:651:3 › Back restores the previous list and its scroll position at 390px
+  [mocked-mobile] › mocked/journey-proof.spec.ts:651:3 › Back restores the previous list and its scroll position at 1440px
+  [mocked-mobile] › mocked/journey-proof.spec.ts:718:1 › a save that resumes after sign-in on an already-saved match leaves one saved match, not two
+  [mocked-mobile] › mocked/journey-proof.spec.ts:754:1 › MOCKED-ONLY: pressing the save control twice before the first write lands issues one write
+  [mocked-mobile] › mocked/journey-proof.spec.ts:790:1 › MOCKED-ONLY: one unreadable follow reads as a failure with a retry, never as an empty feed
+  [mocked-mobile] › mocked/journey-proof.spec.ts:833:1 › MOCKED-ONLY: a feed that is short because a follow failed says so, and says which
+  [mocked-mobile] › mocked/journey-proof.spec.ts:856:3 › a save made from the keyboard leaves focus on the control that made it, at 360px
+  [mocked-mobile] › mocked/journey-proof.spec.ts:856:3 › a save made from the keyboard leaves focus on the control that made it, at 390px
+  [mocked-mobile] › mocked/journey-proof.spec.ts:856:3 › a save made from the keyboard leaves focus on the control that made it, at 1440px
+  [mocked-mobile] › mocked/localisation.spec.ts:156:3 › the core journey is in en and carries nothing from the other CATALOGUE
+  [mocked-mobile] › mocked/localisation.spec.ts:156:3 › the core journey is in fr and carries nothing from the other CATALOGUE
+  [mocked-mobile] › mocked/localisation.spec.ts:196:5 › the English the backend supplies on a French page is counted, not overlooked
+  [mocked-mobile] › mocked/localisation.spec.ts:427:3 › the auth and account screens are in en and carry nothing from the other CATALOGUE
+  [mocked-mobile] › mocked/localisation.spec.ts:467:3 › both states of the reset screen are in en
+  [mocked-mobile] › mocked/localisation.spec.ts:498:3 › the save-intent notice on sign-in is in en, with the fixture named as published
+  [mocked-mobile] › mocked/localisation.spec.ts:427:3 › the auth and account screens are in fr and carry nothing from the other CATALOGUE
+  [mocked-mobile] › mocked/localisation.spec.ts:467:3 › both states of the reset screen are in fr
+  [mocked-mobile] › mocked/localisation.spec.ts:498:3 › the save-intent notice on sign-in is in fr, with the fixture named as published
+  [mocked-mobile] › mocked/localisation.spec.ts:553:3 › the backend's own words are not translated in en
+  [mocked-mobile] › mocked/localisation.spec.ts:553:3 › the backend's own words are not translated in fr
+  [mocked-mobile] › mocked/localisation.spec.ts:605:1 › the four catalogue areas claim no key twice
+  [mocked-mobile] › mocked/localisation.spec.ts:629:1 › the two catalogues hold the same keys, and no French entry is still its English
+  [mocked-mobile] › mocked/localisation.spec.ts:649:1 › the language a reader chose survives a reload, and the other one does not come back
+  [mocked-mobile] › mocked/localisation.spec.ts:672:1 › language, time zone and country are three separate choices
+  [mocked-mobile] › mocked/localisation.spec.ts:696:1 › a measured sentence is one sentence in French, not English fragments
+  [mocked-mobile] › mocked/localisation.spec.ts:715:1 › a French page counts one as singular where the English rule would not
+  [mocked-mobile] › mocked/localisation.spec.ts:1516:1 › every count-bearing French string has the right form at 0, 1, 2 and 11
+  [mocked-mobile] › mocked/localisation.spec.ts:1531:1 › the English counts this package changed are right at 0, 1, 2 and 11
+  [mocked-mobile] › mocked/localisation.spec.ts:1544:1 › every message with a plural is in the table above
+  [mocked-mobile] › mocked/localisation.spec.ts:1561:1 › French puts zero with the singular and English puts it with the plural
+  [mocked-mobile] › mocked/localisation.spec.ts:1589:1 › a count handed over already formatted still selects its branch, and prints back unchanged
+  [mocked-mobile] › mocked/localisation.spec.ts:1612:1 › the strings their component gives no count to do not inflect
+  [mocked-mobile] › mocked/localisation.spec.ts:1640:1 › the device this suite runs on is on none of the zones a test chooses
+  [mocked-mobile] › mocked/localisation.spec.ts:1664:1 › a midnight kick-off in Africa/Douala belongs to the Douala day, whatever the device thinks
+  [mocked-mobile] › mocked/localisation.spec.ts:1684:1 › the day asked for, and the window it is bounded by, follow the chosen zone
+  [mocked-mobile] › mocked/localisation.spec.ts:1703:1 › a chosen zone that observes daylight saving bounds its 25-hour day with two offsets
+  [mocked-mobile] › mocked/localisation.spec.ts:1739:1 › both ends of a 25-hour chosen day are shown, and the hour after it is not
+  [mocked-mobile] › mocked/localisation.spec.ts:1772:1 › a rescheduled fixture moves to its new day and new time, in the chosen zone
+  [mocked-mobile] › mocked/localisation.spec.ts:1808:1 › changing the zone re-asks for the day and re-times the fixtures already on screen
+  [mocked-mobile] › mocked/localisation.spec.ts:1849:3 › Member Since follows the chosen zone and language, not the device's, in en
+  [mocked-mobile] › mocked/localisation.spec.ts:1849:3 › Member Since follows the chosen zone and language, not the device's, in fr
+  [mocked-mobile] › mocked/localisation.spec.ts:1888:1 › a timestamp that carries its own offset is shown without the caveat
+  [mocked-mobile] › mocked/localisation.spec.ts:1921:1 › an offset-less timestamp is read as the UTC the server wrote, not in the device's zone
+  [mocked-mobile] › mocked/localisation.spec.ts:1956:1 › the subscription price is written the way the reader's language writes money
+  [mocked-mobile] › mocked/localisation.spec.ts:1967:1 › the same price in French is not the English one
+  [mocked-mobile] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in en nothing is clipped or scrolls sideways at 360px
+  [mocked-mobile] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in fr nothing is clipped or scrolls sideways at 360px
+  [mocked-mobile] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in en nothing is clipped or scrolls sideways at 390px
+  [mocked-mobile] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in fr nothing is clipped or scrolls sideways at 390px
+  [mocked-mobile] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in en nothing is clipped or scrolls sideways at 1440px
+  [mocked-mobile] › mocked/localisation.spec.ts:2018:5 › at 200% text zoom in fr nothing is clipped or scrolls sideways at 1440px
+  [mocked-mobile] › mocked/localisation.spec.ts:2073:1 › nothing this package added asks a provider for anything
+  [mocked-mobile] › mocked/low-data.spec.ts:143:1 › text-only mode is off until the reader asks, and the crests load while it is
+  [mocked-mobile] › mocked/low-data.spec.ts:158:1 › with text-only mode on, not one crest is requested
+  [mocked-mobile] › mocked/low-data.spec.ts:192:1 › the choice persists, and turning it off brings the crests back
+  [mocked-mobile] › mocked/low-data.spec.ts:217:1 › the switch says what the mode does, and does not promise offline reading
+  [mocked-mobile] › mocked/low-data.spec.ts:234:1 › the switch does not push the wide header into a sideways scroll
+  [mocked-mobile] › mocked/low-data.spec.ts:256:1 › nor does it overflow for an expert, who carries a sixth entry on that bar
+  [mocked-mobile] › mocked/low-data.spec.ts:275:1 › a lazily loaded route still arrives, and the shell never leaves the screen
+  [mocked-mobile] › mocked/low-data.spec.ts:289:1 › a chunk that arrives quickly says nothing at all
+  [mocked-mobile] › mocked/low-data.spec.ts:310:1 › a chunk that is slow says so, honestly, and draws no fixtures it does not have
+  [mocked-mobile] › mocked/low-data.spec.ts:350:1 › a chunk that never arrives says so, and blames the download rather than the page
+  [mocked-mobile] › mocked/low-data.spec.ts:373:1 › and leaving by that navigation actually works, rather than carrying the failure along
+  [mocked-mobile] › mocked/low-data.spec.ts:401:1 › the reading mode changes not one word about how old the data is
+  [mocked-mobile] › mocked/low-data.spec.ts:428:1 › filtering, changing the day, reloading and switching the mode spend nothing
+  [mocked-mobile] › mocked/match-data-state.spec.ts:183:5 › fixture and result updates blocked, in en › the banner leads with one plain sentence and keeps every source in its disclosure
+  [mocked-mobile] › mocked/match-data-state.spec.ts:224:5 › fixture and result updates blocked, in en › the lead never promises forecasts the forecast source cannot give
+  [mocked-mobile] › mocked/match-data-state.spec.ts:239:5 › fixture and result updates blocked, in en › the freshness line states the last provider write, never a refresh minutes ago
+  [mocked-mobile] › mocked/match-data-state.spec.ts:268:5 › fixture and result updates blocked, in en › the match page keeps its forecast and says what cannot change
+  [mocked-mobile] › mocked/match-data-state.spec.ts:294:5 › fixture and result updates blocked, in en › an overdue row on the day list says result updates are unavailable
+  [mocked-mobile] › mocked/match-data-state.spec.ts:303:5 › fixture and result updates blocked, in en › an empty day says it cannot fill itself while updates are blocked
+  [mocked-mobile] › mocked/match-data-state.spec.ts:312:5 › fixture and result updates blocked, in en › a selection waiting for its result says it cannot settle for now, in the slip and the history
+  [mocked-mobile] › mocked/match-data-state.spec.ts:334:5 › fixture and result updates blocked, in en › suggestions say they use only stored fixtures and count the forecasts waiting
+  [mocked-mobile] › mocked/match-data-state.spec.ts:347:5 › every other state leaves the pages as they were, in en › healthy: none of it, and the fixture age no longer comes from recover or settle
+  [mocked-mobile] › mocked/match-data-state.spec.ts:378:5 › every other state leaves the pages as they were, in en › degraded: the banner keeps its old rules and nothing new appears
+  [mocked-mobile] › mocked/match-data-state.spec.ts:388:5 › every other state leaves the pages as they were, in en › an older backend with no block gets exactly the banner it always had
+  [mocked-mobile] › mocked/match-data-state.spec.ts:183:5 › fixture and result updates blocked, in fr › the banner leads with one plain sentence and keeps every source in its disclosure
+  [mocked-mobile] › mocked/match-data-state.spec.ts:224:5 › fixture and result updates blocked, in fr › the lead never promises forecasts the forecast source cannot give
+  [mocked-mobile] › mocked/match-data-state.spec.ts:239:5 › fixture and result updates blocked, in fr › the freshness line states the last provider write, never a refresh minutes ago
+  [mocked-mobile] › mocked/match-data-state.spec.ts:268:5 › fixture and result updates blocked, in fr › the match page keeps its forecast and says what cannot change
+  [mocked-mobile] › mocked/match-data-state.spec.ts:294:5 › fixture and result updates blocked, in fr › an overdue row on the day list says result updates are unavailable
+  [mocked-mobile] › mocked/match-data-state.spec.ts:303:5 › fixture and result updates blocked, in fr › an empty day says it cannot fill itself while updates are blocked
+  [mocked-mobile] › mocked/match-data-state.spec.ts:312:5 › fixture and result updates blocked, in fr › a selection waiting for its result says it cannot settle for now, in the slip and the history
+  [mocked-mobile] › mocked/match-data-state.spec.ts:334:5 › fixture and result updates blocked, in fr › suggestions say they use only stored fixtures and count the forecasts waiting
+  [mocked-mobile] › mocked/match-data-state.spec.ts:347:5 › every other state leaves the pages as they were, in fr › healthy: none of it, and the fixture age no longer comes from recover or settle
+  [mocked-mobile] › mocked/match-data-state.spec.ts:378:5 › every other state leaves the pages as they were, in fr › degraded: the banner keeps its old rules and nothing new appears
+  [mocked-mobile] › mocked/match-data-state.spec.ts:388:5 › every other state leaves the pages as they were, in fr › an older backend with no block gets exactly the banner it always had
+  [mocked-mobile] › mocked/match-data-state.spec.ts:407:1 › at 360px in French the blocked banner fits, its disclosure included
+  [mocked-mobile] › mocked/match-data-state.spec.ts:429:1 › nothing in the blocked state asks a provider for anything
+  [mocked-mobile] › mocked/national-teams.spec.ts:451:1 › a national-team fixture appears on its date like any other, under its own competition
+  [mocked-mobile] › mocked/national-teams.spec.ts:465:1 › an otherwise empty day shows its national-team fixtures, and says that is what they are
+  [mocked-mobile] › mocked/national-teams.spec.ts:480:1 › the note is about the day and never appears on a day that has club football too
+  [mocked-mobile] › mocked/national-teams.spec.ts:485:1 › a day of fixtures that state no classification claims nothing and hides nothing
+  [mocked-mobile] › mocked/national-teams.spec.ts:499:1 › the club / national filter is offered on a day that holds both, and narrows to each
+  [mocked-mobile] › mocked/national-teams.spec.ts:519:1 › the filter is in the URL, so a narrowed day is a link and survives Back
+  [mocked-mobile] › mocked/national-teams.spec.ts:535:1 › a link that arrives with the filter set can always see it and take it off
+  [mocked-mobile] › mocked/national-teams.spec.ts:551:1 › the filter sheet offers the same choice, and the summary chip removes it
+  [mocked-mobile] › mocked/national-teams.spec.ts:572:1 › a national-team fixture opens, names its competition and says what is published for it
+  [mocked-mobile] › mocked/national-teams.spec.ts:589:1 › following a country does not follow its women's squad, which is a different row
+  [mocked-mobile] › mocked/national-teams.spec.ts:614:1 › the follow list tells two squads of one country apart, which their name cannot
+  [mocked-mobile] › mocked/national-teams.spec.ts:633:1 › a national-team fixture can be saved from the day list, through the same star as any other
+  [mocked-mobile] › mocked/national-teams.spec.ts:646:1 › an expert picking a fixture to write about is offered the national-team ones too
+  [mocked-mobile] › mocked/national-teams.spec.ts:665:1 › a tie won on penalties shows the scoreline people remember beside the one markets settle on
+  [mocked-mobile] › mocked/national-teams.spec.ts:691:1 › everything this feature says is in French for a reader who chose French
+  [mocked-mobile] › mocked/national-teams.spec.ts:705:1 › the filter and the squad note are in French too
+  [mocked-mobile] › mocked/national-teams.spec.ts:715:1 › a country's squad is named in French on the team page
+  [mocked-mobile] › mocked/national-teams.spec.ts:727:1 › a national-team kick-off is shown in the reader's own zone, not UTC
+  [mocked-mobile] › mocked/national-teams.spec.ts:739:1 › the longest competition and country names do not push the page sideways
+  [mocked-mobile] › mocked/national-teams.spec.ts:755:1 › the match page for the longest names does not push the page sideways either
+  [mocked-mobile] › mocked/national-teams.spec.ts:779:1 › the whole journey: find it, narrow to it, open it, save it, read its result
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:218:3 › the home page does not scroll sideways, signed out
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:226:3 › the home page does not scroll sideways, signed in
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:218:3 › the matches list does not scroll sideways, signed out
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:226:3 › the matches list does not scroll sideways, signed in
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:218:3 › a match detail page does not scroll sideways, signed out
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:226:3 › a match detail page does not scroll sideways, signed in
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:218:3 › the leagues index does not scroll sideways, signed out
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:226:3 › the leagues index does not scroll sideways, signed in
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:241:1 › the menu button is reachable and opens the menu
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:274:1 › opening a team from the foot of a match page lands at the top of the team page
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:293:1 › Back from the team page returns to where the match page was left
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:404:1 › Back to a list that arrives after the restore window still lands where the reader was
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:558:1 › a page that finishes growing after the restore reaches the offset leaves the reader on it
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:738:3 › a reader who takes the page back with a keypress during a slow restore keeps it
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:738:3 › a reader who takes the page back with a scrollbar drag during a slow restore keeps it
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:795:1 › past its cap the restore gives up, and the page growing afterwards does not move the reader
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:870:1 › a fresh document does not inherit the offset the last document left in this tab
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:937:1 › Back from a fixture restores the filtered list, its filters and its position
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:988:1 › Escape closes the filter sheet and gives focus back to the button that opened it
+  [mocked-mobile] › mocked/navigation-continuity.spec.ts:1013:1 › Escape closes the header menu and gives focus back to the menu button
+  [mocked-mobile] › mocked/navigation.spec.ts:14:3 › / renders and does not scroll sideways
+  [mocked-mobile] › mocked/navigation.spec.ts:14:3 › /predictions/today renders and does not scroll sideways
+  [mocked-mobile] › mocked/navigation.spec.ts:14:3 › /predictions/tomorrow renders and does not scroll sideways
+  [mocked-mobile] › mocked/navigation.spec.ts:14:3 › /leagues renders and does not scroll sideways
+  [mocked-mobile] › mocked/navigation.spec.ts:26:1 › every internal link points at a route that renders
+  [mocked-mobile] › mocked/navigation.spec.ts:45:1 › no image falls back to a third-party placeholder host
+  [mocked-mobile] › mocked/navigation.spec.ts:56:1 › every image either loads or falls back to a local asset
+  [mocked-mobile] › mocked/navigation.spec.ts:72:1 › the home page publishes no unmeasured performance claim
+  [mocked-mobile] › mocked/navigation.spec.ts:89:1 › the footer makes no promise the site does not keep
+  [mocked-mobile] › mocked/navigation.spec.ts:103:1 › the footer copyright year is current, not frozen
+  [mocked-mobile] › mocked/navigation.spec.ts:163:1 › search lists the clubs and competitions that match
+  [mocked-mobile] › mocked/navigation.spec.ts:185:1 › a search with no matches says so instead of showing a blank panel
+  [mocked-mobile] › mocked/navigation.spec.ts:205:1 › a failed search reports the failure, not an empty result
+  [mocked-mobile] › mocked/navigation.spec.ts:229:1 › the competition filter says it is loading rather than not existing
+  [mocked-mobile] › mocked/overdue-results.spec.ts:838:3 › [en] the day list says a result is overdue where the kickoff time would be
+  [mocked-mobile] › mocked/overdue-results.spec.ts:885:3 › [en] the day list distinguishes a fixture that has been given up on
+  [mocked-mobile] › mocked/overdue-results.spec.ts:914:3 › [en] THE MATCH THAT IS GENUINELY IN PLAY keeps its running minute and its score
+  [mocked-mobile] › mocked/overdue-results.spec.ts:931:3 › [en] A TIE PLAYED PAST THE DEADLINE KEEPS ITS MINUTE AND ITS SCORE
+  [mocked-mobile] › mocked/overdue-results.spec.ts:838:3 › [fr] the day list says a result is overdue where the kickoff time would be
+  [mocked-mobile] › mocked/overdue-results.spec.ts:885:3 › [fr] the day list distinguishes a fixture that has been given up on
+  [mocked-mobile] › mocked/overdue-results.spec.ts:914:3 › [fr] THE MATCH THAT IS GENUINELY IN PLAY keeps its running minute and its score
+  [mocked-mobile] › mocked/overdue-results.spec.ts:931:3 › [fr] A TIE PLAYED PAST THE DEADLINE KEEPS ITS MINUTE AND ITS SCORE
+  [mocked-mobile] › mocked/overdue-results.spec.ts:966:3 › [en] the day list tells an unreachable provider apart from an empty answer
+  [mocked-mobile] › mocked/overdue-results.spec.ts:999:3 › [en] the match page says what the last check found, and only what it found
+  [mocked-mobile] › mocked/overdue-results.spec.ts:966:3 › [fr] the day list tells an unreachable provider apart from an empty answer
+  [mocked-mobile] › mocked/overdue-results.spec.ts:999:3 › [fr] the match page says what the last check found, and only what it found
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1077:3 › [en] no sentence in the catalogue says a result cannot exist, and a held-back check names no failure
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1121:3 › [en] THE FOUR THINGS A READER CAN BE TOLD, on one day list beside a live match and a tie in extra time
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1192:3 › [en] a check held back by our own allowance is said as ours, and not as the provider's failure
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1221:3 › [en] a check that never left is worded by WHY it never left: only our own allowance is called ours
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1269:3 › [en] a stop the retry budget made says it was our allowance; the backend's prose stays off the page
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1290:3 › [en] a stop on a corrected count says "at most", exactly as the backend does
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1308:3 › [en] a check that read our own stored copy says so, and claims no call
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1326:3 › [en] a fixture put back under the retry schedule reads overdue and still asked about, not Unresolved
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1366:3 › [en] an outcome with no sentence of its own adds none, and the overdue statement stands
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1077:3 › [fr] no sentence in the catalogue says a result cannot exist, and a held-back check names no failure
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1121:3 › [fr] THE FOUR THINGS A READER CAN BE TOLD, on one day list beside a live match and a tie in extra time
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1192:3 › [fr] a check held back by our own allowance is said as ours, and not as the provider's failure
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1221:3 › [fr] a check that never left is worded by WHY it never left: only our own allowance is called ours
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1269:3 › [fr] a stop the retry budget made says it was our allowance; the backend's prose stays off the page
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1290:3 › [fr] a stop on a corrected count says "at most", exactly as the backend does
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1308:3 › [fr] a check that read our own stored copy says so, and claims no call
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1326:3 › [fr] a fixture put back under the retry schedule reads overdue and still asked about, not Unresolved
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1366:3 › [fr] an outcome with no sentence of its own adds none, and the overdue statement stands
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1389:3 › [en] the match page states an overdue result instead of a scoreline
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1420:3 › [en] the match page says how often the provider answered, and does not credit a removed rule's stop to our allowance
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1453:3 › [en] THE UNRESOLVED STATE THE OWNER CHECKED reads Unresolved on its row and its page
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1502:3 › [en] WHAT UNRESOLVED MAY NOT SAY: the backend's claim about an archive never reaches the page
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1527:3 › [en] the match page of a live fixture is untouched by any of this
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1537:3 › [en] the match page of a tie in extra time shows the tie, not a warning
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1548:3 › [en] a provider we cannot reach is said at the top of the page, and the fixture stays overdue
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1389:3 › [fr] the match page states an overdue result instead of a scoreline
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1420:3 › [fr] the match page says how often the provider answered, and does not credit a removed rule's stop to our allowance
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1453:3 › [fr] THE UNRESOLVED STATE THE OWNER CHECKED reads Unresolved on its row and its page
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1502:3 › [fr] WHAT UNRESOLVED MAY NOT SAY: the backend's claim about an archive never reaches the page
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1527:3 › [fr] the match page of a live fixture is untouched by any of this
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1537:3 › [fr] the match page of a tie in extra time shows the tie, not a warning
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1548:3 › [fr] a provider we cannot reach is said at the top of the page, and the fixture stays overdue
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1665:1 › a saved fixture whose result never arrived is not filed under "In play now"
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1707:1 › with nothing actually in play the dashboard says nothing about anything being in play
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1720:1 › the day list this file drives asks for its own local day and spends nothing extra
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1732:1 › a fixture that was called off is never described as late for a result
+  [mocked-mobile] › mocked/overdue-results.spec.ts:1747:1 › a payload that carries no deadline produces no claim, and the row says what it always said
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:399:5 › [en] mocked: markets and the slip › every served market renders with its number, source and rule; nothing unpublished is selectable
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:440:5 › [en] mocked: markets and the slip › signed out: one selection per fixture, a draft that survives a reload, and a copied slip that invents nothing
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:493:5 › [en] mocked: markets and the slip › signing in hands the browser draft to the account, and a refused leg is reported, not dropped silently
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:530:5 › [en] mocked: markets and the slip › a draft left open crosses kickoff visibly, and recording makes the slip immutable
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:572:5 › [en] mocked: markets and the slip › history shows what became of each leg, with the rule, and never guesses
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:618:5 › [en] mocked: markets and the slip › suggestions explain every leg, admit a shortfall, and add to the slip
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:399:5 › [fr] mocked: markets and the slip › every served market renders with its number, source and rule; nothing unpublished is selectable
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:440:5 › [fr] mocked: markets and the slip › signed out: one selection per fixture, a draft that survives a reload, and a copied slip that invents nothing
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:493:5 › [fr] mocked: markets and the slip › signing in hands the browser draft to the account, and a refused leg is reported, not dropped silently
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:530:5 › [fr] mocked: markets and the slip › a draft left open crosses kickoff visibly, and recording makes the slip immutable
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:572:5 › [fr] mocked: markets and the slip › history shows what became of each leg, with the rule, and never guesses
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:618:5 › [fr] mocked: markets and the slip › suggestions explain every leg, admit a shortfall, and add to the slip
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:738:1 › mocked: a slip write that lands after the account changed does not reach the next account
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:792:3 › mocked: a draft transfer whose first request fails while the account changes never sends a selection under the new account
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:792:3 › mocked: a draft transfer whose first request succeeds while the account changes never sends a selection under the new account
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:843:3 › mocked: a transfer whose second leg fails (refused) completes the SAME slip after a reload, with no duplicate
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:843:3 › mocked: a transfer whose second leg fails (answer lost) completes the SAME slip after a reload, with no duplicate
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:887:3 › mocked: a transfer whose FIRST request fails (refused) ends in one slip after a reload, never two
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:887:3 › mocked: a transfer whose FIRST request fails (answer lost) ends in one slip after a reload, never two
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:928:1 › mocked: a refused replacement leaves the original selection on the slip
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:953:1 › mocked: an older suggestions answer does not overwrite the newer filters' results
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:987:1 › mocked: a void selection shows the recorded price and the effective one, and withholds what it cannot compute
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:1024:3 › [en] mocked: an empty suggestion result names its real cause, not the probability
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:1024:3 › [fr] mocked: an empty suggestion result names its real cause, not the probability
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:1046:1 › mocked: a draw-no-bet selection withholds the combined chance and keeps each leg's own
+  [mocked-mobile] › mocked/parlay-builder.spec.ts:1070:1 › mocked: the page stays inside the viewport at every width and logs no error
+  [mocked-mobile] › mocked/provider-states.spec.ts:15:1 › an exhausted daily allowance reads as paused, not unavailable
+  [mocked-mobile] › mocked/provider-states.spec.ts:26:1 › an expired or rejected trial is surfaced to the reader
+  [mocked-mobile] › mocked/provider-states.spec.ts:36:1 › a day with no fixtures shows an empty state, not an error
+  [mocked-mobile] › mocked/provider-states.spec.ts:46:1 › a backend failure shows an error state, not an empty day
+  [mocked-mobile] › mocked/provider-states.spec.ts:59:1 › the status banner stays away when every provider is healthy
+  [mocked-mobile] › mocked/provider-states.spec.ts:66:1 › a loading state appears before the data arrives
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:355:3 › the reader pages are in en and carry nothing from the other catalogue
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:396:3 › the provenance, revision and evidence panels are in en
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:355:3 › the reader pages are in fr and carry nothing from the other catalogue
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:396:3 › the provenance, revision and evidence panels are in fr
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:428:3 › the labels French shares with English are on the en page unchanged
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:428:3 › the labels French shares with English are on the fr page unchanged
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:462:1 › the backend’s own sentences are rendered verbatim on the French page
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:516:3 › every en count label in the reader area reads the same at 0, 1, 2 and 11
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:516:3 › every fr count label in the reader area reads the same at 0, 1, 2 and 11
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:543:3 › the competition page shows 0 fixtures and 0 teams in French without moving its labels
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:543:3 › the competition page shows 1 fixtures and 1 teams in French without moving its labels
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:543:3 › the competition page shows 2 fixtures and 2 teams in French without moving its labels
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:543:3 › the competition page shows 11 fixtures and 11 teams in French without moving its labels
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:595:1 › the dashboard’s saved and in-play counts are whole French sentences with the numeral picked out
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:646:1 › the device this suite runs on is on neither zone these tests choose
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:654:1 › the three provenance times are shown in the chosen zone, on the chosen zone’s day
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:685:1 › a revision’s replacement time and an expert’s publication time follow the chosen zone
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:716:1 › the competition’s fixture window is asked for in the reader’s zone, not the device’s
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:738:1 › no reader page asks a provider for anything
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:835:3 › the follow control is in en, in both states, beside both nouns
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:901:3 › the follow count against the limit is right at 0, 1 and several in en
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:946:3 › the confirmation read out after a follow is in en
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:835:3 › the follow control is in fr, in both states, beside both nouns
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:901:3 › the follow count against the limit is right at 0, 1 and several in fr
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:946:3 › the confirmation read out after a follow is in fr
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:994:3 › a signed-out reader is invited to sign in in en, and is given no count
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:1011:3 › a failed favourites read says so in en rather than showing an empty star
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:994:3 › a signed-out reader is invited to sign in in fr, and is given no count
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:1011:3 › a failed favourites read says so in fr rather than showing an empty star
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:1169:1 › at 360px the French expert dashboard keeps its saved-ago line inside the box that holds it
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:1249:3 › at 360px in French a published row keeps its kick-off: a name that fits, so the line wraps and nothing is abbreviated
+  [mocked-mobile] › mocked/reader-localisation.spec.ts:1249:3 › at 360px in French a published row keeps its kick-off: a name longer than the row, so the name is abbreviated and the kick-off is not
+  [mocked-mobile] › mocked/result-language.spec.ts:37:1 › with forecasts scored, no screen claims nothing has been scored
+  [mocked-mobile] › mocked/result-language.spec.ts:50:1 › below the minimum sample, the page still does not claim nothing has been scored
+  [mocked-mobile] › mocked/result-language.spec.ts:64:1 › with nothing scored the honest nothing-scored state still renders
+  [mocked-mobile] › mocked/result-language.spec.ts:84:1 › correct outcomes and sample size are separately labelled
+  [mocked-mobile] › mocked/result-language.spec.ts:108:1 › a hit count on a small sample cannot be read as a sample size
+  [mocked-mobile] › mocked/result-language.spec.ts:122:1 › below the minimum sample no percentage appears and the refusal is a sentence
+  [mocked-mobile] › mocked/result-language.spec.ts:155:1 › the empty-date state says what is stored, not what exists, and offers an action
+  [mocked-mobile] › mocked/result-language.spec.ts:178:1 › the filtered-empty state stays distinct from the nothing-stored one
+  [mocked-mobile] › mocked/result-language.spec.ts:235:3 › the rewritten copy stays inside its container at 360px
+  [mocked-mobile] › mocked/result-language.spec.ts:252:3 › the computed footnote stays inside its container at 360px
+  [mocked-mobile] › mocked/result-language.spec.ts:273:3 › the empty-date state stays inside its container at 360px
+  [mocked-mobile] › mocked/result-language.spec.ts:235:3 › the rewritten copy stays inside its container at 390px
+  [mocked-mobile] › mocked/result-language.spec.ts:252:3 › the computed footnote stays inside its container at 390px
+  [mocked-mobile] › mocked/result-language.spec.ts:273:3 › the empty-date state stays inside its container at 390px
+  [mocked-mobile] › mocked/result-language.spec.ts:235:3 › the rewritten copy stays inside its container at 1440px
+  [mocked-mobile] › mocked/result-language.spec.ts:252:3 › the computed footnote stays inside its container at 1440px
+  [mocked-mobile] › mocked/result-language.spec.ts:273:3 › the empty-date state stays inside its container at 1440px
+  [mocked-mobile] › mocked/result-language.spec.ts:305:1 › a list of fixtures none of which has been played says so, counted from the list
+  [mocked-mobile] › mocked/result-language.spec.ts:319:1 › once a listed fixture has been played the page stops claiming nothing has been scored
+  [mocked-mobile] › mocked/result-language.spec.ts:340:1 › a fixture still in play is not reported as finished
+  [mocked-mobile] › mocked/result-language.spec.ts:358:1 › the rest of the footnote — the part that is about the page, not the data — survives
+  [mocked-mobile] › mocked/result-language.spec.ts:406:1 › the match page prints the scoring position the payload measured, not one of its own
+  [mocked-mobile] › mocked/result-language.spec.ts:420:1 › with nothing scored the match page still carries the honest nothing-scored sentence
+  [mocked-mobile] › mocked/revision-history.spec.ts:218:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en
+  [mocked-mobile] › mocked/revision-history.spec.ts:269:3 › what changed is a sentence in en, never the backend's field names
+  [mocked-mobile] › mocked/revision-history.spec.ts:293:3 › the card names the expert by username, never by email or the source enum, in en
+  [mocked-mobile] › mocked/revision-history.spec.ts:310:3 › the late-publication chip appears only when the backend says so, in en
+  [mocked-mobile] › mocked/revision-history.spec.ts:338:3 › a prediction withdrawn before kick-off and published again after it says it is not scored, in en
+  [mocked-mobile] › mocked/revision-history.spec.ts:218:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr
+  [mocked-mobile] › mocked/revision-history.spec.ts:269:3 › what changed is a sentence in fr, never the backend's field names
+  [mocked-mobile] › mocked/revision-history.spec.ts:293:3 › the card names the expert by username, never by email or the source enum, in fr
+  [mocked-mobile] › mocked/revision-history.spec.ts:310:3 › the late-publication chip appears only when the backend says so, in fr
+  [mocked-mobile] › mocked/revision-history.spec.ts:338:3 › a prediction withdrawn before kick-off and published again after it says it is not scored, in fr
+  [mocked-mobile] › mocked/revision-history.spec.ts:378:1 › revisions are grouped per prediction, each under its own author
+  [mocked-mobile] › mocked/revision-history.spec.ts:408:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label
+  [mocked-mobile] › mocked/revision-history.spec.ts:427:1 › a version recorded before a market existed says so, and no structured changes means no change line
+  [mocked-mobile] › mocked/revision-history.spec.ts:451:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened
+  [mocked-mobile] › mocked/revision-history.spec.ts:530:3 › both pickers mark a fixture that has kicked off, and still offer it, in en
+  [mocked-mobile] › mocked/revision-history.spec.ts:555:3 › the composer and its preview warn on a fixture that has kicked off, in en
+  [mocked-mobile] › mocked/revision-history.spec.ts:587:3 › editing after kickoff says the version that stood at kickoff is what counts, in en
+  [mocked-mobile] › mocked/revision-history.spec.ts:530:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr
+  [mocked-mobile] › mocked/revision-history.spec.ts:555:3 › the composer and its preview warn on a fixture that has kicked off, in fr
+  [mocked-mobile] › mocked/revision-history.spec.ts:587:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr
+  [mocked-mobile] › mocked/revision-history.spec.ts:621:1 › a prediction on a kicked-off fixture is still published when the expert presses publish
+  [mocked-mobile] › mocked/saved-lifecycle.spec.ts:287:1 › MOCKED-ONLY: a saved fixture goes from upcoming to in play to finished while the tab stays in front
+  [mocked-mobile] › mocked/saved-lifecycle.spec.ts:334:1 › MOCKED-ONLY: with automatic updates off, a saved fixture due to kick off is not polled
+  [mocked-mobile] › mocked/saved-lifecycle.spec.ts:408:1 › MOCKED-ONLY: a fixture reached only through a followed team is noticed when it kicks off, with the tab never leaving the front
+  [mocked-mobile] › mocked/saved-lifecycle.spec.ts:448:1 › MOCKED-ONLY: with automatic updates off, a followed fixture due to kick off is not polled either
+  [mocked-mobile] › mocked/scoreline.spec.ts:86:1 › a tie won on penalties names the shoot-out beside the score, not as the score
+  [mocked-mobile] › mocked/scoreline.spec.ts:99:1 › a tie decided in extra time publishes the 90-minute score the markets settle on
+  [mocked-mobile] › mocked/scoreline.spec.ts:109:1 › an ordinary match gets no period line at all
+  [mocked-mobile] › mocked/scoreline.spec.ts:119:1 › a period the source never supplied is shown as nothing, never as 0-0
+  [mocked-mobile] › mocked/scoreline.spec.ts:139:1 › the shoot-out is named in French for a reader who chose French
+  [mocked-mobile] › mocked/scoreline.spec.ts:149:1 › the extra-time lines are in French too
+  [mocked-mobile] › mocked/scoreline.spec.ts:160:1 › the fixture list carries the shoot-out too, in the short form the row has space for
+  [mocked-mobile] › mocked/timezone.spec.ts:54:3 › a viewer in New York › today asks the backend for the viewer's local calendar day
+  [mocked-mobile] › mocked/timezone.spec.ts:61:3 › a viewer in New York › tomorrow asks for the day after the viewer's local day
+  [mocked-mobile] › mocked/timezone.spec.ts:73:3 › a viewer in Auckland, far ahead of UTC › today is the Auckland day, not the UTC day
+  [mocked-mobile] › mocked/timezone.spec.ts:94:3 › a viewer in Los Angeles, far behind UTC › a late-evening kickoff still belongs to today
+  [mocked-mobile] › mocked/timezone.spec.ts:102:3 › a viewer in Los Angeles, far behind UTC › a kickoff just outside the local day is not shown as today
+  [mocked-mobile] › mocked/timezone.spec.ts:132:3 › a daylight-saving transition day in Lisbon › the requested day matches the viewer's calendar
+  [mocked-mobile] › mocked/timezone.spec.ts:139:3 › a daylight-saving transition day in Lisbon › both ends of a 25-hour local day are shown
+  [mocked-mobile] › mocked/timezone.spec.ts:146:3 › a daylight-saving transition day in Lisbon › the hours either side of a 25-hour local day are not
+  [mocked-mobile] › mocked/timezone.spec.ts:170:3 › a daylight-saving transition day in New York › the requested day matches the viewer's calendar
+  [mocked-mobile] › mocked/timezone.spec.ts:177:3 › a daylight-saving transition day in New York › the client bounds the day with the offset at each end, not one offset twice
+  [mocked-mobile] › mocked/timezone.spec.ts:191:3 › a daylight-saving transition day in New York › both ends of a 25-hour local day are shown
+  [mocked-mobile] › mocked/timezone.spec.ts:198:3 › a daylight-saving transition day in New York › the first hour of the next local day is not
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:114:1 › an empty day names when the competitions play again, and who plays
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:132:1 › the same answer reads as French for a French reader
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:149:1 › a calendar that was read and lists nothing says so
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:162:1 › a calendar nobody could read is reported as not known, never as no football
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:177:1 › a request that fails adds nothing at all to the empty state
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:192:1 › an answer that missed some calendars does not speak for the ones it missed
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:208:1 › a partial answer with nothing in it is not reported as a calendar with nothing in it
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:256:1 › a day that could not find out does not stop the next empty day from asking
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:297:1 › an answer already given is not paid for again on the next empty day
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:314:1 › a day with fixtures on it never asks when football resumes
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:484:1 › an answer is kept up to the age limit and asked again past it, kickoff or no kickoff
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:511:1 › an answer whose kickoff has passed is asked again, long before it is old
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:534:1 › an answer that names nothing to come expires on the clock like any other
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:566:1 › a kickoff that passes while the reader is away is re-asked when they come back to the tab
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:588:1 › coming back to the tab asks nothing when the answer on screen is still good
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:617:1 › a tab that is not in front does no work when the events arrive
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:668:1 › a refresh that fails leaves the notice the reader was reading on screen
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:699:1 › a refresh the backend refuses to spend on leaves the notice alone
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:739:1 › a return that could not find out is not re-asked by the return after it
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:801:1 › automatic updates switched off stops the note re-asking when the reader comes back
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:820:1 › the same reader with automatic updates on does get the refresh
+  [mocked-mobile] › mocked/upcoming-empty-state.spec.ts:847:1 › empty days opened faster than the answer arrives share the one request
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:327:1 › the English figures the composer prints are exactly what they were, and the French ones are French
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:368:1 › validation returns message keys and figures, not English sentences, and its arithmetic is unchanged
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:414:1 › the French composer, from picker to published, carries no English the catalogue cannot account for
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:474:1 › a French decimal comma is sent as the same probability, and read back with a comma
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:513:1 › the French composer refuses bad input in French, and sends nothing
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:586:1 › switching to French with errors on screen re-renders them in French, untouched
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:616:1 › a French publish the server refuses says so around the server's own words
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:631:1 › the kick-off is the Douala time and day in the picker, the header, the evidence and the preview
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:708:1 › the kick-off is drawn whole in the composer header and in the preview, at this width
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:739:1 › a picker that cannot reach the server says so in French, with no HTTP-client English
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:750:1 › a fixture that cannot be loaded says so in French, with the French reason
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:760:1 › a publish refused with no words from the server says so in French
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:780:1 › changing the zone re-times the composer picker and asks the backend for the new day window
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:824:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in en
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:824:3 › the picker badge says current, out of date, kept for reference or none, truthfully, in fr
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:884:1 › the backend's own sentence in the evidence panel is shown as written, marked English, and nothing else is
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:904:3 › an edit reopens in the reader's decimals and is checked in fr
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:904:3 › an edit reopens in the reader's decimals and is checked in en
+  [mocked-mobile-360] › mocked/expert-composer-localisation.spec.ts:969:1 › the English composer reads exactly as it did
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:412:1 › exactly 20 predictions are one page: Next cannot be pressed and the heading says 20
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:425:1 › a later page that has emptied since it was counted keeps Previous and says so
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:455:1 › 21 predictions: page 2 holds the 21st, and deleting it steps back to page 1 with 20
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:489:1 › the heading counts every prediction on every page, and Next stops at the last page
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:510:1 › without an X-Total-Count header the page still knows whether a next page exists
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:537:1 › changing the status filter on page 2 asks for the first page of that status
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:555:1 › Unpublish and Publish on My Predictions: a confirmation each, one request each
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:591:1 › the publication control is disabled while its request is in flight
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:615:1 › after kickoff, the card and the confirmation say the measured record does not change
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:649:1 › after kickoff, Delete asks with the note that the measured record does not change, on both pages
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:694:1 › My Predictions and the dashboard say which predictions are not in the measured record, and no others
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:738:1 › unpublishing the last row of a filtered later page steps back one page
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:765:1 › the record adds up after publish, unpublish and republish, and after every reload
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:793:1 › "Not published" counts everything that is not published, pending and rejected included
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:804:1 › an older payload without the new counts still adds up, and claims no unpublished count
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:815:1 › the recent list is called what it holds, and only a published row says when it was published
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:834:1 › the dashboard asks before it unpublishes, as My Predictions does
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:859:1 › in French the record, the recent list and the card actions fit this width
+  [mocked-mobile-360] › mocked/expert-management.spec.ts:903:1 › the copy this file reads is the catalogue's, in both languages
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:183:5 › fixture and result updates blocked, in en › the banner leads with one plain sentence and keeps every source in its disclosure
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:224:5 › fixture and result updates blocked, in en › the lead never promises forecasts the forecast source cannot give
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:239:5 › fixture and result updates blocked, in en › the freshness line states the last provider write, never a refresh minutes ago
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:268:5 › fixture and result updates blocked, in en › the match page keeps its forecast and says what cannot change
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:294:5 › fixture and result updates blocked, in en › an overdue row on the day list says result updates are unavailable
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:303:5 › fixture and result updates blocked, in en › an empty day says it cannot fill itself while updates are blocked
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:312:5 › fixture and result updates blocked, in en › a selection waiting for its result says it cannot settle for now, in the slip and the history
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:334:5 › fixture and result updates blocked, in en › suggestions say they use only stored fixtures and count the forecasts waiting
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:347:5 › every other state leaves the pages as they were, in en › healthy: none of it, and the fixture age no longer comes from recover or settle
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:378:5 › every other state leaves the pages as they were, in en › degraded: the banner keeps its old rules and nothing new appears
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:388:5 › every other state leaves the pages as they were, in en › an older backend with no block gets exactly the banner it always had
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:183:5 › fixture and result updates blocked, in fr › the banner leads with one plain sentence and keeps every source in its disclosure
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:224:5 › fixture and result updates blocked, in fr › the lead never promises forecasts the forecast source cannot give
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:239:5 › fixture and result updates blocked, in fr › the freshness line states the last provider write, never a refresh minutes ago
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:268:5 › fixture and result updates blocked, in fr › the match page keeps its forecast and says what cannot change
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:294:5 › fixture and result updates blocked, in fr › an overdue row on the day list says result updates are unavailable
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:303:5 › fixture and result updates blocked, in fr › an empty day says it cannot fill itself while updates are blocked
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:312:5 › fixture and result updates blocked, in fr › a selection waiting for its result says it cannot settle for now, in the slip and the history
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:334:5 › fixture and result updates blocked, in fr › suggestions say they use only stored fixtures and count the forecasts waiting
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:347:5 › every other state leaves the pages as they were, in fr › healthy: none of it, and the fixture age no longer comes from recover or settle
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:378:5 › every other state leaves the pages as they were, in fr › degraded: the banner keeps its old rules and nothing new appears
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:388:5 › every other state leaves the pages as they were, in fr › an older backend with no block gets exactly the banner it always had
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:407:1 › at 360px in French the blocked banner fits, its disclosure included
+  [mocked-mobile-360] › mocked/match-data-state.spec.ts:429:1 › nothing in the blocked state asks a provider for anything
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:451:1 › a national-team fixture appears on its date like any other, under its own competition
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:465:1 › an otherwise empty day shows its national-team fixtures, and says that is what they are
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:480:1 › the note is about the day and never appears on a day that has club football too
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:485:1 › a day of fixtures that state no classification claims nothing and hides nothing
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:499:1 › the club / national filter is offered on a day that holds both, and narrows to each
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:519:1 › the filter is in the URL, so a narrowed day is a link and survives Back
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:535:1 › a link that arrives with the filter set can always see it and take it off
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:551:1 › the filter sheet offers the same choice, and the summary chip removes it
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:572:1 › a national-team fixture opens, names its competition and says what is published for it
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:589:1 › following a country does not follow its women's squad, which is a different row
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:614:1 › the follow list tells two squads of one country apart, which their name cannot
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:633:1 › a national-team fixture can be saved from the day list, through the same star as any other
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:646:1 › an expert picking a fixture to write about is offered the national-team ones too
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:665:1 › a tie won on penalties shows the scoreline people remember beside the one markets settle on
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:691:1 › everything this feature says is in French for a reader who chose French
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:705:1 › the filter and the squad note are in French too
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:715:1 › a country's squad is named in French on the team page
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:727:1 › a national-team kick-off is shown in the reader's own zone, not UTC
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:739:1 › the longest competition and country names do not push the page sideways
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:755:1 › the match page for the longest names does not push the page sideways either
+  [mocked-mobile-360] › mocked/national-teams.spec.ts:779:1 › the whole journey: find it, narrow to it, open it, save it, read its result
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:218:3 › the home page does not scroll sideways, signed out
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:226:3 › the home page does not scroll sideways, signed in
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:218:3 › the matches list does not scroll sideways, signed out
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:226:3 › the matches list does not scroll sideways, signed in
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:218:3 › a match detail page does not scroll sideways, signed out
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:226:3 › a match detail page does not scroll sideways, signed in
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:218:3 › the leagues index does not scroll sideways, signed out
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:226:3 › the leagues index does not scroll sideways, signed in
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:241:1 › the menu button is reachable and opens the menu
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:274:1 › opening a team from the foot of a match page lands at the top of the team page
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:293:1 › Back from the team page returns to where the match page was left
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:404:1 › Back to a list that arrives after the restore window still lands where the reader was
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:558:1 › a page that finishes growing after the restore reaches the offset leaves the reader on it
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:738:3 › a reader who takes the page back with a keypress during a slow restore keeps it
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:738:3 › a reader who takes the page back with a scrollbar drag during a slow restore keeps it
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:795:1 › past its cap the restore gives up, and the page growing afterwards does not move the reader
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:870:1 › a fresh document does not inherit the offset the last document left in this tab
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:937:1 › Back from a fixture restores the filtered list, its filters and its position
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:988:1 › Escape closes the filter sheet and gives focus back to the button that opened it
+  [mocked-mobile-360] › mocked/navigation-continuity.spec.ts:1013:1 › Escape closes the header menu and gives focus back to the menu button
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:838:3 › [en] the day list says a result is overdue where the kickoff time would be
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:885:3 › [en] the day list distinguishes a fixture that has been given up on
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:914:3 › [en] THE MATCH THAT IS GENUINELY IN PLAY keeps its running minute and its score
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:931:3 › [en] A TIE PLAYED PAST THE DEADLINE KEEPS ITS MINUTE AND ITS SCORE
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:838:3 › [fr] the day list says a result is overdue where the kickoff time would be
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:885:3 › [fr] the day list distinguishes a fixture that has been given up on
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:914:3 › [fr] THE MATCH THAT IS GENUINELY IN PLAY keeps its running minute and its score
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:931:3 › [fr] A TIE PLAYED PAST THE DEADLINE KEEPS ITS MINUTE AND ITS SCORE
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:966:3 › [en] the day list tells an unreachable provider apart from an empty answer
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:999:3 › [en] the match page says what the last check found, and only what it found
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:966:3 › [fr] the day list tells an unreachable provider apart from an empty answer
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:999:3 › [fr] the match page says what the last check found, and only what it found
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1077:3 › [en] no sentence in the catalogue says a result cannot exist, and a held-back check names no failure
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1121:3 › [en] THE FOUR THINGS A READER CAN BE TOLD, on one day list beside a live match and a tie in extra time
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1192:3 › [en] a check held back by our own allowance is said as ours, and not as the provider's failure
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1221:3 › [en] a check that never left is worded by WHY it never left: only our own allowance is called ours
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1269:3 › [en] a stop the retry budget made says it was our allowance; the backend's prose stays off the page
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1290:3 › [en] a stop on a corrected count says "at most", exactly as the backend does
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1308:3 › [en] a check that read our own stored copy says so, and claims no call
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1326:3 › [en] a fixture put back under the retry schedule reads overdue and still asked about, not Unresolved
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1366:3 › [en] an outcome with no sentence of its own adds none, and the overdue statement stands
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1077:3 › [fr] no sentence in the catalogue says a result cannot exist, and a held-back check names no failure
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1121:3 › [fr] THE FOUR THINGS A READER CAN BE TOLD, on one day list beside a live match and a tie in extra time
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1192:3 › [fr] a check held back by our own allowance is said as ours, and not as the provider's failure
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1221:3 › [fr] a check that never left is worded by WHY it never left: only our own allowance is called ours
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1269:3 › [fr] a stop the retry budget made says it was our allowance; the backend's prose stays off the page
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1290:3 › [fr] a stop on a corrected count says "at most", exactly as the backend does
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1308:3 › [fr] a check that read our own stored copy says so, and claims no call
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1326:3 › [fr] a fixture put back under the retry schedule reads overdue and still asked about, not Unresolved
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1366:3 › [fr] an outcome with no sentence of its own adds none, and the overdue statement stands
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1389:3 › [en] the match page states an overdue result instead of a scoreline
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1420:3 › [en] the match page says how often the provider answered, and does not credit a removed rule's stop to our allowance
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1453:3 › [en] THE UNRESOLVED STATE THE OWNER CHECKED reads Unresolved on its row and its page
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1502:3 › [en] WHAT UNRESOLVED MAY NOT SAY: the backend's claim about an archive never reaches the page
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1527:3 › [en] the match page of a live fixture is untouched by any of this
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1537:3 › [en] the match page of a tie in extra time shows the tie, not a warning
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1548:3 › [en] a provider we cannot reach is said at the top of the page, and the fixture stays overdue
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1389:3 › [fr] the match page states an overdue result instead of a scoreline
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1420:3 › [fr] the match page says how often the provider answered, and does not credit a removed rule's stop to our allowance
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1453:3 › [fr] THE UNRESOLVED STATE THE OWNER CHECKED reads Unresolved on its row and its page
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1502:3 › [fr] WHAT UNRESOLVED MAY NOT SAY: the backend's claim about an archive never reaches the page
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1527:3 › [fr] the match page of a live fixture is untouched by any of this
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1537:3 › [fr] the match page of a tie in extra time shows the tie, not a warning
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1548:3 › [fr] a provider we cannot reach is said at the top of the page, and the fixture stays overdue
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1665:1 › a saved fixture whose result never arrived is not filed under "In play now"
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1707:1 › with nothing actually in play the dashboard says nothing about anything being in play
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1720:1 › the day list this file drives asks for its own local day and spends nothing extra
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1732:1 › a fixture that was called off is never described as late for a result
+  [mocked-mobile-360] › mocked/overdue-results.spec.ts:1747:1 › a payload that carries no deadline produces no claim, and the row says what it always said
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:399:5 › [en] mocked: markets and the slip › every served market renders with its number, source and rule; nothing unpublished is selectable
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:440:5 › [en] mocked: markets and the slip › signed out: one selection per fixture, a draft that survives a reload, and a copied slip that invents nothing
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:493:5 › [en] mocked: markets and the slip › signing in hands the browser draft to the account, and a refused leg is reported, not dropped silently
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:530:5 › [en] mocked: markets and the slip › a draft left open crosses kickoff visibly, and recording makes the slip immutable
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:572:5 › [en] mocked: markets and the slip › history shows what became of each leg, with the rule, and never guesses
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:618:5 › [en] mocked: markets and the slip › suggestions explain every leg, admit a shortfall, and add to the slip
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:399:5 › [fr] mocked: markets and the slip › every served market renders with its number, source and rule; nothing unpublished is selectable
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:440:5 › [fr] mocked: markets and the slip › signed out: one selection per fixture, a draft that survives a reload, and a copied slip that invents nothing
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:493:5 › [fr] mocked: markets and the slip › signing in hands the browser draft to the account, and a refused leg is reported, not dropped silently
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:530:5 › [fr] mocked: markets and the slip › a draft left open crosses kickoff visibly, and recording makes the slip immutable
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:572:5 › [fr] mocked: markets and the slip › history shows what became of each leg, with the rule, and never guesses
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:618:5 › [fr] mocked: markets and the slip › suggestions explain every leg, admit a shortfall, and add to the slip
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:738:1 › mocked: a slip write that lands after the account changed does not reach the next account
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:792:3 › mocked: a draft transfer whose first request fails while the account changes never sends a selection under the new account
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:792:3 › mocked: a draft transfer whose first request succeeds while the account changes never sends a selection under the new account
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:843:3 › mocked: a transfer whose second leg fails (refused) completes the SAME slip after a reload, with no duplicate
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:843:3 › mocked: a transfer whose second leg fails (answer lost) completes the SAME slip after a reload, with no duplicate
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:887:3 › mocked: a transfer whose FIRST request fails (refused) ends in one slip after a reload, never two
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:887:3 › mocked: a transfer whose FIRST request fails (answer lost) ends in one slip after a reload, never two
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:928:1 › mocked: a refused replacement leaves the original selection on the slip
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:953:1 › mocked: an older suggestions answer does not overwrite the newer filters' results
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:987:1 › mocked: a void selection shows the recorded price and the effective one, and withholds what it cannot compute
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:1024:3 › [en] mocked: an empty suggestion result names its real cause, not the probability
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:1024:3 › [fr] mocked: an empty suggestion result names its real cause, not the probability
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:1046:1 › mocked: a draw-no-bet selection withholds the combined chance and keeps each leg's own
+  [mocked-mobile-360] › mocked/parlay-builder.spec.ts:1070:1 › mocked: the page stays inside the viewport at every width and logs no error
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:218:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in en
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:269:3 › what changed is a sentence in en, never the backend's field names
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:293:3 › the card names the expert by username, never by email or the source enum, in en
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:310:3 › the late-publication chip appears only when the backend says so, in en
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:338:3 › a prediction withdrawn before kick-off and published again after it says it is not scored, in en
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:218:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:269:3 › what changed is a sentence in fr, never the backend's field names
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:293:3 › the card names the expert by username, never by email or the source enum, in fr
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:310:3 › the late-publication chip appears only when the backend says so, in fr
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:338:3 › a prediction withdrawn before kick-off and published again after it says it is not scored, in fr
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:378:1 › revisions are grouped per prediction, each under its own author
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:408:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:427:1 › a version recorded before a market existed says so, and no structured changes means no change line
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:451:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:530:3 › both pickers mark a fixture that has kicked off, and still offer it, in en
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:555:3 › the composer and its preview warn on a fixture that has kicked off, in en
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:587:3 › editing after kickoff says the version that stood at kickoff is what counts, in en
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:530:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:555:3 › the composer and its preview warn on a fixture that has kicked off, in fr
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:587:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr
+  [mocked-mobile-360] › mocked/revision-history.spec.ts:621:1 › a prediction on a kicked-off fixture is still published when the expert presses publish
+Total: 1297 tests in 30 files
+# exit=0 (the runner's own $?)
+# (no path or personal data in the output; nothing edited)
