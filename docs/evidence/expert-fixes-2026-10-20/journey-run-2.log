@@ -1,0 +1,34 @@
+# expert journey, evidence run 2 of 2 (live-isolated, workers=1): the owner's real browser journey, frontend/e2e/live-isolated/expert-journey.spec.ts
+# branch expert-fixes at 8c779e7b plus the new spec (uncommitted at the time of this run, committed with this log); no product code changed
+# served by Vite on http://localhost:3101 (pid 1982, cwd <worktree>/frontend, --mode dev8001) against the isolated backend http://127.0.0.1:8001 (pid 70388, cwd <worktree>/backend, /health database soccer_predictions_e2e, app_tree_sha256 7138445ead1da33f2c8ca9597a7a08c90d9ebdf6fbad5da0fb11256a20f75539)
+# run at 2026-10-21T07:01:24Z; cd frontend && E2E_BASE_URL=http://localhost:3101 E2E_EVIDENCE_DIR=<worktree>/docs/evidence/expert-fixes-2026-10-20/journey npx playwright test e2e/live-isolated/expert-journey.spec.ts --project=live-isolated --workers=1 --reporter=list
+
+
+Running 1 test using 1 worker
+
+[expert-journey] before: removed 0 QA prediction(s) left by earlier runs
+[expert-journey] 1: a wrong password was refused (401) and the right one signed in (200), landing on /expert/dashboard
+[expert-journey] 2: first name "QA" -> "QA-Journey" with one PUT; header updated; username qa_expert_local
+[expert-journey] 3: chose "Write a prediction: Lille versus Galatasaray, UEFA Champions League, kick-off 12:45"
+[expert-journey] 14a: 60/30/30 and a conviction of "seventy" were refused on the form; no create request was sent
+[expert-journey] 4: the typed draft (1X2, conviction, BTTS, over/under 2.5, reasoning) came back whole after a reload
+[expert-journey] observed: the preview does not show the BTTS conviction typed in the composer (65%)
+[expert-journey] observed: the preview does not show the goal-line conviction typed in the composer (60%)
+[expert-journey] 5: the preview shows the fixture, 1X2, the conviction, BTTS, over/under 2.5, 3.5 as not published, and the reasoning
+[expert-journey] 6: published 7269e3e5-05e3-41b4-9da1-b3ff840bd922; classified as test data: true
+[expert-journey] 7: the anonymous reader sees the prediction, byline "By qa_expert_local · published 21 Oct 2026, 03:01"
+[expert-journey] 8: after a reload the anonymous reader still sees it, same byline
+[expert-journey] 9: BTTS 58/42 -> 45/55 and the reasoning rewritten through My Predictions, one PUT, still published
+[expert-journey] 10: version 1 shows 10 figures, 3.5 as left out, the first reasoning; changes: Both teams to score – No: 42% → 55% | Both teams to score – Yes: 58% → 45% | Reasoning rewritten
+[expert-journey] 11: unpublished after a confirmation; the anonymous reader no longer sees it, nor its earlier version
+[expert-journey] 12: published again; byline unchanged ("By qa_expert_local · published 21 Oct 2026, 03:01"), published_at unchanged (2026-10-21T07:01:38.966559Z)
+[expert-journey] 13: deleted through the UI (deleted_at 2026-10-21T07:01:51.376673Z); a repeated DELETE said already_deleted with the same deleted_at
+[expert-journey] 14b: the "Rejected" filter shows "No predictions found"
+[expert-journey] 15: first name restored to "QA" through the form, one PUT
+[expert-journey] writes: POST /api/v1/auth/login, POST /api/v1/auth/login, PUT /api/v1/users/me, POST /api/v1/expert/predictions/manual, PUT /api/v1/expert/predictions/{id}, POST /api/v1/expert/predictions/{id}/toggle-publish, POST /api/v1/expert/predictions/{id}/toggle-publish, DELETE /api/v1/expert/predictions/{id}, PUT /api/v1/users/me
+[expert-journey] after: cleanup removed 0 QA prediction(s)
+  ✓  1 [live-isolated] › e2e/live-isolated/expert-journey.spec.ts:263:1 › the owner journey: sign in, profile, compose, publish, read anonymously, edit, unpublish, publish, delete (33.5s)
+
+  1 passed (34.2s)
+# exit=0
+# (the local worktree path is written <worktree> and the home prefix ~; terminal colour codes stripped; nothing else edited)
