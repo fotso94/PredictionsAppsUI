@@ -72,7 +72,11 @@ async def update_current_user_profile(
     changed = False
 
     # The schema has stripped it and refused a blank one, so a named username is a real one here.
-    if "username" in supplied and update_data.username != current_user.username:
+    # It is compared with the STORED username stripped too: registration does not strip, so an
+    # account can be stored as "name " and the form sends its unchanged username back as "name".
+    # That is no change - not a reason to run the duplicate check (which would find another
+    # account's "name" and refuse every save with 409) nor to rewrite the stored row.
+    if "username" in supplied and update_data.username != (current_user.username or "").strip():
         existing_user = db.query(User).filter(
             User.username == update_data.username,
             User.id != current_user.id

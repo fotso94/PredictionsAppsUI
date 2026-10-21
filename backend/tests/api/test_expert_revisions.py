@@ -522,6 +522,107 @@ def test_published_after_kickoff_is_null_when_either_time_is_unknown(client, db)
     assert serialize_expert_prediction(dated, kickoff=LATE_KICKOFF)["published_after_kickoff"] is False
 
 
+# ----------------------------------------------------------------------------- withdrawn, then put back
+#: Another played fixture on a day of its own, for the withdraw-and-republish cases.
+WITHDRAWN_KICKOFF = (datetime.utcnow() - timedelta(days=11)).replace(hour=15, minute=0, second=0, microsecond=0)
+
+
+def _toggle_at(db, monkeypatch, prediction: Prediction, expert: User, at: datetime) -> None:
+    """Run the real publish toggle as though it were ``at``: it stamps its own time with utcnow."""
+    class _At(datetime):
+        @classmethod
+        def utcnow(cls):
+            return at
+
+    monkeypatch.setattr("app.services.expert_prediction.datetime", _At)
+    try:
+        ExpertPredictionService(db).toggle_publish_status(str(prediction.id), expert)
+        db.flush()
+    finally:
+        monkeypatch.setattr("app.services.expert_prediction.datetime", datetime)
+
+
+def _served_rows(client, match: Match) -> list:
+    """Every public payload of this match's expert prediction: detail (both shapes) and the list."""
+    detail = _detail(client, match)
+    listing = client.get(f"/api/v1/matches?date={match.match_date.date().isoformat()}&refresh=false")
+    assert listing.status_code == 200, listing.text
+    listed = next(r for r in listing.json()["matches"] if r["id"] == str(match.id))
+    return [*detail["expert_predictions"], detail["expert_prediction"], listed["expert_prediction"]]
+
+
+def test_withdrawn_before_kickoff_and_republished_after_is_served_as_not_scored(client, db, monkeypatch):
+    """Published at K-3h, unpublished at K-1h, put back at K+30min: readers saw nothing at kickoff.
+
+    Settlement does not score it (the prematch withdrawal is frozen in ``unpublished_at``), yet it
+    was served with its pre-kickoff ``published_at`` and ``published_after_kickoff: false`` - which
+    reads as an ordinary, scored prematch prediction. ``withdrawn_before_kickoff`` says what
+    settlement says, from settlement's own predicate.
+    """
+    expert = _expert(db)
+    kickoff = WITHDRAWN_KICKOFF
+    match = _match(db, kickoff, "withdrawn", status=MatchStatus.FINISHED)
+    prediction = _publish(db, match, expert, kickoff - timedelta(hours=3))
+
+    _toggle_at(db, monkeypatch, prediction, expert, kickoff - timedelta(hours=1))      # unpublish
+    assert prediction.status == PredictionStatus.ARCHIVED
+    _toggle_at(db, monkeypatch, prediction, expert, kickoff + timedelta(minutes=30))   # republish
+    assert prediction.status == PredictionStatus.PUBLISHED
+    assert prediction.published_at == kickoff - timedelta(hours=3), "published_at is never restamped"
+    assert prediction.unpublished_at == kickoff - timedelta(hours=1), "the prematch withdrawal is frozen"
+
+    rows = _served_rows(client, match)
+    for row in rows:
+        assert row["id"] == str(prediction.id)
+        assert row["published_after_kickoff"] is False, "its publication time is before kickoff"
+        assert row["withdrawn_before_kickoff"] is True, row
+
+    # Settlement agrees, and leaves it out of the measured record.
+    assert S.withdrawn_before_kickoff(prediction, kickoff) is True
+    assert S.stood_at_kickoff(prediction, kickoff) is False
+    assert S.not_prematch_reason(prediction, kickoff) == S.NOT_STANDING_REASON
+    assert prediction.id not in {row.id for row in S.candidate_predictions(db, [match])}
+
+
+@pytest.mark.parametrize("label,published,toggles,expected", [
+    # (published offset, [toggle offsets], (published_after_kickoff, withdrawn_before_kickoff))
+    ("never-withdrawn", timedelta(hours=-2), [], (False, False)),
+    ("put-back-before-kickoff", timedelta(hours=-3), [timedelta(hours=-2), timedelta(hours=-1)], (False, False)),
+    ("withdrawn-after-kickoff", timedelta(hours=-3), [timedelta(hours=1), timedelta(hours=2)], (False, False)),
+    ("withdrawn-before-put-back-after", timedelta(hours=-3), [timedelta(hours=-1), timedelta(minutes=30)], (False, True)),
+    ("withdrawn-at-kickoff", timedelta(hours=-3), [timedelta(0), timedelta(hours=1)], (False, False)),
+    ("published-after-kickoff", timedelta(minutes=10), [], (True, False)),
+])
+def test_the_public_flags_say_not_scored_exactly_when_settlement_does(client, db, monkeypatch,
+                                                                     label, published, toggles, expected):
+    """For every served row: (published_after_kickoff or withdrawn_before_kickoff) == not stood_at_kickoff."""
+    expert = _expert(db)
+    kickoff = WITHDRAWN_KICKOFF
+    match = _match(db, kickoff, label, status=MatchStatus.FINISHED)
+    prediction = _publish(db, match, expert, kickoff + published)
+    for offset in toggles:
+        _toggle_at(db, monkeypatch, prediction, expert, kickoff + offset)
+    assert prediction.status == PredictionStatus.PUBLISHED
+
+    stood = S.stood_at_kickoff(prediction, kickoff)
+    for row in _served_rows(client, match):
+        flags = (row["published_after_kickoff"], row["withdrawn_before_kickoff"])
+        assert flags == expected, (label, row)
+        assert (flags[0] or flags[1]) is (not stood), (label, flags, stood)
+
+
+def test_withdrawn_before_kickoff_is_null_when_the_kickoff_is_unknown(db):
+    """Unknown is not "kept standing": a stored False would assert it stood at kickoff."""
+    expert = _expert(db)
+    match = _match(db, WITHDRAWN_KICKOFF, "nokick", status=MatchStatus.FINISHED)
+    prediction = _publish(db, match, expert, WITHDRAWN_KICKOFF - timedelta(hours=3))
+    prediction.unpublished_at = WITHDRAWN_KICKOFF - timedelta(hours=1)
+    db.flush()
+
+    assert serialize_expert_prediction(prediction, kickoff=None)["withdrawn_before_kickoff"] is None
+    assert serialize_expert_prediction(prediction, kickoff=WITHDRAWN_KICKOFF)["withdrawn_before_kickoff"] is True
+
+
 # ----------------------------------------------------------------------------- the public author
 def _named_expert(db, label: str) -> User:
     """An expert whose private details are distinctive strings, so their absence can be asserted."""

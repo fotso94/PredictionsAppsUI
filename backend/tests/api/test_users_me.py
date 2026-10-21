@@ -137,9 +137,9 @@ STAMPED = datetime(2026, 1, 2, 3, 4, 5)
 
 def _user(db, first_name: Optional[str] = "Ada", last_name: Optional[str] = "Lovelace",
           avatar_url: Optional[str] = "https://example.invalid/ada.png",
-          password_hash: str = "not-a-real-hash") -> User:
+          password_hash: str = "not-a-real-hash", username: Optional[str] = None) -> User:
     suffix = uuid.uuid4().hex[:8]
-    user = User(id=uuid.uuid4(), email=f"me-{suffix}@test.local", username=f"me_{suffix}",
+    user = User(id=uuid.uuid4(), email=f"me-{suffix}@test.local", username=username or f"me_{suffix}",
                 first_name=first_name, last_name=last_name, avatar_url=avatar_url,
                 password_hash=password_hash, user_type=UserType.REGULAR,
                 account_status=AccountStatus.ACTIVE, email_verified=True,
@@ -302,6 +302,60 @@ def test_sending_ones_own_username_back_is_not_a_conflict(client, db, as_user):
     response = _put(client, {"username": user.username, "first_name": "Ada"})
 
     assert response.status_code == 200, response.text
+
+
+def _padded_username(padding: str = " ") -> str:
+    """A username stored with whitespace around it, as registration still allows.
+
+    Written at creation: changing it afterwards would move updated_at (the column's onupdate) in
+    the test's own setup.
+    """
+    return f"padded_{uuid.uuid4().hex[:8]}{padding}"
+
+
+def test_a_padded_stored_username_sent_back_trimmed_is_unchanged_not_a_conflict(client, db, as_user):
+    """The profile form always resends the username, trimmed by the schema.
+
+    For an account stored as 'name ' while another account owns 'name', the unchanged username
+    compared unequal to the stored one, went to the duplicate check, found the other account and
+    refused EVERY save with 409 - a save that changed only the last name included.
+    """
+    other = _user(db)
+    # The same name with a trailing space: the unique index allows both.
+    user = as_user(_user(db, username=f"{other.username} "))
+    stored_username = user.username
+
+    response = _put(client, {"username": other.username, "last_name": "Byron"})
+
+    assert response.status_code == 200, response.text
+    stored = _reread(db, user)
+    assert stored.last_name == "Byron"
+    assert stored.username == stored_username, "an unchanged username is not rewritten"
+    assert _reread(db, other).username == other.username
+
+
+@pytest.mark.parametrize("padding", [" ", "  ", "\t"])
+def test_a_padded_stored_username_sent_back_alone_changes_nothing(client, db, as_user, padding):
+    """No conflict to trip over, and still nothing to change: no write, no new updated_at."""
+    user = as_user(_user(db, username=_padded_username(padding)))
+    stored_username = user.username
+
+    response = _put(client, {"username": stored_username.strip()})
+
+    assert response.status_code == 200, response.text
+    stored = _reread(db, user)
+    assert stored.username == stored_username
+    assert stored.updated_at == STAMPED, "a request that changes nothing claims no change"
+
+
+def test_a_padded_stored_username_can_still_be_changed_and_is_stored_trimmed(client, db, as_user):
+    user = as_user(_user(db, username=_padded_username()))
+    new_username = f"fresh_{uuid.uuid4().hex[:8]}"
+
+    response = _put(client, {"username": f" {new_username} "})
+
+    assert response.status_code == 200, response.text
+    assert _reread(db, user).username == new_username
 
 
 # ----------------------------------------------------------------------------- PUT /users/me/password

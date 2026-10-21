@@ -693,6 +693,10 @@ def withdrawn_before_kickoff(prediction: Prediction, kickoff: datetime) -> bool:
     :func:`prematch_expert_view`), so withdrawing AT kickoff is symmetrically too late to take
     anything back. The other way round, a withdrawal timed exactly on the whistle could delete a
     loss.
+
+    Readers are served this same answer for every public expert prediction
+    (``withdrawn_before_kickoff`` in :mod:`app.schemas.matches`): a row unpublished before kickoff
+    and published again after it is shown, and must say it is not scored.
     """
     for withdrawn_at in (prediction.deleted_at, prediction.unpublished_at):
         if at_or_after_kickoff(withdrawn_at, kickoff) is False:

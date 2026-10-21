@@ -53,6 +53,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def full_name(user: User) -> str:
+    """First and last name as one string, '' when the user has neither.
+
+    Both are optional and can be cleared (PUT /users/me stores NULL), so each is read None-safe: an
+    f-string of the raw columns turns a cleared name into the literal word 'None'.
+    """
+    return f"{user.first_name or ''} {user.last_name or ''}".strip()
+
+
+def greeting_name(user: User) -> str:
+    """What an email calls the user: their name, or their username when they have no name."""
+    return full_name(user) or user.username
+
+
 @router.post("/login", response_model=LoginResponse)
 async def login(
     login_data: LoginRequest,
@@ -110,11 +124,11 @@ async def login(
     db.commit()
 
     # Prepare user info
-    full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+    display_name = full_name(user)
     user_info = UserInfo(
         user_id=str(user.id),
         email=user.email,
-        full_name=full_name,
+        full_name=display_name,
         role=user.user_type.value,
         is_active=(user.account_status == AccountStatus.ACTIVE),
         is_verified=user.email_verified,
@@ -325,11 +339,11 @@ async def register(
     )
 
     # Prepare user info
-    full_name = f"{new_user.first_name or ''} {new_user.last_name or ''}".strip()
+    display_name = full_name(new_user)
     user_info = UserInfo(
         user_id=str(new_user.id),
         email=new_user.email,
-        full_name=full_name,
+        full_name=display_name,
         role=new_user.user_type.value,
         is_active=(new_user.account_status == AccountStatus.ACTIVE),
         is_verified=new_user.email_verified,
@@ -341,7 +355,7 @@ async def register(
     background_tasks.add_task(
         send_welcome_email_task,
         to_email=new_user.email,
-        user_name=full_name,
+        user_name=display_name,
         user_id=str(new_user.id)
     )
 
@@ -384,12 +398,12 @@ async def get_current_user_info(
 
     Returns authenticated user's profile
     """
-    full_name = f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
+    display_name = full_name(current_user)
 
     return UserInfo(
         user_id=str(current_user.id),
         email=current_user.email,
-        full_name=full_name,
+        full_name=display_name,
         role=current_user.user_type.value,
         is_active=(current_user.account_status == "active"),
         is_verified=current_user.email_verified,
@@ -460,14 +474,14 @@ async def forgot_password(
     user.updated_at = datetime.utcnow()
     db.commit()
 
-    # Get user's full name
-    full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+    # Greeted by name, or by username when the account has none (never as 'None')
+    display_name = greeting_name(user)
 
     # Send password reset email asynchronously
     background_tasks.add_task(
         email_service.send_password_reset_email,
         to_email=user.email,
-        user_name=full_name,
+        user_name=display_name,
         reset_token=reset_token  # Send plain token in email
     )
 
@@ -512,7 +526,12 @@ async def reset_password(
     """
     Reset password using reset token
 
-    Validates the token, updates the password, and revokes all user sessions
+    Validates the token, updates the password and deletes the user's stored refresh-token keys.
+
+    What this does NOT do, so neither this docstring nor the emails claim it: sign the user out on
+    other devices. Access tokens are stateless and stay valid until they expire, and /auth/refresh
+    does not consult the refresh-token keys deleted here; it checks only its blacklist. (The same
+    limitation as PUT /users/me/password.)
     """
     # Find user with a non-expired reset token
     users = db.query(User).filter(
@@ -543,17 +562,17 @@ async def reset_password(
     user.updated_at = datetime.utcnow()
     db.commit()
 
-    # Revoke all refresh tokens for security (log out all devices)
+    # Delete the stored refresh-token keys. Not a logout elsewhere: /auth/refresh never reads them.
     revoke_user_refresh_tokens(user_id=str(user.id))
 
-    # Get user's full name
-    full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+    # Greeted by name, or by username when the account has none (never as 'None')
+    display_name = greeting_name(user)
 
     # Send confirmation email asynchronously
     background_tasks.add_task(
         email_service.send_password_reset_confirmation_email,
         to_email=user.email,
-        user_name=full_name
+        user_name=display_name
     )
 
     logger.info(f"Password reset successful for user: {user.email}")

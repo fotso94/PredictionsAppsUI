@@ -1,0 +1,748 @@
+# review-fix BEFORE: the new backend regressions against the unchanged product code (findings #0/#6/#18 withdrawn_before_kickoff, #7 reset greeting, #8 padded username, #5 reset email copy)
+# branch expert-fixes at 883192c6; product diff vs HEAD: '' (product changes stashed; only the three test files are new or changed)
+# run at 2026-10-21T05:45:22Z; env TEST_DATABASE_URL=postgresql://postgres:***@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test
+# (TEST_DATABASE_URL carries the docker-compose test password, masked here: without it every database test SKIPS with 'fe_sendauth: no password supplied')
+# pytest -q -p no:cacheprovider -o addopts='' -rfEs <the 3 new tests in tests/api/test_expert_revisions.py> <the 3 new tests in tests/api/test_users_me.py> tests/api/test_password_reset_emails.py
+# expected: every case that encodes a defect fails; the 3 controls (a full name, changing a padded username, the service's own sent content) pass
+FFFFFFFFFFFF..FFFFFFF.                                                   [100%]
+=================================== FAILURES ===================================
+_ test_withdrawn_before_kickoff_and_republished_after_is_served_as_not_scored __
+
+client = <starlette.testclient.TestClient object at 0x10d0cdad0>
+db = <sqlalchemy.orm.session.Session object at 0x10d0cc650>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d087d50>
+
+    def test_withdrawn_before_kickoff_and_republished_after_is_served_as_not_scored(client, db, monkeypatch):
+        """Published at K-3h, unpublished at K-1h, put back at K+30min: readers saw nothing at kickoff.
+    
+        Settlement does not score it (the prematch withdrawal is frozen in ``unpublished_at``), yet it
+        was served with its pre-kickoff ``published_at`` and ``published_after_kickoff: false`` - which
+        reads as an ordinary, scored prematch prediction. ``withdrawn_before_kickoff`` says what
+        settlement says, from settlement's own predicate.
+        """
+        expert = _expert(db)
+        kickoff = WITHDRAWN_KICKOFF
+        match = _match(db, kickoff, "withdrawn", status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, kickoff - timedelta(hours=3))
+    
+        _toggle_at(db, monkeypatch, prediction, expert, kickoff - timedelta(hours=1))      # unpublish
+        assert prediction.status == PredictionStatus.ARCHIVED
+        _toggle_at(db, monkeypatch, prediction, expert, kickoff + timedelta(minutes=30))   # republish
+        assert prediction.status == PredictionStatus.PUBLISHED
+        assert prediction.published_at == kickoff - timedelta(hours=3), "published_at is never restamped"
+        assert prediction.unpublished_at == kickoff - timedelta(hours=1), "the prematch withdrawal is frozen"
+    
+        rows = _served_rows(client, match)
+        for row in rows:
+            assert row["id"] == str(prediction.id)
+            assert row["published_after_kickoff"] is False, "its publication time is before kickoff"
+>           assert row["withdrawn_before_kickoff"] is True, row
+E           KeyError: 'withdrawn_before_kickoff'
+
+tests/api/test_expert_revisions.py:579: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Unpublished prediction e9da6a69-9d84-4558-8dcd-23376bc5d232 by expert 1decd7f0-b8df-40e8-bf04-72db8b56a007; its publication time 2026-10-10 12:00:00 is kept
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:free:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:premium:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:pro:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Published prediction e9da6a69-9d84-4558-8dcd-23376bc5d232 by expert 1decd7f0-b8df-40e8-bf04-72db8b56a007
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:free:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:premium:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:pro:match_winner
+2026-10-21 01:45:23 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/4ea8b095-e891-4c15-8945-343e1a2dd870 "HTTP/1.1 200 OK"
+2026-10-21 01:45:23 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:1097 Unpublished prediction e9da6a69-9d84-4558-8dcd-23376bc5d232 by expert 1decd7f0-b8df-40e8-bf04-72db8b56a007; its publication time 2026-10-10 12:00:00 is kept
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:pro:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1106 Published prediction e9da6a69-9d84-4558-8dcd-23376bc5d232 by expert 1decd7f0-b8df-40e8-bf04-72db8b56a007
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:4ea8b095-e891-4c15-8945-343e1a2dd870:pro:match_winner
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/4ea8b095-e891-4c15-8945-343e1a2dd870 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+_ test_the_public_flags_say_not_scored_exactly_when_settlement_does[never-withdrawn-published0-toggles0-expected0] _
+
+client = <starlette.testclient.TestClient object at 0x10d0b9450>
+db = <sqlalchemy.orm.session.Session object at 0x10d0bb010>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d48e590>
+label = 'never-withdrawn'
+published = datetime.timedelta(days=-1, seconds=79200), toggles = []
+expected = (False, False)
+
+    @pytest.mark.parametrize("label,published,toggles,expected", [
+        # (published offset, [toggle offsets], (published_after_kickoff, withdrawn_before_kickoff))
+        ("never-withdrawn", timedelta(hours=-2), [], (False, False)),
+        ("put-back-before-kickoff", timedelta(hours=-3), [timedelta(hours=-2), timedelta(hours=-1)], (False, False)),
+        ("withdrawn-after-kickoff", timedelta(hours=-3), [timedelta(hours=1), timedelta(hours=2)], (False, False)),
+        ("withdrawn-before-put-back-after", timedelta(hours=-3), [timedelta(hours=-1), timedelta(minutes=30)], (False, True)),
+        ("withdrawn-at-kickoff", timedelta(hours=-3), [timedelta(0), timedelta(hours=1)], (False, False)),
+        ("published-after-kickoff", timedelta(minutes=10), [], (True, False)),
+    ])
+    def test_the_public_flags_say_not_scored_exactly_when_settlement_does(client, db, monkeypatch,
+                                                                         label, published, toggles, expected):
+        """For every served row: (published_after_kickoff or withdrawn_before_kickoff) == not stood_at_kickoff."""
+        expert = _expert(db)
+        kickoff = WITHDRAWN_KICKOFF
+        match = _match(db, kickoff, label, status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, kickoff + published)
+        for offset in toggles:
+            _toggle_at(db, monkeypatch, prediction, expert, kickoff + offset)
+        assert prediction.status == PredictionStatus.PUBLISHED
+    
+        stood = S.stood_at_kickoff(prediction, kickoff)
+        for row in _served_rows(client, match):
+>           flags = (row["published_after_kickoff"], row["withdrawn_before_kickoff"])
+E           KeyError: 'withdrawn_before_kickoff'
+
+tests/api/test_expert_revisions.py:610: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:23 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/0e1a4a4d-bd8e-4429-8556-9c1de3fd4d50 "HTTP/1.1 200 OK"
+2026-10-21 01:45:23 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/0e1a4a4d-bd8e-4429-8556-9c1de3fd4d50 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+_ test_the_public_flags_say_not_scored_exactly_when_settlement_does[put-back-before-kickoff-published1-toggles1-expected1] _
+
+client = <starlette.testclient.TestClient object at 0x10d437250>
+db = <sqlalchemy.orm.session.Session object at 0x10d435510>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d4d8390>
+label = 'put-back-before-kickoff'
+published = datetime.timedelta(days=-1, seconds=75600)
+toggles = [datetime.timedelta(days=-1, seconds=79200), datetime.timedelta(days=-1, seconds=82800)]
+expected = (False, False)
+
+    @pytest.mark.parametrize("label,published,toggles,expected", [
+        # (published offset, [toggle offsets], (published_after_kickoff, withdrawn_before_kickoff))
+        ("never-withdrawn", timedelta(hours=-2), [], (False, False)),
+        ("put-back-before-kickoff", timedelta(hours=-3), [timedelta(hours=-2), timedelta(hours=-1)], (False, False)),
+        ("withdrawn-after-kickoff", timedelta(hours=-3), [timedelta(hours=1), timedelta(hours=2)], (False, False)),
+        ("withdrawn-before-put-back-after", timedelta(hours=-3), [timedelta(hours=-1), timedelta(minutes=30)], (False, True)),
+        ("withdrawn-at-kickoff", timedelta(hours=-3), [timedelta(0), timedelta(hours=1)], (False, False)),
+        ("published-after-kickoff", timedelta(minutes=10), [], (True, False)),
+    ])
+    def test_the_public_flags_say_not_scored_exactly_when_settlement_does(client, db, monkeypatch,
+                                                                         label, published, toggles, expected):
+        """For every served row: (published_after_kickoff or withdrawn_before_kickoff) == not stood_at_kickoff."""
+        expert = _expert(db)
+        kickoff = WITHDRAWN_KICKOFF
+        match = _match(db, kickoff, label, status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, kickoff + published)
+        for offset in toggles:
+            _toggle_at(db, monkeypatch, prediction, expert, kickoff + offset)
+        assert prediction.status == PredictionStatus.PUBLISHED
+    
+        stood = S.stood_at_kickoff(prediction, kickoff)
+        for row in _served_rows(client, match):
+>           flags = (row["published_after_kickoff"], row["withdrawn_before_kickoff"])
+E           KeyError: 'withdrawn_before_kickoff'
+
+tests/api/test_expert_revisions.py:610: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Unpublished prediction 225880df-3a77-4c1d-b14f-510266b4971d by expert 4e8b976f-d387-4aff-8fbc-e84a1ceea813; its publication time 2026-10-10 12:00:00 is kept
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:free:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:premium:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:pro:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Published prediction 225880df-3a77-4c1d-b14f-510266b4971d by expert 4e8b976f-d387-4aff-8fbc-e84a1ceea813
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:free:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:premium:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:pro:match_winner
+2026-10-21 01:45:23 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/5d312369-19d5-4706-9814-e0ad406c76e4 "HTTP/1.1 200 OK"
+2026-10-21 01:45:23 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:1097 Unpublished prediction 225880df-3a77-4c1d-b14f-510266b4971d by expert 4e8b976f-d387-4aff-8fbc-e84a1ceea813; its publication time 2026-10-10 12:00:00 is kept
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:pro:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1106 Published prediction 225880df-3a77-4c1d-b14f-510266b4971d by expert 4e8b976f-d387-4aff-8fbc-e84a1ceea813
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:5d312369-19d5-4706-9814-e0ad406c76e4:pro:match_winner
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/5d312369-19d5-4706-9814-e0ad406c76e4 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+_ test_the_public_flags_say_not_scored_exactly_when_settlement_does[withdrawn-after-kickoff-published2-toggles2-expected2] _
+
+client = <starlette.testclient.TestClient object at 0x10d511190>
+db = <sqlalchemy.orm.session.Session object at 0x10d5123d0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d41f050>
+label = 'withdrawn-after-kickoff'
+published = datetime.timedelta(days=-1, seconds=75600)
+toggles = [datetime.timedelta(seconds=3600), datetime.timedelta(seconds=7200)]
+expected = (False, False)
+
+    @pytest.mark.parametrize("label,published,toggles,expected", [
+        # (published offset, [toggle offsets], (published_after_kickoff, withdrawn_before_kickoff))
+        ("never-withdrawn", timedelta(hours=-2), [], (False, False)),
+        ("put-back-before-kickoff", timedelta(hours=-3), [timedelta(hours=-2), timedelta(hours=-1)], (False, False)),
+        ("withdrawn-after-kickoff", timedelta(hours=-3), [timedelta(hours=1), timedelta(hours=2)], (False, False)),
+        ("withdrawn-before-put-back-after", timedelta(hours=-3), [timedelta(hours=-1), timedelta(minutes=30)], (False, True)),
+        ("withdrawn-at-kickoff", timedelta(hours=-3), [timedelta(0), timedelta(hours=1)], (False, False)),
+        ("published-after-kickoff", timedelta(minutes=10), [], (True, False)),
+    ])
+    def test_the_public_flags_say_not_scored_exactly_when_settlement_does(client, db, monkeypatch,
+                                                                         label, published, toggles, expected):
+        """For every served row: (published_after_kickoff or withdrawn_before_kickoff) == not stood_at_kickoff."""
+        expert = _expert(db)
+        kickoff = WITHDRAWN_KICKOFF
+        match = _match(db, kickoff, label, status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, kickoff + published)
+        for offset in toggles:
+            _toggle_at(db, monkeypatch, prediction, expert, kickoff + offset)
+        assert prediction.status == PredictionStatus.PUBLISHED
+    
+        stood = S.stood_at_kickoff(prediction, kickoff)
+        for row in _served_rows(client, match):
+>           flags = (row["published_after_kickoff"], row["withdrawn_before_kickoff"])
+E           KeyError: 'withdrawn_before_kickoff'
+
+tests/api/test_expert_revisions.py:610: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Unpublished prediction b7f30bcf-6859-458b-8500-f8426be365a9 by expert 6fe02a80-5758-4a7b-9084-a49280c1185f; its publication time 2026-10-10 12:00:00 is kept
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:free:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:premium:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:pro:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Published prediction b7f30bcf-6859-458b-8500-f8426be365a9 by expert 6fe02a80-5758-4a7b-9084-a49280c1185f
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:free:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:premium:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:pro:match_winner
+2026-10-21 01:45:23 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b "HTTP/1.1 200 OK"
+2026-10-21 01:45:23 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:1097 Unpublished prediction b7f30bcf-6859-458b-8500-f8426be365a9 by expert 6fe02a80-5758-4a7b-9084-a49280c1185f; its publication time 2026-10-10 12:00:00 is kept
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:pro:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1106 Published prediction b7f30bcf-6859-458b-8500-f8426be365a9 by expert 6fe02a80-5758-4a7b-9084-a49280c1185f
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b:pro:match_winner
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/7c67cd7f-25fa-4fa0-abbf-aa372e25ea1b "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+_ test_the_public_flags_say_not_scored_exactly_when_settlement_does[withdrawn-before-put-back-after-published3-toggles3-expected3] _
+
+client = <starlette.testclient.TestClient object at 0x10d533610>
+db = <sqlalchemy.orm.session.Session object at 0x10d531e90>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d533190>
+label = 'withdrawn-before-put-back-after'
+published = datetime.timedelta(days=-1, seconds=75600)
+toggles = [datetime.timedelta(days=-1, seconds=82800), datetime.timedelta(seconds=1800)]
+expected = (False, True)
+
+    @pytest.mark.parametrize("label,published,toggles,expected", [
+        # (published offset, [toggle offsets], (published_after_kickoff, withdrawn_before_kickoff))
+        ("never-withdrawn", timedelta(hours=-2), [], (False, False)),
+        ("put-back-before-kickoff", timedelta(hours=-3), [timedelta(hours=-2), timedelta(hours=-1)], (False, False)),
+        ("withdrawn-after-kickoff", timedelta(hours=-3), [timedelta(hours=1), timedelta(hours=2)], (False, False)),
+        ("withdrawn-before-put-back-after", timedelta(hours=-3), [timedelta(hours=-1), timedelta(minutes=30)], (False, True)),
+        ("withdrawn-at-kickoff", timedelta(hours=-3), [timedelta(0), timedelta(hours=1)], (False, False)),
+        ("published-after-kickoff", timedelta(minutes=10), [], (True, False)),
+    ])
+    def test_the_public_flags_say_not_scored_exactly_when_settlement_does(client, db, monkeypatch,
+                                                                         label, published, toggles, expected):
+        """For every served row: (published_after_kickoff or withdrawn_before_kickoff) == not stood_at_kickoff."""
+        expert = _expert(db)
+        kickoff = WITHDRAWN_KICKOFF
+        match = _match(db, kickoff, label, status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, kickoff + published)
+        for offset in toggles:
+            _toggle_at(db, monkeypatch, prediction, expert, kickoff + offset)
+        assert prediction.status == PredictionStatus.PUBLISHED
+    
+        stood = S.stood_at_kickoff(prediction, kickoff)
+        for row in _served_rows(client, match):
+>           flags = (row["published_after_kickoff"], row["withdrawn_before_kickoff"])
+E           KeyError: 'withdrawn_before_kickoff'
+
+tests/api/test_expert_revisions.py:610: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Unpublished prediction 9b660dd4-b1ff-4a04-8b4e-65c6fcf5f229 by expert 60811f5c-daaa-42f3-a519-3988338458dd; its publication time 2026-10-10 12:00:00 is kept
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:free:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:premium:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:pro:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Published prediction 9b660dd4-b1ff-4a04-8b4e-65c6fcf5f229 by expert 60811f5c-daaa-42f3-a519-3988338458dd
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:free:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:premium:match_winner
+2026-10-21 01:45:23 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:pro:match_winner
+2026-10-21 01:45:23 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/8eacae90-5e71-477e-95a0-f4130cceb249 "HTTP/1.1 200 OK"
+2026-10-21 01:45:24 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:1097 Unpublished prediction 9b660dd4-b1ff-4a04-8b4e-65c6fcf5f229 by expert 60811f5c-daaa-42f3-a519-3988338458dd; its publication time 2026-10-10 12:00:00 is kept
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:pro:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1106 Published prediction 9b660dd4-b1ff-4a04-8b4e-65c6fcf5f229 by expert 60811f5c-daaa-42f3-a519-3988338458dd
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:8eacae90-5e71-477e-95a0-f4130cceb249:pro:match_winner
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/8eacae90-5e71-477e-95a0-f4130cceb249 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+_ test_the_public_flags_say_not_scored_exactly_when_settlement_does[withdrawn-at-kickoff-published4-toggles4-expected4] _
+
+client = <starlette.testclient.TestClient object at 0x10ba012d0>
+db = <sqlalchemy.orm.session.Session object at 0x10d63bfd0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d530b10>
+label = 'withdrawn-at-kickoff'
+published = datetime.timedelta(days=-1, seconds=75600)
+toggles = [datetime.timedelta(0), datetime.timedelta(seconds=3600)]
+expected = (False, False)
+
+    @pytest.mark.parametrize("label,published,toggles,expected", [
+        # (published offset, [toggle offsets], (published_after_kickoff, withdrawn_before_kickoff))
+        ("never-withdrawn", timedelta(hours=-2), [], (False, False)),
+        ("put-back-before-kickoff", timedelta(hours=-3), [timedelta(hours=-2), timedelta(hours=-1)], (False, False)),
+        ("withdrawn-after-kickoff", timedelta(hours=-3), [timedelta(hours=1), timedelta(hours=2)], (False, False)),
+        ("withdrawn-before-put-back-after", timedelta(hours=-3), [timedelta(hours=-1), timedelta(minutes=30)], (False, True)),
+        ("withdrawn-at-kickoff", timedelta(hours=-3), [timedelta(0), timedelta(hours=1)], (False, False)),
+        ("published-after-kickoff", timedelta(minutes=10), [], (True, False)),
+    ])
+    def test_the_public_flags_say_not_scored_exactly_when_settlement_does(client, db, monkeypatch,
+                                                                         label, published, toggles, expected):
+        """For every served row: (published_after_kickoff or withdrawn_before_kickoff) == not stood_at_kickoff."""
+        expert = _expert(db)
+        kickoff = WITHDRAWN_KICKOFF
+        match = _match(db, kickoff, label, status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, kickoff + published)
+        for offset in toggles:
+            _toggle_at(db, monkeypatch, prediction, expert, kickoff + offset)
+        assert prediction.status == PredictionStatus.PUBLISHED
+    
+        stood = S.stood_at_kickoff(prediction, kickoff)
+        for row in _served_rows(client, match):
+>           flags = (row["published_after_kickoff"], row["withdrawn_before_kickoff"])
+E           KeyError: 'withdrawn_before_kickoff'
+
+tests/api/test_expert_revisions.py:610: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:24 - app.services.expert_prediction - INFO - Unpublished prediction bf844271-680b-4774-b265-295e49462a21 by expert 55d78c19-e716-4054-968b-d4e09d8fc5f4; its publication time 2026-10-10 12:00:00 is kept
+2026-10-21 01:45:24 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:free:match_winner
+2026-10-21 01:45:24 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:premium:match_winner
+2026-10-21 01:45:24 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:pro:match_winner
+2026-10-21 01:45:24 - app.services.expert_prediction - INFO - Published prediction bf844271-680b-4774-b265-295e49462a21 by expert 55d78c19-e716-4054-968b-d4e09d8fc5f4
+2026-10-21 01:45:24 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:free:match_winner
+2026-10-21 01:45:24 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:premium:match_winner
+2026-10-21 01:45:24 - app.services.expert_prediction - INFO - Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:pro:match_winner
+2026-10-21 01:45:24 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/0fb7d82c-787e-49c1-b4d0-665fcc1112f3 "HTTP/1.1 200 OK"
+2026-10-21 01:45:24 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.services.expert_prediction:expert_prediction.py:1097 Unpublished prediction bf844271-680b-4774-b265-295e49462a21 by expert 55d78c19-e716-4054-968b-d4e09d8fc5f4; its publication time 2026-10-10 12:00:00 is kept
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:pro:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1106 Published prediction bf844271-680b-4774-b265-295e49462a21 by expert 55d78c19-e716-4054-968b-d4e09d8fc5f4
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:free:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:premium:match_winner
+INFO     app.services.expert_prediction:expert_prediction.py:1285 Would invalidate cache key: prediction:0fb7d82c-787e-49c1-b4d0-665fcc1112f3:pro:match_winner
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/0fb7d82c-787e-49c1-b4d0-665fcc1112f3 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+_ test_the_public_flags_say_not_scored_exactly_when_settlement_does[published-after-kickoff-published5-toggles5-expected5] _
+
+client = <starlette.testclient.TestClient object at 0x10d680350>
+db = <sqlalchemy.orm.session.Session object at 0x10d680c10>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d528f10>
+label = 'published-after-kickoff', published = datetime.timedelta(seconds=600)
+toggles = [], expected = (True, False)
+
+    @pytest.mark.parametrize("label,published,toggles,expected", [
+        # (published offset, [toggle offsets], (published_after_kickoff, withdrawn_before_kickoff))
+        ("never-withdrawn", timedelta(hours=-2), [], (False, False)),
+        ("put-back-before-kickoff", timedelta(hours=-3), [timedelta(hours=-2), timedelta(hours=-1)], (False, False)),
+        ("withdrawn-after-kickoff", timedelta(hours=-3), [timedelta(hours=1), timedelta(hours=2)], (False, False)),
+        ("withdrawn-before-put-back-after", timedelta(hours=-3), [timedelta(hours=-1), timedelta(minutes=30)], (False, True)),
+        ("withdrawn-at-kickoff", timedelta(hours=-3), [timedelta(0), timedelta(hours=1)], (False, False)),
+        ("published-after-kickoff", timedelta(minutes=10), [], (True, False)),
+    ])
+    def test_the_public_flags_say_not_scored_exactly_when_settlement_does(client, db, monkeypatch,
+                                                                         label, published, toggles, expected):
+        """For every served row: (published_after_kickoff or withdrawn_before_kickoff) == not stood_at_kickoff."""
+        expert = _expert(db)
+        kickoff = WITHDRAWN_KICKOFF
+        match = _match(db, kickoff, label, status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, kickoff + published)
+        for offset in toggles:
+            _toggle_at(db, monkeypatch, prediction, expert, kickoff + offset)
+        assert prediction.status == PredictionStatus.PUBLISHED
+    
+        stood = S.stood_at_kickoff(prediction, kickoff)
+        for row in _served_rows(client, match):
+>           flags = (row["published_after_kickoff"], row["withdrawn_before_kickoff"])
+E           KeyError: 'withdrawn_before_kickoff'
+
+tests/api/test_expert_revisions.py:610: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:24 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches/89c8e222-7b50-41eb-8102-bcd473a4ecf0 "HTTP/1.1 200 OK"
+2026-10-21 01:45:24 - httpx - INFO - HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches/89c8e222-7b50-41eb-8102-bcd473a4ecf0 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/api/v1/matches?date=2026-10-10&refresh=false "HTTP/1.1 200 OK"
+______ test_withdrawn_before_kickoff_is_null_when_the_kickoff_is_unknown _______
+
+db = <sqlalchemy.orm.session.Session object at 0x10d762e10>
+
+    def test_withdrawn_before_kickoff_is_null_when_the_kickoff_is_unknown(db):
+        """Unknown is not "kept standing": a stored False would assert it stood at kickoff."""
+        expert = _expert(db)
+        match = _match(db, WITHDRAWN_KICKOFF, "nokick", status=MatchStatus.FINISHED)
+        prediction = _publish(db, match, expert, WITHDRAWN_KICKOFF - timedelta(hours=3))
+        prediction.unpublished_at = WITHDRAWN_KICKOFF - timedelta(hours=1)
+        db.flush()
+    
+>       assert serialize_expert_prediction(prediction, kickoff=None)["withdrawn_before_kickoff"] is None
+E       KeyError: 'withdrawn_before_kickoff'
+
+tests/api/test_expert_revisions.py:623: KeyError
+_ test_a_padded_stored_username_sent_back_trimmed_is_unchanged_not_a_conflict __
+
+client = <starlette.testclient.TestClient object at 0x10d745f50>
+db = <sqlalchemy.orm.session.Session object at 0x10d747810>
+as_user = <function as_user.<locals>._as at 0x10d631300>
+
+    def test_a_padded_stored_username_sent_back_trimmed_is_unchanged_not_a_conflict(client, db, as_user):
+        """The profile form always resends the username, trimmed by the schema.
+    
+        For an account stored as 'name ' while another account owns 'name', the unchanged username
+        compared unequal to the stored one, went to the duplicate check, found the other account and
+        refused EVERY save with 409 - a save that changed only the last name included.
+        """
+        other = _user(db)
+        # The same name with a trailing space: the unique index allows both.
+        user = as_user(_user(db, username=f"{other.username} "))
+        stored_username = user.username
+    
+        response = _put(client, {"username": other.username, "last_name": "Byron"})
+    
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Username already taken"}
+E       assert 409 == 200
+E        +  where 409 = <Response [409 Conflict]>.status_code
+
+tests/api/test_users_me.py:331: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:24 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 409 Conflict"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 409 Conflict"
+_______ test_a_padded_stored_username_sent_back_alone_changes_nothing[ ] _______
+
+client = <starlette.testclient.TestClient object at 0x10d729b50>
+db = <sqlalchemy.orm.session.Session object at 0x10d728ed0>
+as_user = <function as_user.<locals>._as at 0x10d6327a0>, padding = ' '
+
+    @pytest.mark.parametrize("padding", [" ", "  ", "\t"])
+    def test_a_padded_stored_username_sent_back_alone_changes_nothing(client, db, as_user, padding):
+        """No conflict to trip over, and still nothing to change: no write, no new updated_at."""
+        user = as_user(_user(db, username=_padded_username(padding)))
+        stored_username = user.username
+    
+        response = _put(client, {"username": stored_username.strip()})
+    
+        assert response.status_code == 200, response.text
+        stored = _reread(db, user)
+>       assert stored.username == stored_username
+E       AssertionError: assert 'padded_3c291078' == 'padded_3c291078 '
+E         - padded_3c291078 
+E         ?                -
+E         + padded_3c291078
+
+tests/api/test_users_me.py:348: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:24 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+______ test_a_padded_stored_username_sent_back_alone_changes_nothing[  ] _______
+
+client = <starlette.testclient.TestClient object at 0x10d72d210>
+db = <sqlalchemy.orm.session.Session object at 0x10d72fe50>
+as_user = <function as_user.<locals>._as at 0x10d631ee0>, padding = '  '
+
+    @pytest.mark.parametrize("padding", [" ", "  ", "\t"])
+    def test_a_padded_stored_username_sent_back_alone_changes_nothing(client, db, as_user, padding):
+        """No conflict to trip over, and still nothing to change: no write, no new updated_at."""
+        user = as_user(_user(db, username=_padded_username(padding)))
+        stored_username = user.username
+    
+        response = _put(client, {"username": stored_username.strip()})
+    
+        assert response.status_code == 200, response.text
+        stored = _reread(db, user)
+>       assert stored.username == stored_username
+E       AssertionError: assert 'padded_93b48a13' == 'padded_93b48a13  '
+E         - padded_93b48a13  
+E         ?                --
+E         + padded_93b48a13
+
+tests/api/test_users_me.py:348: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:24 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+______ test_a_padded_stored_username_sent_back_alone_changes_nothing[\t] _______
+
+client = <starlette.testclient.TestClient object at 0x10d3c0890>
+db = <sqlalchemy.orm.session.Session object at 0x10d3c3cd0>
+as_user = <function as_user.<locals>._as at 0x10d6325c0>, padding = '\t'
+
+    @pytest.mark.parametrize("padding", [" ", "  ", "\t"])
+    def test_a_padded_stored_username_sent_back_alone_changes_nothing(client, db, as_user, padding):
+        """No conflict to trip over, and still nothing to change: no write, no new updated_at."""
+        user = as_user(_user(db, username=_padded_username(padding)))
+        stored_username = user.username
+    
+        response = _put(client, {"username": stored_username.strip()})
+    
+        assert response.status_code == 200, response.text
+        stored = _reread(db, user)
+>       assert stored.username == stored_username
+E       AssertionError: assert 'padded_bd3ece22' == 'padded_bd3ece22\t'
+E         - padded_bd3ece22	
+E         ?                -
+E         + padded_bd3ece22
+
+tests/api/test_users_me.py:348: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:24 - httpx - INFO - HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: PUT http://testserver/api/v1/users/me "HTTP/1.1 200 OK"
+_ test_both_reset_emails_greet_by_name_and_never_say_none[None-Lovelace-Lovelace] _
+
+client = <starlette.testclient.TestClient object at 0x10d764590>
+db = <sqlalchemy.orm.session.Session object at 0x10d767410>
+emails = <test_password_reset_emails.EmailRecorder object at 0x10d726310>
+first_name = None, last_name = 'Lovelace', expected = 'Lovelace'
+
+    @pytest.mark.parametrize("first_name,last_name,expected", NAMES)
+    def test_both_reset_emails_greet_by_name_and_never_say_none(client, db, emails, first_name, last_name, expected):
+        user = _user(db, first_name, last_name)
+        greeting = expected if expected is not None else user.username
+    
+        requested = client.post("/api/v1/auth/forgot-password", json={"email": user.email})
+        assert requested.status_code == 200, requested.text
+        assert len(emails.resets) == 1
+>       assert emails.resets[0]["user_name"] == greeting
+E       AssertionError: assert 'None Lovelace' == 'Lovelace'
+E         - Lovelace
+E         + None Lovelace
+E         ? +++++
+
+tests/api/test_password_reset_emails.py:150: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:25 - app.api.v1.endpoints.auth - INFO - Password reset requested for user: reset-04c8b118@example.com
+2026-10-21 01:45:25 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/forgot-password "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.auth:auth.py:474 Password reset requested for user: reset-04c8b118@example.com
+INFO     httpx:_client.py:1013 HTTP Request: POST http://testserver/api/v1/auth/forgot-password "HTTP/1.1 200 OK"
+____ test_both_reset_emails_greet_by_name_and_never_say_none[Ada-None-Ada] _____
+
+client = <starlette.testclient.TestClient object at 0x10d674d90>
+db = <sqlalchemy.orm.session.Session object at 0x10d675610>
+emails = <test_password_reset_emails.EmailRecorder object at 0x10d677050>
+first_name = 'Ada', last_name = None, expected = 'Ada'
+
+    @pytest.mark.parametrize("first_name,last_name,expected", NAMES)
+    def test_both_reset_emails_greet_by_name_and_never_say_none(client, db, emails, first_name, last_name, expected):
+        user = _user(db, first_name, last_name)
+        greeting = expected if expected is not None else user.username
+    
+        requested = client.post("/api/v1/auth/forgot-password", json={"email": user.email})
+        assert requested.status_code == 200, requested.text
+        assert len(emails.resets) == 1
+>       assert emails.resets[0]["user_name"] == greeting
+E       AssertionError: assert 'Ada None' == 'Ada'
+E         - Ada
+E         + Ada None
+
+tests/api/test_password_reset_emails.py:150: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:25 - app.api.v1.endpoints.auth - INFO - Password reset requested for user: reset-415f7983@example.com
+2026-10-21 01:45:25 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/forgot-password "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.auth:auth.py:474 Password reset requested for user: reset-415f7983@example.com
+INFO     httpx:_client.py:1013 HTTP Request: POST http://testserver/api/v1/auth/forgot-password "HTTP/1.1 200 OK"
+___ test_both_reset_emails_greet_by_name_and_never_say_none[None-None-None] ____
+
+client = <starlette.testclient.TestClient object at 0x10d541c90>
+db = <sqlalchemy.orm.session.Session object at 0x10d52bc90>
+emails = <test_password_reset_emails.EmailRecorder object at 0x10d676e10>
+first_name = None, last_name = None, expected = None
+
+    @pytest.mark.parametrize("first_name,last_name,expected", NAMES)
+    def test_both_reset_emails_greet_by_name_and_never_say_none(client, db, emails, first_name, last_name, expected):
+        user = _user(db, first_name, last_name)
+        greeting = expected if expected is not None else user.username
+    
+        requested = client.post("/api/v1/auth/forgot-password", json={"email": user.email})
+        assert requested.status_code == 200, requested.text
+        assert len(emails.resets) == 1
+>       assert emails.resets[0]["user_name"] == greeting
+E       AssertionError: assert 'None None' == 'reset_b3d10172'
+E         - reset_b3d10172
+E         + None None
+
+tests/api/test_password_reset_emails.py:150: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 01:45:25 - app.api.v1.endpoints.auth - INFO - Password reset requested for user: reset-b3d10172@example.com
+2026-10-21 01:45:25 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/forgot-password "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.auth:auth.py:474 Password reset requested for user: reset-b3d10172@example.com
+INFO     httpx:_client.py:1013 HTTP Request: POST http://testserver/api/v1/auth/forgot-password "HTTP/1.1 200 OK"
+_ test_the_reset_templates_do_not_claim_a_logout_everywhere[password_reset.txt] _
+
+name = 'password_reset.txt'
+
+    @pytest.mark.parametrize("name", RESET_TEMPLATES)
+    def test_the_reset_templates_do_not_claim_a_logout_everywhere(name):
+        """A reset signs no other device out: /auth/refresh never reads the keys it deletes."""
+        rendered = _templates().get_template(name).render(**CONTEXT)
+        lowered = rendered.lower()
+>       assert "all devices" not in lowered, f"{name} still claims a logout on every device"
+E       AssertionError: password_reset.txt still claims a logout on every device
+E       assert 'all devices' not in 'soccer pred... reserved.\n'
+E         'all devices' is contained here:
+E           ed out of all devices
+E           - you'll need to log in again with your new password
+E           
+E           security tips:
+E           - never share your password with anyone
+E           - use a strong, unique password...
+E         
+E         ...Full output truncated (8 lines hidden), use '-vv' to show
+
+tests/api/test_password_reset_emails.py:177: AssertionError
+_ test_the_reset_templates_do_not_claim_a_logout_everywhere[password_reset.html] _
+
+name = 'password_reset.html'
+
+    @pytest.mark.parametrize("name", RESET_TEMPLATES)
+    def test_the_reset_templates_do_not_claim_a_logout_everywhere(name):
+        """A reset signs no other device out: /auth/refresh never reads the keys it deletes."""
+        rendered = _templates().get_template(name).render(**CONTEXT)
+        lowered = rendered.lower()
+>       assert "all devices" not in lowered, f"{name} still claims a logout on every device"
+E       AssertionError: password_reset.html still claims a logout on every device
+E       assert 'all devices' not in '<!doctype h...>\n</html>\n'
+E         'all devices' is contained here:
+E           ed out of all devices</li>
+E                           <li>you'll need to log in again with your new password</li>
+E                       </ul>
+E                       
+E                       <div class="security-note">
+E                           <strong>security tips:</strong>...
+E         
+E         ...Full output truncated (18 lines hidden), use '-vv' to show
+
+tests/api/test_password_reset_emails.py:177: AssertionError
+_ test_the_reset_templates_do_not_claim_a_logout_everywhere[password_reset_confirmation.txt] _
+
+name = 'password_reset_confirmation.txt'
+
+    @pytest.mark.parametrize("name", RESET_TEMPLATES)
+    def test_the_reset_templates_do_not_claim_a_logout_everywhere(name):
+        """A reset signs no other device out: /auth/refresh never reads the keys it deletes."""
+        rendered = _templates().get_template(name).render(**CONTEXT)
+        lowered = rendered.lower()
+>       assert "all devices" not in lowered, f"{name} still claims a logout on every device"
+E       AssertionError: password_reset_confirmation.txt still claims a logout on every device
+E       assert 'all devices' not in 'soccer pred... reserved.\n'
+E         'all devices' is contained here:
+E           ed out of all devices
+E           - your old password no longer works
+E           
+E           ready to get back to predicting match outcomes? log in here:
+E           https://example.invalid/login
+E           ...
+E         
+E         ...Full output truncated (15 lines hidden), use '-vv' to show
+
+tests/api/test_password_reset_emails.py:177: AssertionError
+_ test_the_reset_templates_do_not_claim_a_logout_everywhere[password_reset_confirmation.html] _
+
+name = 'password_reset_confirmation.html'
+
+    @pytest.mark.parametrize("name", RESET_TEMPLATES)
+    def test_the_reset_templates_do_not_claim_a_logout_everywhere(name):
+        """A reset signs no other device out: /auth/refresh never reads the keys it deletes."""
+        rendered = _templates().get_template(name).render(**CONTEXT)
+        lowered = rendered.lower()
+>       assert "all devices" not in lowered, f"{name} still claims a logout on every device"
+E       AssertionError: password_reset_confirmation.html still claims a logout on every device
+E       assert 'all devices' not in '<!doctype h...>\n</html>\n'
+E         'all devices' is contained here:
+E           ed out of all devices</li>
+E                               <li>your old password no longer works</li>
+E                           </ul>
+E                       </div>
+E                       
+E                       <p>ready to get back to predicting match outcomes? click the button below to log in:</p>...
+E         
+E         ...Full output truncated (31 lines hidden), use '-vv' to show
+
+tests/api/test_password_reset_emails.py:177: AssertionError
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  <worktree>/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  <worktree>/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  <worktree>/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  <worktree>/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  <worktree>/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  <worktree>/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/api/test_expert_revisions.py::test_withdrawn_before_kickoff_and_republished_after_is_served_as_not_scored
+FAILED tests/api/test_expert_revisions.py::test_the_public_flags_say_not_scored_exactly_when_settlement_does[never-withdrawn-published0-toggles0-expected0]
+FAILED tests/api/test_expert_revisions.py::test_the_public_flags_say_not_scored_exactly_when_settlement_does[put-back-before-kickoff-published1-toggles1-expected1]
+FAILED tests/api/test_expert_revisions.py::test_the_public_flags_say_not_scored_exactly_when_settlement_does[withdrawn-after-kickoff-published2-toggles2-expected2]
+FAILED tests/api/test_expert_revisions.py::test_the_public_flags_say_not_scored_exactly_when_settlement_does[withdrawn-before-put-back-after-published3-toggles3-expected3]
+FAILED tests/api/test_expert_revisions.py::test_the_public_flags_say_not_scored_exactly_when_settlement_does[withdrawn-at-kickoff-published4-toggles4-expected4]
+FAILED tests/api/test_expert_revisions.py::test_the_public_flags_say_not_scored_exactly_when_settlement_does[published-after-kickoff-published5-toggles5-expected5]
+FAILED tests/api/test_expert_revisions.py::test_withdrawn_before_kickoff_is_null_when_the_kickoff_is_unknown
+FAILED tests/api/test_users_me.py::test_a_padded_stored_username_sent_back_trimmed_is_unchanged_not_a_conflict
+FAILED tests/api/test_users_me.py::test_a_padded_stored_username_sent_back_alone_changes_nothing[ ]
+FAILED tests/api/test_users_me.py::test_a_padded_stored_username_sent_back_alone_changes_nothing[  ]
+FAILED tests/api/test_users_me.py::test_a_padded_stored_username_sent_back_alone_changes_nothing[\t]
+FAILED tests/api/test_password_reset_emails.py::test_both_reset_emails_greet_by_name_and_never_say_none[None-Lovelace-Lovelace]
+FAILED tests/api/test_password_reset_emails.py::test_both_reset_emails_greet_by_name_and_never_say_none[Ada-None-Ada]
+FAILED tests/api/test_password_reset_emails.py::test_both_reset_emails_greet_by_name_and_never_say_none[None-None-None]
+FAILED tests/api/test_password_reset_emails.py::test_the_reset_templates_do_not_claim_a_logout_everywhere[password_reset.txt]
+FAILED tests/api/test_password_reset_emails.py::test_the_reset_templates_do_not_claim_a_logout_everywhere[password_reset.html]
+FAILED tests/api/test_password_reset_emails.py::test_the_reset_templates_do_not_claim_a_logout_everywhere[password_reset_confirmation.txt]
+FAILED tests/api/test_password_reset_emails.py::test_the_reset_templates_do_not_claim_a_logout_everywhere[password_reset_confirmation.html]
+19 failed, 3 passed, 18 warnings in 2.47s
+# (local worktree path replaced with <worktree> in 9 line(s) and the home prefix with ~ in any other; the test database password masked as ***; nothing else edited)
+# exit=1

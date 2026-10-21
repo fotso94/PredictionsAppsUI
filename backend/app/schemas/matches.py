@@ -113,9 +113,22 @@ def serialize_expert_prediction(prediction: Optional[Prediction], kickoff: Optio
                                 author: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """One published expert prediction as readers see it.
 
-    ``published_after_kickoff`` is settlement's own prematch rule applied to this row: True when it
-    was published AT or after ``kickoff`` (the match's kickoff), which settlement refuses to score;
-    False when before; None when either time is unknown, because unknown is not "before".
+    Two flags, each one half of settlement's rule for whether this row is scored
+    (:func:`app.services.settlement.stood_at_kickoff`), each computed by settlement's own code so
+    what a reader is told cannot drift from what settlement decides:
+
+    * ``published_after_kickoff``: the publication-time half. True when ``published_at`` is AT or
+      after ``kickoff`` (the match's kickoff), which settlement refuses to score; False when before;
+      None when either time is unknown, because unknown is not "before".
+    * ``withdrawn_before_kickoff``: the withdrawal half, settlement's
+      :func:`~app.services.settlement.withdrawn_before_kickoff`. On a row readers are served
+      (PUBLISHED, not deleted) it is True only for one sequence: unpublished before kickoff, then
+      published again at or after it. A republish before kickoff clears ``unpublished_at``, but one
+      after kickoff cannot, because that prematch withdrawal is a closed fact - so the row is shown
+      again, with its original pre-kickoff ``published_at``, and is NOT scored: nobody could read it
+      when the match started. False otherwise; None when the kickoff is unknown.
+
+    A served row is left out of the measured record exactly when either flag is True.
 
     ``author`` is the public identity only - ``{"id", "username"}`` from the caller's one batched
     lookup - and never the expert's email, names or avatar. None when the caller has none.
@@ -133,6 +146,7 @@ def serialize_expert_prediction(prediction: Optional[Prediction], kickoff: Optio
         "total_goals_confidence": _f(prediction.total_goals_confidence),
         "reasoning": prediction.reasoning, "published_at": _iso(prediction.published_at), "created_by": str(prediction.created_by),
         "published_after_kickoff": _at_or_after_kickoff(prediction.published_at, kickoff),
+        "withdrawn_before_kickoff": _withdrawn_before_kickoff(prediction, kickoff),
         "author": author,
     }
 
@@ -153,6 +167,19 @@ def _at_or_after_kickoff(instant: Optional[datetime], kickoff: Optional[datetime
     """
     from app.services.settlement import at_or_after_kickoff
     return at_or_after_kickoff(_naive_utc(instant), _naive_utc(kickoff))
+
+
+def _withdrawn_before_kickoff(prediction: Prediction, kickoff: Optional[datetime]) -> Optional[bool]:
+    """Settlement's withdrawal test, :func:`app.services.settlement.withdrawn_before_kickoff`, as is.
+
+    Called rather than restated, for the same reason as :func:`_at_or_after_kickoff`. None when the
+    kickoff is unknown: a stored False would assert the row was still standing at kickoff.
+    """
+    from app.services.settlement import withdrawn_before_kickoff
+    naive_kickoff = _naive_utc(kickoff)
+    if naive_kickoff is None:
+        return None
+    return withdrawn_before_kickoff(prediction, naive_kickoff)
 
 
 def serialize_prediction_revision(revision, index: int, kickoff: Optional[datetime] = None) -> Dict[str, Any]:
