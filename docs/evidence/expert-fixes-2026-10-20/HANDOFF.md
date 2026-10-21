@@ -228,3 +228,23 @@ The only data this work wrote is on the clone; the inventory was taken with read
    - A tab still running the old bundle could overwrite that same fixture's draft during a deploy.
    - Drafts stay in the browser after logout, keyed to the account.
 10. **Not measured.** The tablet range (640–1023 px), and physical devices or Safari.
+
+## Isolation preflight: the bypass review of 2026-10-21
+
+Three reviewers looked for runs that get past the preflight (commit 4f0a2388). The fix is
+b6c35b28. Each real bypass has a regression that fails on a84affd3 and passes on b6c35b28. Every
+regression runs behind tripwires, aimed at ports nothing listens on.
+
+| Bypass | Outcome | Evidence |
+| --- | --- | --- |
+| `pytest --noconftest` (or `--confcutdir=scripts`) on `scripts/test_connections.py`, or any collectable file outside `tests/` | Fixed. `app/core/config.py` runs the guard under pytest. The six scripts are now `check_*.py`, with no `test_*` functions. | `bypass-*-backend.log`, `bypass-*-reviewer-commands.log` |
+| `--import-mode=importlib` with `--confcutdir=tests --rootdir=..`, or `--noconftest -c /dev/null` (`tests/__init__.py` becomes a placeholder and never runs) | Fixed. The guard is the first statement of `tests/conftest.py` and also runs from the settings module. `redis_url_for` moved to `app/core/redis_urls.py`, so the check can no longer end in an ImportError. | same |
+| `backend-isolated` in launch.json runs no guard, and `/health` names a database the driver does not use (`#` or `?` in the password, `?dbname=`) | Fixed. The entry runs the guard before uvicorn. `/health` reports the database the driver actually uses, or `null`, which Stage B refuses. | `bypass-*-backend.log`, `bypass-after-isolated-entry.log` |
+| Mocked runs load their pages from the live frontend :3100 by default (reported twice) | Fixed. Stage A refuses :3100 for mocked runs. Mocked runs default to :3101 and are not defined beside `live`. The evidence runner sends mocked runs to the isolated frontend. | `bypass-*-browser-specs.log`, `bypass-*-test-evidence.log`, `bypass-after-mocked-defaults.log` |
+| `playwright test -c e2e/live`, or specs named from the repository root (default config, no globalSetup) | Fixed. A PASS issues a run token. Workers check it when they load the config, in `live-test.ts` and in both API helpers. | `bypass-*-browser-refusal-runs.log` |
+| Watch mode (`PWTEST_WATCH`) and UI mode run tests after a failed global setup | Fixed by the same token, which is shown with a configuration that drops globalSetup. Watch and UI mode themselves were not run, as instructed. | same |
+| A checkout whose directory ends in `mocked` or `live` (testMatch is matched against the absolute path) | Fixed. Each project now selects only its own `testDir`. | same, the `--list` cases |
+
+Not done here: the isolated backend :8001 (pid 13053) was not restarted, so it still runs the
+pre-fix code. For its configuration the fixed `/health` gives the same answer,
+`soccer_predictions_e2e`. Its next start through local-servers.sh or launch.json runs the guard.
