@@ -1,0 +1,93 @@
+
+Running 2 tests using 1 worker
+
+  ✘  1 [live-isolated] › e2e/live-isolated/expert-management.spec.ts:153:1 › twenty-one real predictions: paged by the backend total, and deleting the 21st steps back (13.4s)
+  ✘  2 [live-isolated] › e2e/live-isolated/expert-management.spec.ts:192:1 › Unpublish and Publish on My Predictions change the real record, and the dashboard agrees (2.0s)
+
+
+  1) [live-isolated] › e2e/live-isolated/expert-management.spec.ts:153:1 › twenty-one real predictions: paged by the backend total, and deleting the 21st steps back 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('h2').filter({ hasText: /^Your Predictions/ })
+    Expected: "Your Predictions (21)"
+    Received: "Your Predictions (20)"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('h2').filter({ hasText: /^Your Predictions/ }) with timeout 10000ms
+      - waiting for locator('h2').filter({ hasText: /^Your Predictions/ })
+        24 × locator resolved to <h2 class="text-xl font-bold text-gray-900 dark:text-white">Your Predictions (20)</h2>
+           - unexpected value "Your Predictions (20)"
+
+
+      161 |   await openMine(page);
+      162 |   await expect(cards(page)).toHaveCount(20);
+    > 163 |   await expect(listHeading(page)).toHaveText('Your Predictions (21)');
+          |                                   ^
+      164 |
+      165 |   // The browser itself can read the total cross-origin: the backend's CORS configuration exposes it.
+      166 |   const readable = await page.evaluate(async (base) => {
+        at <worktree>/frontend/e2e/live-isolated/expert-management.spec.ts:163:35
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-expert-manag-ce78d-eleting-the-21st-steps-back-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/live-isolated-expert-manag-ce78d-eleting-the-21st-steps-back-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/live-isolated-expert-manag-ce78d-eleting-the-21st-steps-back-live-isolated/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-expert-manag-ce78d-eleting-the-21st-steps-back-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/live-isolated-expert-manag-ce78d-eleting-the-21st-steps-back-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [live-isolated] › e2e/live-isolated/expert-management.spec.ts:192:1 › Unpublish and Publish on My Predictions change the real record, and the dashboard agrees 
+
+    Error: after publishing
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "Not published": 0,
+        "Predictions written": 1,
+        "Published": 1,
+    -   "undefined": 0,
+      }
+
+      143 |     .toBe(server.published_predictions + server.not_published_predictions);
+      144 |   const screen = await recordOnScreen(page);
+    > 145 |   expect(screen, when).toEqual({
+          |                        ^
+      146 |     [expertEn['expert.dashboard.statWritten']]: server.total_predictions,
+      147 |     [expertEn['expert.dashboard.statPublished']]: server.published_predictions,
+      148 |     [expertEn['expert.dashboard.statNotPublished']]: server.not_published_predictions,
+        at expectRecordMatchesServer (<worktree>/frontend/e2e/live-isolated/expert-management.spec.ts:145:24)
+        at <worktree>/frontend/e2e/live-isolated/expert-management.spec.ts:198:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-expert-manag-c3c7d-rd-and-the-dashboard-agrees-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/live-isolated-expert-manag-c3c7d-rd-and-the-dashboard-agrees-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/live-isolated-expert-manag-c3c7d-rd-and-the-dashboard-agrees-live-isolated/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-expert-manag-c3c7d-rd-and-the-dashboard-agrees-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/live-isolated-expert-manag-c3c7d-rd-and-the-dashboard-agrees-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [live-isolated] › e2e/live-isolated/expert-management.spec.ts:153:1 › twenty-one real predictions: paged by the backend total, and deleting the 21st steps back 
+    [live-isolated] › e2e/live-isolated/expert-management.spec.ts:192:1 › Unpublish and Publish on My Predictions change the real record, and the dashboard agrees 

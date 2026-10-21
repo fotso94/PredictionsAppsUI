@@ -212,7 +212,18 @@ export interface ExpertPerformanceMetrics {
   expert_name: string;
   total_predictions: number;
   published_predictions: number;
+  /** PENDING only, as it always was. It is NOT "not published": see the two fields below. */
   pending_predictions: number;
+  /**
+   * Unpublished by the expert (ARCHIVED). Optional because a backend older than the field does
+   * not send it, and then no count is claimed for it.
+   */
+  archived_predictions?: number;
+  /**
+   * Everything that is not PUBLISHED, so total = published + not published. Optional for the
+   * same reason; without it the page uses total - published, which is the same number.
+   */
+  not_published_predictions?: number;
   accuracy_rate: number | null;
   /** The mean of the convictions that were stated, or null when none were. */
   average_confidence: number | null;

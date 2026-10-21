@@ -88,9 +88,14 @@ export default defineConfig({
        * that already had to be taught not to overflow. It is added rather than the list being
        * widened because it is the file this package wrote and can vouch for at this width; the
        * rest of the suite is still unmeasured here.
+       *
+       * expert-management.spec.ts joins it because this is where its layout can break: the
+       * expert's record grew a fifth tile and each My Predictions card a fourth action, and its
+       * French labels are the longer ones. It measures sideways scroll, cut-short tile labels and
+       * actions outside their card at whatever width it runs, and 360 is the one that binds.
        */
       name: 'mocked-mobile-360',
-      testMatch: /mocked\/(navigation-continuity|national-teams|overdue-results|parlay-builder|match-data-state)\.spec\.ts/,
+      testMatch: /mocked\/(navigation-continuity|national-teams|overdue-results|parlay-builder|match-data-state|expert-management)\.spec\.ts/,
       use: { ...devices['Galaxy S8'] },
     },
     {

@@ -53,9 +53,9 @@
  * needs no branch" is a claim that should be checked rather than asserted.
  *
  * Gender still does work here even without plurals. « Pas encore évaluée » and « Aucune
- * publiée » above; « Publiés », « Non publiés » and « Signalés » on the record and moderation
- * tiles, agreeing with « les pronostics »; « Créé » and « Publié » on a prediction's own
- * timestamps, agreeing with « le pronostic ».
+ * publiée » above; « Publiés », « Non publiés », « Dépubliés » and « Signalés » on the record
+ * and moderation tiles, agreeing with « les pronostics »; « Créé » and « Publié » on a
+ * prediction's own timestamps, agreeing with « le pronostic ».
  *
  * ── TYPOGRAPHY ──────────────────────────────────────────────────────────────────────────────
  *
@@ -100,6 +100,12 @@ const expert: Area<'expert'> = {
   'expert.action.publishing': 'Publication…',
   'expert.action.writePrediction': 'Rédiger un pronostic',
 
+  'expert.publication.confirmUnpublish': 'Dépublier ce pronostic\u00a0? Les lecteurs ne le verront plus sur la page du match. Vous pourrez le publier à nouveau plus tard.',
+  'expert.publication.confirmPublish': 'Publier ce pronostic\u00a0? Les lecteurs le verront immédiatement sur la page du match.',
+  /** « Bilan mesuré » is the measured record's name in ./core.fr.ts, and this is that record. */
+  'expert.publication.kickedOffUnpublish': 'Le coup d’envoi a été donné. Dépublier ce pronostic maintenant le cache aux lecteurs, mais ne le retire pas de votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
+  'expert.publication.kickedOffPublish': 'Le coup d’envoi a été donné. Publier ce pronostic maintenant le montre aux lecteurs, mais ne l’ajoute pas à votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
+
   'expert.page.previous': 'Précédent',
   'expert.page.next': 'Suivant',
   /** The insécable keeps the label and its numeral on one line, as French typography asks. */
@@ -142,13 +148,15 @@ const expert: Area<'expert'> = {
   'expert.dashboard.chooseMatchHint': 'Une seule liste filtrée de rencontres. Filtrez par jour, compétition ou équipe.',
   'expert.dashboard.myPredictions': 'Mes pronostics',
   'expert.dashboard.myPredictionsHint': 'Modifiez, dépubliez ou supprimez tout ce que vous avez publié.',
-  'expert.dashboard.recentHeading': 'Publiés récemment',
+  'expert.dashboard.recentHeading': 'Pronostics récents',
   'expert.dashboard.emptyTitle': 'Vous n’avez encore rien publié',
   'expert.dashboard.emptyBody': 'Choisissez un match et rédigez votre premier pronostic. Il est en ligne dès que vous le publiez.',
   'expert.dashboard.recordHeading': 'Votre bilan',
   'expert.dashboard.statWritten': 'Pronostics rédigés',
   'expert.dashboard.statPublished': 'Publiés',
   'expert.dashboard.statNotPublished': 'Non publiés',
+  /** Masculine plural, agreeing with « les pronostics », like « Publiés » and « Non publiés ». */
+  'expert.dashboard.statUnpublished': 'Dépubliés',
   'expert.dashboard.statAverageConviction': 'Conviction moyenne',
   /** Feminine: it agrees with « la conviction ». For a NULL `average_confidence` only — a stored
    *  0 is a claimed zero and prints « 0 % ». This wording must never look like a figure. */
@@ -284,10 +292,13 @@ const expert: Area<'expert'> = {
   'expert.mine.confirmDelete': 'Voulez-vous vraiment supprimer ce pronostic\u00a0? Cette action est irréversible.',
   'expert.mine.filterByStatus': 'Filtrer par statut\u00a0:',
   'expert.mine.listHeading': 'Vos pronostics ({count})',
+  'expert.mine.listHeadingUncounted': 'Vos pronostics',
   'expert.mine.emptyTitle': 'Aucun pronostic trouvé',
   'expert.mine.emptyNone': 'Vous n’avez encore créé aucun pronostic.',
   'expert.mine.emptyFiltered': 'Aucun pronostic avec le statut «\u00a0{status}\u00a0».',
   'expert.mine.createFirst': 'Rédiger votre premier pronostic',
+  'expert.mine.emptyPageTitle': 'Cette page est vide',
+  'expert.mine.emptyPageBody': 'Plus rien n’est listé sur cette page\u00a0: la liste a raccourci depuis son ouverture. Revenez à la page précédente.',
   'expert.mine.matchIdLabel': 'Identifiant du match\u00a0:',
   'expert.mine.created': 'Créé\u00a0: {timestamp}',
   'expert.mine.published': 'Publié\u00a0: {timestamp}',

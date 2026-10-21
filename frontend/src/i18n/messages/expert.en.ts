@@ -88,6 +88,17 @@ const expert = {
   /** Also the FixturePicker's action label, which the live suite matches as "Write a prediction:". */
   'expert.action.writePrediction': 'Write a prediction',
 
+  /*
+   * Publish and unpublish, asked first on every page that offers them (My Predictions and the
+   * dashboard's recent list). After kickoff the confirmation and the card add one of the two
+   * notes below: settlement scores what stood at kickoff, so from then on a publication change
+   * alters what readers see and not the expert's measured record — in either direction.
+   */
+  'expert.publication.confirmUnpublish': 'Unpublish this prediction? Readers will no longer see it on the match page. You can publish it again later.',
+  'expert.publication.confirmPublish': 'Publish this prediction? Readers will see it on the match page straight away.',
+  'expert.publication.kickedOffUnpublish': 'This match has kicked off. Unpublishing now hides this prediction from readers but does not remove it from your measured record, which is decided by what stood at kickoff.',
+  'expert.publication.kickedOffPublish': 'This match has kicked off. Publishing now shows this prediction to readers but does not add it to your measured record, which is decided by what stood at kickoff.',
+
   'expert.page.previous': 'Previous',
   'expert.page.next': 'Next',
   'expert.page.number': 'Page {number}',
@@ -142,13 +153,17 @@ const expert = {
   'expert.dashboard.chooseMatchHint': 'One filtered fixture list. Filter by day, competition or team.',
   'expert.dashboard.myPredictions': 'My predictions',
   'expert.dashboard.myPredictionsHint': 'Edit, unpublish or remove anything you have published.',
-  'expert.dashboard.recentHeading': 'Recently published',
+  /** The list holds the newest predictions of every status, archived included, so it says so. */
+  'expert.dashboard.recentHeading': 'Recent predictions',
   'expert.dashboard.emptyTitle': 'You have not published anything yet',
   'expert.dashboard.emptyBody': 'Choose a match and write your first prediction. It goes live as soon as you publish it.',
   'expert.dashboard.recordHeading': 'Your record',
   'expert.dashboard.statWritten': 'Predictions written',
   'expert.dashboard.statPublished': 'Published',
+  /** Everything that is not published (`not_published_predictions`), so Written = Published + this. */
   'expert.dashboard.statNotPublished': 'Not published',
+  /** The part of "Not published" the expert unpublished themselves (`archived_predictions`). */
+  'expert.dashboard.statUnpublished': 'Unpublished',
   'expert.dashboard.statAverageConviction': 'Average conviction',
   /** Where an average conviction would be when `average_confidence` is null. A stored 0 is a
    *  claimed zero and prints as "0%" instead — this wording is for the null only, and is never
@@ -311,11 +326,17 @@ const expert = {
   'expert.mine.updateFailed': 'Failed to update prediction',
   'expert.mine.confirmDelete': 'Are you sure you want to delete this prediction? This action cannot be undone.',
   'expert.mine.filterByStatus': 'Filter by Status:',
+  /** `{count}` is every prediction matching the filter, on every page — not the rows on this one. */
   'expert.mine.listHeading': 'Your Predictions ({count})',
+  /** When the total cannot be known (no X-Total-Count, and more pages follow): no number at all. */
+  'expert.mine.listHeadingUncounted': 'Your Predictions',
   'expert.mine.emptyTitle': 'No predictions found',
   'expert.mine.emptyNone': "You haven't created any predictions yet.",
   'expert.mine.emptyFiltered': 'No predictions with status "{status}".',
   'expert.mine.createFirst': 'Create Your First Prediction',
+  /** A later page that the list no longer reaches. Not "no predictions": the account has some. */
+  'expert.mine.emptyPageTitle': 'This page is empty',
+  'expert.mine.emptyPageBody': 'Nothing is listed on this page any more: the list has become shorter since it was opened. Go back to the previous page.',
   'expert.mine.matchIdLabel': 'Match ID:',
   'expert.mine.created': 'Created: {timestamp}',
   'expert.mine.published': 'Published: {timestamp}',

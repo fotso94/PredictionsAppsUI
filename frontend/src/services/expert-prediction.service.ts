@@ -83,21 +83,32 @@ export const expertPredictionService = {
   },
 
   /**
-   * Get expert's own predictions (KAN-152)
-   * 
+   * Get expert's own predictions (KAN-152): one page, and how many match the filter in all.
+   *
+   * The body is a bare list and the total is the X-Total-Count header (get_my_predictions in
+   * backend/app/api/v1/endpoints/expert.py; the backend's CORS configuration exposes it to the
+   * browser). The headers used to be dropped here, which left the page guessing whether another
+   * page existed from "this one came back full" — wrong exactly when the total is a multiple of
+   * the page size. `total` is null when the header is absent or unreadable (an older backend, or
+   * something in between that strips it), and the caller then has to find out another way.
+   *
    * @param params - Query parameters
-   * @returns List of expert's predictions
+   * @returns The page of predictions, and the total for the same filter or null
    */
   getMyPredictions: async (params?: {
     limit?: number;
     offset?: number;
     status?: string;
-  }): Promise<ExpertPredictionResponse[]> => {
+  }): Promise<{ predictions: ExpertPredictionResponse[]; total: number | null }> => {
     const response = await apiClient.get<ExpertPredictionResponse[]>(
       `${EXPERT_BASE_URL}/predictions/my-predictions`,
       { params }
     );
-    return response.data;
+    const header = String(response.headers?.['x-total-count'] ?? '').trim();
+    return {
+      predictions: response.data,
+      total: /^\d+$/.test(header) ? Number(header) : null,
+    };
   },
 
   /**
@@ -250,9 +261,15 @@ export const expertPredictionService = {
    * Delete a prediction
    *
    * @param predictionId - Prediction ID
-   * @returns Success message
+   * @returns Success message. Deleting is idempotent: a repeat answers 200 with the first
+   *   deletion's `deleted_at` and `already_deleted: true`.
    */
-  deletePrediction: async (predictionId: string): Promise<{ message: string; prediction_id: string }> => {
+  deletePrediction: async (predictionId: string): Promise<{
+    message: string;
+    prediction_id: string;
+    deleted_at?: string;
+    already_deleted?: boolean;
+  }> => {
     const response = await apiClient.delete(
       `${EXPERT_BASE_URL}/predictions/${predictionId}`
     );

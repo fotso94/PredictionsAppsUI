@@ -162,6 +162,10 @@ function metrics(over: Partial<Json> = {}): Json {
     total_predictions: 0,
     published_predictions: 0,
     pending_predictions: 0,
+    // Read by the record's "Not published" and "Unpublished" tiles. A test that overrides the
+    // counts above with nothing unpublished leaves these at 0, which is then the right answer.
+    archived_predictions: 0,
+    not_published_predictions: 0,
     accuracy_rate: null,
     average_confidence: null,
     predictions_by_league: {},

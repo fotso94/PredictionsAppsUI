@@ -1,11 +1,11 @@
 /**
- * The expert's workspace: what to do next, then what has been published, then the numbers.
+ * The expert's workspace: what to do next, then the recent predictions, then the numbers.
  *
  * THE ORDER OF THE SECTIONS IS THE POINT, AND METRICS DO NOT COME FIRST. Opening with four
  * metric tiles — total, published, pending, accuracy — gives a new expert "0, 0, 0, Not scored"
  * across the whole first screen: four empty boxes are not a starting point, and an accuracy tile
  * in prime space says only that nothing has ever been scored. So the work leads — continue a
- * draft you left, choose a match, what you have recently published — the counts sit below it
+ * draft you left, choose a match, your recent predictions — the counts sit below it
  * where they are a record rather than an obstacle, and moderation, which does not gate
  * publication, is last.
  *
@@ -33,6 +33,18 @@
  * the answer the helper gives; a `> 0` check would be wrong, reporting a deliberate 0% average
  * as though nothing had been published at all. The rule this follows: describe the mechanism
  * that is there, and delete a sentence rather than keep a nearly-true version of it.
+ *
+ * THE RECORD ADDS UP. "Not published" is `not_published_predictions`, everything that is not
+ * PUBLISHED, so Written = Published + Not published on every payload; it used to be
+ * `pending_predictions`, PENDING alone, and an expert's unpublished (ARCHIVED) predictions were
+ * counted nowhere. "Unpublished" is the part of it the expert took down themselves
+ * (`archived_predictions`). A payload older than those two fields falls back to total -
+ * published, which is the same number, and shows no Unpublished tile rather than a guess.
+ *
+ * THE RECENT LIST IS EVERY STATUS. It is the ten newest predictions whatever their state, with a
+ * badge on each and Publish on the archived ones, so it is headed "Recent predictions" and not
+ * "Recently published"; a row says "Published {date}" only when it has a publication time.
+ * Unpublishing and publishing ask first, with the same words as My Predictions (utils/publication).
  *
  * EVERY DATE ON THIS PAGE IS IN THE READER'S CHOSEN ZONE. Not
  * `new Date(...).toLocaleDateString()`, which formats in the DEVICE's zone and the DEVICE's
@@ -63,23 +75,26 @@ import { ComposerDraft, clearDraft, listDrafts, UNASSIGNED } from '@/components/
 import DraftList from '@/components/expert/DraftList'
 import { backendInstant, formatDate, formatNumber } from '@/i18n'
 import { useT } from '@/i18n/react'
-import type { TranslateFn } from '@/i18n'
+import type { MessageKey, TranslateFn } from '@/i18n'
+import { canTogglePublication, publicationConfirmText } from '@/utils/publication'
 
-/** One published prediction, compact: the fixture, the leading call, and what can be done with it. */
+/** One recent prediction, of any status, compact: the fixture, the leading call, and what can be done with it. */
 const RecentRow: React.FC<{
   prediction: ExpertPredictionResponse
   busy: boolean
   t: TranslateFn
-  onTogglePublish: (id: string) => void
+  onTogglePublish: (prediction: ExpertPredictionResponse) => void
   onDelete: (id: string) => void
 }> = ({ prediction, busy, t, onTogglePublish, onDelete }) => {
   const details = prediction.match_details
   const status = prediction.status.toLowerCase()
-  const canToggle = status === 'published' || status === 'archived'
+  const canToggle = canTogglePublication(status)
   const canDelete = status === 'published' || status === 'archived' || status === 'rejected'
   // A date in the reader's language and their chosen zone, never the API's raw ISO string.
   const kickoff = formatDate(backendInstant(details?.match_date).at)
-  const publishedOn = formatDate(backendInstant(prediction.published_at ?? prediction.created_at).at)
+  // Only a publication time is a publication date: a prediction never published shows none,
+  // rather than its creation time passed off as one.
+  const publishedOn = prediction.published_at ? formatDate(backendInstant(prediction.published_at).at) : null
 
   return (
     <li className="border-b border-dark-800 p-3 last:border-b-0 sm:p-4">
@@ -167,7 +182,7 @@ const RecentRow: React.FC<{
             {t('expert.action.edit')}
           </Link>
           {canToggle && (
-            <button type="button" disabled={busy} onClick={() => onTogglePublish(prediction.id)} className="focus-ring text-xs font-medium text-secondary-200 hover:text-white disabled:opacity-50">
+            <button type="button" disabled={busy} onClick={() => onTogglePublish(prediction)} className="focus-ring text-xs font-medium text-secondary-200 hover:text-white disabled:opacity-50">
               {busy ? t('expert.action.working') : status === 'published' ? t('expert.action.unpublish') : t('expert.action.publish')}
             </button>
           )}
@@ -226,11 +241,13 @@ const ExpertDashboardPage: React.FC = () => {
     loadDashboardData()
   }, [loadDashboardData])
 
-  const handleTogglePublish = async (predictionId: string) => {
+  const handleTogglePublish = async (prediction: ExpertPredictionResponse) => {
+    // Asked first, with what the change does and, after kickoff, what it does not do.
+    if (!confirm(publicationConfirmText(prediction, t))) return
     try {
-      setProcessingId(predictionId)
+      setProcessingId(prediction.id)
       setError(null)
-      await expertPredictionService.togglePublishStatus(predictionId)
+      await expertPredictionService.togglePublishStatus(prediction.id)
       await loadDashboardData()
     } catch (err) {
       console.error('Failed to toggle publish status:', err)
@@ -342,7 +359,7 @@ const ExpertDashboardPage: React.FC = () => {
         </div>
       </section>
 
-      {/* ------------------------------------------------------------------ recently published */}
+      {/* ------------------------------------------------------------------ recent, any status */}
       <section className="mt-8" aria-labelledby="recent-heading">
         <h2 id="recent-heading" className="mb-3 text-lg font-semibold text-white">{t('expert.dashboard.recentHeading')}</h2>
         <div className="card overflow-hidden">
@@ -379,11 +396,18 @@ const ExpertDashboardPage: React.FC = () => {
       {metrics && (
         <section className="mt-8" aria-labelledby="record-heading">
           <h2 id="record-heading" className="mb-3 text-lg font-semibold text-white">{t('expert.dashboard.recordHeading')}</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* Five tiles: two columns on a phone, three on a tablet, one row from lg up — at sm a
+              row of five would cut the longer French labels short. */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {([
               ['expert.dashboard.statWritten', formatNumber(metrics.total_predictions)],
               ['expert.dashboard.statPublished', formatNumber(metrics.published_predictions)],
-              ['expert.dashboard.statNotPublished', formatNumber(metrics.pending_predictions)],
+              // Everything that is not published, so the three tiles add up. NOT pending alone.
+              ['expert.dashboard.statNotPublished', formatNumber(metrics.not_published_predictions
+                ?? metrics.total_predictions - metrics.published_predictions)],
+              ...(typeof metrics.archived_predictions === 'number'
+                ? [['expert.dashboard.statUnpublished', formatNumber(metrics.archived_predictions)] as const]
+                : []),
               // Null is "nobody has claimed a conviction"; zero is a judgement of zero. Those are
               // different stored values and must stay different on screen, so the split is left
               // to `formatUnitProbability`, which stands in for null and undefined and formats
@@ -392,7 +416,7 @@ const ExpertDashboardPage: React.FC = () => {
               // « Aucune publiée » is not a figure and must never be shortened into one.
               ['expert.dashboard.statAverageConviction',
                 formatUnitProbability(metrics.average_confidence, 0, t('expert.dashboard.nonePublished'))],
-            ] as const).map(([label, value]) => (
+            ] as Array<readonly [MessageKey, string]>).map(([label, value]) => (
               <div key={label} className="card p-3">
                 <p className="truncate text-xs text-secondary-400">{t(label)}</p>
                 <p className="num mt-1 text-2xl font-bold text-white">{value}</p>

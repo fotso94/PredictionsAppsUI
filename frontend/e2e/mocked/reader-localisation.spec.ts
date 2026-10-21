@@ -1086,6 +1086,8 @@ async function stubExpertDashboard(page: Page, competition: () => string = () =>
       return json({
         expert_id: 'qa-expert', expert_name: 'QA Expert',
         total_predictions: 12, published_predictions: 9, pending_predictions: 3,
+        // The three not published are the three pending; none was unpublished by the expert.
+        archived_predictions: 0, not_published_predictions: 3,
         // Both null, never 0: nothing has been settled and nobody claimed a conviction, so the
         // page says so in words. 0 would be a different payload meaning a different thing — a
         // conviction claimed at zero, which the tile rightly prints as « 0 % ». Null is what the

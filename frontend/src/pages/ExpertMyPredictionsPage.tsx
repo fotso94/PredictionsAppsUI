@@ -31,6 +31,32 @@
  * `backendInstant` (this backend anchors these columns with a trailing Z — see the field
  * serialisers in backend/app/schemas/predictions.py) and then `formatDate` / `formatDateTime`.
  *
+ * ── PAGES ARE COUNTED, NOT GUESSED ────────────────────────────────────────────────
+ *
+ * Twenty to a page. The total for the filter comes from the X-Total-Count header, and each page
+ * also asks for ONE extra row, which is never shown: when the header is missing, that row is the
+ * only evidence that a next page exists. "This page came back full" is not evidence — it is true
+ * of the last page whenever the total is a multiple of twenty, and Next used to lead from exactly
+ * twenty predictions into an empty page. So:
+ *
+ *   - the heading counts every prediction matching the filter, not the rows on this page, and
+ *     claims no number when none can be known;
+ *   - the page bar shows whenever there is a page before or after this one, and Previous always
+ *     works from a later page — including an empty one, which is exactly when it is needed;
+ *   - a later page that has emptied (the list shrank after it was counted, in another tab, say)
+ *     says so and offers Previous. "You haven't created any predictions yet" is for the first
+ *     page, unfiltered, and nowhere else;
+ *   - a delete or a publication change that empties a later page steps back ONE page. Only those
+ *     two actions do it and they do it once, so an always-empty answer cannot make a loop.
+ *
+ * The filter's onChange resets to the first page; e2e/mocked/expert-management.spec.ts pins it.
+ *
+ * ── PUBLISH AND UNPUBLISH ─────────────────────────────────────────────────────────────
+ *
+ * A published or archived prediction can be taken off the public lists here and put back, with
+ * the same confirmation as the dashboard and, after kickoff, a note on the card and in the
+ * confirmation that the change does not alter the measured record. utils/publication.ts says why.
+ *
  * ── WHAT IS STILL ENGLISH ──────────────────────────────────────────────────
  *
  * The inline editor is `components/expert/PredictionMarketsEditor`, and its validation messages
@@ -55,6 +81,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { backendInstant, formatDate, formatDateTime, formatNumber, formatPercentValue } from '@/i18n';
 import { useT } from '@/i18n/react';
 import type { MessageKey } from '@/i18n';
+import { canTogglePublication, kickedOffNoteKey, publicationConfirmText } from '@/utils/publication';
 import PredictionMarketsEditor from '@/components/expert/PredictionMarketsEditor';
 import {
   buildUpdateRequest, ComposerValues, composerFromPrediction, publishedMarkets, validateComposer,
@@ -89,6 +116,23 @@ const STATUS_OPTIONS: Array<{ value: string; key: MessageKey }> = [
   { value: 'archived', key: 'expert.status.archived' },
 ];
 
+/** One page of the list, as the page shows it. */
+interface ListPage {
+  /** At most one page of rows; the probe row is never among them. */
+  rows: ExpertPredictionResponse[];
+  /** Whether a later page has anything on it. */
+  more: boolean;
+  /** Every prediction matching the filter, or null when that cannot be known. */
+  total: number | null;
+}
+
+/** After kickoff, what a publication change does not do. Nothing before kickoff. */
+const KickoffNote: React.FC<{ prediction: ExpertPredictionResponse }> = ({ prediction }) => {
+  const t = useT();
+  const key = kickedOffNoteKey(prediction);
+  return key ? <p className="mt-3 text-xs text-gray-600 dark:text-gray-400">{t(key)}</p> : null;
+};
+
 const ExpertMyPredictionsPage: React.FC = () => {
   const t = useT();
   const [loading, setLoading] = useState(true);
@@ -96,8 +140,12 @@ const ExpertMyPredictionsPage: React.FC = () => {
   const [predictions, setPredictions] = useState<ExpertPredictionResponse[]>([]);
   const [page, setPage] = useState(0);
   const [limit] = useState(20);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [processingId, setProcessingId] = useState<string | null>(null);
+  /** Which action `processingId` is busy with, so a toggle in flight is not labelled "Deleting...". */
+  const [processingAction, setProcessingAction] = useState<'delete' | 'toggle' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   /**
    * The prediction being edited, held as PERCENTAGES exactly as the composer holds them, so an
@@ -135,23 +183,74 @@ const ExpertMyPredictionsPage: React.FC = () => {
   /** The two examples the edit notice teaches with, formatted rather than written down. */
   const percentExamples = { typed: formatNumber(55), whole: formatPercentValue(55, 0) };
 
+  /**
+   * One page, and what is known about the rest. See "PAGES ARE COUNTED" above.
+   *
+   * With the header, the total decides. Without it, the probe row decides whether more follows,
+   * and the total is known only when nothing does: then it is this page's offset plus its rows,
+   * the earlier pages being full. An empty later page without a header gives no total at all,
+   * because the list has shrunk by an amount nothing here can see.
+   */
+  const fetchPage = useCallback(async (pageIndex: number): Promise<ListPage> => {
+    const offset = pageIndex * limit;
+    const answer = await expertPredictionService.getMyPredictions({
+      limit: limit + 1,
+      offset,
+      status: statusFilter === 'all' ? undefined : statusFilter,
+    });
+    const rows = answer.predictions.slice(0, limit);
+    const more = answer.total !== null ? offset + limit < answer.total : answer.predictions.length > limit;
+    const counted = answer.total !== null
+      ? answer.total
+      : !more && (rows.length > 0 || pageIndex === 0) ? offset + rows.length : null;
+    return { rows, more, total: counted };
+  }, [limit, statusFilter]);
+
   const loadMyPredictions = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await expertPredictionService.getMyPredictions({
-        limit,
-        offset: page * limit,
-        status: statusFilter === 'all' ? undefined : statusFilter,
-      });
-      setPredictions(data);
+      const result = await fetchPage(page);
+      setPredictions(result.rows);
+      setHasMore(result.more);
+      setTotal(result.total);
     } catch (err) {
       console.error('Failed to load predictions:', err);
       setError(getErrorMessage(err, t('expert.mine.loadFailed')));
     } finally {
       setLoading(false);
     }
-  }, [limit, page, statusFilter, t]);
+  }, [fetchPage, page, t]);
+
+  /**
+   * Reload after a delete or a publication change, either of which can empty the page it was
+   * made on: the last row of a later page deleted, or unpublished under the Published filter.
+   * Then the page steps back ONE page and the effect loads it. That load never steps back itself,
+   * so this is a single bounded step and an always-empty answer cannot start a loop; whatever
+   * the earlier page holds is shown, its own empty state included.
+   */
+  const reloadAfterChange = async () => {
+    let steppedBack = false;
+    try {
+      setLoading(true);
+      const result = await fetchPage(page);
+      if (result.rows.length === 0 && page > 0) {
+        steppedBack = true;
+        setPage(page - 1);
+        return;
+      }
+      setPredictions(result.rows);
+      setHasMore(result.more);
+      setTotal(result.total);
+    } catch (err) {
+      console.error('Failed to load predictions:', err);
+      setError(getErrorMessage(err, t('expert.mine.loadFailed')));
+    } finally {
+      // Stepping back leaves the spinner up for the effect's load, rather than showing this
+      // page's stale rows under the earlier page's number for one render.
+      if (!steppedBack) setLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadMyPredictions();
@@ -212,15 +311,37 @@ const ExpertMyPredictionsPage: React.FC = () => {
 
     try {
       setProcessingId(predictionId);
+      setProcessingAction('delete');
       setError(null);
       await expertPredictionService.deletePrediction(predictionId);
-      // Reload predictions
-      await loadMyPredictions();
+      await reloadAfterChange();
     } catch (err) {
       console.error('Failed to delete prediction:', err);
       setError(getErrorMessage(err, t('expert.deleteFailed')));
     } finally {
       setProcessingId(null);
+      setProcessingAction(null);
+    }
+  };
+
+  const handleTogglePublish = async (prediction: ExpertPredictionResponse) => {
+    // Asked first, with what the change does and, after kickoff, what it does not do.
+    if (!confirm(publicationConfirmText(prediction, t))) {
+      return;
+    }
+
+    try {
+      setProcessingId(prediction.id);
+      setProcessingAction('toggle');
+      setError(null);
+      await expertPredictionService.togglePublishStatus(prediction.id);
+      await reloadAfterChange();
+    } catch (err) {
+      console.error('Failed to toggle publish status:', err);
+      setError(getErrorMessage(err, t('expert.dashboard.toggleFailed')));
+    } finally {
+      setProcessingId(null);
+      setProcessingAction(null);
     }
   };
 
@@ -287,12 +408,26 @@ const ExpertMyPredictionsPage: React.FC = () => {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-            {t('expert.mine.listHeading', { count: formatNumber(predictions.length) })}
+            {/* Every prediction matching the filter, on every page — or no number at all. */}
+            {total !== null
+              ? t('expert.mine.listHeading', { count: formatNumber(total) })
+              : t('expert.mine.listHeadingUncounted')}
           </h2>
         </div>
 
         <div className="p-6">
-          {predictions.length === 0 ? (
+          {predictions.length === 0 && page > 0 ? (
+            // A later page the list no longer reaches. The account has predictions, so none of
+            // the first-page wording below applies; Previous is in the page bar underneath.
+            <div className="text-center py-12" role="status">
+              <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
+                {t('expert.mine.emptyPageTitle')}
+              </p>
+              <p className="text-gray-500 dark:text-gray-500 text-sm">
+                {t('expert.mine.emptyPageBody')}
+              </p>
+            </div>
+          ) : predictions.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
                 <span aria-hidden="true">📝</span> {t('expert.mine.emptyTitle')}
@@ -304,12 +439,15 @@ const ExpertMyPredictionsPage: React.FC = () => {
                   ? t('expert.mine.emptyNone')
                   : t('expert.mine.emptyFiltered', { status: statusLabel(statusFilter) })}
               </p>
-              <Link
-                to="/expert/predictions/create"
-                className="inline-block px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                {t('expert.mine.createFirst')}
-              </Link>
+              {/* "Your first" is true only of an unfiltered empty list. */}
+              {statusFilter === 'all' && (
+                <Link
+                  to="/expert/predictions/create"
+                  className="inline-block px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  {t('expert.mine.createFirst')}
+                </Link>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -624,8 +762,10 @@ const ExpertMyPredictionsPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Actions */}
-                  <div className="flex gap-2 mt-4">
+                  {editingId !== prediction.id && <KickoffNote prediction={prediction} />}
+
+                  {/* Actions. They wrap: four of them do not fit one line on a phone in French. */}
+                  <div className="flex flex-wrap gap-2 mt-4">
                     {editingId === prediction.id ? (
                       <>
                         <button
@@ -670,13 +810,29 @@ const ExpertMyPredictionsPage: React.FC = () => {
                             {t('expert.action.edit')}
                           </button>
                         )}
+                        {/* PUBLISHED <-> ARCHIVED only, as the backend toggles; asked first. */}
+                        {canTogglePublication(prediction.status) && (
+                          <button
+                            onClick={() => handleTogglePublish(prediction)}
+                            disabled={processingId === prediction.id}
+                            className="px-4 py-2 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {processingId === prediction.id && processingAction === 'toggle'
+                              ? t('expert.action.working')
+                              : prediction.status.toLowerCase() === 'published'
+                                ? t('expert.action.unpublish')
+                                : t('expert.action.publish')}
+                          </button>
+                        )}
                         {canDelete(prediction.status) && (
                           <button
                             onClick={() => handleDelete(prediction.id)}
                             disabled={processingId === prediction.id}
                             className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
-                            {processingId === prediction.id ? t('expert.action.deleting') : t('expert.action.delete')}
+                            {processingId === prediction.id && processingAction === 'delete'
+                              ? t('expert.action.deleting')
+                              : t('expert.action.delete')}
                           </button>
                         )}
                       </>
@@ -688,9 +844,9 @@ const ExpertMyPredictionsPage: React.FC = () => {
           )}
         </div>
 
-        {/* Pagination */}
-        {predictions.length > 0 && (
-          <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+        {/* Pagination: whenever there is a page before or after this one, empty or not. */}
+        {(page > 0 || hasMore) && (
+          <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center gap-2">
             <button
               onClick={() => setPage(Math.max(0, page - 1))}
               disabled={page === 0}
@@ -703,7 +859,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
             </span>
             <button
               onClick={() => setPage(page + 1)}
-              disabled={predictions.length < limit}
+              disabled={!hasMore}
               className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {t('expert.page.next')}
