@@ -121,7 +121,17 @@ inside `BEGIN TRANSACTION READ ONLY … ROLLBACK` with `default_transaction_read
   conviction (65%) or the goal-line conviction (60%) typed in the composer. The earlier evidence run
   `journey-run-2.log` logged the same two.
 - Not run, as the task rules require: `scripts/test_evidence.py`, `e2e:evidence`, `reset-e2e-db`.
-  Nothing was sent to :8000 or :3100, and the live database and live Redis were not touched.
+  Nothing was sent to :8000 or :3100. None of these runs was configured to use the live database
+  or live Redis:
+  - **Run 1.** It passed the test database and the throwaway Redis :6390 literally on the command
+    line.
+  - **Runs 8, 8b and 9.** They went through the isolated backend :8001, which uses
+    `soccer_predictions_e2e` and Redis databases 10–15 on the shared Redis server.
+  - **What this rests on.** Those settings, not a capture of connections, and it covers these
+    final runs only.
+
+  (Narrowed on 2026-10-21. The environment slip of 2026-10-20 is in
+  `redis-incident-2026-10-20.md`.)
 - Logs write the worktree path as `<worktree>` and the home prefix as `~`. Terminal colour codes
   are stripped. The test database password is masked as `***` in the backend log header. The
   logs hold no tokens or passwords.

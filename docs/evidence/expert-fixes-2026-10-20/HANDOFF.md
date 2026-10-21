@@ -173,15 +173,59 @@ The live state was read only, before (`live-before.txt`, 2026-10-20 23:03 UTC) a
 
 No provider request was made by this work.
 
-**One environment slip, disclosed.**
-- **What happened.** In two intermediate backend before-runs, an unquoted shell variable dropped the
-  test settings. That left the Redis target at the `.env` default, which is live.
-- **The code reading.** The tests in those runs reach no Redis command: client construction is
-  lazy, cache invalidation is log-only, and authentication was overridden. Their database fixtures
-  used `soccer_predictions_test`.
-- **The conclusion.** Nothing reached live. This is established by reading the code, not by
-  observation.
-- **The logs.** Both were re-run and replaced with explicit settings.
+These readings cover the live process, the refs, the containers and the provider counters. They
+do not record connections or key changes on live Redis or the live database, so they do not
+settle the slip below.
+
+**One environment slip, disclosed (corrected 2026-10-21).** The full record, with the original
+commands and outputs quoted from the transcript, is in
+[`redis-incident-2026-10-20.md`](redis-incident-2026-10-20.md).
+
+- **Directly observed.** This is what the agent transcript records.
+  - At 2026-10-20T23:38:14Z one Bash call ran two intermediate before-runs: the delete-counts
+    selection (A) and the history tests with the clock shim (B).
+  - Both passed all seven test settings through one unquoted variable: `env $ENVV` for A and
+    `env PYTHONPATH=$EV $ENVV` for B.
+  - Run A printed `18 failed, 4 passed, 1 skipped`. The skipped test was the race test, with
+    "RACE_TEST_DATABASE_URL is not set", although that setting was inside `$ENVV`. The correctly
+    configured runs either side printed `19 failed, 4 passed`.
+  - Run B printed the same three failures as its rerun.
+  - Both logs were overwritten by reruns with literal settings (23:38:52Z and 23:39:02Z), which
+    are the committed logs. The agent disclosed the slip and said it could not prove that nothing
+    reached live.
+  - No connection capture, Redis `MONITOR`/`CLIENT LIST`/`INFO` output or PostgreSQL server log
+    exists for those seconds.
+- **Supported by code inspection (inference, code at `6cfb1c22`, tests at `549c072c`).**
+  - zsh does not split an unquoted variable. So `POSTGRES_DB` received the whole string and the
+    other six were not set. This was reproduced on 2026-10-21, not recorded at the time.
+  - The dropped settings fell back to `backend/.env`, a link to the live checkout's file. The code
+    defaults agree with it: Redis `localhost:6379`, the live container's port, databases 0–5. The
+    settings database name became the whole unsplit string, which matches no database.
+  - The Redis clients built at import (`app/services/cache.py` through
+    `app/core/redis.py` `redis.from_url`) connect lazily.
+  - The `client` fixtures in `tests/api/test_expert_manage_db.py` and
+    `tests/api/test_expert_endpoints.py` use `TestClient(app)` without `with`, so the
+    `app/main.py` lifespan (`init_db`, the scheduler) never ran.
+  - Both `get_db` callables and the expert authentication dependencies are overridden.
+  - `ExpertPredictionService._invalidate_match_cache` (`app/services/expert_prediction.py`) only
+    logs.
+  - The database-backed tests use their own `soccer_predictions_test` engine. That database is on
+    the same PostgreSQL server as live.
+  - This supports the view that the two processes issued no Redis command and opened no
+    settings-database connection. It does not show it.
+- **Cannot be established.**
+  - Whether either process opened a connection to live Redis (:6379) or to the live database.
+  - Whether anything on live changed at that time.
+  - What run A's lost tracebacks and its FAILED lines 745–750 said.
+  - The shell environment and the `.env` content at 23:38Z. Both are inferred from their state
+    today.
+  - The reruns are separate processes. They show the tests' outcomes when the settings apply,
+    not what the earlier two processes did.
+- **Other runs (audit of every pytest command in the three rounds that ran backend tests).**
+  - No other run was misconfigured this way: these two are the only `env $VAR` runs.
+  - One different slip was found. The review-fix round's first before-run (2026-10-21T05:42:49Z)
+    passed `TEST_DATABASE_URL` without its password. Its 17 database tests skipped, its Redis
+    settings were literal, and it was superseded at 05:43:14Z.
 
 ## QA data left on the e2e clone
 
@@ -201,6 +245,10 @@ The only data this work wrote is on the clone; the inventory was taken with read
      auto-generates a username from the email's local part when none is given.
    - The frontend hides any username containing "@", but the backend still serves it.
    - Decision: require an explicit public username, or add a display name (see the proposal).
+   - The options, measured against the code and the isolated database, are written up in
+     [`docs/design/public-name-decision.md`](../../design/public-name-decision.md). It recommends a
+     confirmed username, with registration no longer generating one, and no backfill. It is an
+     owner decision, separate from the completed fixes above, and nothing in it is built.
 2. **Session hardening is not done, as scoped.**
    - Access tokens stay valid until they expire (7 days).
    - `/auth/refresh` checks only the blacklist, so a password change or reset signs out no other
