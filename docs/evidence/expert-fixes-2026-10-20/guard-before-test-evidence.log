@@ -1,0 +1,78 @@
+# guard BEFORE (scripts/test_evidence.py): the new and changed runner tests against the unchanged runner
+# branch expert-fixes at b8b5f8bc; uncommitted: scripts/tests/test_test_evidence.py only (4 tests added, test_database_refusals no longer expects the 'test in the name' rule)
+# run at 2026-10-21T11:58Z; cd <worktree> && backend/venv311/bin/python -m pytest scripts/tests -q -p no:cacheprovider -o addopts='' -rfEs (synthetic reports only; nothing connects)
+# expected: the 5 tests that encode the guard integration fail; the other 87 pass
+........................................................................ [ 78%]
+......F.........FFFF                                                     [100%]
+=================================== FAILURES ===================================
+____________________________ test_database_refusals ____________________________
+
+    def test_database_refusals():
+        default = "postgresql://u:p@localhost:5432/soccer_predictions_test"
+        own = "postgresql://u:p@localhost:5432/soccer_predictions_test_evidence"
+        assert te.database_refusals(own, default, True) == []
+        # Which database is acceptable is the isolation preflight's decision, by exact target
+        # (test_the_isolation_preflight_decides_the_backend_targets): a word in the name is not a rule.
+>       assert te.database_refusals("postgresql://u:p@localhost:5432/soccer_predictions", default, True) == []
+E       assert ['the backend...est database'] == []
+E         Left contains one more item: "the backend suite drops every table it creates when it ends; refusing database 'soccer_predictions', whose name does not say it is a test database"
+E         Use -v to get more diff
+
+scripts/tests/test_test_evidence.py:1260: AssertionError
+___________ test_the_isolation_preflight_decides_the_backend_targets ___________
+
+    def test_the_isolation_preflight_decides_the_backend_targets():
+        """The unsplit shell variable of 2026-10-20 still contains the word "test", which was the only
+        rule here; the backend's own preflight (app.core.target_guard) now decides, and every one of
+        its reasons is a refusal of the run."""
+>       refusals = te.target_guard_refusals(GUARD_REFUSED, 78)
+E       AttributeError: module 'test_evidence' has no attribute 'target_guard_refusals'
+
+scripts/tests/test_test_evidence.py:1377: AttributeError
+_____ test_the_preflight_judges_the_environment_the_backend_suite_will_get _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109f11c50>
+
+    def test_the_preflight_judges_the_environment_the_backend_suite_will_get(monkeypatch):
+        seen = {}
+    
+        def fake_run_text(argv, cwd=None, env_extra=None, timeout=60, base_env=None):
+            seen.update(argv=list(argv), cwd=cwd, env=dict(base_env or {}))
+            return 78, "noise\n" + json.dumps(GUARD_REFUSED) + "\n"
+    
+        monkeypatch.setattr(te, "run_text", fake_run_text)
+        env = {"TEST_DATABASE_URL": "postgresql://u:p@localhost:5432/soccer_predictions_test", "POSTGRES_DB": "x"}
+>       code, verdict = te.run_target_guard(env)
+E       AttributeError: module 'test_evidence' has no attribute 'run_target_guard'
+
+scripts/tests/test_test_evidence.py:1395: AttributeError
+____________ test_the_service_probe_cannot_connect_before_the_guard ____________
+
+    def test_the_service_probe_cannot_connect_before_the_guard():
+        """The probe reaches the database and Redis, so its first statement is the guard itself."""
+        first = [line for line in te.BACKEND_PROBE.strip().splitlines() if line.strip()][0]
+>       assert first == "from app.core.target_guard import enforce; enforce(role='backend-tests', layer='test_evidence probe')"
+E       assert 'import json, os' == "from app.cor...dence probe')"
+E         - from app.core.target_guard import enforce; enforce(role='backend-tests', layer='test_evidence probe')
+E         + import json, os
+
+scripts/tests/test_test_evidence.py:1404: AssertionError
+_________________ test_each_playwright_project_names_its_stack _________________
+
+    def test_each_playwright_project_names_its_stack():
+        """playwright.config.ts defines live and live-isolated only for E2E_STACK=live / live-isolated."""
+        raw = Path("/r")
+>       assert te.playwright_env("live-isolated", raw, "http://localhost:3100", "http://127.0.0.1:8000",
+                                 "http://localhost:3101", "http://127.0.0.1:8001")["E2E_STACK"] == "live-isolated"
+E       KeyError: 'E2E_STACK'
+
+scripts/tests/test_test_evidence.py:1410: KeyError
+=========================== short test summary info ============================
+FAILED scripts/tests/test_test_evidence.py::test_database_refusals - assert [...
+FAILED scripts/tests/test_test_evidence.py::test_the_isolation_preflight_decides_the_backend_targets
+FAILED scripts/tests/test_test_evidence.py::test_the_preflight_judges_the_environment_the_backend_suite_will_get
+FAILED scripts/tests/test_test_evidence.py::test_the_service_probe_cannot_connect_before_the_guard
+FAILED scripts/tests/test_test_evidence.py::test_each_playwright_project_names_its_stack
+5 failed, 87 passed in 1.40s
+# (scrubbed: worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=1

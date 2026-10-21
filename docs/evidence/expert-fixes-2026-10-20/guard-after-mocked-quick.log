@@ -1,0 +1,20 @@
+# guard AFTER (browser half): an approved setup still runs - one quick mocked spec
+# code under test: exactly commit 4f0a2388 (the runs were made on the working tree that was then committed unchanged as 4f0a2388; parent b8b5f8bc)
+# run at 2026-10-21T12:15Z; cd <worktree>/frontend && E2E_BASE_URL=http://localhost:3101 ./node_modules/.bin/playwright test --project=mocked-desktop e2e/mocked/provider-states.spec.ts
+# expected: the preflight passes with nothing sent, then 6 passed
+isolation preflight: PASS (policy sha256 e2abbcc34d12)
+  mocked-desktop, mocked-mobile, mocked-mobile-360: frontend http://localhost:3101; every /api/v1 call is answered by the stubs
+  (nothing was sent to any server)
+
+Running 6 tests using 1 worker
+
+  ✓  1 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:15:1 › an exhausted daily allowance reads as paused, not unavailable (878ms)
+  ✓  2 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:26:1 › an expired or rejected trial is surfaced to the reader (828ms)
+  ✓  3 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:36:1 › a day with no fixtures shows an empty state, not an error (763ms)
+  ✓  4 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:46:1 › a backend failure shows an error state, not an empty day (765ms)
+  ✓  5 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:59:1 › the status banner stays away when every provider is healthy (836ms)
+  ✓  6 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:66:1 › a loading state appears before the data arrives (2.8s)
+
+  6 passed (7.3s)
+# (scrubbed: worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=0

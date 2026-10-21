@@ -1,0 +1,23 @@
+# guard AFTER (backend half): approved runs that really reach the throwaway services, with no tripwire
+# code under test: exactly commit 4f0a2388 (the runs were made on the working tree that was then committed unchanged as 4f0a2388; parent b8b5f8bc)
+# run at 2026-10-21T12:16Z from <worktree>/backend; throwaway services: guard-test-redis 127.0.0.1:6390 and guard-race-pg 127.0.0.1:5440 (started for this work, removed after it)
+# 1: the canary approved by the guard, connecting for real: PostgreSQL forecast_race_test on :5440 for both the test URL and the application settings, every Redis client on :6390 (databases 0-5). 2: the real-Redis lease tests, the PostgreSQL race tests and the guard's own real-services test, under the canonical approved environment: 14 passed, 0 skipped. POSTGRES_PASSWORD=unused is a placeholder (the throwaway server trusts local connections)
+== throwaway services:
+guard-race-pg postgres:15-alpine 127.0.0.1:5440->5440/tcp Up 22 minutes
+guard-test-redis redis:7-alpine 127.0.0.1:6390->6390/tcp Up 22 minutes
+
+== 1. the canary, NO tripwires, every target on the throwaway services: the guard approves and the test body really reaches them
+$ TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test POSTGRES_SERVER=127.0.0.1 POSTGRES_PORT=5440 POSTGRES_DB=forecast_race_test POSTGRES_USER=postgres POSTGRES_PASSWORD=unused REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false ./venv311/bin/python -m pytest tests/core/guard_canary.py -q -rP -p no:cacheprovider -o addopts=''
+CANARY {"redis_default": {"db": 0, "ok": true, "port": 6390}, "redis_expert_tools": {"db": 2, "ok": true, "port": 6390}, "redis_match_data": {"db": 4, "ok": true, "port": 6390}, "redis_ml_models": {"db": 3, "ok": true, "port": 6390}, "redis_predictions": {"db": 1, "ok": true, "port": 6390}, "redis_rate_limit": {"db": 5, "ok": true, "port": 6390}, "redis_sessions": {"db": 0, "ok": true, "port": 6390}, "settings_database": {"database": "forecast_race_test", "ok": true, "port": 5440}, "test_database": {"database": "forecast_race_test", "ok": true, "port": 5440}}
+target guard: backend-tests approved - settings database 127.0.0.1:5440/forecast_race_test; test database 127.0.0.1:5440/forecast_race_test; redis default (REDIS_DB) 127.0.0.1:6390/0; redis REDIS_DB_SESSIONS 127.0.0.1:6390/0; redis REDIS_DB_PREDICTIONS 127.0.0.1:6390/1; redis REDIS_DB_EXPERT_TOOLS 127.0.0.1:6390/2; redis REDIS_DB_ML_MODELS 127.0.0.1:6390/3; redis REDIS_DB_MATCH_DATA 127.0.0.1:6390/4; redis REDIS_DB_RATE_LIMIT 127.0.0.1:6390/5 (policy sha256 e2abbcc34d12)
+1 passed, 18 warnings in 0.05s
+exit=0
+
+== 2. the real-Redis lease tests and the PostgreSQL race tests (LEASE_TEST_REDIS_URL / RACE_TEST_DATABASE_URL), with the canonical approved environment
+$ TEST_DATABASE_URL=postgresql://postgres:***@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test ./venv311/bin/python -m pytest tests/services/test_sync_lease_redis.py tests/services/test_expert_delete_race_pg.py tests/services/test_forecast_first_insert_pg.py tests/core/test_target_guard.py::test_an_approved_run_really_reaches_the_throwaway_services -q -p no:cacheprovider -o addopts='' -rfEs
+
+target guard: backend-tests approved - settings database localhost:5432/soccer_predictions_test; test database localhost:5432/soccer_predictions_test; race database 127.0.0.1:5440/forecast_race_test; redis default (REDIS_DB) 127.0.0.1:6390/0; redis REDIS_DB_SESSIONS 127.0.0.1:6390/0; redis REDIS_DB_PREDICTIONS 127.0.0.1:6390/1; redis REDIS_DB_EXPERT_TOOLS 127.0.0.1:6390/2; redis REDIS_DB_ML_MODELS 127.0.0.1:6390/3; redis REDIS_DB_MATCH_DATA 127.0.0.1:6390/4; redis REDIS_DB_RATE_LIMIT 127.0.0.1:6390/5; lease redis 127.0.0.1:6390/9,10,11 (policy sha256 e2abbcc34d12)
+14 passed, 18 warnings in 1.96s
+exit=0
+# (scrubbed: worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=0

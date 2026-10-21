@@ -1,0 +1,25 @@
+# guard AFTER (browser half): the real playwright.config.ts started with unsafe settings, node --test e2e/guard/refusal-runs.test.mjs
+# code under test: exactly commit 4f0a2388 (the runs were made on the working tree that was then committed unchanged as 4f0a2388; parent b8b5f8bc)
+# run at 2026-10-21T12:14Z; cd <worktree>/frontend && node --test e2e/guard/refusal-runs.test.mjs; each case is one child 'playwright test', one after another, with net-tripwire.cjs in NODE_OPTIONS and --output in a temp dir
+# expected: 11 pass: nine refusals with zero Node connections and untouched stand-ins; the mocked control passes (its only Node-side attempt is the Google web font external-assets.ts fetches by design, blocked here and replaced by its stand-in); the isolated control passes the preflight with exactly one allowed connection, to 127.0.0.1:8001 (GET /health)
+✔ the live-isolated project does not exist unless E2E_STACK selects it (269.620709ms)
+✔ the live project does not exist unless E2E_STACK selects it (270.619125ms)
+✔ an E2E_STACK that is not exactly one stack is refused when the configuration loads (808.398292ms)
+✔ live-isolated pointed at servers the policy does not name is refused before any test (270.9755ms)
+✔ live-isolated with no isolated API URL is refused, not defaulted (269.795083ms)
+✔ the live backend or frontend named as the isolated pair is refused before anything is sent (271.984542ms)
+✔ an isolated API that is also the main API is refused (266.062917ms)
+✔ a mocked run whose frontend URL is a backend is refused (272.818375ms)
+✔ a URL carrying a password is refused and the password is never printed (279.408709ms)
+✔ an approved mocked run starts and passes, and Node reaches for no server but the web font host (1877.717625ms)
+✔ the approved isolated pair passes the preflight: one GET to the isolated backend and nothing else from Node (615.589ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5506.654459
+# (scrubbed: worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=0

@@ -1,0 +1,76 @@
+# guard AFTER: the isolated backend (:8001) restarted from this worktree on the guard's code, with every Redis database written down
+# code under test: exactly commit 4f0a2388 (the runs were made on the working tree that was then committed unchanged as 4f0a2388; parent b8b5f8bc)
+# run at 2026-10-21T12:13Z from <worktree> (local times in the status lines are the machine's, UTC-4). Only :8001 was stopped and started; :8000, :3100 and :3101 kept their pids. Requests: GET http://127.0.0.1:8001/health twice (isolated); nothing to :8000 or :3100
+# before: REDIS_DB unset, so the default Redis client used .env's database 0 (the live sessions database) - the guard refuses that environment (live-redis, missing:redis-db) without connecting. after: REDIS_HOST/REDIS_PORT/REDIS_DB=10 set, the start gated on the guard (approved), /health reports redis_databases 10-15 on loopback :6379 and scheduler off, and its app_tree_sha256 b4a1d04d... equals the checkout's digest over backend/app (92 files)
+== before: the isolated backend as it was running
+backend            :8000  pid 27221  started Mon Oct 19 21:01:46 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/backend
+frontend           :3100  pid 91426  started Wed Oct  7 23:26:34 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/frontend
+backend-isolated   :8001  pid 1692   started Wed Oct 21 03:04:21 2026      cwd <worktree>/backend
+frontend-isolated  :3101  pid 1982   started Tue Oct 20 19:25:26 2026      cwd <worktree>/frontend
+-- its environment's isolation keys (values of these keys only; none is a credential):
+EMAIL_ENABLED=false
+POSTGRES_DB=soccer_predictions_e2e
+REDIS_DB_EXPERT_TOOLS=12
+REDIS_DB_MATCH_DATA=14
+REDIS_DB_ML_MODELS=13
+REDIS_DB_PREDICTIONS=11
+REDIS_DB_RATE_LIMIT=15
+REDIS_DB_SESSIONS=10
+SYNC_SCHEDULER_ENABLED=false
+-- GET http://127.0.0.1:8001/health (selected fields):
+{"database": "soccer_predictions_e2e", "redis_databases": "<absent>", "redis_server": "<absent>", "scheduler_enabled": "<absent>"} source.commit 2759f592306ce70fd29d06e30935fd09797dac6d app_tree_sha256 7138445ead1da33f2c8ca9597a7a08c90d9ebdf6fbad5da0fb11256a20f75539
+
+== the guard over that same environment (role isolated-backend), without REDIS_HOST/REDIS_PORT/REDIS_DB:
+REFUSED: the isolation preflight (role isolated-backend, at command line) found 3 problem(s).
+Nothing has connected to any database, Redis server or HTTP service: this check runs before anything that can.
+
+  1. [missing:redis] neither REDIS_URL nor both REDIS_HOST and REDIS_PORT are set (REDIS_HOST, REDIS_PORT missing), so the Redis server comes from .env or the class default - the live one
+  2. [live-redis] redis default (REDIS_DB) is localhost:6379 database 0: the live Redis databases (main backend :8000). The live Redis is refused on any host.
+  3. [missing:redis-db] REDIS_DB not set: on a server that is approved database by database rather than whole, every database the application opens must be written down (REDIS_DB is the default client's, which /api/v1/health/detailed and every role equal to it use)
+
+Resolved targets (credentials are never shown):
+  settings database            localhost:5432/soccer_predictions_e2e   <- environment POSTGRES_DB
+  redis default (REDIS_DB)     localhost:6379/0   <- not exported: REDIS_URL/REDIS_HOST/REDIS_PORT/REDIS_DB from .env or the class default
+  redis REDIS_DB_SESSIONS      localhost:6379/10   <- the default's server; environment REDIS_DB_SESSIONS
+  redis REDIS_DB_PREDICTIONS   localhost:6379/11   <- the default's server; environment REDIS_DB_PREDICTIONS
+  redis REDIS_DB_EXPERT_TOOLS  localhost:6379/12   <- the default's server; environment REDIS_DB_EXPERT_TOOLS
+  redis REDIS_DB_ML_MODELS     localhost:6379/13   <- the default's server; environment REDIS_DB_ML_MODELS
+  redis REDIS_DB_MATCH_DATA    localhost:6379/14   <- the default's server; environment REDIS_DB_MATCH_DATA
+  redis REDIS_DB_RATE_LIMIT    localhost:6379/15   <- the default's server; environment REDIS_DB_RATE_LIMIT
+
+Approved for isolated-backend (backend/app/core/isolation_targets.json, sha256 e2abbcc34d12):
+  postgres application: loopback:5432/soccer_predictions_e2e
+  redis application: loopback:6379 (databases 10-15)
+
+Start the isolated backend with scripts/local-servers.sh start isolated, which sets every one of these explicitly (ISOLATED_ENV).
+Exit 78.
+exit=78
+
+== stop and start the isolated backend from this worktree (the frontend :3101 keeps running)
+backend-isolated: stopped (was pid 1692)
+target guard: isolated-backend approved - settings database localhost:5432/soccer_predictions_e2e; redis default (REDIS_DB) localhost:6379/10; redis REDIS_DB_SESSIONS localhost:6379/10; redis REDIS_DB_PREDICTIONS localhost:6379/11; redis REDIS_DB_EXPERT_TOOLS localhost:6379/12; redis REDIS_DB_ML_MODELS localhost:6379/13; redis REDIS_DB_MATCH_DATA localhost:6379/14; redis REDIS_DB_RATE_LIMIT localhost:6379/15 (policy sha256 e2abbcc34d12)
+backend-isolated: started on :8001 (pid 13053, log <worktree>/.local-run/backend-isolated.log)
+frontend-isolated: already listening on :3101 (pid 1982)
+
+== after
+backend            :8000  pid 27221  started Mon Oct 19 21:01:46 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/backend
+frontend           :3100  pid 91426  started Wed Oct  7 23:26:34 2026      cwd ~/Documents/DevProjects/PredictionsAppsUI/frontend
+backend-isolated   :8001  pid 13053  started Wed Oct 21 08:13:14 2026      cwd <worktree>/backend
+frontend-isolated  :3101  pid 1982   started Tue Oct 20 19:25:26 2026      cwd <worktree>/frontend
+-- its environment's isolation keys:
+EMAIL_ENABLED=false
+POSTGRES_DB=soccer_predictions_e2e
+REDIS_DB=10
+REDIS_DB_EXPERT_TOOLS=12
+REDIS_DB_MATCH_DATA=14
+REDIS_DB_ML_MODELS=13
+REDIS_DB_PREDICTIONS=11
+REDIS_DB_RATE_LIMIT=15
+REDIS_DB_SESSIONS=10
+REDIS_HOST=localhost
+REDIS_PORT=6379
+SYNC_SCHEDULER_ENABLED=false
+-- GET http://127.0.0.1:8001/health (selected fields):
+{"database": "soccer_predictions_e2e", "redis_databases": [10, 11, 12, 13, 14, 15], "redis_server": {"port": 6379, "loopback": true}, "scheduler_enabled": false} source.commit b8b5f8bced2a99d79ce9a6d96484844428baf9cc app_tree_sha256 b4a1d04df8d98426c9f3dd2c08390bb96abcf413f4b0a24676a4640bfbfd5570 dirty ['backend/app/core/isolation_targets.json', 'backend/app/core/redis.py', 'backend/app/core/target_guard.py', 'backend/app/main.py']
+# (scrubbed: worktree path -> <worktree> x5, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, home prefix -> ~ x4, test database password -> *** x0; nothing else edited)
+# exit=0

@@ -1,0 +1,3028 @@
+# guard BEFORE (backend half): the new isolation-preflight regressions against the unchanged code
+# branch expert-fixes at b8b5f8bc; uncommitted: only the new tests (tests/core/test_target_guard.py, tests/core/guard_canary.py, two tests added to tests/test_health.py); no product code changed
+# run at 2026-10-21T11:57Z; env TEST_DATABASE_URL=postgresql://postgres:***@localhost:5432/soccer_predictions_test POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test (written literally on the command line); throwaway services up: guard-test-redis 127.0.0.1:6390, guard-race-pg 127.0.0.1:5440
+# cd <worktree>/backend && ./venv311/bin/python -m pytest tests/core/test_target_guard.py tests/test_health.py -q -p no:cacheprovider -o addopts='' -rfEs
+# expected: every guard test fails (app.core.target_guard does not exist). The subprocess scenarios show the OLD code reaching the test body: each tripwire record lists the imports, psycopg2.connect calls, Redis lookups and the HTTP GET that the tripwires blocked. Every unsafe target in them is a port nothing listens on or TEST-NET-1 (192.0.2.1); the approved ones are the throwaway services and the shared test database
+# the 7 that pass: the six existing /health tests and the approved-scenario control. test_an_approved_run_really_reaches_the_throwaway_services fails only on its last assertion (no guard line): its canary did reach forecast_race_test on :5440 and Redis :6390, as its output shows
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF [ 72%]
+FFFFFFFFFFFFFFFFF.F.....FF.                                              [100%]
+=================================== FAILURES ===================================
+__________________ test_the_canonical_backend_command_passes ___________________
+
+judge = <function judge.<locals>.run at 0x10b252700>
+
+    def test_the_canonical_backend_command_passes(judge):
+>       verdict = judge(**APPROVED)
+
+tests/core/test_target_guard.py:160: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+__________________ test_the_throwaway_services_pass_beside_it __________________
+
+judge = <function judge.<locals>.run at 0x10b25ca40>
+
+    def test_the_throwaway_services_pass_beside_it(judge):
+>       verdict = judge(**APPROVED, **THROWAWAY)
+
+tests/core/test_target_guard.py:171: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+___________________ test_the_throwaway_postgres_alone_passes ___________________
+
+judge = <function judge.<locals>.run at 0x10b25d260>
+
+    def test_the_throwaway_postgres_alone_passes(judge):
+        url = "postgresql://postgres@127.0.0.1:5440/forecast_race_test"
+>       verdict = judge(TEST_DATABASE_URL=url, POSTGRES_SERVER="127.0.0.1", POSTGRES_PORT="5440",
+                        POSTGRES_DB="forecast_race_test", REDIS_HOST="localhost", REDIS_PORT="6390",
+                        SYNC_SCHEDULER_ENABLED="0", EMAIL_ENABLED="no")
+
+tests/core/test_target_guard.py:179: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+___________ test_the_isolated_backend_as_started_passes_its_own_role ___________
+
+judge = <function judge.<locals>.run at 0x10b25f4c0>
+
+    def test_the_isolated_backend_as_started_passes_its_own_role(judge):
+>       verdict = judge(role="isolated-backend", **ISOLATED)
+
+tests/core/test_target_guard.py:186: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+__________ test_nothing_exported_is_refused_naming_everything_missing __________
+
+judge = <function judge.<locals>.run at 0x10b25d940>
+
+    def test_nothing_exported_is_refused_naming_everything_missing(judge):
+        """The state the unsplit variable left behind: every setting from the live .env."""
+>       verdict = judge()
+
+tests/core/test_target_guard.py:196: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_each_missing_override_is_refused[TEST_DATABASE_URL-missing:TEST_DATABASE_URL] _
+
+judge = <function judge.<locals>.run at 0x10b25dc60>
+dropped = 'TEST_DATABASE_URL', code = 'missing:TEST_DATABASE_URL'
+
+    @pytest.mark.parametrize("dropped, code", [
+        ("TEST_DATABASE_URL", "missing:TEST_DATABASE_URL"),
+        ("POSTGRES_DB", "missing:database"),
+        ("REDIS_HOST", "missing:redis"),
+        ("REDIS_PORT", "missing:redis"),
+        ("SYNC_SCHEDULER_ENABLED", "missing:SYNC_SCHEDULER_ENABLED"),
+        ("EMAIL_ENABLED", "missing:EMAIL_ENABLED"),
+    ])
+    def test_each_missing_override_is_refused(judge, dropped, code):
+>       verdict = judge(**without(APPROVED, dropped))
+
+tests/core/test_target_guard.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_____ test_each_missing_override_is_refused[POSTGRES_DB-missing:database] ______
+
+judge = <function judge.<locals>.run at 0x10b252980>, dropped = 'POSTGRES_DB'
+code = 'missing:database'
+
+    @pytest.mark.parametrize("dropped, code", [
+        ("TEST_DATABASE_URL", "missing:TEST_DATABASE_URL"),
+        ("POSTGRES_DB", "missing:database"),
+        ("REDIS_HOST", "missing:redis"),
+        ("REDIS_PORT", "missing:redis"),
+        ("SYNC_SCHEDULER_ENABLED", "missing:SYNC_SCHEDULER_ENABLED"),
+        ("EMAIL_ENABLED", "missing:EMAIL_ENABLED"),
+    ])
+    def test_each_missing_override_is_refused(judge, dropped, code):
+>       verdict = judge(**without(APPROVED, dropped))
+
+tests/core/test_target_guard.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_______ test_each_missing_override_is_refused[REDIS_HOST-missing:redis] ________
+
+judge = <function judge.<locals>.run at 0x10b25d1c0>, dropped = 'REDIS_HOST'
+code = 'missing:redis'
+
+    @pytest.mark.parametrize("dropped, code", [
+        ("TEST_DATABASE_URL", "missing:TEST_DATABASE_URL"),
+        ("POSTGRES_DB", "missing:database"),
+        ("REDIS_HOST", "missing:redis"),
+        ("REDIS_PORT", "missing:redis"),
+        ("SYNC_SCHEDULER_ENABLED", "missing:SYNC_SCHEDULER_ENABLED"),
+        ("EMAIL_ENABLED", "missing:EMAIL_ENABLED"),
+    ])
+    def test_each_missing_override_is_refused(judge, dropped, code):
+>       verdict = judge(**without(APPROVED, dropped))
+
+tests/core/test_target_guard.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_______ test_each_missing_override_is_refused[REDIS_PORT-missing:redis] ________
+
+judge = <function judge.<locals>.run at 0x10b25d9e0>, dropped = 'REDIS_PORT'
+code = 'missing:redis'
+
+    @pytest.mark.parametrize("dropped, code", [
+        ("TEST_DATABASE_URL", "missing:TEST_DATABASE_URL"),
+        ("POSTGRES_DB", "missing:database"),
+        ("REDIS_HOST", "missing:redis"),
+        ("REDIS_PORT", "missing:redis"),
+        ("SYNC_SCHEDULER_ENABLED", "missing:SYNC_SCHEDULER_ENABLED"),
+        ("EMAIL_ENABLED", "missing:EMAIL_ENABLED"),
+    ])
+    def test_each_missing_override_is_refused(judge, dropped, code):
+>       verdict = judge(**without(APPROVED, dropped))
+
+tests/core/test_target_guard.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_each_missing_override_is_refused[SYNC_SCHEDULER_ENABLED-missing:SYNC_SCHEDULER_ENABLED] _
+
+judge = <function judge.<locals>.run at 0x10b25dbc0>
+dropped = 'SYNC_SCHEDULER_ENABLED', code = 'missing:SYNC_SCHEDULER_ENABLED'
+
+    @pytest.mark.parametrize("dropped, code", [
+        ("TEST_DATABASE_URL", "missing:TEST_DATABASE_URL"),
+        ("POSTGRES_DB", "missing:database"),
+        ("REDIS_HOST", "missing:redis"),
+        ("REDIS_PORT", "missing:redis"),
+        ("SYNC_SCHEDULER_ENABLED", "missing:SYNC_SCHEDULER_ENABLED"),
+        ("EMAIL_ENABLED", "missing:EMAIL_ENABLED"),
+    ])
+    def test_each_missing_override_is_refused(judge, dropped, code):
+>       verdict = judge(**without(APPROVED, dropped))
+
+tests/core/test_target_guard.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+__ test_each_missing_override_is_refused[EMAIL_ENABLED-missing:EMAIL_ENABLED] __
+
+judge = <function judge.<locals>.run at 0x10b25ca40>, dropped = 'EMAIL_ENABLED'
+code = 'missing:EMAIL_ENABLED'
+
+    @pytest.mark.parametrize("dropped, code", [
+        ("TEST_DATABASE_URL", "missing:TEST_DATABASE_URL"),
+        ("POSTGRES_DB", "missing:database"),
+        ("REDIS_HOST", "missing:redis"),
+        ("REDIS_PORT", "missing:redis"),
+        ("SYNC_SCHEDULER_ENABLED", "missing:SYNC_SCHEDULER_ENABLED"),
+        ("EMAIL_ENABLED", "missing:EMAIL_ENABLED"),
+    ])
+    def test_each_missing_override_is_refused(judge, dropped, code):
+>       verdict = judge(**without(APPROVED, dropped))
+
+tests/core/test_target_guard.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+____________________ test_an_empty_value_counts_as_missing _____________________
+
+judge = <function judge.<locals>.run at 0x10b25e0c0>
+
+    def test_an_empty_value_counts_as_missing(judge):
+        """REDIS_HOST="" would make redis-py fall back to localhost: present is not enough."""
+>       verdict = judge(**{**APPROVED, "REDIS_HOST": ""})
+
+tests/core/test_target_guard.py:221: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_________________ test_a_lowercase_spelling_is_not_the_setting _________________
+
+judge = <function judge.<locals>.run at 0x10b25eac0>
+
+    def test_a_lowercase_spelling_is_not_the_setting(judge):
+        """Settings are case-sensitive, so redis_port=6390 is ignored and REDIS_PORT comes from .env."""
+>       verdict = judge(**without(APPROVED, "REDIS_PORT"), redis_port="6390")
+
+tests/core/test_target_guard.py:227: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+______ test_the_isolated_backend_needs_every_redis_database_written_down _______
+
+judge = <function judge.<locals>.run at 0x10b25e700>
+
+    def test_the_isolated_backend_needs_every_redis_database_written_down(judge):
+        """Without REDIS_DB the default client keeps .env's 0 - the live sessions database - which is
+        how the isolated backend was started until this guard existed."""
+>       verdict = judge(role="isolated-backend", **without(ISOLATED, "REDIS_DB"))
+
+tests/core/test_target_guard.py:234: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_____________ test_the_isolated_backend_needs_blank_provider_keys ______________
+
+judge = <function judge.<locals>.run at 0x10b25cb80>
+
+    def test_the_isolated_backend_needs_blank_provider_keys(judge):
+>       verdict = judge(role="isolated-backend", **without(ISOLATED, "LIVESCORE_API_KEY"))
+
+tests/core/test_target_guard.py:241: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_live_database_is_refused_on_any_host_and_port[TEST_DATABASE_URL-soccer_predictions] _
+
+judge = <function judge.<locals>.run at 0x10b25cf40>
+name = 'soccer_predictions', where = 'TEST_DATABASE_URL'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions", "soccer_predictions_dev", "soccer_predictions_qa"])
+    @pytest.mark.parametrize("where", ["TEST_DATABASE_URL", "POSTGRES_DB", "DATABASE_URL"])
+    def test_a_live_database_is_refused_on_any_host_and_port(judge, name, where):
+        url = f"postgresql://postgres@127.0.0.1:5999/{name}"
+        env = dict(APPROVED)
+        if where == "TEST_DATABASE_URL":
+            env.update(TEST_DATABASE_URL=url, POSTGRES_SERVER="127.0.0.1", POSTGRES_PORT="5999", POSTGRES_DB=name)
+        elif where == "POSTGRES_DB":
+            env.update(POSTGRES_DB=name)
+        else:
+            env = without(env, "POSTGRES_DB")
+            env.update(DATABASE_URL=url)
+>       verdict = judge(**env)
+
+tests/core/test_target_guard.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_live_database_is_refused_on_any_host_and_port[TEST_DATABASE_URL-soccer_predictions_dev] _
+
+judge = <function judge.<locals>.run at 0x10b25f880>
+name = 'soccer_predictions_dev', where = 'TEST_DATABASE_URL'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions", "soccer_predictions_dev", "soccer_predictions_qa"])
+    @pytest.mark.parametrize("where", ["TEST_DATABASE_URL", "POSTGRES_DB", "DATABASE_URL"])
+    def test_a_live_database_is_refused_on_any_host_and_port(judge, name, where):
+        url = f"postgresql://postgres@127.0.0.1:5999/{name}"
+        env = dict(APPROVED)
+        if where == "TEST_DATABASE_URL":
+            env.update(TEST_DATABASE_URL=url, POSTGRES_SERVER="127.0.0.1", POSTGRES_PORT="5999", POSTGRES_DB=name)
+        elif where == "POSTGRES_DB":
+            env.update(POSTGRES_DB=name)
+        else:
+            env = without(env, "POSTGRES_DB")
+            env.update(DATABASE_URL=url)
+>       verdict = judge(**env)
+
+tests/core/test_target_guard.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_live_database_is_refused_on_any_host_and_port[TEST_DATABASE_URL-soccer_predictions_qa] _
+
+judge = <function judge.<locals>.run at 0x10b25eca0>
+name = 'soccer_predictions_qa', where = 'TEST_DATABASE_URL'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions", "soccer_predictions_dev", "soccer_predictions_qa"])
+    @pytest.mark.parametrize("where", ["TEST_DATABASE_URL", "POSTGRES_DB", "DATABASE_URL"])
+    def test_a_live_database_is_refused_on_any_host_and_port(judge, name, where):
+        url = f"postgresql://postgres@127.0.0.1:5999/{name}"
+        env = dict(APPROVED)
+        if where == "TEST_DATABASE_URL":
+            env.update(TEST_DATABASE_URL=url, POSTGRES_SERVER="127.0.0.1", POSTGRES_PORT="5999", POSTGRES_DB=name)
+        elif where == "POSTGRES_DB":
+            env.update(POSTGRES_DB=name)
+        else:
+            env = without(env, "POSTGRES_DB")
+            env.update(DATABASE_URL=url)
+>       verdict = judge(**env)
+
+tests/core/test_target_guard.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_live_database_is_refused_on_any_host_and_port[POSTGRES_DB-soccer_predictions] _
+
+judge = <function judge.<locals>.run at 0x10b25e520>
+name = 'soccer_predictions', where = 'POSTGRES_DB'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions", "soccer_predictions_dev", "soccer_predictions_qa"])
+    @pytest.mark.parametrize("where", ["TEST_DATABASE_URL", "POSTGRES_DB", "DATABASE_URL"])
+    def test_a_live_database_is_refused_on_any_host_and_port(judge, name, where):
+        url = f"postgresql://postgres@127.0.0.1:5999/{name}"
+        env = dict(APPROVED)
+        if where == "TEST_DATABASE_URL":
+            env.update(TEST_DATABASE_URL=url, POSTGRES_SERVER="127.0.0.1", POSTGRES_PORT="5999", POSTGRES_DB=name)
+        elif where == "POSTGRES_DB":
+            env.update(POSTGRES_DB=name)
+        else:
+            env = without(env, "POSTGRES_DB")
+            env.update(DATABASE_URL=url)
+>       verdict = judge(**env)
+
+tests/core/test_target_guard.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_live_database_is_refused_on_any_host_and_port[POSTGRES_DB-soccer_predictions_dev] _
+
+judge = <function judge.<locals>.run at 0x10b4d4220>
+name = 'soccer_predictions_dev', where = 'POSTGRES_DB'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions", "soccer_predictions_dev", "soccer_predictions_qa"])
+    @pytest.mark.parametrize("where", ["TEST_DATABASE_URL", "POSTGRES_DB", "DATABASE_URL"])
+    def test_a_live_database_is_refused_on_any_host_and_port(judge, name, where):
+        url = f"postgresql://postgres@127.0.0.1:5999/{name}"
+        env = dict(APPROVED)
+        if where == "TEST_DATABASE_URL":
+            env.update(TEST_DATABASE_URL=url, POSTGRES_SERVER="127.0.0.1", POSTGRES_PORT="5999", POSTGRES_DB=name)
+        elif where == "POSTGRES_DB":
+            env.update(POSTGRES_DB=name)
+        else:
+            env = without(env, "POSTGRES_DB")
+            env.update(DATABASE_URL=url)
+>       verdict = judge(**env)
+
+tests/core/test_target_guard.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_live_database_is_refused_on_any_host_and_port[POSTGRES_DB-soccer_predictions_qa] _
+
+judge = <function judge.<locals>.run at 0x10b4d40e0>
+name = 'soccer_predictions_qa', where = 'POSTGRES_DB'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions", "soccer_predictions_dev", "soccer_predictions_qa"])
+    @pytest.mark.parametrize("where", ["TEST_DATABASE_URL", "POSTGRES_DB", "DATABASE_URL"])
+    def test_a_live_database_is_refused_on_any_host_and_port(judge, name, where):
+        url = f"postgresql://postgres@127.0.0.1:5999/{name}"
+        env = dict(APPROVED)
+        if where == "TEST_DATABASE_URL":
+            env.update(TEST_DATABASE_URL=url, POSTGRES_SERVER="127.0.0.1", POSTGRES_PORT="5999", POSTGRES_DB=name)
+        elif where == "POSTGRES_DB":
+            env.update(POSTGRES_DB=name)
+        else:
+            env = without(env, "POSTGRES_DB")
+            env.update(DATABASE_URL=url)
+>       verdict = judge(**env)
+
+tests/core/test_target_guard.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_live_database_is_refused_on_any_host_and_port[DATABASE_URL-soccer_predictions] _
+
+judge = <function judge.<locals>.run at 0x10b4d6b60>
+name = 'soccer_predictions', where = 'DATABASE_URL'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions", "soccer_predictions_dev", "soccer_predictions_qa"])
+    @pytest.mark.parametrize("where", ["TEST_DATABASE_URL", "POSTGRES_DB", "DATABASE_URL"])
+    def test_a_live_database_is_refused_on_any_host_and_port(judge, name, where):
+        url = f"postgresql://postgres@127.0.0.1:5999/{name}"
+        env = dict(APPROVED)
+        if where == "TEST_DATABASE_URL":
+            env.update(TEST_DATABASE_URL=url, POSTGRES_SERVER="127.0.0.1", POSTGRES_PORT="5999", POSTGRES_DB=name)
+        elif where == "POSTGRES_DB":
+            env.update(POSTGRES_DB=name)
+        else:
+            env = without(env, "POSTGRES_DB")
+            env.update(DATABASE_URL=url)
+>       verdict = judge(**env)
+
+tests/core/test_target_guard.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_live_database_is_refused_on_any_host_and_port[DATABASE_URL-soccer_predictions_dev] _
+
+judge = <function judge.<locals>.run at 0x10b4d4c20>
+name = 'soccer_predictions_dev', where = 'DATABASE_URL'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions", "soccer_predictions_dev", "soccer_predictions_qa"])
+    @pytest.mark.parametrize("where", ["TEST_DATABASE_URL", "POSTGRES_DB", "DATABASE_URL"])
+    def test_a_live_database_is_refused_on_any_host_and_port(judge, name, where):
+        url = f"postgresql://postgres@127.0.0.1:5999/{name}"
+        env = dict(APPROVED)
+        if where == "TEST_DATABASE_URL":
+            env.update(TEST_DATABASE_URL=url, POSTGRES_SERVER="127.0.0.1", POSTGRES_PORT="5999", POSTGRES_DB=name)
+        elif where == "POSTGRES_DB":
+            env.update(POSTGRES_DB=name)
+        else:
+            env = without(env, "POSTGRES_DB")
+            env.update(DATABASE_URL=url)
+>       verdict = judge(**env)
+
+tests/core/test_target_guard.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_live_database_is_refused_on_any_host_and_port[DATABASE_URL-soccer_predictions_qa] _
+
+judge = <function judge.<locals>.run at 0x10b4d6ac0>
+name = 'soccer_predictions_qa', where = 'DATABASE_URL'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions", "soccer_predictions_dev", "soccer_predictions_qa"])
+    @pytest.mark.parametrize("where", ["TEST_DATABASE_URL", "POSTGRES_DB", "DATABASE_URL"])
+    def test_a_live_database_is_refused_on_any_host_and_port(judge, name, where):
+        url = f"postgresql://postgres@127.0.0.1:5999/{name}"
+        env = dict(APPROVED)
+        if where == "TEST_DATABASE_URL":
+            env.update(TEST_DATABASE_URL=url, POSTGRES_SERVER="127.0.0.1", POSTGRES_PORT="5999", POSTGRES_DB=name)
+        elif where == "POSTGRES_DB":
+            env.update(POSTGRES_DB=name)
+        else:
+            env = without(env, "POSTGRES_DB")
+            env.update(DATABASE_URL=url)
+>       verdict = judge(**env)
+
+tests/core/test_target_guard.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+__________ test_the_isolated_pairs_database_is_not_for_backend_tests ___________
+
+judge = <function judge.<locals>.run at 0x10b4d5080>
+
+    def test_the_isolated_pairs_database_is_not_for_backend_tests(judge):
+>       verdict = judge(**{**APPROVED, "POSTGRES_DB": "soccer_predictions_e2e",
+                           "TEST_DATABASE_URL": "postgresql://postgres@localhost:5432/soccer_predictions_e2e"})
+
+tests/core/test_target_guard.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_name_that_merely_says_test_is_not_approved[soccer_predictions_test_mine] _
+
+judge = <function judge.<locals>.run at 0x10b25f1a0>
+name = 'soccer_predictions_test_mine'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions_test_mine", "my_test", "soccer_predictions_20251008_backup"])
+    def test_a_name_that_merely_says_test_is_not_approved(judge, name):
+>       verdict = judge(**{**APPROVED, "POSTGRES_DB": name,
+                           "TEST_DATABASE_URL": f"postgresql://postgres@localhost:5432/{name}"})
+
+tests/core/test_target_guard.py:272: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+__________ test_a_name_that_merely_says_test_is_not_approved[my_test] __________
+
+judge = <function judge.<locals>.run at 0x10b25e200>, name = 'my_test'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions_test_mine", "my_test", "soccer_predictions_20251008_backup"])
+    def test_a_name_that_merely_says_test_is_not_approved(judge, name):
+>       verdict = judge(**{**APPROVED, "POSTGRES_DB": name,
+                           "TEST_DATABASE_URL": f"postgresql://postgres@localhost:5432/{name}"})
+
+tests/core/test_target_guard.py:272: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_name_that_merely_says_test_is_not_approved[soccer_predictions_20251008_backup] _
+
+judge = <function judge.<locals>.run at 0x10b25e340>
+name = 'soccer_predictions_20251008_backup'
+
+    @pytest.mark.parametrize("name", ["soccer_predictions_test_mine", "my_test", "soccer_predictions_20251008_backup"])
+    def test_a_name_that_merely_says_test_is_not_approved(judge, name):
+>       verdict = judge(**{**APPROVED, "POSTGRES_DB": name,
+                           "TEST_DATABASE_URL": f"postgresql://postgres@localhost:5432/{name}"})
+
+tests/core/test_target_guard.py:272: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_______________ test_only_a_loopback_host_is_approved[postgres] ________________
+
+judge = <function judge.<locals>.run at 0x10b25e8e0>, host = 'postgres'
+
+    @pytest.mark.parametrize("host", ["postgres", "test-db.internal", "192.0.2.1", "0.0.0.0"])
+    def test_only_a_loopback_host_is_approved(judge, host):
+>       verdict = judge(**{**APPROVED, "POSTGRES_SERVER": host,
+                           "TEST_DATABASE_URL": f"postgresql://postgres@{host}:5432/soccer_predictions_test"})
+
+tests/core/test_target_guard.py:279: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+___________ test_only_a_loopback_host_is_approved[test-db.internal] ____________
+
+judge = <function judge.<locals>.run at 0x10b25ff60>, host = 'test-db.internal'
+
+    @pytest.mark.parametrize("host", ["postgres", "test-db.internal", "192.0.2.1", "0.0.0.0"])
+    def test_only_a_loopback_host_is_approved(judge, host):
+>       verdict = judge(**{**APPROVED, "POSTGRES_SERVER": host,
+                           "TEST_DATABASE_URL": f"postgresql://postgres@{host}:5432/soccer_predictions_test"})
+
+tests/core/test_target_guard.py:279: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_______________ test_only_a_loopback_host_is_approved[192.0.2.1] _______________
+
+judge = <function judge.<locals>.run at 0x10b4d6980>, host = '192.0.2.1'
+
+    @pytest.mark.parametrize("host", ["postgres", "test-db.internal", "192.0.2.1", "0.0.0.0"])
+    def test_only_a_loopback_host_is_approved(judge, host):
+>       verdict = judge(**{**APPROVED, "POSTGRES_SERVER": host,
+                           "TEST_DATABASE_URL": f"postgresql://postgres@{host}:5432/soccer_predictions_test"})
+
+tests/core/test_target_guard.py:279: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+________________ test_only_a_loopback_host_is_approved[0.0.0.0] ________________
+
+judge = <function judge.<locals>.run at 0x10b4d72e0>, host = '0.0.0.0'
+
+    @pytest.mark.parametrize("host", ["postgres", "test-db.internal", "192.0.2.1", "0.0.0.0"])
+    def test_only_a_loopback_host_is_approved(judge, host):
+>       verdict = judge(**{**APPROVED, "POSTGRES_SERVER": host,
+                           "TEST_DATABASE_URL": f"postgresql://postgres@{host}:5432/soccer_predictions_test"})
+
+tests/core/test_target_guard.py:279: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_________ test_the_live_redis_server_is_refused_on_any_host[localhost] _________
+
+judge = <function judge.<locals>.run at 0x10b4d62a0>, host = 'localhost'
+
+    @pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1", "192.0.2.1"])
+    def test_the_live_redis_server_is_refused_on_any_host(judge, host):
+>       verdict = judge(**{**APPROVED, "REDIS_HOST": host, "REDIS_PORT": "6379"})
+
+tests/core/test_target_guard.py:287: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_________ test_the_live_redis_server_is_refused_on_any_host[127.0.0.1] _________
+
+judge = <function judge.<locals>.run at 0x10b4d5bc0>, host = '127.0.0.1'
+
+    @pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1", "192.0.2.1"])
+    def test_the_live_redis_server_is_refused_on_any_host(judge, host):
+>       verdict = judge(**{**APPROVED, "REDIS_HOST": host, "REDIS_PORT": "6379"})
+
+tests/core/test_target_guard.py:287: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+____________ test_the_live_redis_server_is_refused_on_any_host[::1] ____________
+
+judge = <function judge.<locals>.run at 0x10b4d5620>, host = '::1'
+
+    @pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1", "192.0.2.1"])
+    def test_the_live_redis_server_is_refused_on_any_host(judge, host):
+>       verdict = judge(**{**APPROVED, "REDIS_HOST": host, "REDIS_PORT": "6379"})
+
+tests/core/test_target_guard.py:287: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_________ test_the_live_redis_server_is_refused_on_any_host[192.0.2.1] _________
+
+judge = <function judge.<locals>.run at 0x10b4d76a0>, host = '192.0.2.1'
+
+    @pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1", "192.0.2.1"])
+    def test_the_live_redis_server_is_refused_on_any_host(judge, host):
+>       verdict = judge(**{**APPROVED, "REDIS_HOST": host, "REDIS_PORT": "6379"})
+
+tests/core/test_target_guard.py:287: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+____________ test_a_live_redis_database_named_by_url_is_refused[0] _____________
+
+judge = <function judge.<locals>.run at 0x10b4d42c0>, db = '0'
+
+    @pytest.mark.parametrize("db", ["0", "3", "5"])
+    def test_a_live_redis_database_named_by_url_is_refused(judge, db):
+>       verdict = judge(**without(APPROVED, "REDIS_HOST", "REDIS_PORT"), REDIS_URL=f"redis://127.0.0.1:6379/{db}")
+
+tests/core/test_target_guard.py:293: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+____________ test_a_live_redis_database_named_by_url_is_refused[3] _____________
+
+judge = <function judge.<locals>.run at 0x10b4d4040>, db = '3'
+
+    @pytest.mark.parametrize("db", ["0", "3", "5"])
+    def test_a_live_redis_database_named_by_url_is_refused(judge, db):
+>       verdict = judge(**without(APPROVED, "REDIS_HOST", "REDIS_PORT"), REDIS_URL=f"redis://127.0.0.1:6379/{db}")
+
+tests/core/test_target_guard.py:293: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+____________ test_a_live_redis_database_named_by_url_is_refused[5] _____________
+
+judge = <function judge.<locals>.run at 0x10b4d4540>, db = '5'
+
+    @pytest.mark.parametrize("db", ["0", "3", "5"])
+    def test_a_live_redis_database_named_by_url_is_refused(judge, db):
+>       verdict = judge(**without(APPROVED, "REDIS_HOST", "REDIS_PORT"), REDIS_URL=f"redis://127.0.0.1:6379/{db}")
+
+tests/core/test_target_guard.py:293: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+______ test_the_isolated_pairs_redis_databases_are_not_for_backend_tests _______
+
+judge = <function judge.<locals>.run at 0x10b25f1a0>
+
+    def test_the_isolated_pairs_redis_databases_are_not_for_backend_tests(judge):
+        env = {**APPROVED, "REDIS_PORT": "6379", "REDIS_DB": "10", **{key: str(10 + i) for i, key in enumerate(ROLE_KEYS)}}
+>       verdict = judge(**env)
+
+tests/core/test_target_guard.py:299: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+___________ test_every_redis_database_the_application_uses_is_judged ___________
+
+judge = <function judge.<locals>.run at 0x10b4d6520>
+
+    def test_every_redis_database_the_application_uses_is_judged(judge):
+        """One role on a live database is enough to refuse, and the report names that role."""
+>       verdict = judge(role="isolated-backend", **{**ISOLATED, "REDIS_DB_RATE_LIMIT": "5"})
+
+tests/core/test_target_guard.py:305: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_______________ test_the_lease_tests_may_not_use_the_live_server _______________
+
+judge = <function judge.<locals>.run at 0x10b4d58a0>
+
+    def test_the_lease_tests_may_not_use_the_live_server(judge):
+>       verdict = judge(**APPROVED, LEASE_TEST_REDIS_URL="redis://127.0.0.1:6379/9")
+
+tests/core/test_target_guard.py:311: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+__ test_a_database_url_from_dotenv_silently_overriding_postgres_db_is_refused __
+
+judge = <function judge.<locals>.run at 0x10b4d7b00>
+
+    def test_a_database_url_from_dotenv_silently_overriding_postgres_db_is_refused(judge):
+>       verdict = judge(dotenv_text=LIVE_DOTENV + 'DATABASE_URL="postgresql://postgres:x@localhost:5432/soccer_predictions"\n',
+                        **APPROVED)
+
+tests/core/test_target_guard.py:317: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+________ test_database_url_and_postgres_parts_that_disagree_are_refused ________
+
+judge = <function judge.<locals>.run at 0x10b4d5bc0>
+
+    def test_database_url_and_postgres_parts_that_disagree_are_refused(judge):
+>       verdict = judge(**APPROVED, DATABASE_URL="postgresql://postgres@127.0.0.1:5440/forecast_race_test")
+
+tests/core/test_target_guard.py:324: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_________ test_a_redis_url_from_dotenv_overriding_the_parts_is_refused _________
+
+judge = <function judge.<locals>.run at 0x10b4d4360>
+
+    def test_a_redis_url_from_dotenv_overriding_the_parts_is_refused(judge):
+>       verdict = judge(dotenv_text=LIVE_DOTENV + 'REDIS_URL="redis://localhost:6379/0"\n', **APPROVED)
+
+tests/core/test_target_guard.py:329: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+______________ test_redis_url_and_parts_that_disagree_are_refused ______________
+
+judge = <function judge.<locals>.run at 0x10b4d5300>
+
+    def test_redis_url_and_parts_that_disagree_are_refused(judge):
+>       verdict = judge(**APPROVED, REDIS_URL="redis://127.0.0.1:6391/0")
+
+tests/core/test_target_guard.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_redis_url_not_of_the_one_exact_form_is_refused[redis://127.0.0.1:6390/3?db=0] _
+
+judge = <function judge.<locals>.run at 0x10b4d5120>
+url = 'redis://127.0.0.1:6390/3?db=0'
+
+    @pytest.mark.parametrize("url", [
+        "redis://127.0.0.1:6390/3?db=0",     # redis-py lets ?db= win over the path
+        "redis://127.0.0.1:6390",            # no path: get_redis_client's rsplit makes "redis://127.0.0.1:6390/N" of
+                                             # it today, but "redis://12" of "redis://127.0.0.1:6390" minus a slash
+        "redis://:6390/0",                   # no host: falls back to localhost
+        "unix:///tmp/redis.sock?db=0",
+    ])
+    def test_a_redis_url_not_of_the_one_exact_form_is_refused(judge, url):
+>       verdict = judge(**without(APPROVED, "REDIS_HOST", "REDIS_PORT"), REDIS_URL=url)
+
+tests/core/test_target_guard.py:347: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_redis_url_not_of_the_one_exact_form_is_refused[redis://127.0.0.1:6390] _
+
+judge = <function judge.<locals>.run at 0x10b4d4860>
+url = 'redis://127.0.0.1:6390'
+
+    @pytest.mark.parametrize("url", [
+        "redis://127.0.0.1:6390/3?db=0",     # redis-py lets ?db= win over the path
+        "redis://127.0.0.1:6390",            # no path: get_redis_client's rsplit makes "redis://127.0.0.1:6390/N" of
+                                             # it today, but "redis://12" of "redis://127.0.0.1:6390" minus a slash
+        "redis://:6390/0",                   # no host: falls back to localhost
+        "unix:///tmp/redis.sock?db=0",
+    ])
+    def test_a_redis_url_not_of_the_one_exact_form_is_refused(judge, url):
+>       verdict = judge(**without(APPROVED, "REDIS_HOST", "REDIS_PORT"), REDIS_URL=url)
+
+tests/core/test_target_guard.py:347: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+____ test_a_redis_url_not_of_the_one_exact_form_is_refused[redis://:6390/0] ____
+
+judge = <function judge.<locals>.run at 0x10b4d5ee0>, url = 'redis://:6390/0'
+
+    @pytest.mark.parametrize("url", [
+        "redis://127.0.0.1:6390/3?db=0",     # redis-py lets ?db= win over the path
+        "redis://127.0.0.1:6390",            # no path: get_redis_client's rsplit makes "redis://127.0.0.1:6390/N" of
+                                             # it today, but "redis://12" of "redis://127.0.0.1:6390" minus a slash
+        "redis://:6390/0",                   # no host: falls back to localhost
+        "unix:///tmp/redis.sock?db=0",
+    ])
+    def test_a_redis_url_not_of_the_one_exact_form_is_refused(judge, url):
+>       verdict = judge(**without(APPROVED, "REDIS_HOST", "REDIS_PORT"), REDIS_URL=url)
+
+tests/core/test_target_guard.py:347: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_redis_url_not_of_the_one_exact_form_is_refused[unix:///tmp/redis.sock?db=0] _
+
+judge = <function judge.<locals>.run at 0x10b4d6d40>
+url = 'unix:///tmp/redis.sock?db=0'
+
+    @pytest.mark.parametrize("url", [
+        "redis://127.0.0.1:6390/3?db=0",     # redis-py lets ?db= win over the path
+        "redis://127.0.0.1:6390",            # no path: get_redis_client's rsplit makes "redis://127.0.0.1:6390/N" of
+                                             # it today, but "redis://12" of "redis://127.0.0.1:6390" minus a slash
+        "redis://:6390/0",                   # no host: falls back to localhost
+        "unix:///tmp/redis.sock?db=0",
+    ])
+    def test_a_redis_url_not_of_the_one_exact_form_is_refused(judge, url):
+>       verdict = judge(**without(APPROVED, "REDIS_HOST", "REDIS_PORT"), REDIS_URL=url)
+
+tests/core/test_target_guard.py:347: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+___________ test_the_tests_and_the_application_must_use_one_database ___________
+
+judge = <function judge.<locals>.run at 0x10b4d7f60>
+
+    def test_the_tests_and_the_application_must_use_one_database(judge):
+        """The TestClient lifespan connects with settings.DATABASE_URL, not TEST_DATABASE_URL."""
+>       verdict = judge(**{**APPROVED, "POSTGRES_DB": "forecast_race_test"})
+
+tests/core/test_target_guard.py:353: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_______________ test_two_redis_roles_on_one_database_are_refused _______________
+
+judge = <function judge.<locals>.run at 0x10b4d4c20>
+
+    def test_two_redis_roles_on_one_database_are_refused(judge):
+>       verdict = judge(**APPROVED, REDIS_DB_SESSIONS="3", REDIS_DB_PREDICTIONS="3")
+
+tests/core/test_target_guard.py:358: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+________________ test_a_redis_database_out_of_range_is_refused _________________
+
+judge = <function judge.<locals>.run at 0x10b4d4400>
+
+    def test_a_redis_database_out_of_range_is_refused(judge):
+>       verdict = judge(**APPROVED, REDIS_DB_ML_MODELS="16")
+
+tests/core/test_target_guard.py:363: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_____________ test_the_race_database_may_not_be_the_test_database ______________
+
+judge = <function judge.<locals>.run at 0x10b4d42c0>
+
+    def test_the_race_database_may_not_be_the_test_database(judge):
+        """The race tests TRUNCATE ... CASCADE every table."""
+>       verdict = judge(**APPROVED, RACE_TEST_DATABASE_URL=TEST_URL)
+
+tests/core/test_target_guard.py:369: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+__________ test_the_lease_databases_may_not_overlap_the_applications ___________
+
+judge = <function judge.<locals>.run at 0x10b4d5a80>
+
+    def test_the_lease_databases_may_not_overlap_the_applications(judge):
+        """The lease tests flush databases d, d+1 and d+2."""
+>       verdict = judge(**APPROVED, LEASE_TEST_REDIS_URL="redis://127.0.0.1:6390/4")
+
+tests/core/test_target_guard.py:375: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+________ test_the_unsplit_shell_variable_is_refused_without_echoing_it _________
+
+judge = <function judge.<locals>.run at 0x10b4d6700>
+
+    def test_the_unsplit_shell_variable_is_refused_without_echoing_it(judge):
+        """zsh's `env $V cmd` sets ONE variable to the whole string and leaves the rest unset."""
+        joined = (TEST_URL + " POSTGRES_DB=soccer_predictions_test REDIS_HOST=127.0.0.1 REDIS_PORT=6390 "
+                  "SYNC_SCHEDULER_ENABLED=false EMAIL_ENABLED=false")
+>       verdict = judge(TEST_DATABASE_URL=joined)
+
+tests/core/test_target_guard.py:383: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_postgres_url_whose_parameters_redirect_it_is_refused[postgresql://postgres@127.0.0.1:5440/forecast_race_test?host=localhost&port=5432&dbname=soccer_predictions] _
+
+judge = <function judge.<locals>.run at 0x10b4d7ec0>
+url = 'postgresql://postgres@127.0.0.1:5440/forecast_race_test?host=localhost&port=5432&dbname=soccer_predictions'
+
+    @pytest.mark.parametrize("url", [
+        "postgresql://postgres@127.0.0.1:5440/forecast_race_test?host=localhost&port=5432&dbname=soccer_predictions",
+        "postgresql://postgres@127.0.0.1/forecast_race_test",
+        "postgresql://postgres@127.0.0.1:5440/forecast_race_test?service=live",
+    ])
+    def test_a_postgres_url_whose_parameters_redirect_it_is_refused(judge, url):
+>       verdict = judge(**{**APPROVED, "TEST_DATABASE_URL": url})
+
+tests/core/test_target_guard.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_postgres_url_whose_parameters_redirect_it_is_refused[postgresql://postgres@127.0.0.1/forecast_race_test] _
+
+judge = <function judge.<locals>.run at 0x10b4d4180>
+url = 'postgresql://postgres@127.0.0.1/forecast_race_test'
+
+    @pytest.mark.parametrize("url", [
+        "postgresql://postgres@127.0.0.1:5440/forecast_race_test?host=localhost&port=5432&dbname=soccer_predictions",
+        "postgresql://postgres@127.0.0.1/forecast_race_test",
+        "postgresql://postgres@127.0.0.1:5440/forecast_race_test?service=live",
+    ])
+    def test_a_postgres_url_whose_parameters_redirect_it_is_refused(judge, url):
+>       verdict = judge(**{**APPROVED, "TEST_DATABASE_URL": url})
+
+tests/core/test_target_guard.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_ test_a_postgres_url_whose_parameters_redirect_it_is_refused[postgresql://postgres@127.0.0.1:5440/forecast_race_test?service=live] _
+
+judge = <function judge.<locals>.run at 0x10b4d5ee0>
+url = 'postgresql://postgres@127.0.0.1:5440/forecast_race_test?service=live'
+
+    @pytest.mark.parametrize("url", [
+        "postgresql://postgres@127.0.0.1:5440/forecast_race_test?host=localhost&port=5432&dbname=soccer_predictions",
+        "postgresql://postgres@127.0.0.1/forecast_race_test",
+        "postgresql://postgres@127.0.0.1:5440/forecast_race_test?service=live",
+    ])
+    def test_a_postgres_url_whose_parameters_redirect_it_is_refused(judge, url):
+>       verdict = judge(**{**APPROVED, "TEST_DATABASE_URL": url})
+
+tests/core/test_target_guard.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_______________ test_the_redirect_is_judged_where_it_really_goes _______________
+
+judge = <function judge.<locals>.run at 0x10b4d77e0>
+
+    def test_the_redirect_is_judged_where_it_really_goes(judge):
+        url = "postgresql://postgres@127.0.0.1:5440/forecast_race_test?host=localhost&port=5432&dbname=soccer_predictions"
+>       verdict = judge(**{**APPROVED, "TEST_DATABASE_URL": url})
+
+tests/core/test_target_guard.py:401: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_____________ test_libpq_environment_overrides_are_refused[PGHOST] _____________
+
+judge = <function judge.<locals>.run at 0x10b4d4540>, key = 'PGHOST'
+
+    @pytest.mark.parametrize("key", PG_KEYS)
+    def test_libpq_environment_overrides_are_refused(judge, key):
+>       verdict = judge(**APPROVED, **{key: "localhost"})
+
+tests/core/test_target_guard.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+___________ test_libpq_environment_overrides_are_refused[PGHOSTADDR] ___________
+
+judge = <function judge.<locals>.run at 0x10b4d5300>, key = 'PGHOSTADDR'
+
+    @pytest.mark.parametrize("key", PG_KEYS)
+    def test_libpq_environment_overrides_are_refused(judge, key):
+>       verdict = judge(**APPROVED, **{key: "localhost"})
+
+tests/core/test_target_guard.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_____________ test_libpq_environment_overrides_are_refused[PGPORT] _____________
+
+judge = <function judge.<locals>.run at 0x10b4d6d40>, key = 'PGPORT'
+
+    @pytest.mark.parametrize("key", PG_KEYS)
+    def test_libpq_environment_overrides_are_refused(judge, key):
+>       verdict = judge(**APPROVED, **{key: "localhost"})
+
+tests/core/test_target_guard.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+___________ test_libpq_environment_overrides_are_refused[PGDATABASE] ___________
+
+judge = <function judge.<locals>.run at 0x10b4d53a0>, key = 'PGDATABASE'
+
+    @pytest.mark.parametrize("key", PG_KEYS)
+    def test_libpq_environment_overrides_are_refused(judge, key):
+>       verdict = judge(**APPROVED, **{key: "localhost"})
+
+tests/core/test_target_guard.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+___________ test_libpq_environment_overrides_are_refused[PGSERVICE] ____________
+
+judge = <function judge.<locals>.run at 0x10b4d6660>, key = 'PGSERVICE'
+
+    @pytest.mark.parametrize("key", PG_KEYS)
+    def test_libpq_environment_overrides_are_refused(judge, key):
+>       verdict = judge(**APPROVED, **{key: "localhost"})
+
+tests/core/test_target_guard.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_________ test_libpq_environment_overrides_are_refused[PGSERVICEFILE] __________
+
+judge = <function judge.<locals>.run at 0x10b53c180>, key = 'PGSERVICEFILE'
+
+    @pytest.mark.parametrize("key", PG_KEYS)
+    def test_libpq_environment_overrides_are_refused(judge, key):
+>       verdict = judge(**APPROVED, **{key: "localhost"})
+
+tests/core/test_target_guard.py:407: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+______ test_settings_resolved_before_the_environment_changed_are_refused _______
+
+judge = <function judge.<locals>.run at 0x10b53c860>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b397c10>
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_settings_resolved_before_0')
+
+    def test_settings_resolved_before_the_environment_changed_are_refused(judge, monkeypatch, tmp_path):
+        """A settings object built from other values than the ones every module will read."""
+        from app.core.config import Settings
+    
+        stale_env = tmp_path / "stale.env"
+        stale_env.write_text(LIVE_DOTENV, encoding="utf-8")
+        for key, value in APPROVED.items():
+            monkeypatch.setenv(key, value)
+        stale = Settings(_env_file=str(stale_env))
+        monkeypatch.setenv("REDIS_PORT", "6391")
+>       verdict = guard().evaluate(role="backend-tests", environ=dict(os.environ), settings_factory=lambda: stale)
+
+tests/core/test_target_guard.py:421: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_______ test_the_scheduler_and_email_must_be_off[SYNC_SCHEDULER_ENABLED] _______
+
+judge = <function judge.<locals>.run at 0x10b53ec00>
+key = 'SYNC_SCHEDULER_ENABLED'
+
+    @pytest.mark.parametrize("key", ["SYNC_SCHEDULER_ENABLED", "EMAIL_ENABLED"])
+    def test_the_scheduler_and_email_must_be_off(judge, key):
+>       verdict = judge(**{**APPROVED, key: "true"})
+
+tests/core/test_target_guard.py:427: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+___________ test_the_scheduler_and_email_must_be_off[EMAIL_ENABLED] ____________
+
+judge = <function judge.<locals>.run at 0x10b53c220>, key = 'EMAIL_ENABLED'
+
+    @pytest.mark.parametrize("key", ["SYNC_SCHEDULER_ENABLED", "EMAIL_ENABLED"])
+    def test_the_scheduler_and_email_must_be_off(judge, key):
+>       verdict = judge(**{**APPROVED, key: "true"})
+
+tests/core/test_target_guard.py:427: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+__________ test_unparseable_settings_are_refused_without_their_values __________
+
+judge = <function judge.<locals>.run at 0x10b53cb80>
+
+    def test_unparseable_settings_are_refused_without_their_values(judge):
+>       verdict = judge(**{**APPROVED, "REDIS_PORT": "six-three-nine-zero"})
+
+tests/core/test_target_guard.py:432: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_________________ test_the_committed_policy_is_self_consistent _________________
+
+    def test_the_committed_policy_is_self_consistent():
+>       policy = guard().load_policy()
+
+tests/core/test_target_guard.py:439: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+___________ test_a_policy_approving_a_live_target_is_itself_refused ____________
+
+judge = <function judge.<locals>.run at 0x10b4d7100>
+
+    def test_a_policy_approving_a_live_target_is_itself_refused(judge):
+>       policy = json.loads(json.dumps(guard().load_policy()))
+
+tests/core/test_target_guard.py:445: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+______________________ test_a_missing_policy_file_refuses ______________________
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_a_missing_policy_file_ref0')
+
+    def test_a_missing_policy_file_refuses(tmp_path):
+>       with pytest.raises(guard().PolicyError):
+
+tests/core/test_target_guard.py:456: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_______________________ test_an_unknown_role_is_refused ________________________
+
+judge = <function judge.<locals>.run at 0x10b4d6480>
+
+    def test_an_unknown_role_is_refused(judge):
+>       assert "policy:invalid" in judge(role="anything-goes", **APPROVED).codes
+
+tests/core/test_target_guard.py:461: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/core/test_target_guard.py:141: in run
+    return guard().evaluate(role=role, environ=dict(os.environ),
+tests/core/test_target_guard.py:90: in guard
+    return importlib.import_module("app.core.target_guard")
+../../../../.pyenv/versions/3.11.9/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'app.core.target_guard', import_ = <function _gcd_import at 0x10067fd80>
+
+>   ???
+E   ModuleNotFoundError: No module named 'app.core.target_guard'
+
+<frozen importlib._bootstrap>:1140: ModuleNotFoundError
+_________ test_importing_the_guard_loads_no_driver_and_no_application __________
+
+    def test_importing_the_guard_loads_no_driver_and_no_application():
+        code = ("import sys, app.core.target_guard; "
+                "print(sorted(m for m in sys.modules if m.split('.')[0] in "
+                "('psycopg2', 'redis', 'httpx', 'fastapi', 'sqlalchemy', 'app')))")
+        out = subprocess.run([sys.executable, "-c", code], cwd=BACKEND, capture_output=True, text=True, timeout=60,
+                             env=minimal_env())
+>       assert out.returncode == 0, out.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "<string>", line 1, in <module>
+E         ModuleNotFoundError: No module named 'app.core.target_guard'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['<worktree>/backend/venv311/bin/...call last):\n  File "<string>", line 1, in <module>\nModuleNotFoundError: No module named \'app.core.target_guard\'\n').returncode
+
+tests/core/test_target_guard.py:471: AssertionError
+__________ test_the_redis_url_helper_is_the_one_get_redis_client_uses __________
+
+    def test_the_redis_url_helper_is_the_one_get_redis_client_uses():
+        from redis.connection import parse_url
+    
+        from app.core.config import settings
+>       from app.core.redis import get_redis_client, redis_url_for
+E       ImportError: cannot import name 'redis_url_for' from 'app.core.redis' (<worktree>/backend/app/core/redis.py)
+
+tests/core/test_target_guard.py:479: ImportError
+____________________ test_every_test_directory_is_a_package ____________________
+
+    def test_every_test_directory_is_a_package():
+        """tests/__init__.py runs the guard; a directory without __init__.py imports its modules as
+        top-level names and would skip it."""
+        bare = sorted(str(path.relative_to(BACKEND)) for path in TESTS.rglob("*")
+                      if path.is_dir() and path.name != "__pycache__" and any(path.glob("test_*.py"))
+                      and not (path / "__init__.py").exists())
+>       assert bare == []
+E       AssertionError: assert ['tests/api'] == []
+E         Left contains one more item: 'tests/api'
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:494: AssertionError
+_ test_a_refused_run_stops_before_any_connection_import_or_test[missing TEST_DATABASE_URL] _
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_a_refused_run_stops_befor0')
+name = 'missing TEST_DATABASE_URL'
+
+    @pytest.mark.parametrize("name", SCENARIO_NAMES)
+    def test_a_refused_run_stops_before_any_connection_import_or_test(tmp_path, name):
+        dead = free_port()
+        _, changes, words = next(s for s in unsafe_scenarios(dead) if s[0] == name)
+        code, output, entries = tripwired(tmp_path, apply(approved_subprocess_env(dead), changes))
+>       assert entries == [], f"attempted before the refusal: {entries}\n{output[-3000:]}"
+E       AssertionError: attempted before the refusal: [{'kind': 'import', 'target': 'app.main'}, {'kind': 'import', 'target': 'app.db.session'}, {'kind': 'psycopg2.connect', 'target': 'localhost:5432/soccer_predictions_test'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'httpx', 'target': '127.0.0.1:63230'}]
+E         sAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:543
+E           <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:676
+E           <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+E         
+E         app/schemas/predictions.py:683
+E           <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+E         
+E         -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+E         ==================================== PASSES ====================================
+E         ______________________ test_canary_reaches_every_service _______________________
+E         ----------------------------- Captured stdout call -----------------------------
+E         CANARY {"http": {"error": "ConnectError", "ok": false}, "redis_default": {"error": "ConnectionError", "ok": false}, "redis_expert_tools": {"error": "ConnectionError", "ok": false}, "redis_match_data": {"error": "ConnectionError", "ok": false}, "redis_ml_models": {"error": "ConnectionError", "ok": false}, "redis_predictions": {"error": "ConnectionError", "ok": false}, "redis_rate_limit": {"error": "ConnectionError", "ok": false}, "redis_sessions": {"error": "ConnectionError", "ok": false}, "settings_database": {"error": "OperationalError", "ok": false}, "test_database": {"error": "OperationalError", "ok": false}}
+E         1 passed, 19 warnings in 0.01s
+E         
+E       assert [{'kind': 'im...1:6390'}, ...] == []
+E         Left contains 12 more items, first extra item: {'kind': 'import', 'target': 'app.main'}
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:627: AssertionError
+_ test_a_refused_run_stops_before_any_connection_import_or_test[missing scheduler switch] _
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_a_refused_run_stops_befor1')
+name = 'missing scheduler switch'
+
+    @pytest.mark.parametrize("name", SCENARIO_NAMES)
+    def test_a_refused_run_stops_before_any_connection_import_or_test(tmp_path, name):
+        dead = free_port()
+        _, changes, words = next(s for s in unsafe_scenarios(dead) if s[0] == name)
+        code, output, entries = tripwired(tmp_path, apply(approved_subprocess_env(dead), changes))
+>       assert entries == [], f"attempted before the refusal: {entries}\n{output[-3000:]}"
+E       AssertionError: attempted before the refusal: [{'kind': 'import', 'target': 'app.main'}, {'kind': 'import', 'target': 'app.db.session'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'httpx', 'target': '127.0.0.1:63231'}]
+E         sAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:543
+E           <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:676
+E           <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+E         
+E         app/schemas/predictions.py:683
+E           <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+E         
+E         -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+E         ==================================== PASSES ====================================
+E         ______________________ test_canary_reaches_every_service _______________________
+E         ----------------------------- Captured stdout call -----------------------------
+E         CANARY {"http": {"error": "ConnectError", "ok": false}, "redis_default": {"error": "ConnectionError", "ok": false}, "redis_expert_tools": {"error": "ConnectionError", "ok": false}, "redis_match_data": {"error": "ConnectionError", "ok": false}, "redis_ml_models": {"error": "ConnectionError", "ok": false}, "redis_predictions": {"error": "ConnectionError", "ok": false}, "redis_rate_limit": {"error": "ConnectionError", "ok": false}, "redis_sessions": {"error": "ConnectionError", "ok": false}, "settings_database": {"error": "OperationalError", "ok": false}, "test_database": {"error": "OperationalError", "ok": false}}
+E         1 passed, 19 warnings in 0.01s
+E         
+E       assert [{'kind': 'im...1:6390'}, ...] == []
+E         Left contains 12 more items, first extra item: {'kind': 'import', 'target': 'app.main'}
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:627: AssertionError
+_ test_a_refused_run_stops_before_any_connection_import_or_test[live database by name] _
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_a_refused_run_stops_befor2')
+name = 'live database by name'
+
+    @pytest.mark.parametrize("name", SCENARIO_NAMES)
+    def test_a_refused_run_stops_before_any_connection_import_or_test(tmp_path, name):
+        dead = free_port()
+        _, changes, words = next(s for s in unsafe_scenarios(dead) if s[0] == name)
+        code, output, entries = tripwired(tmp_path, apply(approved_subprocess_env(dead), changes))
+>       assert entries == [], f"attempted before the refusal: {entries}\n{output[-3000:]}"
+E       AssertionError: attempted before the refusal: [{'kind': 'import', 'target': 'app.main'}, {'kind': 'import', 'target': 'app.db.session'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:63234/soccer_predictions'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:63234/soccer_predictions'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'httpx', 'target': '127.0.0.1:63234'}]
+E         sAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:543
+E           <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:676
+E           <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+E         
+E         app/schemas/predictions.py:683
+E           <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+E         
+E         -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+E         ==================================== PASSES ====================================
+E         ______________________ test_canary_reaches_every_service _______________________
+E         ----------------------------- Captured stdout call -----------------------------
+E         CANARY {"http": {"error": "ConnectError", "ok": false}, "redis_default": {"error": "ConnectionError", "ok": false}, "redis_expert_tools": {"error": "ConnectionError", "ok": false}, "redis_match_data": {"error": "ConnectionError", "ok": false}, "redis_ml_models": {"error": "ConnectionError", "ok": false}, "redis_predictions": {"error": "ConnectionError", "ok": false}, "redis_rate_limit": {"error": "ConnectionError", "ok": false}, "redis_sessions": {"error": "ConnectionError", "ok": false}, "settings_database": {"error": "OperationalError", "ok": false}, "test_database": {"error": "OperationalError", "ok": false}}
+E         1 passed, 19 warnings in 0.01s
+E         
+E       assert [{'kind': 'im...1:6390'}, ...] == []
+E         Left contains 12 more items, first extra item: {'kind': 'import', 'target': 'app.main'}
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:627: AssertionError
+_ test_a_refused_run_stops_before_any_connection_import_or_test[live Redis server] _
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_a_refused_run_stops_befor3')
+name = 'live Redis server'
+
+    @pytest.mark.parametrize("name", SCENARIO_NAMES)
+    def test_a_refused_run_stops_before_any_connection_import_or_test(tmp_path, name):
+        dead = free_port()
+        _, changes, words = next(s for s in unsafe_scenarios(dead) if s[0] == name)
+        code, output, entries = tripwired(tmp_path, apply(approved_subprocess_env(dead), changes))
+>       assert entries == [], f"attempted before the refusal: {entries}\n{output[-3000:]}"
+E       AssertionError: attempted before the refusal: [{'kind': 'import', 'target': 'app.main'}, {'kind': 'import', 'target': 'app.db.session'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'httpx', 'target': '127.0.0.1:63235'}]
+E         sAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:543
+E           <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:676
+E           <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+E         
+E         app/schemas/predictions.py:683
+E           <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+E         
+E         -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+E         ==================================== PASSES ====================================
+E         ______________________ test_canary_reaches_every_service _______________________
+E         ----------------------------- Captured stdout call -----------------------------
+E         CANARY {"http": {"error": "ConnectError", "ok": false}, "redis_default": {"error": "ConnectionError", "ok": false}, "redis_expert_tools": {"error": "ConnectionError", "ok": false}, "redis_match_data": {"error": "ConnectionError", "ok": false}, "redis_ml_models": {"error": "ConnectionError", "ok": false}, "redis_predictions": {"error": "ConnectionError", "ok": false}, "redis_rate_limit": {"error": "ConnectionError", "ok": false}, "redis_sessions": {"error": "ConnectionError", "ok": false}, "settings_database": {"error": "OperationalError", "ok": false}, "test_database": {"error": "OperationalError", "ok": false}}
+E         1 passed, 19 warnings in 0.01s
+E         
+E       assert [{'kind': 'im...1:6379'}, ...] == []
+E         Left contains 12 more items, first extra item: {'kind': 'import', 'target': 'app.main'}
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:627: AssertionError
+_ test_a_refused_run_stops_before_any_connection_import_or_test[the isolated pair's Redis databases] _
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_a_refused_run_stops_befor4')
+name = "the isolated pair's Redis databases"
+
+    @pytest.mark.parametrize("name", SCENARIO_NAMES)
+    def test_a_refused_run_stops_before_any_connection_import_or_test(tmp_path, name):
+        dead = free_port()
+        _, changes, words = next(s for s in unsafe_scenarios(dead) if s[0] == name)
+        code, output, entries = tripwired(tmp_path, apply(approved_subprocess_env(dead), changes))
+>       assert entries == [], f"attempted before the refusal: {entries}\n{output[-3000:]}"
+E       AssertionError: attempted before the refusal: [{'kind': 'import', 'target': 'app.main'}, {'kind': 'import', 'target': 'app.db.session'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'socket.getaddrinfo', 'target': '192.0.2.1:6379'}, {'kind': 'httpx', 'target': '127.0.0.1:63236'}]
+E         sAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:543
+E           <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:676
+E           <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+E         
+E         app/schemas/predictions.py:683
+E           <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+E         
+E         -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+E         ==================================== PASSES ====================================
+E         ______________________ test_canary_reaches_every_service _______________________
+E         ----------------------------- Captured stdout call -----------------------------
+E         CANARY {"http": {"error": "ConnectError", "ok": false}, "redis_default": {"error": "ConnectionError", "ok": false}, "redis_expert_tools": {"error": "ConnectionError", "ok": false}, "redis_match_data": {"error": "ConnectionError", "ok": false}, "redis_ml_models": {"error": "ConnectionError", "ok": false}, "redis_predictions": {"error": "ConnectionError", "ok": false}, "redis_rate_limit": {"error": "ConnectionError", "ok": false}, "redis_sessions": {"error": "ConnectionError", "ok": false}, "settings_database": {"error": "OperationalError", "ok": false}, "test_database": {"error": "OperationalError", "ok": false}}
+E         1 passed, 19 warnings in 0.01s
+E         
+E       assert [{'kind': 'im...1:6379'}, ...] == []
+E         Left contains 12 more items, first extra item: {'kind': 'import', 'target': 'app.main'}
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:627: AssertionError
+_ test_a_refused_run_stops_before_any_connection_import_or_test[conflicting REDIS_URL] _
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_a_refused_run_stops_befor5')
+name = 'conflicting REDIS_URL'
+
+    @pytest.mark.parametrize("name", SCENARIO_NAMES)
+    def test_a_refused_run_stops_before_any_connection_import_or_test(tmp_path, name):
+        dead = free_port()
+        _, changes, words = next(s for s in unsafe_scenarios(dead) if s[0] == name)
+        code, output, entries = tripwired(tmp_path, apply(approved_subprocess_env(dead), changes))
+>       assert entries == [], f"attempted before the refusal: {entries}\n{output[-3000:]}"
+E       AssertionError: attempted before the refusal: [{'kind': 'import', 'target': 'app.main'}, {'kind': 'import', 'target': 'app.db.session'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'httpx', 'target': '127.0.0.1:63239'}]
+E         sAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:543
+E           <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:676
+E           <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+E         
+E         app/schemas/predictions.py:683
+E           <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+E         
+E         -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+E         ==================================== PASSES ====================================
+E         ______________________ test_canary_reaches_every_service _______________________
+E         ----------------------------- Captured stdout call -----------------------------
+E         CANARY {"http": {"error": "ConnectError", "ok": false}, "redis_default": {"error": "ConnectionError", "ok": false}, "redis_expert_tools": {"error": "ConnectionError", "ok": false}, "redis_match_data": {"error": "ConnectionError", "ok": false}, "redis_ml_models": {"error": "ConnectionError", "ok": false}, "redis_predictions": {"error": "ConnectionError", "ok": false}, "redis_rate_limit": {"error": "ConnectionError", "ok": false}, "redis_sessions": {"error": "ConnectionError", "ok": false}, "settings_database": {"error": "OperationalError", "ok": false}, "test_database": {"error": "OperationalError", "ok": false}}
+E         1 passed, 19 warnings in 0.01s
+E         
+E       assert [{'kind': 'im...1:6390'}, ...] == []
+E         Left contains 12 more items, first extra item: {'kind': 'import', 'target': 'app.main'}
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:627: AssertionError
+_ test_a_refused_run_stops_before_any_connection_import_or_test[conflicting URL parameters] _
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_a_refused_run_stops_befor6')
+name = 'conflicting URL parameters'
+
+    @pytest.mark.parametrize("name", SCENARIO_NAMES)
+    def test_a_refused_run_stops_before_any_connection_import_or_test(tmp_path, name):
+        dead = free_port()
+        _, changes, words = next(s for s in unsafe_scenarios(dead) if s[0] == name)
+        code, output, entries = tripwired(tmp_path, apply(approved_subprocess_env(dead), changes))
+>       assert entries == [], f"attempted before the refusal: {entries}\n{output[-3000:]}"
+E       AssertionError: attempted before the refusal: [{'kind': 'import', 'target': 'app.main'}, {'kind': 'import', 'target': 'app.db.session'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:63240/soccer_predictions'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'httpx', 'target': '127.0.0.1:63240'}]
+E         sAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:543
+E           <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:676
+E           <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+E         
+E         app/schemas/predictions.py:683
+E           <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+E         
+E         -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+E         ==================================== PASSES ====================================
+E         ______________________ test_canary_reaches_every_service _______________________
+E         ----------------------------- Captured stdout call -----------------------------
+E         CANARY {"http": {"error": "ConnectError", "ok": false}, "redis_default": {"error": "ConnectionError", "ok": false}, "redis_expert_tools": {"error": "ConnectionError", "ok": false}, "redis_match_data": {"error": "ConnectionError", "ok": false}, "redis_ml_models": {"error": "ConnectionError", "ok": false}, "redis_predictions": {"error": "ConnectionError", "ok": false}, "redis_rate_limit": {"error": "ConnectionError", "ok": false}, "redis_sessions": {"error": "ConnectionError", "ok": false}, "settings_database": {"error": "OperationalError", "ok": false}, "test_database": {"error": "OperationalError", "ok": false}}
+E         1 passed, 19 warnings in 0.01s
+E         
+E       assert [{'kind': 'im...1:6390'}, ...] == []
+E         Left contains 12 more items, first extra item: {'kind': 'import', 'target': 'app.main'}
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:627: AssertionError
+_ test_a_refused_run_stops_before_any_connection_import_or_test[conflicting test and settings databases] _
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_a_refused_run_stops_befor7')
+name = 'conflicting test and settings databases'
+
+    @pytest.mark.parametrize("name", SCENARIO_NAMES)
+    def test_a_refused_run_stops_before_any_connection_import_or_test(tmp_path, name):
+        dead = free_port()
+        _, changes, words = next(s for s in unsafe_scenarios(dead) if s[0] == name)
+        code, output, entries = tripwired(tmp_path, apply(approved_subprocess_env(dead), changes))
+>       assert entries == [], f"attempted before the refusal: {entries}\n{output[-3000:]}"
+E       AssertionError: attempted before the refusal: [{'kind': 'import', 'target': 'app.main'}, {'kind': 'import', 'target': 'app.db.session'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:63241/forecast_race_test'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'httpx', 'target': '127.0.0.1:63241'}]
+E         sAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:543
+E           <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:676
+E           <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+E         
+E         app/schemas/predictions.py:683
+E           <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+E         
+E         -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+E         ==================================== PASSES ====================================
+E         ______________________ test_canary_reaches_every_service _______________________
+E         ----------------------------- Captured stdout call -----------------------------
+E         CANARY {"http": {"error": "ConnectError", "ok": false}, "redis_default": {"error": "ConnectionError", "ok": false}, "redis_expert_tools": {"error": "ConnectionError", "ok": false}, "redis_match_data": {"error": "ConnectionError", "ok": false}, "redis_ml_models": {"error": "ConnectionError", "ok": false}, "redis_predictions": {"error": "ConnectionError", "ok": false}, "redis_rate_limit": {"error": "ConnectionError", "ok": false}, "redis_sessions": {"error": "ConnectionError", "ok": false}, "settings_database": {"error": "OperationalError", "ok": false}, "test_database": {"error": "OperationalError", "ok": false}}
+E         1 passed, 19 warnings in 0.01s
+E         
+E       assert [{'kind': 'im...1:6390'}, ...] == []
+E         Left contains 12 more items, first extra item: {'kind': 'import', 'target': 'app.main'}
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:627: AssertionError
+_ test_a_refused_run_stops_before_any_connection_import_or_test[an unsplit shell variable] _
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_a_refused_run_stops_befor8')
+name = 'an unsplit shell variable'
+
+    @pytest.mark.parametrize("name", SCENARIO_NAMES)
+    def test_a_refused_run_stops_before_any_connection_import_or_test(tmp_path, name):
+        dead = free_port()
+        _, changes, words = next(s for s in unsafe_scenarios(dead) if s[0] == name)
+        code, output, entries = tripwired(tmp_path, apply(approved_subprocess_env(dead), changes))
+>       assert entries == [], f"attempted before the refusal: {entries}\n{output[-3000:]}"
+E       AssertionError: attempted before the refusal: [{'kind': 'import', 'target': 'app.main'}, {'kind': 'import', 'target': 'app.db.session'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test POSTGRES_DB=forecast_race_test REDIS_HOST=127.0.0.1'}, {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'httpx', 'target': '127.0.0.1:63242'}]
+E         sAppsUI-expert-fixes/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:543
+E           <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('away_win_prob')
+E         
+E         app/schemas/predictions.py:676
+E           <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+E         
+E         app/schemas/predictions.py:683
+E           <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+E             @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+E         
+E         -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+E         ==================================== PASSES ====================================
+E         ______________________ test_canary_reaches_every_service _______________________
+E         ----------------------------- Captured stdout call -----------------------------
+E         CANARY {"http": {"error": "ConnectError", "ok": false}, "redis_default": {"error": "ConnectionError", "ok": false}, "redis_expert_tools": {"error": "ConnectionError", "ok": false}, "redis_match_data": {"error": "ConnectionError", "ok": false}, "redis_ml_models": {"error": "ConnectionError", "ok": false}, "redis_predictions": {"error": "ConnectionError", "ok": false}, "redis_rate_limit": {"error": "ConnectionError", "ok": false}, "redis_sessions": {"error": "ConnectionError", "ok": false}, "settings_database": {"error": "OperationalError", "ok": false}, "test_database": {"error": "OperationalError", "ok": false}}
+E         1 passed, 19 warnings in 0.01s
+E         
+E       assert [{'kind': 'im...1:6390'}, ...] == []
+E         Left contains 12 more items, first extra item: {'kind': 'import', 'target': 'app.main'}
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:627: AssertionError
+_____ test_the_tests_package_refuses_when_the_rootdir_conftest_is_bypassed _____
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_the_tests_package_refuses0')
+
+    def test_the_tests_package_refuses_when_the_rootdir_conftest_is_bypassed(tmp_path):
+        dead = free_port()
+        env = apply(approved_subprocess_env(dead), {"POSTGRES_DB": "soccer_predictions", "POSTGRES_PORT": str(dead),
+                                                   "TEST_DATABASE_URL": f"postgresql://postgres@127.0.0.1:{dead}/soccer_predictions"})
+        code, output, entries = tripwired(tmp_path, env, args=["--noconftest", *PYTEST_ARGS])
+>       assert entries == [], entries
+E       AssertionError: [{'kind': 'import', 'target': 'tests.conftest'}, {'kind': 'import', 'target': 'app.main'}, {'kind': 'import', 'target'...ect', 'target': '127.0.0.1:63243/soccer_predictions'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, ...]
+E       assert [{'kind': 'im...1:6390'}, ...] == []
+E         Left contains 13 more items, first extra item: {'kind': 'import', 'target': 'tests.conftest'}
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:640: AssertionError
+___________ test_a_change_after_the_check_is_refused_before_any_test ___________
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_a_change_after_the_check_0')
+
+    def test_a_change_after_the_check_is_refused_before_any_test(tmp_path):
+        """The environment is changed after the rootdir conftest approved it, before collection ends."""
+        dead = free_port()
+        env = approved_subprocess_env(dead)
+        code, output, entries = tripwired(tmp_path, {**env, "GUARD_TAMPER_AFTER_START": "soccer_predictions"})
+>       assert [e for e in entries if e["kind"] != "import"] == [], entries
+E       AssertionError: [{'kind': 'import', 'target': 'app.main'}, {'kind': 'import', 'target': 'app.db.session'}, {'kind': 'psycopg2.connect'...d': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, {'kind': 'socket.getaddrinfo', 'target': '127.0.0.1:6390'}, ...]
+E       assert [{'kind': 'ps...1:6390'}, ...] == []
+E         Left contains 10 more items, first extra item: {'kind': 'psycopg2.connect', 'target': '127.0.0.1:5440/forecast_race_test'}
+E         Use -v to get more diff
+
+tests/core/test_target_guard.py:650: AssertionError
+_____ test_the_command_line_check_refuses_and_approves_without_connecting ______
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_the_command_line_check_re0')
+
+    def test_the_command_line_check_refuses_and_approves_without_connecting(tmp_path):
+        dead = free_port()
+        unsafe = apply(approved_subprocess_env(dead), {"REDIS_HOST": "192.0.2.1", "REDIS_PORT": "6379"})
+        code, output, entries = tripwired(tmp_path, unsafe, mode="cli", args=["--role", "backend-tests", "--json"])
+>       assert entries == [] and code == EXIT_REFUSED, output[-2000:]
+E       AssertionError: Traceback (most recent call last):
+E           File "<string>", line 36, in <module>
+E           File "<frozen runpy>", line 222, in run_module
+E           File "<frozen runpy>", line 142, in _get_module_details
+E         ImportError: No module named app.core.target_guard
+E         
+E       assert ([] == []
+E         Use -v to get more diff and 1 == 78)
+
+tests/core/test_target_guard.py:659: AssertionError
+__________ test_an_approved_run_really_reaches_the_throwaway_services __________
+
+tmp_path = PosixPath('<tmp>/pytest-of-stephanefotso/pytest-193/test_an_approved_run_really_re0')
+
+    @pytest.mark.skipif(not (REAL_RACE and REAL_LEASE),
+                        reason="RACE_TEST_DATABASE_URL and LEASE_TEST_REDIS_URL are not set: no throwaway services")
+    def test_an_approved_run_really_reaches_the_throwaway_services(tmp_path):
+        database, cache = urlparse(REAL_RACE), urlparse(REAL_LEASE)
+        env = minimal_env(
+            TEST_DATABASE_URL=REAL_RACE, POSTGRES_SERVER=database.hostname, POSTGRES_PORT=str(database.port),
+            POSTGRES_DB=database.path.lstrip("/"), POSTGRES_USER=database.username or "postgres",
+            POSTGRES_PASSWORD=database.password or "unused", REDIS_HOST=cache.hostname, REDIS_PORT=str(cache.port),
+            SYNC_SCHEDULER_ENABLED="false", EMAIL_ENABLED="false")
+        out = subprocess.run([sys.executable, "-m", "pytest", *PYTEST_ARGS], cwd=BACKEND, capture_output=True,
+                             text=True, timeout=180, env=env)
+        output = out.stdout + out.stderr
+        assert out.returncode == 0, output[-3000:]
+        canary = json.loads(next(line for line in output.splitlines() if line.startswith("CANARY "))[7:])
+        for label in ("test_database", "settings_database"):
+            assert canary[label] == {"ok": True, "database": database.path.lstrip("/"), "port": database.port}, canary
+        for label, outcome in canary.items():
+            if label.startswith("redis_"):
+                assert outcome["ok"] and outcome["port"] == cache.port, canary
+>       assert "target guard: backend-tests approved" in output
+E       assert 'target guard: backend-tests approved' in '.                                                                        [100%]\n=============================== warn...440}, "test_database": {"database": "forecast_race_test", "ok": true, "port": 5440}}\n1 passed, 18 warnings in 0.04s\n'
+
+tests/core/test_target_guard.py:706: AssertionError
+_________ test_health_publishes_every_redis_database_the_process_uses __________
+
+client = <starlette.testclient.TestClient object at 0x10b450150>
+
+    def test_health_publishes_every_redis_database_the_process_uses(client: TestClient):
+        """The browser preflight (frontend/e2e/support/isolation-preflight.ts) refuses an isolated backend
+        unless it says which Redis databases it uses - the default client's and the six roles' - on
+        which server, and that its scheduler is off. Database indexes and a port, never a host or a URL."""
+        from redis.connection import parse_url
+    
+>       from app.core.redis import redis_url_for
+E       ImportError: cannot import name 'redis_url_for' from 'app.core.redis' (<worktree>/backend/app/core/redis.py)
+
+tests/test_health.py:80: ImportError
+---------------------------- Captured stdout setup -----------------------------
+2026-10-21 07:56:24 - app.main - INFO - Starting *** API v0.1.0
+2026-10-21 07:56:24 - app.main - INFO - Environment: development
+2026-10-21 07:56:24 - app.main - INFO - Debug mode: True
+2026-10-21 07:56:24 - app.main - INFO - Source identity: commit b8b5f8bced2a99d79ce9a6d96484844428baf9cc with 0 uncommitted application file(s); app tree sha256 7138445ead1da33f2c8ca9597a7a08c90d9ebdf6fbad5da0fb11256a20f75539 over 91 file(s); computed 2026-10-21T11:56:11Z
+2026-10-21 07:56:24,990 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-10-21 07:56:24 - sqlalchemy.engine.Engine - INFO - BEGIN (implicit)
+2026-10-21 07:56:24,990 INFO sqlalchemy.engine.Engine SELECT version()
+2026-10-21 07:56:24 - sqlalchemy.engine.Engine - INFO - SELECT version()
+2026-10-21 07:56:24,990 INFO sqlalchemy.engine.Engine [cached since 0.05595s ago] {}
+2026-10-21 07:56:24 - sqlalchemy.engine.Engine - INFO - [cached since 0.05595s ago] {}
+2026-10-21 07:56:24 - app.db.init_db - INFO - Connected to PostgreSQL: PostgreSQL 15.19 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+2026-10-21 07:56:24,991 INFO sqlalchemy.engine.Engine 
+                    SELECT schema_name 
+                    FROM information_schema.schemata 
+                    WHERE schema_name IN ('users', 'predictions', 'ml_models', 'analytics', 'audit')
+                    ORDER BY schema_name
+                
+2026-10-21 07:56:24 - sqlalchemy.engine.Engine - INFO - 
+                    SELECT schema_name 
+                    FROM information_schema.schemata 
+                    WHERE schema_name IN ('users', 'predictions', 'ml_models', 'analytics', 'audit')
+                    ORDER BY schema_name
+                
+2026-10-21 07:56:24,991 INFO sqlalchemy.engine.Engine [cached since 0.05615s ago] {}
+2026-10-21 07:56:24 - sqlalchemy.engine.Engine - INFO - [cached since 0.05615s ago] {}
+2026-10-21 07:56:24 - app.db.init_db - INFO - All 5 schemas found: analytics, audit, ml_models, predictions, users
+2026-10-21 07:56:24,992 INFO sqlalchemy.engine.Engine COMMIT
+2026-10-21 07:56:24 - sqlalchemy.engine.Engine - INFO - COMMIT
+2026-10-21 07:56:24 - app.main - INFO - Database initialized successfully
+2026-10-21 07:56:24 - app.services.sync_scheduler - INFO - Background sync scheduler disabled (SYNC_SCHEDULER_ENABLED=false)
+------------------------------ Captured log setup ------------------------------
+INFO     app.main:main.py:37 Starting *** API v0.1.0
+INFO     app.main:main.py:38 Environment: development
+INFO     app.main:main.py:39 Debug mode: True
+INFO     app.main:main.py:44 Source identity: commit b8b5f8bced2a99d79ce9a6d96484844428baf9cc with 0 uncommitted application file(s); app tree sha256 7138445ead1da33f2c8ca9597a7a08c90d9ebdf6fbad5da0fb11256a20f75539 over 91 file(s); computed 2026-10-21T11:56:11Z
+INFO     sqlalchemy.engine.Engine:base.py:2689 BEGIN (implicit)
+INFO     sqlalchemy.engine.Engine:base.py:1848 SELECT version()
+INFO     sqlalchemy.engine.Engine:base.py:1848 [cached since 0.05595s ago] {}
+INFO     app.db.init_db:init_db.py:24 Connected to PostgreSQL: PostgreSQL 15.19 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+INFO     sqlalchemy.engine.Engine:base.py:1848 
+                    SELECT schema_name 
+                    FROM information_schema.schemata 
+                    WHERE schema_name IN ('users', 'predictions', 'ml_models', 'analytics', 'audit')
+                    ORDER BY schema_name
+                
+INFO     sqlalchemy.engine.Engine:base.py:1848 [cached since 0.05615s ago] {}
+INFO     app.db.init_db:init_db.py:38 All 5 schemas found: analytics, audit, ml_models, predictions, users
+INFO     sqlalchemy.engine.Engine:base.py:2695 COMMIT
+INFO     app.main:main.py:52 Database initialized successfully
+INFO     app.services.sync_scheduler:sync_scheduler.py:1559 Background sync scheduler disabled (SYNC_SCHEDULER_ENABLED=false)
+--------------------------- Captured stdout teardown ---------------------------
+2026-10-21 07:56:24 - app.main - INFO - Shutting down *** API
+---------------------------- Captured log teardown -----------------------------
+INFO     app.main:main.py:62 Shutting down *** API
+_______ test_health_names_the_default_redis_database_not_only_the_roles ________
+
+client = <starlette.testclient.TestClient object at 0x10b296750>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b50a110>
+
+    def test_health_names_the_default_redis_database_not_only_the_roles(client: TestClient, monkeypatch):
+        """The isolated backend was started with REDIS_DB_* = 10-15 but no REDIS_DB, so its default
+        client - the one /api/v1/health/detailed pings - stayed on .env's database 0, the live sessions
+        database. That database must show up here."""
+        monkeypatch.setattr(settings, "REDIS_URL", "redis://localhost:6390/0")
+        monkeypatch.setattr(settings, "REDIS_DB", 0)
+        for index, role in enumerate(("SESSIONS", "PREDICTIONS", "EXPERT_TOOLS", "ML_MODELS", "MATCH_DATA", "RATE_LIMIT")):
+            monkeypatch.setattr(settings, f"REDIS_DB_{role}", 10 + index)
+>       assert client.get("/health").json()["redis_databases"] == [0, 10, 11, 12, 13, 14, 15]
+E       KeyError: 'redis_databases'
+
+tests/test_health.py:103: KeyError
+---------------------------- Captured stdout setup -----------------------------
+2026-10-21 07:56:24 - app.main - INFO - Starting *** API v0.1.0
+2026-10-21 07:56:24 - app.main - INFO - Environment: development
+2026-10-21 07:56:24 - app.main - INFO - Debug mode: True
+2026-10-21 07:56:24 - app.main - INFO - Source identity: commit b8b5f8bced2a99d79ce9a6d96484844428baf9cc with 0 uncommitted application file(s); app tree sha256 7138445ead1da33f2c8ca9597a7a08c90d9ebdf6fbad5da0fb11256a20f75539 over 91 file(s); computed 2026-10-21T11:56:11Z
+2026-10-21 07:56:25,001 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-10-21 07:56:25 - sqlalchemy.engine.Engine - INFO - BEGIN (implicit)
+2026-10-21 07:56:25,001 INFO sqlalchemy.engine.Engine SELECT version()
+2026-10-21 07:56:25 - sqlalchemy.engine.Engine - INFO - SELECT version()
+2026-10-21 07:56:25,001 INFO sqlalchemy.engine.Engine [cached since 0.06703s ago] {}
+2026-10-21 07:56:25 - sqlalchemy.engine.Engine - INFO - [cached since 0.06703s ago] {}
+2026-10-21 07:56:25 - app.db.init_db - INFO - Connected to PostgreSQL: PostgreSQL 15.19 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+2026-10-21 07:56:25,001 INFO sqlalchemy.engine.Engine 
+                    SELECT schema_name 
+                    FROM information_schema.schemata 
+                    WHERE schema_name IN ('users', 'predictions', 'ml_models', 'analytics', 'audit')
+                    ORDER BY schema_name
+                
+2026-10-21 07:56:25 - sqlalchemy.engine.Engine - INFO - 
+                    SELECT schema_name 
+                    FROM information_schema.schemata 
+                    WHERE schema_name IN ('users', 'predictions', 'ml_models', 'analytics', 'audit')
+                    ORDER BY schema_name
+                
+2026-10-21 07:56:25,002 INFO sqlalchemy.engine.Engine [cached since 0.06709s ago] {}
+2026-10-21 07:56:25 - sqlalchemy.engine.Engine - INFO - [cached since 0.06709s ago] {}
+2026-10-21 07:56:25 - app.db.init_db - INFO - All 5 schemas found: analytics, audit, ml_models, predictions, users
+2026-10-21 07:56:25,003 INFO sqlalchemy.engine.Engine COMMIT
+2026-10-21 07:56:25 - sqlalchemy.engine.Engine - INFO - COMMIT
+2026-10-21 07:56:25 - app.main - INFO - Database initialized successfully
+2026-10-21 07:56:25 - app.services.sync_scheduler - INFO - Background sync scheduler disabled (SYNC_SCHEDULER_ENABLED=false)
+------------------------------ Captured log setup ------------------------------
+INFO     app.main:main.py:37 Starting *** API v0.1.0
+INFO     app.main:main.py:38 Environment: development
+INFO     app.main:main.py:39 Debug mode: True
+INFO     app.main:main.py:44 Source identity: commit b8b5f8bced2a99d79ce9a6d96484844428baf9cc with 0 uncommitted application file(s); app tree sha256 7138445ead1da33f2c8ca9597a7a08c90d9ebdf6fbad5da0fb11256a20f75539 over 91 file(s); computed 2026-10-21T11:56:11Z
+INFO     sqlalchemy.engine.Engine:base.py:2689 BEGIN (implicit)
+INFO     sqlalchemy.engine.Engine:base.py:1848 SELECT version()
+INFO     sqlalchemy.engine.Engine:base.py:1848 [cached since 0.06703s ago] {}
+INFO     app.db.init_db:init_db.py:24 Connected to PostgreSQL: PostgreSQL 15.19 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+INFO     sqlalchemy.engine.Engine:base.py:1848 
+                    SELECT schema_name 
+                    FROM information_schema.schemata 
+                    WHERE schema_name IN ('users', 'predictions', 'ml_models', 'analytics', 'audit')
+                    ORDER BY schema_name
+                
+INFO     sqlalchemy.engine.Engine:base.py:1848 [cached since 0.06709s ago] {}
+INFO     app.db.init_db:init_db.py:38 All 5 schemas found: analytics, audit, ml_models, predictions, users
+INFO     sqlalchemy.engine.Engine:base.py:2695 COMMIT
+INFO     app.main:main.py:52 Database initialized successfully
+INFO     app.services.sync_scheduler:sync_scheduler.py:1559 Background sync scheduler disabled (SYNC_SCHEDULER_ENABLED=false)
+----------------------------- Captured stdout call -----------------------------
+2026-10-21 07:56:25 - httpx - INFO - HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+--------------------------- Captured stdout teardown ---------------------------
+2026-10-21 07:56:25 - app.main - INFO - Shutting down *** API
+---------------------------- Captured log teardown -----------------------------
+INFO     app.main:main.py:62 Shutting down *** API
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  <worktree>/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  <worktree>/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  <worktree>/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  <worktree>/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  <worktree>/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  <worktree>/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  <worktree>/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  <worktree>/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  <worktree>/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/core/test_target_guard.py::test_the_canonical_backend_command_passes
+FAILED tests/core/test_target_guard.py::test_the_throwaway_services_pass_beside_it
+FAILED tests/core/test_target_guard.py::test_the_throwaway_postgres_alone_passes
+FAILED tests/core/test_target_guard.py::test_the_isolated_backend_as_started_passes_its_own_role
+FAILED tests/core/test_target_guard.py::test_nothing_exported_is_refused_naming_everything_missing
+FAILED tests/core/test_target_guard.py::test_each_missing_override_is_refused[TEST_DATABASE_URL-missing:TEST_DATABASE_URL]
+FAILED tests/core/test_target_guard.py::test_each_missing_override_is_refused[POSTGRES_DB-missing:database]
+FAILED tests/core/test_target_guard.py::test_each_missing_override_is_refused[REDIS_HOST-missing:redis]
+FAILED tests/core/test_target_guard.py::test_each_missing_override_is_refused[REDIS_PORT-missing:redis]
+FAILED tests/core/test_target_guard.py::test_each_missing_override_is_refused[SYNC_SCHEDULER_ENABLED-missing:SYNC_SCHEDULER_ENABLED]
+FAILED tests/core/test_target_guard.py::test_each_missing_override_is_refused[EMAIL_ENABLED-missing:EMAIL_ENABLED]
+FAILED tests/core/test_target_guard.py::test_an_empty_value_counts_as_missing
+FAILED tests/core/test_target_guard.py::test_a_lowercase_spelling_is_not_the_setting
+FAILED tests/core/test_target_guard.py::test_the_isolated_backend_needs_every_redis_database_written_down
+FAILED tests/core/test_target_guard.py::test_the_isolated_backend_needs_blank_provider_keys
+FAILED tests/core/test_target_guard.py::test_a_live_database_is_refused_on_any_host_and_port[TEST_DATABASE_URL-soccer_predictions]
+FAILED tests/core/test_target_guard.py::test_a_live_database_is_refused_on_any_host_and_port[TEST_DATABASE_URL-soccer_predictions_dev]
+FAILED tests/core/test_target_guard.py::test_a_live_database_is_refused_on_any_host_and_port[TEST_DATABASE_URL-soccer_predictions_qa]
+FAILED tests/core/test_target_guard.py::test_a_live_database_is_refused_on_any_host_and_port[POSTGRES_DB-soccer_predictions]
+FAILED tests/core/test_target_guard.py::test_a_live_database_is_refused_on_any_host_and_port[POSTGRES_DB-soccer_predictions_dev]
+FAILED tests/core/test_target_guard.py::test_a_live_database_is_refused_on_any_host_and_port[POSTGRES_DB-soccer_predictions_qa]
+FAILED tests/core/test_target_guard.py::test_a_live_database_is_refused_on_any_host_and_port[DATABASE_URL-soccer_predictions]
+FAILED tests/core/test_target_guard.py::test_a_live_database_is_refused_on_any_host_and_port[DATABASE_URL-soccer_predictions_dev]
+FAILED tests/core/test_target_guard.py::test_a_live_database_is_refused_on_any_host_and_port[DATABASE_URL-soccer_predictions_qa]
+FAILED tests/core/test_target_guard.py::test_the_isolated_pairs_database_is_not_for_backend_tests
+FAILED tests/core/test_target_guard.py::test_a_name_that_merely_says_test_is_not_approved[soccer_predictions_test_mine]
+FAILED tests/core/test_target_guard.py::test_a_name_that_merely_says_test_is_not_approved[my_test]
+FAILED tests/core/test_target_guard.py::test_a_name_that_merely_says_test_is_not_approved[soccer_predictions_20251008_backup]
+FAILED tests/core/test_target_guard.py::test_only_a_loopback_host_is_approved[postgres]
+FAILED tests/core/test_target_guard.py::test_only_a_loopback_host_is_approved[test-db.internal]
+FAILED tests/core/test_target_guard.py::test_only_a_loopback_host_is_approved[192.0.2.1]
+FAILED tests/core/test_target_guard.py::test_only_a_loopback_host_is_approved[0.0.0.0]
+FAILED tests/core/test_target_guard.py::test_the_live_redis_server_is_refused_on_any_host[localhost]
+FAILED tests/core/test_target_guard.py::test_the_live_redis_server_is_refused_on_any_host[127.0.0.1]
+FAILED tests/core/test_target_guard.py::test_the_live_redis_server_is_refused_on_any_host[::1]
+FAILED tests/core/test_target_guard.py::test_the_live_redis_server_is_refused_on_any_host[192.0.2.1]
+FAILED tests/core/test_target_guard.py::test_a_live_redis_database_named_by_url_is_refused[0]
+FAILED tests/core/test_target_guard.py::test_a_live_redis_database_named_by_url_is_refused[3]
+FAILED tests/core/test_target_guard.py::test_a_live_redis_database_named_by_url_is_refused[5]
+FAILED tests/core/test_target_guard.py::test_the_isolated_pairs_redis_databases_are_not_for_backend_tests
+FAILED tests/core/test_target_guard.py::test_every_redis_database_the_application_uses_is_judged
+FAILED tests/core/test_target_guard.py::test_the_lease_tests_may_not_use_the_live_server
+FAILED tests/core/test_target_guard.py::test_a_database_url_from_dotenv_silently_overriding_postgres_db_is_refused
+FAILED tests/core/test_target_guard.py::test_database_url_and_postgres_parts_that_disagree_are_refused
+FAILED tests/core/test_target_guard.py::test_a_redis_url_from_dotenv_overriding_the_parts_is_refused
+FAILED tests/core/test_target_guard.py::test_redis_url_and_parts_that_disagree_are_refused
+FAILED tests/core/test_target_guard.py::test_a_redis_url_not_of_the_one_exact_form_is_refused[redis://127.0.0.1:6390/3?db=0]
+FAILED tests/core/test_target_guard.py::test_a_redis_url_not_of_the_one_exact_form_is_refused[redis://127.0.0.1:6390]
+FAILED tests/core/test_target_guard.py::test_a_redis_url_not_of_the_one_exact_form_is_refused[redis://:6390/0]
+FAILED tests/core/test_target_guard.py::test_a_redis_url_not_of_the_one_exact_form_is_refused[unix:///tmp/redis.sock?db=0]
+FAILED tests/core/test_target_guard.py::test_the_tests_and_the_application_must_use_one_database
+FAILED tests/core/test_target_guard.py::test_two_redis_roles_on_one_database_are_refused
+FAILED tests/core/test_target_guard.py::test_a_redis_database_out_of_range_is_refused
+FAILED tests/core/test_target_guard.py::test_the_race_database_may_not_be_the_test_database
+FAILED tests/core/test_target_guard.py::test_the_lease_databases_may_not_overlap_the_applications
+FAILED tests/core/test_target_guard.py::test_the_unsplit_shell_variable_is_refused_without_echoing_it
+FAILED tests/core/test_target_guard.py::test_a_postgres_url_whose_parameters_redirect_it_is_refused[postgresql://postgres@127.0.0.1:5440/forecast_race_test?host=localhost&port=5432&dbname=soccer_predictions]
+FAILED tests/core/test_target_guard.py::test_a_postgres_url_whose_parameters_redirect_it_is_refused[postgresql://postgres@127.0.0.1/forecast_race_test]
+FAILED tests/core/test_target_guard.py::test_a_postgres_url_whose_parameters_redirect_it_is_refused[postgresql://postgres@127.0.0.1:5440/forecast_race_test?service=live]
+FAILED tests/core/test_target_guard.py::test_the_redirect_is_judged_where_it_really_goes
+FAILED tests/core/test_target_guard.py::test_libpq_environment_overrides_are_refused[PGHOST]
+FAILED tests/core/test_target_guard.py::test_libpq_environment_overrides_are_refused[PGHOSTADDR]
+FAILED tests/core/test_target_guard.py::test_libpq_environment_overrides_are_refused[PGPORT]
+FAILED tests/core/test_target_guard.py::test_libpq_environment_overrides_are_refused[PGDATABASE]
+FAILED tests/core/test_target_guard.py::test_libpq_environment_overrides_are_refused[PGSERVICE]
+FAILED tests/core/test_target_guard.py::test_libpq_environment_overrides_are_refused[PGSERVICEFILE]
+FAILED tests/core/test_target_guard.py::test_settings_resolved_before_the_environment_changed_are_refused
+FAILED tests/core/test_target_guard.py::test_the_scheduler_and_email_must_be_off[SYNC_SCHEDULER_ENABLED]
+FAILED tests/core/test_target_guard.py::test_the_scheduler_and_email_must_be_off[EMAIL_ENABLED]
+FAILED tests/core/test_target_guard.py::test_unparseable_settings_are_refused_without_their_values
+FAILED tests/core/test_target_guard.py::test_the_committed_policy_is_self_consistent
+FAILED tests/core/test_target_guard.py::test_a_policy_approving_a_live_target_is_itself_refused
+FAILED tests/core/test_target_guard.py::test_a_missing_policy_file_refuses - ...
+FAILED tests/core/test_target_guard.py::test_an_unknown_role_is_refused - Mod...
+FAILED tests/core/test_target_guard.py::test_importing_the_guard_loads_no_driver_and_no_application
+FAILED tests/core/test_target_guard.py::test_the_redis_url_helper_is_the_one_get_redis_client_uses
+FAILED tests/core/test_target_guard.py::test_every_test_directory_is_a_package
+FAILED tests/core/test_target_guard.py::test_a_refused_run_stops_before_any_connection_import_or_test[missing TEST_DATABASE_URL]
+FAILED tests/core/test_target_guard.py::test_a_refused_run_stops_before_any_connection_import_or_test[missing scheduler switch]
+FAILED tests/core/test_target_guard.py::test_a_refused_run_stops_before_any_connection_import_or_test[live database by name]
+FAILED tests/core/test_target_guard.py::test_a_refused_run_stops_before_any_connection_import_or_test[live Redis server]
+FAILED tests/core/test_target_guard.py::test_a_refused_run_stops_before_any_connection_import_or_test[the isolated pair's Redis databases]
+FAILED tests/core/test_target_guard.py::test_a_refused_run_stops_before_any_connection_import_or_test[conflicting REDIS_URL]
+FAILED tests/core/test_target_guard.py::test_a_refused_run_stops_before_any_connection_import_or_test[conflicting URL parameters]
+FAILED tests/core/test_target_guard.py::test_a_refused_run_stops_before_any_connection_import_or_test[conflicting test and settings databases]
+FAILED tests/core/test_target_guard.py::test_a_refused_run_stops_before_any_connection_import_or_test[an unsplit shell variable]
+FAILED tests/core/test_target_guard.py::test_the_tests_package_refuses_when_the_rootdir_conftest_is_bypassed
+FAILED tests/core/test_target_guard.py::test_a_change_after_the_check_is_refused_before_any_test
+FAILED tests/core/test_target_guard.py::test_the_command_line_check_refuses_and_approves_without_connecting
+FAILED tests/core/test_target_guard.py::test_an_approved_run_really_reaches_the_throwaway_services
+FAILED tests/test_health.py::test_health_publishes_every_redis_database_the_process_uses
+FAILED tests/test_health.py::test_health_names_the_default_redis_database_not_only_the_roles
+92 failed, 7 passed, 18 warnings in 13.40s
+# (scrubbed: worktree path -> <worktree> x39, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x15, home prefix -> ~ x0, test database password -> *** x8; nothing else edited)
+# exit=1

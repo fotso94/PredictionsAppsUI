@@ -1,0 +1,6 @@
+# guard AFTER: frontend lint over everything it covers (e2e and both Playwright configs included); no output means no problem
+# code under test: exactly commit 4f0a2388 (the runs were made on the working tree that was then committed unchanged as 4f0a2388; parent b8b5f8bc)
+# run at 2026-10-21T12:18Z; cd <worktree>/frontend && ./node_modules/.bin/eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0 (npm run lint); tsc --noEmit (npm run type-check, src only) also exit 0
+
+# (scrubbed: worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=0

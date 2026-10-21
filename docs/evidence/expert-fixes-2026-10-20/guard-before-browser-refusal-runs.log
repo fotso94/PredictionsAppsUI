@@ -1,0 +1,333 @@
+# guard BEFORE (browser half, the real playwright.config.ts run with unsafe settings): node --test e2e/guard/refusal-runs.test.mjs against the unchanged config
+# branch expert-fixes at b8b5f8bc; uncommitted: frontend/e2e/guard/ only; no product code changed
+# run at 2026-10-21T12:03Z; cd <worktree>/frontend && node --test e2e/guard/refusal-runs.test.mjs. Each case is one child 'playwright test' with net-tripwire.cjs in NODE_OPTIONS (every Node TCP connect recorded and blocked) and --output in a temp dir
+# expected: all 11 fail. The two cases that select a real spec show the OLD config running live-isolated with no opt-in and its worker trying a connection (to a stand-in on a free port, blocked by the tripwire); the cases that name live ports select no test, so the old config runs nothing and the missing refusal is what fails; the two positive controls fail only on the missing 'isolation preflight: PASS' line
+✖ the live-isolated project does not exist unless E2E_STACK selects it (545.511208ms)
+✖ the live project does not exist unless E2E_STACK selects it (270.923125ms)
+✖ an E2E_STACK that is not exactly one stack is refused when the configuration loads (504.735333ms)
+✖ live-isolated pointed at servers the policy does not name is refused before any test (559.179583ms)
+✖ live-isolated with no isolated API URL is refused, not defaulted (338.496167ms)
+✖ the live backend or frontend named as the isolated pair is refused before anything is sent (331.805167ms)
+✖ an isolated API that is also the main API is refused (335.514667ms)
+✖ a mocked run whose frontend URL is a backend is refused (451.691625ms)
+✖ a URL carrying a password is refused and the password is never printed (343.656292ms)
+✖ an approved mocked run starts and passes, with Node sending nothing (1444.615167ms)
+✖ the approved isolated pair passes the preflight: one GET to the isolated backend and nothing else from Node (342.064458ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 0
+ℹ fail 11
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5501.74475
+
+✖ failing tests:
+
+test at e2e/guard/refusal-runs.test.mjs:103:1
+✖ the live-isolated project does not exist unless E2E_STACK selects it (545.511208ms)
+  AssertionError [ERR_ASSERTION]: Node connected or tried to
+  exit 1
+  
+  Running 3 tests using 1 worker
+  
+  [1/3] [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:77:1 › an expert reaches the form without ever seeing a match id
+    1) [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:77:1 › an expert reaches the form without ever seeing a match id 
+  
+      Error: no backend answers at http://127.0.0.1:63358: start the isolated pair first (scripts/local-servers.sh start isolated)
+  
+         at support/isolated.ts:43
+  
+        41 |   if (!health || !health.ok()) {
+        42 |     await api.dispose();
+      > 43 |     throw new Error(`no backend answers at ${ISOLATED_API}: start the isolated pair first `
+           |           ^
+        44 |       + '(scripts/local-servers.sh start isolated)');
+        45 |   }
+        46 |   const body = (await health.json()) as { database?: unknown };
+          at isolatedApiContext (<worktree>/frontend/e2e/support/isolated.ts:43:11)
+          at <worktree>/frontend/e2e/live-isolated/expert-composer.spec.ts:30:9
+  
+      Error Context: <tmp>/isolation-guard-run-vfDr82/artifacts/live-isolated-expert-compo-1c9cc-hout-ever-seeing-a-match-id-live-isolated/error-context.md
+  
+      Error Context: <tmp>/isolation-guard-run-vfDr82/artifacts/live-isolated-expert-compo-1c9cc-hout-ever-seeing-a-match-id-live-isolated/error-context.md
+  
+      attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+      <tmp>/isolation-guard-run-vfDr82/artifacts/live-isolated-expert-compo-1c9cc-hout-ever-seeing-a-match-id-live-isolated/trace.zip
+      Usage:
+  
+          npx playwright show-trace <tmp>/isolation-guard-run-vfDr82/artifacts/live-isolated-expert-compo-1c9cc-hout-ever-seeing-a-match-id-live-isolated/trace.zip
+  
+      ────────────────────────────────────────────────────────────────────────────────────────────────
+  
+  
+  [2/3] [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:91:1 › the form suggests no probability of its own
+  [3/3] [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:109:1 › a percentage typed as 55 is stored as 0.55 and published immediately
+    1 failed
+      [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:77:1 › an expert reaches the form without ever seeing a match id 
+    2 did not run
+  
+  net: blocked 127.0.0.1:63358 pid 6813
+  + actual - expected
+  
+  + [
+  +   'blocked 127.0.0.1:63358 pid 6813'
+  + ]
+  - []
+  
+      at refusedBeforeAnything (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:81:10)
+      at TestContext.<anonymous> (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:107:5)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'blocked 127.0.0.1:63358 pid 6813' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:111:1
+✖ the live project does not exist unless E2E_STACK selects it (270.923125ms)
+  AssertionError [ERR_ASSERTION]: exit 1
+  Error: No tests found
+  
+  
+  net: 
+      at refusedBeforeAnything (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:85:10)
+      at TestContext.<anonymous> (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:113:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'Error: No tests found\n\n',
+    expected: /Project\(s\) "live" not found/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:116:1
+✖ an E2E_STACK that is not exactly one stack is refused when the configuration loads (504.735333ms)
+  AssertionError [ERR_ASSERTION]: exit 1
+  Error: No tests found
+  
+  
+  net: 
+      at refusedBeforeAnything (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:85:10)
+      at TestContext.<anonymous> (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:119:5)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'Error: No tests found\n\n',
+    expected: /E2E_STACK must be one of/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:124:1
+✖ live-isolated pointed at servers the policy does not name is refused before any test (559.179583ms)
+  AssertionError [ERR_ASSERTION]: Node connected or tried to
+  exit 1
+  
+  Running 3 tests using 1 worker
+  
+  [1/3] [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:77:1 › an expert reaches the form without ever seeing a match id
+    1) [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:77:1 › an expert reaches the form without ever seeing a match id 
+  
+      Error: no backend answers at http://127.0.0.1:63362: start the isolated pair first (scripts/local-servers.sh start isolated)
+  
+         at support/isolated.ts:43
+  
+        41 |   if (!health || !health.ok()) {
+        42 |     await api.dispose();
+      > 43 |     throw new Error(`no backend answers at ${ISOLATED_API}: start the isolated pair first `
+           |           ^
+        44 |       + '(scripts/local-servers.sh start isolated)');
+        45 |   }
+        46 |   const body = (await health.json()) as { database?: unknown };
+          at isolatedApiContext (<worktree>/frontend/e2e/support/isolated.ts:43:11)
+          at <worktree>/frontend/e2e/live-isolated/expert-composer.spec.ts:30:9
+  
+      Error Context: <tmp>/isolation-guard-run-pEAaup/artifacts/live-isolated-expert-compo-1c9cc-hout-ever-seeing-a-match-id-live-isolated/error-context.md
+  
+      Error Context: <tmp>/isolation-guard-run-pEAaup/artifacts/live-isolated-expert-compo-1c9cc-hout-ever-seeing-a-match-id-live-isolated/error-context.md
+  
+      attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+      <tmp>/isolation-guard-run-pEAaup/artifacts/live-isolated-expert-compo-1c9cc-hout-ever-seeing-a-match-id-live-isolated/trace.zip
+      Usage:
+  
+          npx playwright show-trace <tmp>/isolation-guard-run-pEAaup/artifacts/live-isolated-expert-compo-1c9cc-hout-ever-seeing-a-match-id-live-isolated/trace.zip
+  
+      ────────────────────────────────────────────────────────────────────────────────────────────────
+  
+  
+  [2/3] [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:91:1 › the form suggests no probability of its own
+  [3/3] [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:109:1 › a percentage typed as 55 is stored as 0.55 and published immediately
+    1 failed
+      [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:77:1 › an expert reaches the form without ever seeing a match id 
+    2 did not run
+  
+  net: blocked 127.0.0.1:63362 pid 6818
+  + actual - expected
+  
+  + [
+  +   'blocked 127.0.0.1:63362 pid 6818'
+  + ]
+  - []
+  
+      at refusedBeforeAnything (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:81:10)
+      at TestContext.<anonymous> (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:131:5)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'blocked 127.0.0.1:63362 pid 6818' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:135:1
+✖ live-isolated with no isolated API URL is refused, not defaulted (338.496167ms)
+  AssertionError [ERR_ASSERTION]: exit 1
+  Error: No tests found
+  
+  
+  net: 
+      at refusedBeforeAnything (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:85:10)
+      at TestContext.<anonymous> (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:140:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'Error: No tests found\n\n',
+    expected: /\[missing:E2E_ISOLATED_API_URL\][\s\S]*nothing was sent to any server/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:144:1
+✖ the live backend or frontend named as the isolated pair is refused before anything is sent (331.805167ms)
+  AssertionError [ERR_ASSERTION]: exit 1
+  Error: No tests found
+  
+  
+  net: 
+      at refusedBeforeAnything (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:85:10)
+      at TestContext.<anonymous> (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:149:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'Error: No tests found\n\n',
+    expected: /\[live-target\][\s\S]*:8000[\s\S]*nothing was sent to any server/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:154:1
+✖ an isolated API that is also the main API is refused (335.514667ms)
+  AssertionError [ERR_ASSERTION]: exit 1
+  Error: No tests found
+  
+  
+  net: 
+      at refusedBeforeAnything (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:85:10)
+      at TestContext.<anonymous> (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:159:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'Error: No tests found\n\n',
+    expected: /\[conflict:same-origin\]/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:162:1
+✖ a mocked run whose frontend URL is a backend is refused (451.691625ms)
+  AssertionError [ERR_ASSERTION]: exit 1
+  Error: No tests found
+  
+  
+  net: 
+      at refusedBeforeAnything (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:85:10)
+      at TestContext.<anonymous> (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:164:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'Error: No tests found\n\n',
+    expected: /\[conflict:frontend-is-backend\]/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:167:1
+✖ a URL carrying a password is refused and the password is never printed (343.656292ms)
+  AssertionError [ERR_ASSERTION]: exit 1
+  Error: No tests found
+  
+  
+  net: 
+      at refusedBeforeAnything (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:85:10)
+      at TestContext.<anonymous> (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:172:3)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'Error: No tests found\n\n',
+    expected: /\[malformed-url\]/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:177:1
+✖ an approved mocked run starts and passes, with Node sending nothing (1444.615167ms)
+  AssertionError [ERR_ASSERTION]: exit 0
+  
+  Running 1 test using 1 worker
+  
+  [1/1] [mocked-desktop] › e2e/mocked/provider-states.spec.ts:59:1 › the status banner stays away when every provider is healthy
+    1 passed (1.2s)
+  
+      at TestContext.<anonymous> (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:184:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '\nRunning 1 test using 1 worker\n\n[1/1] [mocked-desktop] › e2e/mocked/provider-states.spec.ts:59:1 › the status banner stays away when every provider is healthy\n  1 passed (1.2s)\n',
+    expected: /isolation preflight: PASS/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:189:1
+✖ the approved isolated pair passes the preflight: one GET to the isolated backend and nothing else from Node (342.064458ms)
+  AssertionError [ERR_ASSERTION]: exit 1
+  Error: No tests found
+  
+  
+  net: 
+      at TestContext.<anonymous> (file://<worktree>/frontend/e2e/guard/refusal-runs.test.mjs:196:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'Error: No tests found\n\n',
+    expected: /isolation preflight: PASS/,
+    operator: 'match',
+    diff: 'simple'
+  }
+# (scrubbed: worktree path -> <worktree> x24, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x8, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=1

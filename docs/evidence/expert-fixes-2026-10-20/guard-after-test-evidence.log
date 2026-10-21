@@ -1,0 +1,9 @@
+# guard AFTER (scripts/test_evidence.py): the runner's tests with the guard integration
+# code under test: exactly commit 4f0a2388 (the runs were made on the working tree that was then committed unchanged as 4f0a2388; parent b8b5f8bc)
+# run at 2026-10-21T12:19Z; cd <worktree> && backend/venv311/bin/python -m pytest scripts/tests -q -p no:cacheprovider -o addopts='' -rfEs (synthetic reports only; nothing connects)
+# expected: all 92 pass. The runner itself was NOT run end to end here: its preflight sends GET /health to :8000, which this work may not contact
+........................................................................ [ 78%]
+....................                                                     [100%]
+92 passed in 1.32s
+# (scrubbed: worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=0

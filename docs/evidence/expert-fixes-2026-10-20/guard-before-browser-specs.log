@@ -1,0 +1,9 @@
+# guard BEFORE (browser half, Stage A and Stage B self-tests): the new specs against the unchanged code
+# branch expert-fixes at b8b5f8bc; uncommitted: frontend/playwright.guard.config.ts and frontend/e2e/guard/ only; no product code changed
+# run at 2026-10-21T12:00Z; cd <worktree>/frontend && ./node_modules/.bin/playwright test --config=playwright.guard.config.ts
+# expected: both spec files fail to load, because e2e/support/target-policy.ts and isolation-preflight.ts do not exist yet
+Error: Cannot find module '<worktree>/frontend/e2e/support/target-policy' imported from <worktree>/frontend/e2e/guard/backend-probe.spec.ts
+Error: Cannot find module '<worktree>/frontend/e2e/support/target-policy' imported from <worktree>/frontend/e2e/guard/policy.spec.ts
+Error: No tests found
+# (scrubbed: worktree path -> <worktree> x4, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=1

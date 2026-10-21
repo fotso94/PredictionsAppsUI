@@ -1,0 +1,26 @@
+# guard AFTER (browser half): an approved setup still runs - the two existing live-isolated expert suites, on the restarted isolated pair
+# code under test: exactly commit 4f0a2388 (the runs were made on the working tree that was then committed unchanged as 4f0a2388; parent b8b5f8bc)
+# run at 2026-10-21T12:15Z; cd <worktree>/frontend && E2E_STACK=live-isolated E2E_ISOLATED_BASE_URL=http://localhost:3101 E2E_ISOLATED_API_URL=http://127.0.0.1:8001 ./node_modules/.bin/playwright test --project=live-isolated --workers=1 e2e/live-isolated/expert-composer.spec.ts e2e/live-isolated/expert-publishing.spec.ts
+# expected: the preflight passes after one GET to :8001/health (e2e database, Redis 10-15, scheduler off) and one aborted-API load of :3101 (observed calling :8001); then 10 passed, as at the baseline and the last final run
+isolation preflight: PASS (policy sha256 e2abbcc34d12)
+  mocked-desktop, mocked-mobile, mocked-mobile-360: frontend http://localhost:3100; every /api/v1 call is answered by the stubs
+  live-isolated: frontend http://localhost:3101 calls http://localhost:8001 (observed); backend http://127.0.0.1:8001: database soccer_predictions_e2e, Redis databases 10-15 on this machine's :6379, scheduler off
+  (only this was sent: GET http://127.0.0.1:8001/health; browser: loaded http://localhost:3101/ with every API request aborted in the browser (its first API call was to http://localhost:8001))
+
+Running 10 tests using 1 worker
+
+  ✓   1 [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:77:1 › an expert reaches the form without ever seeing a match id (1.9s)
+  ✓   2 [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:91:1 › the form suggests no probability of its own (2.2s)
+  ✓   3 [live-isolated] › e2e/live-isolated/expert-composer.spec.ts:109:1 › a percentage typed as 55 is stored as 0.55 and published immediately (2.7s)
+  ✓   4 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:52:1 › a published prediction needs no approval and is public immediately (1.1s)
+  ✓   5 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:74:1 › an expert prediction is shown apart from the model forecast (1.1s)
+  ✓   6 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:87:1 › editing a published prediction updates the public view (1.1s)
+  ✓   7 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:111:1 › deleting a prediction removes it from the public view immediately (1.1s)
+  ✓   8 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:128:1 › a record the suite creates is classified as test data, by a flag and not by its text (129ms)
+  ✓   9 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:147:1 › the QA label in the reasoning is a label, not a mechanism (121ms)
+[qa-account] removing a record that carries the legacy reasoning label but no is_test_data classification. Either the backend is running without ALLOW_TEST_DATA_CLASSIFICATION, or the record was created through the composer UI, which does not yet ask for the classification.
+  ✓  10 [live-isolated] › e2e/live-isolated/expert-publishing.spec.ts:155:1 › an expert signs in through the UI and reaches the match picker (2.2s)
+
+  10 passed (15.0s)
+# (scrubbed: worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=0
