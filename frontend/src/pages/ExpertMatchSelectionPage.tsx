@@ -218,16 +218,9 @@ const FixtureList: React.FC<{ onChoose: (match: Match) => void; actionLabel: str
         // A failed request is not an empty day. The list is cleared and the failure is stated.
         // `getErrorMessage` prefers the SERVER'S own words, then its two translated sentences
         // (503, timed out); the empty fallback means that when nothing was said this page states
-        // only that the load failed rather than inventing a reason nobody gave.
-        //
-        // ONE GAP, AND IT IS NOT THIS PACKAGE'S TO CLOSE. Before reaching the fallback,
-        // `getErrorMessage` returns axios's own `err.message` — "Network Error" and
-        // "Request failed with status code 500" are English strings from the HTTP client, not
-        // from the server and not from any catalogue, so a transport failure with no response
-        // body puts English under this French title. It is an improvement on the `describeError`
-        // this replaced, which synthesised two English sentences of its own, but it is not a
-        // guarantee of "the server's words or nothing". src/utils/errors.ts owns that decision;
-        // the failed-load test below covers the server-said-something case only.
+        // only that the load failed rather than inventing a reason nobody gave. The HTTP client's
+        // own English ("Network Error", "Request failed with status code 500") is never shown in
+        // its place: src/utils/errors.ts returns the fallback instead (review finding #23).
         if (!cancelled) {
           setError(getErrorMessage(err, ''))
           setMatches([])

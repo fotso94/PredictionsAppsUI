@@ -1,0 +1,9 @@
+# review-fix AFTER: frontend lint (eslint . --ext ts,tsx --max-warnings 0, which covers src and e2e) on the fixed code
+# run at 2026-10-21T06:41:01Z; cd frontend && npm run lint
+
+
+> soccer-predictions-frontend@1.0.0 lint
+> eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
+
+# exit=0
+# (the local worktree path is written <worktree> and the home prefix ~; terminal colour codes stripped; nothing else edited)

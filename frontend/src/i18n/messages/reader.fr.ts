@@ -235,6 +235,8 @@ const reader: Area<'reader'> = {
   /** REVIEW. « non comptabilisé »: not counted in the « bilan mesuré », the expert area's name for the measured record. */
   'reader.expert.publishedAfterKickoff': 'Publié après le coup d’envoi · non comptabilisé',
   'reader.expert.publishedAfterKickoffDetail': 'Seul un pronostic d’expert publié avant le coup d’envoi est comptabilisé. Celui-ci a été publié au coup d’envoi ou après\u00a0: il est affiché ici, mais n’entre pas dans le bilan mesuré.',
+  'reader.expert.withdrawnBeforeKickoff': 'Retiré avant le coup d’envoi, republié après · non comptabilisé',
+  'reader.expert.withdrawnBeforeKickoffDetail': 'Seul un pronostic d’expert public au coup d’envoi est comptabilisé. Celui-ci a été retiré avant le coup d’envoi puis republié ensuite\u00a0: il est affiché ici, mais n’entre pas dans le bilan mesuré. L’heure indiquée ci-dessous est celle de sa première publication.',
 
   // ─── the evidence panel, on a match page ────────────────────────────────────────────────
   'reader.brief.heading': 'Ce que cette page sait du match',

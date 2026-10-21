@@ -177,6 +177,13 @@ export interface ExpertPredictionResponse {
   created_by: string;
   created_at: string;
   published_at: string | null;
+  /**
+   * When it last came off the public lists, or null. Served WITHOUT a zone (unlike created_at and
+   * published_at), so it is read through `backendInstant`, as the UTC it is. Optional because a
+   * backend older than the column does not send it. Settlement reads it: a withdrawal before
+   * kickoff takes a prediction out of the measured record (utils/publication.ts).
+   */
+  unpublished_at?: string | null;
   superseded_by: string | null;
 
   // Enhanced fields

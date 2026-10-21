@@ -168,11 +168,14 @@ const auth = {
    * out this browser only (PasswordChangePage.tsx), access tokens are stateless and last until
    * they expire, and /auth/refresh does not consult the refresh tokens the backend deletes. They
    * now say what happens here and, as plainly, what does not happen anywhere else.
+   *
+   * "This browser", not "this device" (finding #21): logout() clears this origin's storage and
+   * revokes this browser's refresh token, so another browser on the same machine stays signed in.
    */
-  'auth.change.note': 'Changing your password signs you out on this device, and you will need to sign in again with your new password. Other devices that are already signed in are not signed out automatically: sign out on them yourself.',
+  'auth.change.note': 'Changing your password signs you out in this browser, and you will need to sign in again with your new password. Other browsers and devices that are already signed in are not signed out automatically: sign out on them yourself.',
   'auth.change.submit': 'Change Password',
   'auth.change.submitting': 'Changing Password...',
-  'auth.change.success': 'Password changed. This device is now signed out: sign in with your new password. Other devices that are already signed in are not signed out automatically.',
+  'auth.change.success': 'Password changed. This browser is now signed out: sign in with your new password. Other browsers and devices that are already signed in are not signed out automatically.',
   'auth.change.failed': 'Failed to change password',
 
   // ─── the profile ────────────────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { test, expect, Page, Request, Route } from '@playwright/test';
 import { Json, registerAuthHandler, stubBackend } from '../support/api-stub';
 import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from '../support/auth';
+import { LIVE_API_MESSAGE, fenceLiveApi } from '../support/live-stack';
 import authEn from '../../src/i18n/messages/auth.en';
 import authFr from '../../src/i18n/messages/auth.fr';
 
@@ -36,8 +37,9 @@ import authFr from '../../src/i18n/messages/auth.fr';
  * THE SESSION IS SEEDED ONCE PER TAB, not on every document load as support/auth.ts does, so a
  * reload after a password change shows what the browser really holds then: no tokens.
  *
- * COST. Every /api/v1 route is stubbed; nothing reaches a backend. A guard aborts, and the test
- * fails on, any request to the live stack (:8000 or :3100).
+ * COST. Every /api/v1 route is stubbed; nothing reaches a backend. A guard (support/live-stack.ts)
+ * aborts, and the test fails on, any request to the live API (:8000) that no stub answered. It does
+ * not fence the frontend origin, which is the page under test on the default configuration.
  */
 
 /** How long an absence ("no PUT", "no bounce") is watched for. See the note above. */
@@ -54,9 +56,6 @@ const REFRESH_TOKEN = 'e2e-account-forms-refresh-token';
 const SEEDED_FLAG = 'e2e-account-forms-seeded';
 /** Mirrors LANGUAGE_KEY in src/i18n/index.ts. */
 const LANGUAGE_KEY = 'sp.language.v1';
-
-/** The live stack. Nothing in this file may reach it. */
-const LIVE_STACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):(8000|3100)(\/|$)/;
 
 /** GET/PUT /api/v1/users/me, as backend UserResponse. */
 interface Profile extends Json {
@@ -107,7 +106,7 @@ interface World {
   /** GET /auth/me calls, the path the header's user comes from. */
   meCalls: number;
   signedOut: boolean;
-  /** Requests that tried to reach the live stack. Must stay empty. */
+  /** Requests to the live API that no stub answered. Must stay empty. */
   liveStackHits: string[];
 }
 
@@ -203,6 +202,14 @@ async function setUp(
         return json(route, { detail: [{ loc: ['body', field], msg: 'String should have at least 1 character' }] }, 422);
       }
     }
+    // As UserUpdateRequest does (min_length=3, max_length=50, on the stripped value): a username
+    // that is SENT is validated, whatever the reason it was sent.
+    if ('username' in body) {
+      const sentName = typeof body.username === 'string' ? body.username.trim() : '';
+      if (sentName.length < 3 || sentName.length > 50) {
+        return json(route, { detail: [{ loc: ['body', 'username'], msg: 'String should have at least 3 characters' }] }, 422);
+      }
+    }
     state.profile = { ...state.profile, ...(body as Partial<Profile>), updated_at: new Date().toISOString() };
     return json(route, state.profile);
   });
@@ -212,16 +219,13 @@ async function setUp(
     return json(route, state.passwordAnswer.body, state.passwordAnswer.status);
   });
 
-  // Last, so it wins over every route above for the two origins it claims.
-  await page.route(LIVE_STACK, (route: Route) => {
-    state.liveStackHits.push(`${route.request().method()} ${route.request().url()}`);
-    return route.abort('blockedbyclient');
-  });
+  // On the context, so every page route above answers first and only an unstubbed :8000 call lands here.
+  await fenceLiveApi(page, state.liveStackHits);
   return state;
 }
 
 test.afterEach(() => {
-  if (world) expect(world.liveStackHits, 'nothing may reach the live stack (:8000 or :3100)').toEqual([]);
+  if (world) expect(world.liveStackHits, LIVE_API_MESSAGE).toEqual([]);
   world = null;
 });
 
@@ -336,8 +340,9 @@ test('Save sends exactly one normalised PUT, the header follows without a reload
 
   const extraPut = sent(page, isProfilePut, EXTRA_PUT_WINDOW_MS);
   expect(await extraPut, 'one Save, one PUT').toBe(false);
-  // The whole form, explicitly: trimmed, and the avatar that was never set sent as null, not ''.
-  expect(state.puts).toEqual([{ username: 'qa-regular', first_name: 'Audited', last_name: 'Regular', avatar_url: null }]);
+  // Trimmed, the avatar that was never set sent as null rather than '', and the username, which
+  // was not edited, not sent at all (finding #11: an absent key is "leave it alone").
+  expect(state.puts).toEqual([{ first_name: 'Audited', last_name: 'Regular', avatar_url: null }]);
 
   // What the server stored, back in the form, read-only again.
   await expect(firstName).toHaveValue('Audited');
@@ -370,7 +375,7 @@ test('pressing Enter in a field saves once', async ({ page }) => {
   await fields(page).lastName.press('Enter');
   expect((await (await putRequest).response())?.status()).toBe(200);
   expect(await sent(page, isProfilePut, EXTRA_PUT_WINDOW_MS), 'one Enter, one PUT').toBe(false);
-  expect(state.puts).toEqual([{ username: 'qa-regular', first_name: 'QA', last_name: 'Entered', avatar_url: null }]);
+  expect(state.puts).toEqual([{ first_name: 'QA', last_name: 'Entered', avatar_url: null }]);
 });
 
 test('a double activation of Save while it is in flight sends one PUT', async ({ page }) => {
@@ -407,7 +412,7 @@ test('clearing an optional name and the avatar sends null for each, and succeeds
   expect((await (await putRequest).response())?.status()).toBe(200);
   await expect(page.getByText(authEn['auth.profile.saved'], { exact: true })).toBeVisible();
 
-  expect(state.puts).toEqual([{ username: 'qa-regular', first_name: 'QA', last_name: null, avatar_url: null }]);
+  expect(state.puts).toEqual([{ first_name: 'QA', last_name: null, avatar_url: null }]);
   expect(state.profile.last_name).toBeNull();
   await expect(lastName).toHaveValue('');
   await expect(avatar).toHaveValue('');
@@ -441,6 +446,53 @@ test('an account whose names were never supplied can change its username', async
 
   await page.reload();
   await expect(fields(page).username).toHaveValue('qa-renamed');
+});
+
+/*
+ * Review finding #11. Every save sent the username, edited or not, and the backend validates what
+ * it is sent: an account whose stored username is outside today's 3-50 limits (an email's local
+ * part such as "jo", which registration accepts without a length check, or a padded legacy value)
+ * had every name and avatar change refused with 422. Now the username is sent only when the field
+ * was edited, compared as typed, so an untouched stored value is never re-validated or rewritten.
+ */
+for (const [stored, shape] of [
+  ['jo', 'two characters'],
+  ['qa-padded ', 'stored with a trailing space'],
+  [`qa-${'x'.repeat(60)}`, 'sixty-three characters'],
+] as const) {
+  test(`a stored username outside today's limits (${shape}) does not block a name change, and is not rewritten`, async ({ page }) => {
+    const state = await setUp(page, { profile: { username: stored } });
+    await openProfile(page);
+    const { username, firstName } = fields(page);
+    await expect(username).toHaveValue(stored);
+
+    const editPut = sent(page, isProfilePut);
+    await editButton(page).click();
+    expect(await editPut, 'Edit must not save').toBe(false);
+
+    await firstName.fill('Renamed');
+    const putRequest = page.waitForRequest(isProfilePut);
+    await saveButton(page).click();
+    expect((await (await putRequest).response())?.status(), 'a name change was refused because of the untouched username').toBe(200);
+    await expect(page.getByText(authEn['auth.profile.saved'], { exact: true })).toBeVisible();
+    expect(await sent(page, isProfilePut, EXTRA_PUT_WINDOW_MS), 'one Save, one PUT').toBe(false);
+    expect(state.puts, 'the username was not edited, so it is not sent').toEqual([{ first_name: 'Renamed', last_name: 'Regular', avatar_url: null }]);
+    expect(state.profile.username, 'the stored username was rewritten').toBe(stored);
+    await expect(firstName).toHaveValue('Renamed');
+  });
+}
+
+test('a username that IS edited is still sent, trimmed', async ({ page }) => {
+  const state = await setUp(page, { profile: { username: 'jo' } });
+  await openProfile(page);
+  const { username } = fields(page);
+
+  await editButton(page).click();
+  await username.fill('  jo-renamed  ');
+  const putRequest = page.waitForRequest(isProfilePut);
+  await saveButton(page).click();
+  expect((await (await putRequest).response())?.status()).toBe(200);
+  expect(state.puts).toEqual([{ username: 'jo-renamed', first_name: 'QA', last_name: 'Regular', avatar_url: null }]);
 });
 
 test('a failed save keeps the edits and says so, sends one request, and a retry sends exactly one more', async ({ page }) => {
@@ -591,6 +643,31 @@ test('a confirmation that does not match sends nothing', async ({ page }) => {
   expect(state.passwordPuts).toEqual([]);
   await expect(page.getByText(authEn['auth.validation.newPasswordsDiffer'], { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/password-change$/);
+});
+
+/*
+ * Review finding #21. A password change signs out THIS BROWSER: logout() revokes this browser's
+ * refresh token and clears this origin's storage. Another browser on the same machine — Firefox
+ * beside Chrome, a private window — stays signed in, so "signs you out on this device" promised
+ * more than is done. The copy says browser, in both languages, and still says other browsers and
+ * devices are not signed out.
+ */
+test('the password copy promises a sign-out of this browser, never of this device', () => {
+  const wording = {
+    en: { catalogue: authEn as Record<string, string>, browser: /\bthis browser\b|\bThis browser\b/, device: /this device/i, others: /Other browsers and devices/ },
+    fr: { catalogue: authFr as Record<string, string>, browser: /\bce navigateur\b|\bCe navigateur\b/, device: /cet appareil/i, others: /autres navigateurs et appareils/i },
+  } as const;
+  const wrong: string[] = [];
+  for (const language of ['en', 'fr'] as const) {
+    const { catalogue, browser, device, others } = wording[language];
+    for (const key of ['auth.change.note', 'auth.change.success']) {
+      const text = catalogue[key];
+      if (!browser.test(text)) wrong.push(`${language} ${key} does not say "this browser"`);
+      if (device.test(text)) wrong.push(`${language} ${key} still says "this device"`);
+      if (!others.test(text)) wrong.push(`${language} ${key} no longer says other browsers and devices stay signed in`);
+    }
+  }
+  expect(wrong).toEqual([]);
 });
 
 for (const language of ['en', 'fr'] as const) {

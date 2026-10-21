@@ -1,4 +1,4 @@
-import { expect, test, Page, Request, Route } from '@playwright/test';
+import { expect, test, Locator, Page, Request, Route } from '@playwright/test';
 import en from '../../src/i18n/messages/en';
 import fr from '../../src/i18n/messages/fr';
 import { compileMessage, renderMessage } from '../../src/i18n/format';
@@ -11,6 +11,7 @@ import {
   withCompactBrief, withKickoffPassedForecast, withStaleForecast, withoutForecast, withoutMarkets,
 } from '../support/api-stub';
 import { regularUser, signIn } from '../support/auth';
+import { LIVE_API_MESSAGE, fenceLiveApi } from '../support/live-stack';
 import { frenchVocabulary, pageStringsIn, unaccountedWords, verbatimStrings, wordsOf } from '../support/vocabulary';
 
 /**
@@ -48,8 +49,10 @@ import { frenchVocabulary, pageStringsIn, unaccountedWords, verbatimStrings, wor
  * it; the composer sends its request synchronously from the click handler, so a request that is
  * going to leave has left well inside that window.
  *
- * COST. Every /api/v1 route is stubbed. A guard aborts, and fails the test on, any request to the
- * live stack (:8000 or :3100), and no test here may ask for `refresh=true`.
+ * COST. Every /api/v1 route is stubbed. A guard (support/live-stack.ts) aborts, and fails the test
+ * on, any request to the live API (:8000) that no stub answered, and no test here may ask for
+ * `refresh=true`. The guard does not fence the frontend origin, which is the page under test on the
+ * default configuration.
  */
 
 type Language = 'en' | 'fr';
@@ -61,7 +64,6 @@ const NAIROBI = 'Africa/Nairobi';
 /** The browser context's own zone (playwright.config.ts). Chosen by no test. */
 const NEW_YORK = 'America/New_York';
 const LOCALE: Record<Language, string> = { en: 'en-GB', fr: 'fr-FR' };
-const LIVE_STACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):(8000|3100)(\/|$)/;
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -105,7 +107,7 @@ const REASONING_FR = 'Les deux équipes jouent bien chez elles, la forme récent
 let liveStackHits: string[] = [];
 
 test.afterEach(() => {
-  expect(liveStackHits, 'nothing may reach the live stack (:8000 or :3100)').toEqual([]);
+  expect(liveStackHits, LIVE_API_MESSAGE).toEqual([]);
 });
 
 // --------------------------------------------------------------------------- helpers
@@ -200,7 +202,7 @@ function minePrediction(over: Partial<Json> = {}): Json {
 }
 
 /**
- * Seed the reader's choices before boot, fence off the live stack, stub every route, sign in.
+ * Seed the reader's choices before boot, fence off the live API, stub every route, sign in.
  *
  * Every stub is in place BEFORE the sign-in, so nothing the signed-in page asks for can find its
  * route still unstubbed (the order expert-localisation.spec.ts settled on for the same reason).
@@ -225,10 +227,7 @@ async function openAsExpert(
     },
     [LANGUAGE_KEY, ZONE_KEY, options.language, options.zone ?? DOUALA] as const,
   );
-  await page.context().route(LIVE_STACK, (route: Route) => {
-    liveStackHits.push(`${route.request().method()} ${route.request().url()}`);
-    return route.abort('blockedbyclient');
-  });
+  await fenceLiveApi(page, liveStackHits);
   page.on('request', request => { if (request.url().includes('/api/v1/')) world.requests.push(request.url()); });
 
   const fixtures = options.fixtures ?? DAY_POOL;
@@ -666,6 +665,116 @@ test('the kick-off is the Douala time and day in the picker, the header, the evi
   expect(previewText, 'the preview did not show the Douala kick-off').toContain(stamp);
   expect(previewText, 'the preview printed an ISO date').not.toMatch(/\d{4}-\d{2}-\d{2}/);
   expect(previewText).not.toContain(deviceStamp);
+});
+
+/*
+ * Review finding #24. The composer header and the preview each put the kick-off LAST in one
+ * `truncate`d line, so at 360 and 390 px the ellipsis fell before it — and the kick-off is the one
+ * value on that line the expert reads off the page to know the fixture is still prematch. Only the
+ * competition may give way now. Measured from the drawn text, not read from innerText, which still
+ * holds every clipped character (the Douala test above passed on the clipped header).
+ */
+const LONG_COMPETITION = 'Ligue des champions de la CAF';
+
+/**
+ * Every way `stamp` is not drawn whole inside `scope`: no element holds it, or the text of the
+ * element that does runs past the edge of an ancestor that hides its overflow (a `truncate` line, a
+ * card). Empty when it is all on screen.
+ */
+async function hiddenKickoff(scope: Locator, stamp: string): Promise<string[]> {
+  return scope.evaluate((root, wanted) => {
+    const flat = (text: string) => text.replace(/[\u202f\u00a0]/g, ' ').replace(/\s+/g, ' ');
+    const holds = (el: Element) => flat(el.textContent ?? '').includes(wanted);
+    const all = [root, ...Array.from(root.querySelectorAll('*'))];
+    const deepest = all.filter(el => holds(el) && !Array.from(el.children).some(holds));
+    if (deepest.length === 0) return [`nothing here holds "${wanted}"`];
+    const problems: string[] = [];
+    for (const el of deepest) {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const text = range.getBoundingClientRect();
+      for (let box: Element | null = el; box && box !== document.documentElement; box = box.parentElement) {
+        if (getComputedStyle(box).overflowX === 'visible') continue;
+        const edge = box.getBoundingClientRect();
+        if (text.right > edge.right + 0.5 || text.left < edge.left - 0.5) {
+          problems.push(`<${box.tagName.toLowerCase()} class="${box.getAttribute('class') ?? ''}"> hides ${Math.round(text.right - edge.right)}px of the text that holds the kick-off`);
+        }
+      }
+    }
+    return problems;
+  }, stamp);
+}
+
+test('the kick-off is drawn whole in the composer header and in the preview, at this width', async ({ page }) => {
+  const fixture = withCompactBrief(withoutMarkets(fixtureAt(KICKOFF_UTC, 'Coton Sport', 'Union Douala', 'fx-l1'), ['exact_score']));
+  (fixture.competition as Json).name = LONG_COMPETITION;
+  await openAsExpert(page, { language: 'fr', fixtures: [fixture] });
+  await page.goto(`/expert/predictions/create?matchId=${fixture.id}`);
+  await expect(page.locator('#composer-home')).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  const stamp = plainSpaces(await inZone(page, DOUALA, 'fr', STAMP, KICKOFF_UTC));
+
+  const header = page.locator('h1').locator('xpath=..');
+  await expect(header).toContainText(LONG_COMPETITION.slice(0, 6));
+  // Soft, so a page that clips both reports both.
+  expect.soft(await hiddenKickoff(header, stamp), 'the composer header clips the kick-off').toEqual([]);
+
+  await page.locator('#composer-home').fill('55');
+  await page.getByRole('button', { name: fr['expert.action.preview'], exact: true }).click();
+  const preview = page.locator('#main section[aria-label]');
+  await expect(preview).toBeVisible();
+  expect.soft(await hiddenKickoff(preview, stamp), 'the preview clips the kick-off').toEqual([]);
+  expect(await sidewaysOverflow(page), 'the composer scrolls sideways').toBeLessThanOrEqual(0);
+});
+
+/*
+ * Review finding #23. getErrorMessage returned axios's own err.message — "Network Error",
+ * "Request failed with status code 500" — whenever the server sent no words, ahead of the caller's
+ * translated fallback. So a French expert read English under a French title on the picker, on a
+ * fixture that would not load and on a refused publish. The server's own words still come first
+ * (the refused-publish test above); the HTTP client's are never shown.
+ */
+const TRANSPORT_ENGLISH = /Network Error|Request failed|status code|\bcanceled\b/i;
+
+test('a picker that cannot reach the server says so in French, with no HTTP-client English', async ({ page }) => {
+  await openAsExpert(page, { language: 'fr' });
+  await page.route(url => url.pathname === '/api/v1/matches', route => route.abort('failed'));
+  await page.goto('/expert/predictions/create');
+  // The failed state's title (EmptyState puts its tone word in front of it, so not an exact match).
+  await expect(page.locator('#main').getByText(fr['expert.picker.loadFailed'])).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  expect(await page.locator('#main').innerText(), 'the picker printed the HTTP client\'s English').not.toMatch(TRANSPORT_ENGLISH);
+  await expectAllAccountedFor(page, journeyVocabulary(), 'a picker whose day list could not be reached');
+});
+
+test('a fixture that cannot be loaded says so in French, with the French reason', async ({ page }) => {
+  await openAsExpert(page, { language: 'fr' });
+  await page.route(url => url.pathname === `/api/v1/matches/${NEAR_MIDNIGHT.id}`, route => route.abort('failed'));
+  await page.goto(`/expert/predictions/create?matchId=${NEAR_MIDNIGHT.id}`);
+  await expect(page.locator('#main').getByText(fr['expert.compose.fixtureNotOpened'])).toBeVisible();
+  await expect(page.locator('#main').getByText(fr['expert.compose.fixtureLoadFailed'], { exact: true }),
+    'the French reason is not where the failure is explained').toBeVisible();
+  expect(await page.locator('#main').innerText(), 'the composer printed the HTTP client\'s English').not.toMatch(TRANSPORT_ENGLISH);
+});
+
+test('a publish refused with no words from the server says so in French', async ({ page }) => {
+  const world = await openAsExpert(page, { language: 'fr' });
+  // Registered after the expert stub, so it answers first: a 500 whose body is not JSON at all.
+  let posts = 0;
+  await page.route('**/api/v1/expert/predictions/manual', route => {
+    posts += 1;
+    return route.fulfill({ status: 500, contentType: 'text/plain', body: 'Internal Server Error' });
+  });
+  await openComposer(page);
+  await page.locator('#composer-home').fill('55');
+  await page.locator('#composer-draw').fill('25');
+  await page.locator('#composer-away').fill('20');
+  await page.getByRole('button', { name: fr['expert.action.publish'], exact: true }).click();
+  await expect.poll(() => posts).toBe(1);
+  const alert = page.locator('#main [role="alert"]');
+  await expect(alert).toHaveText(fr['expert.compose.publishFailed']);
+  expect(await page.locator('#main').innerText(), 'the composer printed the HTTP client\'s English').not.toMatch(TRANSPORT_ENGLISH);
+  expect(world.created, 'the refused publish reached the stubbed create').toHaveLength(0);
 });
 
 test('changing the zone re-times the composer picker and asks the backend for the new day window', async ({ page }) => {

@@ -358,6 +358,14 @@ const reader = {
    */
   'reader.expert.publishedAfterKickoff': 'Published after kick-off · not scored',
   'reader.expert.publishedAfterKickoffDetail': 'Only an expert prediction published before kick-off is scored. This one was published at or after kick-off, so it is shown here but left out of the measured record.',
+  /**
+   * Settlement's withdrawal rule, said where the prediction is: one unpublished before kick-off and
+   * published again after it was not public when the match started, so it is not scored
+   * (`withdrawn_before_kickoff: true`). Its byline keeps the FIRST publication time, which is
+   * before kick-off, so the detail says what that time is.
+   */
+  'reader.expert.withdrawnBeforeKickoff': 'Withdrawn before kick-off, published again after it · not scored',
+  'reader.expert.withdrawnBeforeKickoffDetail': 'Only an expert prediction that was public at kick-off is scored. This one was taken down before kick-off and published again afterwards, so it is shown here but left out of the measured record. The time below is when it was first published.',
 
   // ─── the evidence panel, on a match page ────────────────────────────────────────────────
   'reader.brief.heading': 'What this page knows about the match',

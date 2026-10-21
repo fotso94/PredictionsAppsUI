@@ -4,6 +4,7 @@ import fr from '../../src/i18n/messages/fr';
 import { compileMessage, renderMessage } from '../../src/i18n/format';
 import { ApiMatch, Json, baseMatches, emptyDayPayload, fixtureAt, matchDetail, stubBackend } from '../support/api-stub';
 import { regularUser, signIn } from '../support/auth';
+import { LIVE_API_MESSAGE, fenceLiveApi } from '../support/live-stack';
 
 /**
  * AN EXPERT'S EARLIER VERSIONS, THEIR AUTHOR, AND A PREDICTION PUBLISHED TOO LATE TO BE SCORED.
@@ -32,8 +33,9 @@ import { regularUser, signIn } from '../support/auth';
  * ABSENCE WINDOWS. A "this is not on the page" check runs after the element it would sit beside is
  * visible and the network is idle; there is no timer to wait out, because nothing here renders late.
  *
- * COST. Every /api/v1 route is stubbed; nothing reaches a backend. A guard aborts, and fails the
- * test on, any request to the live stack (:8000 or :3100).
+ * COST. Every /api/v1 route is stubbed; nothing reaches a backend. A guard (support/live-stack.ts)
+ * aborts, and fails the test on, any request to the live API (:8000) that no stub answered. It does
+ * not fence the frontend origin, which is the page under test on the default configuration.
  */
 
 type Language = 'en' | 'fr';
@@ -43,7 +45,6 @@ const ZONE_KEY = 'sp.timeZone.v1';
 /** A zone the device (America/New_York, playwright.config.ts) is not on. */
 const DOUALA = 'Africa/Douala';
 const LOCALE: Record<Language, string> = { en: 'en-GB', fr: 'fr-FR' };
-const LIVE_STACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):(8000|3100)(\/|$)/;
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -51,7 +52,7 @@ const isoIn = (ms: number): string => new Date(Date.now() + ms).toISOString().re
 
 let liveStackHits: string[] = [];
 
-/** Seed the reader's choices before the app boots, and fence off the live stack. */
+/** Seed the reader's choices before the app boots, and fence off the live API. */
 async function prepare(page: Page, language: Language): Promise<void> {
   liveStackHits = [];
   await page.addInitScript(
@@ -61,14 +62,11 @@ async function prepare(page: Page, language: Language): Promise<void> {
     },
     [LANGUAGE_KEY, ZONE_KEY, language, DOUALA] as const,
   );
-  await page.context().route(LIVE_STACK, (route: Route) => {
-    liveStackHits.push(`${route.request().method()} ${route.request().url()}`);
-    return route.abort('blockedbyclient');
-  });
+  await fenceLiveApi(page, liveStackHits);
 }
 
 test.afterEach(() => {
-  expect(liveStackHits, 'nothing may reach the live stack (:8000 or :3100)').toEqual([]);
+  expect(liveStackHits, LIVE_API_MESSAGE).toEqual([]);
 });
 
 /**
@@ -327,6 +325,51 @@ for (const language of ['en', 'fr'] as const) {
       expect(normalise(await page.locator('body').innerText()))
         .not.toContain(normalise(say(language, 'reader.expert.publishedAfterKickoff')));
     }
+  });
+
+  /*
+   * Review finding #0/#6/#18. Published before kick-off, unpublished before it, published again
+   * after it: the prematch withdrawal is frozen, so settlement does not score it, yet it is served
+   * with its ORIGINAL pre-kick-off `published_at` and `published_after_kickoff: false`. The backend
+   * now says so in `withdrawn_before_kickoff`; the card must say "not scored", in words of its own
+   * — the late chip's "published at or after kick-off" would be false of a row the byline dates
+   * before kick-off.
+   */
+  test(`a prediction withdrawn before kick-off and published again after it says it is not scored, in ${language}`, async ({ page }) => {
+    let flags: Json = { published_after_kickoff: false, withdrawn_before_kickoff: true };
+    await openMatch(page, language, () => detailWith([expertPrediction(flags)], [revision()]));
+
+    const chip = page.getByTestId('expert-withdrawn-before-kickoff');
+    await expect(chip, 'a prediction settlement leaves out is shown as an ordinary prematch one').toHaveCount(1);
+    await expect(chip).toContainText(say(language, 'reader.expert.withdrawnBeforeKickoff'));
+    await expect(chip).toContainText(say(language, 'reader.expert.withdrawnBeforeKickoffDetail'));
+    // Not the late chip: its sentence ("published at or after kick-off") is false of this row.
+    await expect(page.getByTestId('expert-late-publication')).toHaveCount(0);
+    // The byline still carries the first publication time, which the detail sentence accounts for.
+    await expect(page.getByTestId('expert-byline')).toContainText(say(language, 'reader.expert.byline', { name: AUTHOR_A.username }));
+
+    // False (it stood), null (kick-off unknown) and absent (a backend older than the field): no chip.
+    for (const next of [
+      { published_after_kickoff: false, withdrawn_before_kickoff: false },
+      { published_after_kickoff: false, withdrawn_before_kickoff: null },
+      { published_after_kickoff: false },
+    ] as Json[]) {
+      flags = next;
+      await page.reload();
+      await expect(page.getByTestId('expert-byline')).toBeVisible();
+      await page.waitForLoadState('networkidle');
+      await expect(chip, `${JSON.stringify(next)} still showed the chip`).toHaveCount(0);
+      expect(normalise(await page.locator('body').innerText()))
+        .not.toContain(normalise(say(language, 'reader.expert.withdrawnBeforeKickoff')));
+    }
+
+    // Late AND withdrawn cannot both be true of one row; if a payload ever says so, one chip, the late one.
+    flags = { published_after_kickoff: true, withdrawn_before_kickoff: true };
+    await page.reload();
+    await expect(page.getByTestId('expert-byline')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByTestId('expert-late-publication')).toHaveCount(1);
+    await expect(chip).toHaveCount(0);
   });
 }
 

@@ -39,8 +39,9 @@ function detailToMessage(detail: unknown): string | null {
 /**
  * Best human-readable message for anything a request can throw.
  *
- * Order: the API's own `detail`, then the API's `message`, then the transport error message,
- * then the caller's fallback. Never invents a reason the server did not give.
+ * Order, for a request: the API's own `detail`, then the API's `message`, then our two translated
+ * sentences (503, timed out), then the caller's fallback. Never invents a reason the server did
+ * not give, and never shows the HTTP client's own text in its place.
  */
 export function getErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -48,12 +49,16 @@ export function getErrorMessage(err: unknown, fallback: string): string {
     const fromDetail = detailToMessage(data?.detail);
     if (fromDetail) return fromDetail;
     if (typeof data?.message === 'string' && data.message.trim()) return data.message;
-    // Only OUR two sentences are translated. `data.detail`, `data.message` and `err.message`
-    // above are the server's own words and the transport's, and are passed through unchanged in
-    // every language — a paraphrase of somebody else's error is a different error.
+    // Only OUR sentences are translated. `data.detail` and `data.message` above are the server's
+    // own words, and are passed through unchanged in every language — a paraphrase of somebody
+    // else's error is a different error.
     if (err.response?.status === 503) return t('error.serviceUnavailable');
     if (err.code === 'ECONNABORTED') return t('error.timedOut');
-    if (err.message) return err.message;
+    // NOT `err.message` (review finding #23). "Network Error", "Request failed with status code
+    // 500", "canceled" are axios's English, not the server's words and not ours: shown under a
+    // French title they were the only English on the page, and they say nothing the caller's
+    // fallback does not. The caller decides what a silent failure says — its own translated
+    // sentence, or '' for "nothing beyond the title".
     return fallback;
   }
   if (err instanceof Error && err.message) return err.message;

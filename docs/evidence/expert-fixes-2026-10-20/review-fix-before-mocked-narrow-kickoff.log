@@ -1,0 +1,133 @@
+# review-fix BEFORE (mocked-mobile 390px WebKit, mocked-mobile-360 Galaxy S8): finding #24's geometry check on the UNCHANGED product code (at 1440px it passes on the old code too; see review-fix-before-mocked-desktop-history-composer.log)
+# branch expert-fixes at 73252b7f plus the uncommitted spec changes under frontend/e2e only (frontend/src untouched at the time of this run); committed with the fix
+# served by Vite on http://localhost:3101 (pid 1982, cwd <worktree>/frontend, --mode dev8001)
+# run at 2026-10-21T06:16:22Z; cd frontend && E2E_BASE_URL=http://localhost:3101 npx playwright test e2e/mocked/expert-composer-localisation.spec.ts --project=mocked-mobile --project=mocked-mobile-360 --grep the kick-off is drawn whole --reporter=list
+
+
+Running 2 tests using 1 worker
+
+  ✘  1 [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:708:1 › the kick-off is drawn whole in the composer header and in the preview, at this width (1.2s)
+  ✘  2 [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:708:1 › the kick-off is drawn whole in the composer header and in the preview, at this width (1.1s)
+
+
+  1) [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:708:1 › the kick-off is drawn whole in the composer header and in the preview, at this width 
+
+    Error: the composer header clips the kick-off
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "<p class=\"mt-1 truncate text-sm text-secondary-300\"> hides 234px of the text that holds the kick-off",
+    + ]
+
+      718 |   await expect(header).toContainText(LONG_COMPETITION.slice(0, 6));
+      719 |   // Soft, so a page that clips both reports both.
+    > 720 |   expect.soft(await hiddenKickoff(header, stamp), 'the composer header clips the kick-off').toEqual([]);
+          |                                                                                             ^
+      721 |
+      722 |   await page.locator('#composer-home').fill('55');
+      723 |   await page.getByRole('button', { name: fr['expert.action.preview'], exact: true }).click();
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:720:93
+
+    Error: the preview clips the kick-off
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "<p class=\"mt-0.5 truncate text-xs text-secondary-400\"> hides 10px of the text that holds the kick-off",
+    + ]
+
+      724 |   const preview = page.locator('#main section[aria-label]');
+      725 |   await expect(preview).toBeVisible();
+    > 726 |   expect.soft(await hiddenKickoff(preview, stamp), 'the preview clips the kick-off').toEqual([]);
+          |                                                                                      ^
+      727 |   expect(await sidewaysOverflow(page), 'the composer scrolls sideways').toBeLessThanOrEqual(0);
+      728 | });
+      729 |
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:726:86
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-447c7-n-the-preview-at-this-width-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-447c7-n-the-preview-at-this-width-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-447c7-n-the-preview-at-this-width-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-447c7-n-the-preview-at-this-width-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:708:1 › the kick-off is drawn whole in the composer header and in the preview, at this width 
+
+    Error: the composer header clips the kick-off
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "<p class=\"mt-1 truncate text-sm text-secondary-300\"> hides 256px of the text that holds the kick-off",
+    + ]
+
+      718 |   await expect(header).toContainText(LONG_COMPETITION.slice(0, 6));
+      719 |   // Soft, so a page that clips both reports both.
+    > 720 |   expect.soft(await hiddenKickoff(header, stamp), 'the composer header clips the kick-off').toEqual([]);
+          |                                                                                             ^
+      721 |
+      722 |   await page.locator('#composer-home').fill('55');
+      723 |   await page.getByRole('button', { name: fr['expert.action.preview'], exact: true }).click();
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:720:93
+
+    Error: the preview clips the kick-off
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "<p class=\"mt-0.5 truncate text-xs text-secondary-400\"> hides 33px of the text that holds the kick-off",
+    + ]
+
+      724 |   const preview = page.locator('#main section[aria-label]');
+      725 |   await expect(preview).toBeVisible();
+    > 726 |   expect.soft(await hiddenKickoff(preview, stamp), 'the preview clips the kick-off').toEqual([]);
+          |                                                                                      ^
+      727 |   expect(await sidewaysOverflow(page), 'the composer scrolls sideways').toBeLessThanOrEqual(0);
+      728 | });
+      729 |
+        at <worktree>/frontend/e2e/mocked/expert-composer-localisation.spec.ts:726:86
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-447c7-n-the-preview-at-this-width-mocked-mobile-360/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-composer-loc-447c7-n-the-preview-at-this-width-mocked-mobile-360/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-composer-loc-447c7-n-the-preview-at-this-width-mocked-mobile-360/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-composer-loc-447c7-n-the-preview-at-this-width-mocked-mobile-360/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [mocked-mobile] › e2e/mocked/expert-composer-localisation.spec.ts:708:1 › the kick-off is drawn whole in the composer header and in the preview, at this width 
+    [mocked-mobile-360] › e2e/mocked/expert-composer-localisation.spec.ts:708:1 › the kick-off is drawn whole in the composer header and in the preview, at this width 
+# exit=1
+# (the local worktree path is written <worktree> and the home prefix ~; terminal colour codes stripped; nothing else edited)

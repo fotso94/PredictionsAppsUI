@@ -1,6 +1,7 @@
 import { expect, test, Locator, Page, Request, Route } from '@playwright/test';
 import { Json, stubBackend } from '../support/api-stub';
 import { regularUser, signIn } from '../support/auth';
+import { LIVE_API_MESSAGE, fenceLiveApi } from '../support/live-stack';
 import expertEn from '../../src/i18n/messages/expert.en';
 import expertFr from '../../src/i18n/messages/expert.fr';
 
@@ -35,11 +36,10 @@ import expertFr from '../../src/i18n/messages/expert.fr';
  * so on the old code (which has none of the new keys) a lookup cannot come back undefined and match
  * anything; the last test checks that these literals are still the catalogue's.
  *
- * COST. Every /api/v1 route is stubbed; nothing reaches a backend. A guard aborts, and fails the test
- * on, any request to the live stack (:8000 or :3100).
+ * COST. Every /api/v1 route is stubbed; nothing reaches a backend. A guard (support/live-stack.ts)
+ * aborts, and fails the test on, any request to the live API (:8000) that no stub answered. It does
+ * not fence the frontend origin, which is the page under test on the default configuration.
  */
-
-const LIVE_STACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):(8000|3100)(\/|$)/;
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -69,13 +69,23 @@ const COPY = {
     emptyPageBody: 'Nothing is listed on this page any more: the list has become shorter since it was opened. Go back to the previous page.',
     confirmUnpublish: 'Unpublish this prediction? Readers will no longer see it on the match page. You can publish it again later.',
     confirmPublish: 'Publish this prediction? Readers will see it on the match page straight away.',
-    kickedOffUnpublish: 'This match has kicked off. Unpublishing now hides this prediction from readers but does not remove it from your measured record, which is decided by what stood at kickoff.',
-    kickedOffPublish: 'This match has kicked off. Publishing now shows this prediction to readers but does not add it to your measured record, which is decided by what stood at kickoff.',
+    // True whichever way the record stands (finding #19): a counted prediction stays counted, and
+    // one never counted is not counted now. The old pair said "does not remove it" / "does not add
+    // it", each of which implied the state it did not name.
+    kickedOffUnpublish: 'This match has kicked off. Unpublishing now hides this prediction from readers but does not change your measured record, which is decided by what stood at kick-off.',
+    kickedOffPublish: 'This match has kicked off. Publishing now shows this prediction to readers but does not change your measured record, which is decided by what stood at kick-off.',
+    confirmDeleteMine: 'Are you sure you want to delete this prediction? This action cannot be undone.',
+    confirmDeleteDashboard: 'Delete this prediction? It disappears from the public match page and cannot be undone.',
+    kickedOffDelete: 'This match has kicked off. Deleting this prediction now removes it from readers and from your lists, but does not change your measured record, which is decided by what stood at kick-off.',
+    lateNotScored: 'Published after kick-off · not in your measured record',
+    withdrawnNotScored: 'Withdrawn before kick-off · not in your measured record',
     recentHeading: 'Recent predictions',
     statWritten: 'Predictions written',
     statPublished: 'Published',
     statNotPublished: 'Not published',
-    statUnpublished: 'Unpublished',
+    // The ARCHIVED part of "Not published", named as the status filter and the badge name it
+    // (finding #22): "Unpublished" beside "Not published" was two near-synonyms counting two sets.
+    statUnpublished: 'Archived',
     statAverage: 'Average conviction',
   },
   fr: {
@@ -96,8 +106,13 @@ const COPY = {
     emptyPageBody: 'Plus rien n’est listé sur cette page : la liste a raccourci depuis son ouverture. Revenez à la page précédente.',
     confirmUnpublish: 'Dépublier ce pronostic ? Les lecteurs ne le verront plus sur la page du match. Vous pourrez le publier à nouveau plus tard.',
     confirmPublish: 'Publier ce pronostic ? Les lecteurs le verront immédiatement sur la page du match.',
-    kickedOffUnpublish: 'Le coup d’envoi a été donné. Dépublier ce pronostic maintenant le cache aux lecteurs, mais ne le retire pas de votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
-    kickedOffPublish: 'Le coup d’envoi a été donné. Publier ce pronostic maintenant le montre aux lecteurs, mais ne l’ajoute pas à votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
+    kickedOffUnpublish: 'Le coup d’envoi a été donné. Dépublier ce pronostic maintenant le cache aux lecteurs, mais ne change rien à votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
+    kickedOffPublish: 'Le coup d’envoi a été donné. Publier ce pronostic maintenant le montre aux lecteurs, mais ne change rien à votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
+    confirmDeleteMine: 'Voulez-vous vraiment supprimer ce pronostic ? Cette action est irréversible.',
+    confirmDeleteDashboard: 'Supprimer ce pronostic ? Il disparaît de la page publique du match et l’opération est irréversible.',
+    kickedOffDelete: 'Le coup d’envoi a été donné. Supprimer ce pronostic maintenant le retire de vos listes et le cache aux lecteurs, mais ne change rien à votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
+    lateNotScored: 'Publié après le coup d’envoi · hors de votre bilan mesuré',
+    withdrawnNotScored: 'Retiré avant le coup d’envoi · hors de votre bilan mesuré',
     recentHeading: 'Pronostics récents',
     statWritten: 'Pronostics rédigés',
     statPublished: 'Publiés',
@@ -291,15 +306,12 @@ async function open(
   await stubBackend(page);
   await stubExpert(page, store);
   await signIn(page, { user: regularUser({ role: 'expert', full_name: 'QA Expert' }) });
-  await page.route(LIVE_STACK, (route: Route) => {
-    store.liveStackHits.push(`${route.request().method()} ${route.request().url()}`);
-    return route.abort('blockedbyclient');
-  });
+  await fenceLiveApi(page, store.liveStackHits);
   return store;
 }
 
 test.afterEach(() => {
-  if (current) expect(current.liveStackHits, 'nothing may reach the live stack (:8000 or :3100)').toEqual([]);
+  if (current) expect(current.liveStackHits, LIVE_API_MESSAGE).toEqual([]);
   current = null;
 });
 
@@ -392,7 +404,7 @@ async function expectRecord(
   expect(counts.written, `${when}: Predictions written = Published + Not published`)
     .toBe(counts.published + counts.notPublished);
   expect(counts.notPublished, `${when}: Not published`).toBe(expected.notPublished);
-  if ('unpublished' in expected) expect(counts.unpublished, `${when}: Unpublished`).toBe(expected.unpublished);
+  if ('unpublished' in expected) expect(counts.unpublished, `${when}: ${EN.statUnpublished} (the archived tile)`).toBe(expected.unpublished);
 }
 
 /* ======================================================================= My Predictions: pages */
@@ -627,6 +639,102 @@ test('after kickoff, the card and the confirmation say the measured record does 
   expect(store.dialogs[1]).toBe(`${EN.confirmPublish}\n\n${EN.kickedOffPublish}`);
 });
 
+/*
+ * Review finding #20. Settlement treats a deletion like an unpublish: one made at or after kick-off
+ * does not take the prediction out of the measured record. The card's note said so for Unpublish,
+ * directly above a Delete that asked only "cannot be undone" — which read, by contrast, as the way
+ * to remove a loss. The note is for rows that were public (published or archived); a pending or
+ * rejected row was never in the record, and a fixture still to come has nothing decided yet.
+ */
+test('after kickoff, Delete asks with the note that the measured record does not change, on both pages', async ({ page }) => {
+  const kickedOff = isoIn(-2 * HOUR_MS);
+  const store = await open(page, [
+    row(1, {}, kickedOff),
+    row(2, { status: 'archived' }, kickedOff),
+    row(3),
+    row(4, { status: 'pending', published_at: null }, kickedOff),
+  ]);
+  await openMine(page);
+  const asked = async (scope: Locator, n: number): Promise<string> => {
+    await button(scope, EN.delete).click();
+    await expect.poll(() => store.dialogs.length).toBe(n);
+    return store.dialogs[n - 1];
+  };
+
+  store.dialogAnswer = 'dismiss';
+  expect(await asked(card(page, 1), 1), 'published, kicked off').toBe(`${EN.confirmDeleteMine}\n\n${EN.kickedOffDelete}`);
+  expect(await asked(card(page, 2), 2), 'archived, kicked off').toBe(`${EN.confirmDeleteMine}\n\n${EN.kickedOffDelete}`);
+  expect(await asked(card(page, 3), 3), 'published, kick-off still to come').toBe(EN.confirmDeleteMine);
+  expect(await asked(card(page, 4), 4), 'pending: never in the record').toBe(EN.confirmDeleteMine);
+  await page.waitForTimeout(QUIET_MS);
+  expect(deletes(store), `a delete was sent within ${QUIET_MS} ms of a dismissed confirmation`).toEqual([]);
+
+  // Accepted, it still deletes: the note says what the deletion does not change, it refuses nothing.
+  store.dialogAnswer = 'accept';
+  expect(await asked(card(page, 1), 5)).toBe(`${EN.confirmDeleteMine}\n\n${EN.kickedOffDelete}`);
+  await expect.poll(() => deletes(store)).toEqual(['/predictions/pred-01']);
+
+  // The dashboard's own Delete says the same, under the same rule.
+  store.dialogAnswer = 'dismiss';
+  await openDashboard(page);
+  const recent = (n: number) => page.locator('section[aria-labelledby="recent-heading"] li').filter({ hasText: `Alpha ${tag(n)}` });
+  expect(await asked(recent(2), 6), 'dashboard, archived, kicked off').toBe(`${EN.confirmDeleteDashboard}\n\n${EN.kickedOffDelete}`);
+  expect(await asked(recent(3), 7), 'dashboard, kick-off still to come').toBe(EN.confirmDeleteDashboard);
+  await page.waitForTimeout(QUIET_MS);
+  expect(deletes(store), 'the dashboard deleted on a dismissed confirmation').toEqual(['/predictions/pred-01']);
+});
+
+/*
+ * Review finding #1. The expert's own views never said which predictions count. Settlement scores
+ * what stood at kick-off (`stood_at_kickoff`): published strictly before it and not withdrawn
+ * before it, with the backend's boundary — AT kick-off is after it. My Predictions and the
+ * dashboard now name the two ways a prediction that was public falls outside the record, and say
+ * nothing where the record is not affected or not decided yet.
+ */
+test('My Predictions and the dashboard say which predictions are not in the measured record, and no others', async ({ page }) => {
+  const kickoff = isoIn(-3 * HOUR_MS);
+  const from = (ms: number): string => new Date(Date.parse(kickoff) + ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  // The backend serves unpublished_at with no zone on it (only created_at and published_at have a
+  // Z serialiser): the page must read it as the UTC it is, as it reads every backend instant.
+  const naive = (iso: string): string => iso.replace(/Z$/, '');
+  await open(page, [
+    row(1, { published_at: from(HOUR_MS) }, kickoff),
+    row(2, { published_at: kickoff }, kickoff),
+    row(3, { status: 'archived', published_at: from(-5 * HOUR_MS), unpublished_at: from(-HOUR_MS) }, kickoff),
+    row(4, { published_at: from(-5 * HOUR_MS), unpublished_at: naive(from(-HOUR_MS)) }, kickoff),
+    row(5, { published_at: from(-5 * HOUR_MS) }, kickoff),
+    row(6, { status: 'archived', published_at: from(-5 * HOUR_MS), unpublished_at: from(HOUR_MS) }, kickoff),
+    row(7, { status: 'archived', published_at: isoIn(-2 * HOUR_MS), unpublished_at: isoIn(-HOUR_MS) }),
+    row(8, { status: 'pending', published_at: null }, kickoff),
+  ]);
+  const cases: Array<[number, string | null, string]> = [
+    [1, EN.lateNotScored, 'published an hour after kick-off'],
+    [2, EN.lateNotScored, 'published AT kick-off, which is after it'],
+    [3, EN.withdrawnNotScored, 'unpublished before kick-off and still down'],
+    [4, EN.withdrawnNotScored, 'unpublished before kick-off, published again after it (the withdrawal is frozen)'],
+    [5, null, 'published before kick-off and standing: it counts'],
+    [6, null, 'unpublished AFTER kick-off: it still counts'],
+    [7, null, 'unpublished, kick-off three days away: nothing is decided yet'],
+    [8, null, 'pending: never public, so not a record question'],
+  ];
+  const check = async (scope: (n: number) => Locator, where: string) => {
+    for (const [n, label, why] of cases) {
+      await expect(scope(n)).toBeVisible();
+      if (label) {
+        await expect(scope(n), `${where}, row ${n} (${why})`).toContainText(label);
+      } else {
+        await expect(scope(n), `${where}, row ${n} (${why})`).not.toContainText(EN.lateNotScored);
+        await expect(scope(n), `${where}, row ${n} (${why})`).not.toContainText(EN.withdrawnNotScored);
+      }
+    }
+  };
+
+  await openMine(page);
+  await check(n => card(page, n), 'My Predictions');
+  await openDashboard(page);
+  await check(n => page.locator('section[aria-labelledby="recent-heading"] li').filter({ hasText: `Alpha ${tag(n)}` }), 'the dashboard');
+});
+
 test('unpublishing the last row of a filtered later page steps back one page', async ({ page }) => {
   const store = await open(page, rows(1, 21));
   await openMine(page);
@@ -658,7 +766,7 @@ test('the record adds up after publish, unpublish and republish, and after every
   const store = await open(page, [row(1)]);
   store.dialogAnswer = 'accept';
   await openDashboard(page);
-  // The Unpublished tile is checked from the next state on, so that on a page which cannot add up
+  // The Archived tile is checked from the next state on, so that on a page which cannot add up
   // the failure reported is that one.
   await expectRecord(page, { written: 1, published: 1, notPublished: 0 }, 'after publishing');
 
@@ -751,7 +859,8 @@ test('the dashboard asks before it unpublishes, as My Predictions does', async (
 test('in French the record, the recent list and the card actions fit this width', async ({ page }) => {
   const fr = COPY.fr;
   await open(page, [
-    row(1, {}, isoIn(-2 * HOUR_MS)),
+    // Published an hour after a kick-off two hours ago: the longest card, with the not-in-the-record label.
+    row(1, { published_at: isoIn(-HOUR_MS) }, isoIn(-2 * HOUR_MS)),
     row(2, { status: 'archived' }),
     ...rows(3, 21),
   ], { language: 'fr' });
@@ -770,15 +879,20 @@ test('in French the record, the recent list and the card actions fit this width'
   await openMine(page, 'fr');
   await expect(listHeading(page)).toHaveText(fr.heading(21));
   await expect(card(page, 1)).toContainText(fr.kickedOffUnpublish);
+  await expect(card(page, 1)).toContainText(fr.lateNotScored);
   await expect(button(card(page, 1), fr.unpublish)).toBeVisible();
   await expect(button(card(page, 2), fr.publish)).toBeVisible();
   const outside = await cards(page).evaluateAll(nodes => nodes.flatMap(node => {
     const box = node.getBoundingClientRect();
-    return Array.from(node.querySelectorAll('button'))
-      .filter(b => { const r = b.getBoundingClientRect(); return r.left < box.left - 0.5 || r.right > box.right + 0.5; })
+    return Array.from(node.querySelectorAll('button, [data-testid="record-not-scored"]'))
+      .filter(b => {
+        const r = b.getBoundingClientRect();
+        const cut = b.tagName !== 'BUTTON' && b.scrollWidth > b.clientWidth + 1;
+        return r.left < box.left - 0.5 || r.right > box.right + 0.5 || cut;
+      })
       .map(b => b.textContent);
   }));
-  expect(outside, 'these card actions overflow their card at this width').toEqual([]);
+  expect(outside, 'these card actions or labels overflow their card, or are cut short, at this width').toEqual([]);
   await expect(button(page, fr.next)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
     'My Predictions scrolls sideways').toBeLessThanOrEqual(0);
@@ -795,6 +909,11 @@ test('the copy this file reads is the catalogue\'s, in both languages', () => {
     ['confirmPublish', 'expert.publication.confirmPublish'],
     ['kickedOffUnpublish', 'expert.publication.kickedOffUnpublish'],
     ['kickedOffPublish', 'expert.publication.kickedOffPublish'],
+    ['kickedOffDelete', 'expert.publication.kickedOffDelete'],
+    ['confirmDeleteMine', 'expert.mine.confirmDelete'],
+    ['confirmDeleteDashboard', 'expert.dashboard.confirmDelete'],
+    ['lateNotScored', 'expert.record.publishedAfterKickoff'],
+    ['withdrawnNotScored', 'expert.record.withdrawnBeforeKickoff'],
     ['recentHeading', 'expert.dashboard.recentHeading'],
     ['statUnpublished', 'expert.dashboard.statUnpublished'],
     ['statNotPublished', 'expert.dashboard.statNotPublished'],

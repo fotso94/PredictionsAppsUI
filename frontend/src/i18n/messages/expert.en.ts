@@ -95,11 +95,28 @@ const expert = {
    * dashboard's recent list). After kickoff the confirmation and the card add one of the two
    * notes below: settlement scores what stood at kickoff, so from then on a publication change
    * alters what readers see and not the expert's measured record — in either direction.
+   *
+   * "Does not change", and not "does not remove it from" / "does not add it to" (finding #19):
+   * each of those implied a state — that the prediction is in the record, or is not — and was read
+   * that way on a prediction in the other state. "Does not change" is true whichever way it stands.
    */
   'expert.publication.confirmUnpublish': 'Unpublish this prediction? Readers will no longer see it on the match page. You can publish it again later.',
   'expert.publication.confirmPublish': 'Publish this prediction? Readers will see it on the match page straight away.',
-  'expert.publication.kickedOffUnpublish': 'This match has kicked off. Unpublishing now hides this prediction from readers but does not remove it from your measured record, which is decided by what stood at kickoff.',
-  'expert.publication.kickedOffPublish': 'This match has kicked off. Publishing now shows this prediction to readers but does not add it to your measured record, which is decided by what stood at kickoff.',
+  'expert.publication.kickedOffUnpublish': 'This match has kicked off. Unpublishing now hides this prediction from readers but does not change your measured record, which is decided by what stood at kick-off.',
+  'expert.publication.kickedOffPublish': 'This match has kicked off. Publishing now shows this prediction to readers but does not change your measured record, which is decided by what stood at kick-off.',
+  /**
+   * Added to the Delete confirmation after kickoff, on a prediction that was public (finding #20):
+   * settlement treats a deletion like an unpublish, so one made at or after kickoff does not take
+   * the prediction out of the record — and without saying so, Delete read as the way to remove a loss.
+   */
+  'expert.publication.kickedOffDelete': 'This match has kicked off. Deleting this prediction now removes it from readers and from your lists, but does not change your measured record, which is decided by what stood at kick-off.',
+  /*
+   * On the card and the dashboard row of a prediction that is already known to be outside the
+   * measured record (`notScoredReason` in utils/publication.ts, finding #1). Readers see the same
+   * two facts as `reader.expert.publishedAfterKickoff` and `reader.expert.withdrawnBeforeKickoff`.
+   */
+  'expert.record.publishedAfterKickoff': 'Published after kick-off · not in your measured record',
+  'expert.record.withdrawnBeforeKickoff': 'Withdrawn before kick-off · not in your measured record',
 
   'expert.page.previous': 'Previous',
   'expert.page.next': 'Next',
@@ -164,8 +181,12 @@ const expert = {
   'expert.dashboard.statPublished': 'Published',
   /** Everything that is not published (`not_published_predictions`), so Written = Published + this. */
   'expert.dashboard.statNotPublished': 'Not published',
-  /** The part of "Not published" the expert unpublished themselves (`archived_predictions`). */
-  'expert.dashboard.statUnpublished': 'Unpublished',
+  /**
+   * The part of "Not published" the expert took down themselves (`archived_predictions`), named as
+   * the status filter and the badge name the same set. It said "Unpublished", which beside "Not
+   * published" (and "Your unpublished drafts") was two near-synonyms counting two sets (finding #22).
+   */
+  'expert.dashboard.statUnpublished': 'Archived',
   'expert.dashboard.statAverageConviction': 'Average conviction',
   /** Where an average conviction would be when `average_confidence` is null. A stored 0 is a
    *  claimed zero and prints as "0%" instead — this wording is for the null only, and is never

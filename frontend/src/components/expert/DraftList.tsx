@@ -14,6 +14,8 @@ import Emphasised from '@/i18n/Emphasised'
  * DISCARD ALWAYS ASKS. The first press only opens an inline confirmation that names the fixture
  * and says it cannot be undone; nothing is removed until "Discard draft" is pressed. Focus moves
  * to "Keep it", the choice that loses nothing, and comes back to Discard if the expert keeps it.
+ * A confirmed discard removes the row that holds focus, so the PARENT moves focus to its
+ * "Draft discarded." line (the dashboard and the composer's picker both do).
  *
  * NO `truncate` ON THE SUMMARY LINE: see the comment on it below. e2e/mocked/reader-localisation
  * .spec.ts measures `draft-saved-ago` against `draft-summary`, and that against its own box.

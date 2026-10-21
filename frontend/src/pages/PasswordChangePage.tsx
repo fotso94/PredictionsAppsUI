@@ -21,10 +21,11 @@ import { useAuth } from '@/hooks/useAuth';
  * browser is signed out through logout(): its refresh token is blacklisted by /auth/logout, both
  * tokens leave localStorage, the state is cleared and the sign-in form is shown. It used to keep
  * the session and navigate to /login two seconds later, where LoginPage, seeing a signed-in
- * reader, sent them home. No other device is signed out: access tokens are stateless and last
- * until they expire, and /auth/refresh does not consult the refresh tokens the backend deletes
- * (see the docstring of PUT /users/me/password). The note and the success message say exactly
- * that, and no longer claim a logout "from all devices".
+ * reader, sent them home. No other browser or device is signed out, not even another browser on
+ * this machine: access tokens are stateless and last until they expire, and /auth/refresh does
+ * not consult the refresh tokens the backend deletes (see the docstring of PUT
+ * /users/me/password). The note and the success message say exactly that — "this browser", not
+ * "this device" — and no longer claim a logout "from all devices".
  */
 
 /** Mirrors `min_length=8` on the change-password fields in backend/app/schemas/users.py:75. */

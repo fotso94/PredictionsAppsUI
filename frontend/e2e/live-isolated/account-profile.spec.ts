@@ -221,7 +221,8 @@ test('the profile form edits, cancels, saves once and keeps what it saved, on th
     await saveButton(page).click();
     expect((await (await putRequest).response())?.status()).toBe(200);
     expect(await sent(page, isProfilePut, EXTRA_PUT_WINDOW_MS), 'one Save, one PUT').toBe(false);
-    expect(puts).toEqual([{ username: ACCOUNT.username, first_name: 'Audited', last_name: ACCOUNT.last_name, avatar_url: null }]);
+    // The username was not edited, so it is not sent (finding #11: an absent key is "leave it alone").
+    expect(puts).toEqual([{ first_name: 'Audited', last_name: ACCOUNT.last_name, avatar_url: null }]);
     const saved = await storedProfile(api, session.access_token);
     expect(saved.first_name).toBe('Audited');
     expect(saved.last_name).toBe(ACCOUNT.last_name);
@@ -241,7 +242,7 @@ test('the profile form edits, cancels, saves once and keeps what it saved, on th
     await saveButton(page).click();
     expect((await (await clearRequest).response())?.status(), 'a cleared name is accepted').toBe(200);
     expect(puts).toHaveLength(2);
-    expect(puts[1]).toEqual({ username: ACCOUNT.username, first_name: 'Audited', last_name: null, avatar_url: null });
+    expect(puts[1]).toEqual({ first_name: 'Audited', last_name: null, avatar_url: null });
     expect((await storedProfile(api, session.access_token)).last_name).toBeNull();
     expect(await headerName(page)).toBe('Audited');
     await page.reload();
@@ -264,7 +265,7 @@ test('a password change signs this browser out, the new password works and the o
   try {
     await restoreAccount(api);
 
-    // ANOTHER BROWSER, signed in before the change: the "other device" the page talks about.
+    // ANOTHER BROWSER, signed in before the change: one of the "other browsers and devices" the page talks about.
     const otherPage = await elsewhere.newPage();
     await signInThroughTheForm(otherPage, ORIGINAL_PASSWORD);
     await otherPage.goto('/profile');
@@ -347,8 +348,8 @@ test('a password change signs this browser out, the new password works and the o
     expect(await holdsTokens(page), 'signing in with the new password stores a session').toEqual([true, true]);
 
     // THE OTHER BROWSER, already signed in before the change: NOT signed out automatically. This is
-    // exactly what the page now says ("Other devices that are already signed in are not signed out
-    // automatically"); if token hardening ever lands, this assertion is the one to invert.
+    // exactly what the page now says ("Other browsers and devices that are already signed in are not
+    // signed out automatically"); if token hardening ever lands, this assertion is the one to invert.
     const otherReload = otherPage.waitForResponse(response =>
       response.request().method() === 'GET' && new URL(response.url()).pathname === '/api/v1/users/me');
     await otherPage.reload();

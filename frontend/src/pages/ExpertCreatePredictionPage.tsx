@@ -148,10 +148,28 @@ const FixtureComposer: React.FC<FixtureComposerProps> = ({
   const [publishError, setPublishError] = useState<string | null>(null)
   const [published, setPublished] = useState<ExpertPredictionResponse | null>(null)
 
+  /*
+   * Focus follows the discard confirmation, as in DraftList (review finding #10): into "Keep it",
+   * the choice that loses nothing, when it opens; back onto "Start again" when the draft is kept;
+   * and, when it is discarded — which unmounts the box that held focus — onto the "Draft discarded."
+   * line that says what happened, rather than onto <body>, where the next Tab starts from the top.
+   * `discardCount`, not `discarded`, keys that last one, so a second discard here moves focus too.
+   */
   const keepRef = useRef<HTMLButtonElement>(null)
+  const startAgainRef = useRef<HTMLButtonElement>(null)
+  const discardedRef = useRef<HTMLParagraphElement>(null)
+  const returnFocus = useRef(false)
+  const [discardCount, setDiscardCount] = useState(0)
   useEffect(() => {
     if (confirmingDiscard) keepRef.current?.focus()
+    else if (returnFocus.current) {
+      returnFocus.current = false
+      startAgainRef.current?.focus()
+    }
   }, [confirmingDiscard])
+  useEffect(() => {
+    if (discardCount > 0) discardedRef.current?.focus()
+  }, [discardCount])
 
   // ------------------------------------------------------------------ the fixture
   useEffect(() => {
@@ -249,6 +267,7 @@ const FixtureComposer: React.FC<FixtureComposerProps> = ({
     setRestoredAt(null)
     setConfirmingDiscard(false)
     setDiscarded(true)
+    setDiscardCount(count => count + 1)
     setShowErrors(false)
     setPreviewOpen(false)
   }
@@ -324,10 +343,23 @@ const FixtureComposer: React.FC<FixtureComposerProps> = ({
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-white sm:text-3xl">{t('expert.compose.title')}</h1>
           {fixture ? (
-            <p className="mt-1 truncate text-sm text-secondary-300">
-              <span className="font-medium text-white">{fixtureLabel}</span>
+            /*
+              ONLY THE COMPETITION MAY GIVE WAY (review finding #24). This was one `truncate`d line,
+              "{fixture} · {competition} · {kick-off}", and at 360 and 390px the ellipsis fell
+              before the kick-off — the value on the line the expert reads to know the fixture is
+              still prematch. Now the RecentRow shape (ExpertDashboardPage): the fixture wraps, the
+              competition is its own run and truncates, and the kick-off is never cut and never
+              broken; when the pair does not fit, the line wraps.
+            */
+            <p className="mt-1 flex flex-wrap items-baseline gap-x-1 text-sm text-secondary-300" data-testid="composer-fixture-line">
+              <span className="min-w-0 break-words font-medium text-white">{fixtureLabel}</span>
+              {fixture.league.name && (
+                <span className="min-w-0 max-w-full truncate text-secondary-400">· {fixture.league.name}</span>
+              )}
               {/* The kick-off in the reader's chosen zone — what tells them it is still prematch. */}
-              <span className="text-secondary-400"> · {fixture.league.name} · {kickoffLine}</span>
+              {kickoffLine && (
+                <span className="num whitespace-nowrap text-secondary-400" data-testid="composer-header-kickoff">· {kickoffLine}</span>
+              )}
             </p>
           ) : (
             <p className="mt-1 text-sm text-secondary-400">{t('expert.compose.loadingFixture')}</p>
@@ -363,7 +395,7 @@ const FixtureComposer: React.FC<FixtureComposerProps> = ({
               ? t('expert.draft.restoredSaved', { ago: restoredAgo })
               : t('expert.draft.restored')}
             {!composerIsEmpty(values) && !confirmingDiscard && (
-              <button type="button" onClick={() => setConfirmingDiscard(true)} className="focus-ring ml-2 font-medium text-primary-300 hover:text-primary-200">
+              <button ref={startAgainRef} type="button" onClick={() => setConfirmingDiscard(true)} className="focus-ring ml-2 font-medium text-primary-300 hover:text-primary-200">
                 {t('expert.draft.startAgain')}
               </button>
             )}
@@ -378,7 +410,12 @@ const FixtureComposer: React.FC<FixtureComposerProps> = ({
                 <button type="button" onClick={discardDraft} className="btn btn-sm btn-danger">
                   {t('expert.draft.confirmDiscard')}
                 </button>
-                <button ref={keepRef} type="button" onClick={() => setConfirmingDiscard(false)} className="btn btn-sm btn-secondary">
+                <button
+                  ref={keepRef}
+                  type="button"
+                  onClick={() => { returnFocus.current = true; setConfirmingDiscard(false) }}
+                  className="btn btn-sm btn-secondary"
+                >
                   {t('expert.draft.keep')}
                 </button>
               </div>
@@ -388,7 +425,9 @@ const FixtureComposer: React.FC<FixtureComposerProps> = ({
       )}
 
       {discarded && (
-        <p className="mt-4 text-xs text-secondary-300" role="status">{t('expert.draft.discarded')}</p>
+        <p ref={discardedRef} tabIndex={-1} className="mt-4 text-xs text-secondary-300 focus:outline-none" role="status">
+          {t('expert.draft.discarded')}
+        </p>
       )}
 
       {saveFailed && (
@@ -502,8 +541,16 @@ const ExpertCreatePredictionPage: React.FC = () => {
   const [keptLabel, setKeptLabel] = useState<string | null>(null)
   /** Continue was pressed on the draft that has no fixture: the next choice is its fixture. */
   const [assigning, setAssigning] = useState(false)
-  const [composerNotice, setComposerNotice] = useState<string | null>(null)
+  /**
+   * A sentence for the composer of ONE fixture, e.g. why a different draft than expected opened.
+   * Held with the fixture it is about and shown only on that fixture's composer (review finding
+   * #9): Back and Forward change `matchId` and leave page state alone, so a bare string written
+   * for A was shown on B's editor after two presses of Back.
+   */
+  const [composerNotice, setComposerNotice] = useState<{ fixtureId: string; text: string } | null>(null)
   const [discarded, setDiscarded] = useState(false)
+  /** The picker's "Draft discarded." line, which takes focus after a confirmed discard (finding #10). */
+  const discardedRef = useRef<HTMLParagraphElement>(null)
   /** Bumped after a discard so the list is read again. */
   const [listVersion, setListVersion] = useState(0)
 
@@ -519,7 +566,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
 
   const openFixture = useCallback((id: string, match: Match | null, notice: string | null = null) => {
     setPicked(match)
-    setComposerNotice(notice)
+    setComposerNotice(notice ? { fixtureId: id, text: notice } : null)
     setKeptLabel(null)
     setDiscarded(false)
     setSearchParams({ matchId: id })
@@ -560,8 +607,17 @@ const ExpertCreatePredictionPage: React.FC = () => {
     setKeptLabel(label)
     setComposerNotice(null)
     setDiscarded(false)
+    // Change fixture opens the ordinary picker, never one left in "choose a fixture for the draft
+    // without one" mode by a Continue pressed before Back or Forward brought a composer back.
+    setAssigning(false)
     setSearchParams({})
   }
+
+  // After a confirmed discard the row that held focus is gone: focus goes to the line that says
+  // what happened. Keyed on `listVersion`, which every discard bumps, so a second one moves it too.
+  useEffect(() => {
+    if (discarded) discardedRef.current?.focus()
+  }, [discarded, listVersion])
 
   // ------------------------------------------------------------------ one fixture
   if (matchId) {
@@ -571,7 +627,7 @@ const ExpertCreatePredictionPage: React.FC = () => {
         userId={userId}
         fixtureId={matchId}
         initialMatch={picked}
-        notice={composerNotice}
+        notice={composerNotice?.fixtureId === matchId ? composerNotice.text : null}
         onChangeFixture={backToPicker}
         onStartAnother={() => backToPicker(null)}
       />
@@ -596,7 +652,9 @@ const ExpertCreatePredictionPage: React.FC = () => {
         </p>
       )}
       {discarded && (
-        <p className="mt-4 text-xs text-secondary-300" role="status">{t('expert.draft.discarded')}</p>
+        <p ref={discardedRef} tabIndex={-1} className="mt-4 text-xs text-secondary-300 focus:outline-none" role="status">
+          {t('expert.draft.discarded')}
+        </p>
       )}
 
       {/*

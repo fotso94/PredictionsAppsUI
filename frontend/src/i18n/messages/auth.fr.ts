@@ -162,11 +162,12 @@ const auth: Area<'auth'> = {
   'auth.change.rules': 'Doit comporter au moins {count, plural, one {# caractère} other {# caractères}}, dont une majuscule, une minuscule et un chiffre',
   'auth.change.noteLabel': 'Remarque\u00a0:',
   // Changé délibérément, comme l’anglais (voir auth.en.ts) : aucune déconnexion de « tous vos
-  // appareils » n’avait lieu. Seul cet appareil est déconnecté.
-  'auth.change.note': 'Changer votre mot de passe vous déconnecte sur cet appareil, et vous devrez vous reconnecter avec votre nouveau mot de passe. Les autres appareils déjà connectés ne sont pas déconnectés automatiquement\u00a0: déconnectez-vous vous-même sur chacun d’eux.',
+  // appareils » n’avait lieu. Seul ce navigateur est déconnecté — pas « cet appareil » : un autre
+  // navigateur sur la même machine reste connecté.
+  'auth.change.note': 'Changer votre mot de passe vous déconnecte dans ce navigateur, et vous devrez vous reconnecter avec votre nouveau mot de passe. Les autres navigateurs et appareils déjà connectés ne sont pas déconnectés automatiquement\u00a0: déconnectez-vous vous-même sur chacun d’eux.',
   'auth.change.submit': 'Changer le mot de passe',
   'auth.change.submitting': 'Changement en cours...',
-  'auth.change.success': 'Mot de passe changé. Cet appareil est maintenant déconnecté\u00a0: connectez-vous avec votre nouveau mot de passe. Les autres appareils déjà connectés ne sont pas déconnectés automatiquement.',
+  'auth.change.success': 'Mot de passe changé. Ce navigateur est maintenant déconnecté\u00a0: connectez-vous avec votre nouveau mot de passe. Les autres navigateurs et appareils déjà connectés ne sont pas déconnectés automatiquement.',
   'auth.change.failed': 'Impossible de changer le mot de passe',
 
   // ─── le profil ──────────────────────────────────────────────────────────────────────────

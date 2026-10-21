@@ -1,6 +1,7 @@
 import { expect, test, Page, Request, Route } from '@playwright/test';
 import { ApiMatch, Json, dayPayload, fixtureAt, stubBackend } from '../support/api-stub';
 import { BackendUser, regularUser, signIn } from '../support/auth';
+import { LIVE_API_MESSAGE, fenceLiveApi } from '../support/live-stack';
 
 /**
  * THE COMPOSER'S UNPUBLISHED DRAFTS, ONE PER EXPERT AND FIXTURE (QA finding 2).
@@ -32,11 +33,10 @@ import { BackendUser, regularUser, signIn } from '../support/auth';
  * FIXTURES KICK OFF IN THE FUTURE (three days out) unless a test is about a fixture that has kicked
  * off, so no kickoff rule can interfere with the journeys.
  *
- * COST. Every /api/v1 route is stubbed; nothing reaches a backend. A guard aborts, and fails the
- * test on, any request to the live stack (:8000 or :3100).
+ * COST. Every /api/v1 route is stubbed; nothing reaches a backend. A guard (support/live-stack.ts)
+ * aborts, and fails the test on, any request to the live API (:8000) that no stub answered. It does
+ * not fence the frontend origin, which is the page under test on the default configuration.
  */
-
-const LIVE_STACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):(8000|3100)(\/|$)/;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const isoIn = (ms: number): string => new Date(Date.now() + ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -76,6 +76,8 @@ const COPY = {
   saveFailed: 'This browser would not store your draft.',
   discardConfirmA: 'Discard your draft for Coton Sport v Union Douala? This cannot be undone.',
   keptA: 'Your draft for Coton Sport v Union Douala is kept.',
+  discarded: 'Draft discarded.',
+  assignTakenStart: 'You already had a draft for',
 };
 
 interface Draft { home: string; draw: string; away: string; reasoning: string }
@@ -144,15 +146,12 @@ async function openWorld(page: Page, userId: string = USER_X): Promise<World> {
   });
   await stubExpert(page, state);
   await signIn(page, { user: expert(userId) });
-  await page.route(LIVE_STACK, (route: Route) => {
-    state.liveStackHits.push(`${route.request().method()} ${route.request().url()}`);
-    return route.abort('blockedbyclient');
-  });
+  await fenceLiveApi(page, state.liveStackHits);
   return state;
 }
 
 test.afterEach(() => {
-  if (world) expect(world.liveStackHits, 'nothing may reach the live stack (:8000 or :3100)').toEqual([]);
+  if (world) expect(world.liveStackHits, LIVE_API_MESSAGE).toEqual([]);
   world = null;
 });
 
@@ -550,6 +549,104 @@ test('a draft with no fixture never replaces a draft the chosen fixture already 
   expect(await storedWith(page, DRAFT_A.reasoning)).toBe(1);
 
   expect(state.expertWrites).toEqual([]);
+});
+
+/*
+ * Review finding #9. The composer's notice lived in page state, not in the history entry, so Back
+ * and Forward changed the fixture and kept the notice: a sentence about A's draft appeared on B's
+ * editor. It now belongs to the fixture it was written about.
+ */
+test("the notice about one fixture's draft never shows on another fixture's composer after Back", async ({ page }) => {
+  const state = await openWorld(page);
+  await seedLegacyOnce(page, {
+    fixture: null,
+    values: legacyValues('unassigned words'),
+    savedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+  });
+  await openComposer(page, A);
+  await typeDraft(page, DRAFT_A);
+
+  // Start on B, change fixture, continue the draft with no fixture and choose A, which has its own.
+  await openComposer(page, B);
+  await page.getByRole('button', { name: 'Change fixture' }).click();
+  await expect(page).not.toHaveURL(/matchId=/);
+  await draftRow(page, COPY.noFixture).getByRole('button', { name: COPY.continue, exact: true }).click();
+  await rowButton(page, A).click();
+  await expect(page).toHaveURL(/[?&]matchId=fx-a(&|$)/);
+  await expectFields(page, DRAFT_A);
+  await expect(page.locator('body')).toContainText(`${COPY.assignTakenStart} Coton Sport v Union Douala`);
+
+  // Back to the picker, and Back again to B: B's editor, and not a word about A's draft.
+  await page.goBack();
+  await expect(page).not.toHaveURL(/matchId=/);
+  await page.goBack();
+  await expect(page).toHaveURL(/[?&]matchId=fx-b(&|$)/);
+  await expect(page.locator('#composer-home')).toBeVisible();
+  await expectFields(page, EMPTY);
+  await expect(page.locator('body'), "A's notice is on B's composer").not.toContainText(COPY.assignTakenStart);
+
+  expect(state.expertWrites).toEqual([]);
+});
+
+/*
+ * Review finding #10. Every discard asks first and moves focus to "Keep it". Keeping a draft must
+ * put focus back on the control that asked (the composer's "Start again", a row's "Discard"), and
+ * a confirmed discard — which removes the control holding focus — must put it on the status line
+ * that says what happened, not drop it on <body> where the next Tab starts from the top of the page.
+ * Driven by the keyboard: focus, then Enter, as a keyboard user does.
+ */
+test('a discard confirmation returns focus where the expert was, by keyboard, in all three places', async ({ page }) => {
+  await openWorld(page);
+  await openComposer(page, A);
+  await typeDraft(page, DRAFT_A);
+  await openComposer(page, B);
+  await typeDraft(page, DRAFT_B);
+
+  const press = async (name: string, scope: Page | ReturnType<typeof draftRow> = page) => {
+    const control = scope.getByRole('button', { name, exact: true });
+    await control.focus();
+    await page.keyboard.press('Enter');
+  };
+
+  // The composer: Start again -> Keep it -> back on Start again.
+  await openComposer(page, B);
+  await press(COPY.startAgain);
+  await expect(page.getByRole('button', { name: COPY.keep, exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: COPY.startAgain, exact: true }), 'Keep it left focus on nothing').toBeFocused();
+  await expectFields(page, DRAFT_B);
+  // Start again -> Discard draft: the box that held focus is gone; focus is on what happened.
+  await page.keyboard.press('Enter');
+  await press(COPY.confirmDiscard);
+  await expectFields(page, EMPTY);
+  await expect(page.getByText(COPY.discarded, { exact: true }), 'a confirmed discard dropped focus on <body>').toBeFocused();
+
+  // The dashboard: a row's Discard -> Keep it -> back on that row's Discard; confirmed -> the status.
+  await page.goto('/expert/dashboard');
+  await page.waitForLoadState('networkidle');
+  const rowA = draftRow(page, 'Coton Sport');
+  await press(COPY.discard, rowA);
+  await expect(rowA.getByRole('button', { name: COPY.keep, exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(rowA.getByRole('button', { name: COPY.discard, exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await press(COPY.confirmDiscard, rowA);
+  await expect(draftRows(page)).toHaveCount(0);
+  await expect(page.getByText(COPY.discarded, { exact: true }), 'focus after the dashboard discard').toBeFocused();
+
+  // The picker's list, with a draft typed again: the same, and the status line takes focus there too.
+  await openComposer(page, A);
+  await typeDraft(page, DRAFT_A);
+  await page.goto('/expert/predictions/create');
+  await expect(page.getByRole('heading', { name: COPY.listTitle })).toBeVisible();
+  const pickerRow = draftRow(page, 'Coton Sport');
+  await press(COPY.discard, pickerRow);
+  await press(COPY.keep, pickerRow);
+  await expect(pickerRow.getByRole('button', { name: COPY.discard, exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await press(COPY.confirmDiscard, pickerRow);
+  await expect(draftRows(page)).toHaveCount(0);
+  await expect(page.getByText(COPY.discarded, { exact: true }), 'focus after the picker discard').toBeFocused();
 });
 
 /* ============================================================================ retention */

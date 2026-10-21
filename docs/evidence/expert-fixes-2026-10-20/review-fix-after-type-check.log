@@ -1,0 +1,9 @@
+# review-fix AFTER: frontend type-check (tsc --noEmit over src) on the fixed code
+# run at 2026-10-21T06:40:59Z; cd frontend && npm run type-check
+
+
+> soccer-predictions-frontend@1.0.0 type-check
+> tsc --noEmit
+
+# exit=0
+# (the local worktree path is written <worktree> and the home prefix ~; terminal colour codes stripped; nothing else edited)

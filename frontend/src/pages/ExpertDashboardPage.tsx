@@ -37,9 +37,10 @@
  * THE RECORD ADDS UP. "Not published" is `not_published_predictions`, everything that is not
  * PUBLISHED, so Written = Published + Not published on every payload; it used to be
  * `pending_predictions`, PENDING alone, and an expert's unpublished (ARCHIVED) predictions were
- * counted nowhere. "Unpublished" is the part of it the expert took down themselves
- * (`archived_predictions`). A payload older than those two fields falls back to total -
- * published, which is the same number, and shows no Unpublished tile rather than a guess.
+ * counted nowhere. "Archived" is the part of it the expert took down themselves
+ * (`archived_predictions`), named as the status filter and the badge name that set. A payload
+ * older than those two fields falls back to total - published, which is the same number, and
+ * shows no Archived tile rather than a guess.
  *
  * THE RECENT LIST IS EVERY STATUS. It is the ten newest predictions whatever their state, with a
  * badge on each and Publish on the archived ones, so it is headed "Recent predictions" and not
@@ -57,7 +58,7 @@
  * their chosen zone.
  */
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRightIcon, ClipboardDocumentListIcon, DocumentTextIcon, PencilSquareIcon, PlusIcon,
@@ -76,7 +77,8 @@ import DraftList from '@/components/expert/DraftList'
 import { backendInstant, formatDate, formatNumber } from '@/i18n'
 import { useT } from '@/i18n/react'
 import type { MessageKey, TranslateFn } from '@/i18n'
-import { canTogglePublication, publicationConfirmText } from '@/utils/publication'
+import { canTogglePublication, deleteConfirmText, publicationConfirmText } from '@/utils/publication'
+import NotScoredLabel from '@/components/expert/NotScoredLabel'
 
 /** One recent prediction, of any status, compact: the fixture, the leading call, and what can be done with it. */
 const RecentRow: React.FC<{
@@ -84,7 +86,7 @@ const RecentRow: React.FC<{
   busy: boolean
   t: TranslateFn
   onTogglePublish: (prediction: ExpertPredictionResponse) => void
-  onDelete: (id: string) => void
+  onDelete: (prediction: ExpertPredictionResponse) => void
 }> = ({ prediction, busy, t, onTogglePublish, onDelete }) => {
   const details = prediction.match_details
   const status = prediction.status.toLowerCase()
@@ -177,6 +179,8 @@ const RecentRow: React.FC<{
             {t('expert.row.publishedOn', { date: publishedOn })}
           </span>
         )}
+        {/* Already outside the measured record, and why; nothing when it counts. */}
+        <NotScoredLabel prediction={prediction} />
         <span className="ml-auto flex flex-wrap gap-2">
           <Link to="/expert/predictions/my-predictions" className="focus-ring text-xs font-medium text-primary-300 hover:text-primary-200">
             {t('expert.action.edit')}
@@ -187,7 +191,7 @@ const RecentRow: React.FC<{
             </button>
           )}
           {canDelete && (
-            <button type="button" disabled={busy} onClick={() => onDelete(prediction.id)} className="focus-ring text-xs font-medium text-danger-300 hover:text-danger-200 disabled:opacity-50">
+            <button type="button" disabled={busy} onClick={() => onDelete(prediction)} className="focus-ring text-xs font-medium text-danger-300 hover:text-danger-200 disabled:opacity-50">
               {t('expert.action.delete')}
             </button>
           )}
@@ -214,6 +218,16 @@ const ExpertDashboardPage: React.FC = () => {
   /** This expert's unpublished drafts in this browser, newest first. One per fixture. */
   const [drafts, setDrafts] = useState<ComposerDraft[]>(() => listDrafts(userId))
   const [draftDiscarded, setDraftDiscarded] = useState(false)
+  /**
+   * Bumped by every confirmed discard. The row that held focus is gone after one, so focus goes to
+   * the "Draft discarded." line rather than to <body> (review finding #10); the count, not the
+   * flag, keys it, so a second discard moves focus as well.
+   */
+  const [discardCount, setDiscardCount] = useState(0)
+  const draftDiscardedRef = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    if (discardCount > 0) draftDiscardedRef.current?.focus()
+  }, [discardCount])
 
   useEffect(() => {
     setDrafts(listDrafts(userId))
@@ -257,8 +271,10 @@ const ExpertDashboardPage: React.FC = () => {
     }
   }
 
-  const handleDelete = async (predictionId: string) => {
-    if (!confirm(t('expert.dashboard.confirmDelete'))) return
+  const handleDelete = async (prediction: ExpertPredictionResponse) => {
+    // The same note as My Predictions after kickoff: a deletion does not change the measured record.
+    if (!confirm(deleteConfirmText(prediction, 'expert.dashboard.confirmDelete', t))) return
+    const predictionId = prediction.id
     try {
       setProcessingId(predictionId)
       setError(null)
@@ -277,6 +293,7 @@ const ExpertDashboardPage: React.FC = () => {
     clearDraft(userId, draft.slot)
     setDrafts(listDrafts(userId))
     setDraftDiscarded(true)
+    setDiscardCount(count => count + 1)
   }
 
   /** The newest three; the composer's picker lists them all. */
@@ -326,7 +343,9 @@ const ExpertDashboardPage: React.FC = () => {
             </div>
           )}
           {draftDiscarded && (
-            <p className="text-xs text-secondary-300 sm:col-span-2" role="status">{t('expert.draft.discarded')}</p>
+            <p ref={draftDiscardedRef} tabIndex={-1} className="text-xs text-secondary-300 focus:outline-none sm:col-span-2" role="status">
+              {t('expert.draft.discarded')}
+            </p>
           )}
 
           <Link

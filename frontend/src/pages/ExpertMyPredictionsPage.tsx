@@ -55,7 +55,9 @@
  *
  * A published or archived prediction can be taken off the public lists here and put back, with
  * the same confirmation as the dashboard and, after kickoff, a note on the card and in the
- * confirmation that the change does not alter the measured record. utils/publication.ts says why.
+ * confirmation that the change does not alter the measured record. Delete's confirmation carries
+ * the same note after kickoff, and a card whose prediction is already outside the record says so
+ * and why (published after kick-off, or withdrawn before it). utils/publication.ts says why.
  *
  * ── THE EDITOR, IN THE READER'S LANGUAGE ───────────────────────────────────────────
  *
@@ -83,7 +85,10 @@ import { getErrorMessage } from '@/utils/errors';
 import { backendInstant, currentLocale, formatDate, formatDateTime, formatNumber, formatPercentValue } from '@/i18n';
 import { useT } from '@/i18n/react';
 import type { MessageKey } from '@/i18n';
-import { canTogglePublication, hasKickedOff, kickedOffNoteKey, publicationConfirmText } from '@/utils/publication';
+import {
+  canTogglePublication, deleteConfirmText, hasKickedOff, kickedOffNoteKey, publicationConfirmText,
+} from '@/utils/publication';
+import NotScoredLabel from '@/components/expert/NotScoredLabel';
 import PredictionMarketsEditor from '@/components/expert/PredictionMarketsEditor';
 import {
   buildUpdateRequest, ComposerValues, composerFromPrediction, publishedMarkets, validateComposer,
@@ -306,10 +311,13 @@ const ExpertMyPredictionsPage: React.FC = () => {
     }
   };
 
-  const handleDelete = async (predictionId: string) => {
-    if (!confirm(t('expert.mine.confirmDelete'))) {
+  const handleDelete = async (prediction: ExpertPredictionResponse) => {
+    // After kickoff, on a prediction that was public, the confirmation also says what a deletion
+    // does not change: the measured record (utils/publication.ts).
+    if (!confirm(deleteConfirmText(prediction, 'expert.mine.confirmDelete', t))) {
       return;
     }
+    const predictionId = prediction.id;
 
     try {
       setProcessingId(predictionId);
@@ -543,6 +551,8 @@ const ExpertMyPredictionsPage: React.FC = () => {
                         {t('expert.mine.published', { timestamp: stampOf(prediction.published_at) })}
                       </p>
                     )}
+                    {/* Already outside the measured record, and why; nothing when it counts. */}
+                    <NotScoredLabel prediction={prediction} className="mt-1" />
                   </div>
 
                   {/* Probabilities */}
@@ -844,7 +854,7 @@ const ExpertMyPredictionsPage: React.FC = () => {
                         )}
                         {canDelete(prediction.status) && (
                           <button
-                            onClick={() => handleDelete(prediction.id)}
+                            onClick={() => handleDelete(prediction)}
                             disabled={processingId === prediction.id}
                             className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >

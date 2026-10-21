@@ -674,6 +674,22 @@ const MatchDetailPage: React.FC = () => {
                           <p className="mt-1 text-xs text-secondary-400">{t('reader.expert.publishedAfterKickoffDetail')}</p>
                         </div>
                       )}
+                      {/*
+                        The other way a served row goes unscored: unpublished before kick-off and
+                        published again after it (`withdrawn_before_kickoff: true`). Its byline still
+                        carries the first, pre-kick-off publication time, so it gets a sentence of its
+                        own: the late chip's "published at or after kick-off" would be false here.
+                        The two cannot both be true of one row; if a payload ever says so, the late
+                        chip is the one shown.
+                      */}
+                      {expert.publishedAfterKickoff !== true && expert.withdrawnBeforeKickoff === true && (
+                        <div className="mb-3" data-testid="expert-withdrawn-before-kickoff">
+                          <span className="inline-block rounded-md border border-orange-700 px-1.5 py-0.5 text-[11px] leading-4 text-orange-200">
+                            {t('reader.expert.withdrawnBeforeKickoff')}
+                          </span>
+                          <p className="mt-1 text-xs text-secondary-400">{t('reader.expert.withdrawnBeforeKickoffDetail')}</p>
+                        </div>
+                      )}
                       <MarketTable prediction={expert} brief={brief} source="expert" />
                       {expert.analysis && (
                         <p className="mt-4 text-sm text-secondary-300 whitespace-pre-line">{expert.analysis}</p>

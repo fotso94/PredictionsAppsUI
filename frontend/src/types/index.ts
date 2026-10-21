@@ -375,11 +375,18 @@ export interface MatchPredictions {
    */
   author?: { id: string; username: string | null } | null;
   /**
-   * EXPERT PREDICTIONS ONLY. Settlement's own prematch rule applied to this row: true when it was
-   * published AT or after kick-off, which is never scored; false before; null when either time is
-   * unknown, which is not "before".
+   * EXPERT PREDICTIONS ONLY. The publication-time half of settlement's rule for whether this row is
+   * scored: true when it was published AT or after kick-off, which is never scored; false before;
+   * null when either time is unknown, which is not "before".
    */
   publishedAfterKickoff?: boolean | null;
+  /**
+   * EXPERT PREDICTIONS ONLY. The withdrawal half: true when the row was unpublished before
+   * kick-off and published again at or after it. That withdrawal is frozen, so settlement does not
+   * score it, yet it keeps its original pre-kick-off `publishedAt`. False when it stood; null when
+   * the kick-off is unknown. A served row is unscored exactly when either flag is true.
+   */
+  withdrawnBeforeKickoff?: boolean | null;
   /** Observations the backend made about the provider payload, reported verbatim and never corrected.
    *  `warning` is a reason to doubt the numbers; `note` is bookkeeping that does not undermine them. */
   anomalies?: ForecastAnomaly[];

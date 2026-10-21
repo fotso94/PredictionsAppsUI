@@ -95,6 +95,13 @@ export interface ApiExpertPrediction {
   author?: { id: string; username: string | null } | null;
   /** True at or after kick-off (never scored), false before, null when unknown. Optional, as above. */
   published_after_kickoff?: boolean | null;
+  /**
+   * Settlement's withdrawal half (`withdrawn_before_kickoff` in backend/app/schemas/matches.py): on
+   * a served row, true only when it was unpublished before kick-off and published again at or
+   * after it, which is not scored; false when it stood; null when the kick-off is unknown.
+   * Optional, as above.
+   */
+  withdrawn_before_kickoff?: boolean | null;
 }
 
 export interface ApiForecast {
@@ -416,6 +423,7 @@ export function mapExpertPrediction(expert: ApiExpertPrediction): MatchPredictio
     predictionId: expert.id ?? null,
     author: expert.author ?? null,
     publishedAfterKickoff: expert.published_after_kickoff ?? null,
+    withdrawnBeforeKickoff: expert.withdrawn_before_kickoff ?? null,
   };
 }
 

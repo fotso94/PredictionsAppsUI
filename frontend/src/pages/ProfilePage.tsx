@@ -44,9 +44,18 @@ import { useAuth } from '@/hooks/useAuth';
  *
  * ── WHAT A SAVE SENDS ───────────────────────────────────────────────────────────────────────
  *
- * Every field, explicitly (see toPayload): strings trimmed, and a blank first name, last name or
- * avatar sent as null, which is how the backend's contract clears one. It used to send '' for a
- * name the account never had, which was refused with 422 and took any username change with it.
+ * The names and the avatar, explicitly (see toPayload): strings trimmed, and a blank first name,
+ * last name or avatar sent as null, which is how the backend's contract clears one. It used to
+ * send '' for a name the account never had, which was refused with 422 and took any username
+ * change with it.
+ *
+ * The username only when the reader edited it (finding #11). The backend validates whatever it is
+ * sent, and an absent key means "leave it alone" (UserUpdateRequest). Sending the stored username
+ * back on every save meant an account whose username is outside today's 3-50 limits — an email's
+ * local part such as "jo", which registration accepts unchecked, or a padded legacy value — had
+ * every name and avatar change refused with 422, and a padded one rewritten. "Edited" is compared
+ * as typed, not trimmed, so an untouched stored value is never re-validated or rewritten.
+ *
  * After a save the signed-in user is read again (refreshUser), so the header shows the new name
  * without a reload.
  */
@@ -66,9 +75,12 @@ const toForm = (profile: UserProfile): ProfileForm => ({
   avatar_url: profile.avatar_url || '',
 });
 
-/** What a save sends: the whole form, trimmed, with a blank optional field as an explicit clear. */
-const toPayload = (form: ProfileForm): UpdateProfileRequest => ({
-  username: form.username.trim(),
+/**
+ * What a save sends: the names and the avatar, trimmed, with a blank one as an explicit clear; and
+ * the username, trimmed, only if the reader changed what the field held when it was loaded.
+ */
+const toPayload = (form: ProfileForm, stored: ProfileForm): UpdateProfileRequest => ({
+  ...(form.username !== stored.username ? { username: form.username.trim() } : {}),
   first_name: form.first_name.trim() || null,
   last_name: form.last_name.trim() || null,
   avatar_url: form.avatar_url.trim() || null,
@@ -135,12 +147,12 @@ const ProfilePage: React.FC = () => {
     e.preventDefault();
     // Only a Save in edit mode saves: never a submit while the form is read-only, and never a
     // second one while the first is still on its way.
-    if (!isEditing || saveInFlight.current) return;
+    if (!isEditing || !profile || saveInFlight.current) return;
     saveInFlight.current = true;
 
     try {
       setIsSaving(true);
-      const updatedProfile = await userService.updateProfile(toPayload(formData));
+      const updatedProfile = await userService.updateProfile(toPayload(formData, toForm(profile)));
       setProfile(updatedProfile);
       // What the server stored, not what was typed: trimmed, and a cleared field empty.
       setFormData(toForm(updatedProfile));

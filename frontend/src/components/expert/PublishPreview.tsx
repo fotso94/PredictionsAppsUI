@@ -110,11 +110,23 @@ const PublishPreview: React.FC<PublishPreviewProps> = ({ values, fixture, kicked
 
       {fixture && (
         <div className="mt-3 rounded-lg border border-dark-700 bg-dark-900/60 p-3">
-          <p className="truncate text-sm font-medium text-white">
+          {/* Both clubs, whole: a French "contre" line is longer than the box at 360px. */}
+          <p className="break-words text-sm font-medium text-white">
             {t('expert.fixtureShort', { home: fixture.homeTeam, away: fixture.awayTeam })}
           </p>
-          <p className="mt-0.5 truncate text-xs text-secondary-400">
-            {[fixture.competition, kickoff].filter(Boolean).join(' · ') || t('expert.row.fixtureUnavailable')}
+          {/*
+            Only the competition may give way (review finding #24): this was one `truncate`d line,
+            "{competition} · {kick-off}", and with a long competition the ellipsis took the kick-off.
+            The kick-off is never cut and never broken; when the pair does not fit, the line wraps.
+          */}
+          <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1 text-xs text-secondary-400">
+            {fixture.competition && <span className="min-w-0 max-w-full truncate">{fixture.competition}</span>}
+            {kickoff && (
+              <span className="num whitespace-nowrap" data-testid="preview-kickoff">
+                {fixture.competition ? '· ' : ''}{kickoff}
+              </span>
+            )}
+            {!fixture.competition && !kickoff && <span>{t('expert.row.fixtureUnavailable')}</span>}
           </p>
         </div>
       )}

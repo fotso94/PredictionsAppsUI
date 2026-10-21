@@ -103,8 +103,11 @@ const expert: Area<'expert'> = {
   'expert.publication.confirmUnpublish': 'Dépublier ce pronostic\u00a0? Les lecteurs ne le verront plus sur la page du match. Vous pourrez le publier à nouveau plus tard.',
   'expert.publication.confirmPublish': 'Publier ce pronostic\u00a0? Les lecteurs le verront immédiatement sur la page du match.',
   /** « Bilan mesuré » is the measured record's name in ./core.fr.ts, and this is that record. */
-  'expert.publication.kickedOffUnpublish': 'Le coup d’envoi a été donné. Dépublier ce pronostic maintenant le cache aux lecteurs, mais ne le retire pas de votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
-  'expert.publication.kickedOffPublish': 'Le coup d’envoi a été donné. Publier ce pronostic maintenant le montre aux lecteurs, mais ne l’ajoute pas à votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
+  'expert.publication.kickedOffUnpublish': 'Le coup d’envoi a été donné. Dépublier ce pronostic maintenant le cache aux lecteurs, mais ne change rien à votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
+  'expert.publication.kickedOffPublish': 'Le coup d’envoi a été donné. Publier ce pronostic maintenant le montre aux lecteurs, mais ne change rien à votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
+  'expert.publication.kickedOffDelete': 'Le coup d’envoi a été donné. Supprimer ce pronostic maintenant le retire de vos listes et le cache aux lecteurs, mais ne change rien à votre bilan mesuré, qui dépend de ce qui était publié au coup d’envoi.',
+  'expert.record.publishedAfterKickoff': 'Publié après le coup d’envoi · hors de votre bilan mesuré',
+  'expert.record.withdrawnBeforeKickoff': 'Retiré avant le coup d’envoi · hors de votre bilan mesuré',
 
   'expert.page.previous': 'Précédent',
   'expert.page.next': 'Suivant',
