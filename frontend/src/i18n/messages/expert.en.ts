@@ -165,25 +165,33 @@ const expert = {
   'expert.row.competitionUnavailable': 'Competition unavailable',
   'expert.row.publishedOn': 'Published {date}',
 
-  // ─── the local draft ────────────────────────────────────────────────────────────────────
-  'expert.draft.continueTitle': 'Continue your draft',
+  // ─── the local drafts, one per fixture ───────────────────────────────────────────────────
+  'expert.draft.listTitle': 'Your unpublished drafts',
+  'expert.draft.listNote': 'Each fixture keeps its own draft, in this browser only. None of them has been published and none will publish itself.',
   'expert.draft.noFixture': 'Fixture not chosen yet',
   'expert.draft.savedAgo': 'saved {ago}',
-  'expert.draft.localOnly': 'Stored in this browser only. It has not been published and will not publish itself.',
   'expert.draft.continue': 'Continue',
   'expert.draft.discard': 'Discard',
+  'expert.draft.seeAll': 'See all drafts',
+  /** Shown on a draft whose fixture's kickoff has passed. The backend still accepts a publish, but
+   *  settlement does not count it as prematch (`published_after_kickoff`), so that is what it says. */
+  'expert.draft.kickedOff': 'Kicked off — this draft can no longer be published as a prematch prediction.',
   /*
-   * Four whole sentences rather than a stem and two optional tails. The fixture and the "saved"
-   * phrase both sit INSIDE the sentence in English, and a language that wants them elsewhere can
-   * only say so if it owns the whole sentence.
+   * Discarding asks first, everywhere: the dashboard, the picker's list and the composer's
+   * "Start again". Whole sentences, with the fixture inside, so a language can move it.
    */
-  'expert.draft.unfinished': 'You have an unfinished draft.',
-  'expert.draft.unfinishedSaved': 'You have an unfinished draft · saved {ago}.',
-  'expert.draft.unfinishedFor': 'You have an unfinished draft for {fixture}.',
-  'expert.draft.unfinishedForSaved': 'You have an unfinished draft for {fixture} · saved {ago}.',
-  'expert.draft.notPublishedNote': 'It is stored in this browser only and has not been published.',
-  'expert.draft.continueThat': 'Continue that draft',
-  'expert.draft.discardIt': 'Discard it',
+  'expert.draft.discardConfirm': 'Discard your draft for {fixture}? This cannot be undone.',
+  'expert.draft.discardConfirmNoFixture': 'Discard this draft? This cannot be undone.',
+  'expert.draft.confirmDiscard': 'Discard draft',
+  'expert.draft.keep': 'Keep it',
+  'expert.draft.discarded': 'Draft discarded.',
+  /** After "Change fixture": the draft just left is still there, under its own fixture. */
+  'expert.draft.keptFor': 'Your draft for {fixture} is kept. You can return to it from your drafts.',
+  /** Only a browser that refused the write (quota, blocked site data) shows this. */
+  'expert.draft.saveFailed': 'This browser would not store your draft. Nothing is lost while this page stays open, but it will not survive a reload.',
+  /** A draft saved before drafts were per fixture, with no fixture chosen, being given one. */
+  'expert.draft.assignHint': 'Choose the fixture this draft is for. It moves to that fixture only if you have no draft for it yet.',
+  'expert.draft.assignTaken': 'You already had a draft for {fixture}, so that one is open. The draft without a fixture is still kept.',
   'expert.draft.restored': 'Draft restored. It lives in this browser only and publishes nothing by itself.',
   'expert.draft.restoredSaved': 'Draft restored · saved {ago}. It lives in this browser only and publishes nothing by itself.',
   'expert.draft.startAgain': 'Start again',

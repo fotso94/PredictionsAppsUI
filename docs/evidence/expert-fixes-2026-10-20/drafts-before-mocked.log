@@ -1,0 +1,981 @@
+
+Running 26 tests using 1 worker
+
+  ✘   1 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:218:1 › A's draft survives opening B through match selection, reloads, and coming back (1.9s)
+  ✘   2 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:252:1 › changing fixture inside the composer carries nothing across, keeps the draft, and follows the URL (12.5s)
+  ✘   3 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:289:1 › opening a fixture without typing stores no draft and lists none (868ms)
+  ✘   4 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:314:1 › every discard asks first, and removes only the draft it names (12.4s)
+  ✘   5 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:370:1 › publishing B clears B's draft and keeps A's (2.6s)
+  ✓   6 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:401:1 › another expert on this browser never sees the first one's draft (3.6s)
+  ✘   7 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:457:1 › a legacy draft is moved to its fixture once, and kept (10.8s)
+  ✘   8 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:483:1 › an empty legacy draft is dropped rather than offered (10.9s)
+  ✘   9 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:498:1 › a legacy draft with no fixture is listed as such, and moves to the fixture chosen for it (10.9s)
+  ✘  10 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:530:1 › a draft with no fixture never replaces a draft the chosen fixture already has (11.1s)
+  ✘  11 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:557:1 › a draft whose fixture kicked off is kept, and says it can no longer be published as prematch (12.3s)
+  ✘  12 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:580:1 › a browser that refuses to store the draft says so, and the words stay on the page (10.9s)
+  ✘  13 [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:609:1 › over fifty drafts, only the oldest whose fixture kicked off over a week ago is evicted (11.9s)
+  ✘  14 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:218:1 › A's draft survives opening B through match selection, reloads, and coming back (2.3s)
+  ✘  15 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:252:1 › changing fixture inside the composer carries nothing across, keeps the draft, and follows the URL (11.2s)
+  ✘  16 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:289:1 › opening a fixture without typing stores no draft and lists none (1.1s)
+  ✘  17 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:314:1 › every discard asks first, and removes only the draft it names (12.5s)
+  ✘  18 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:370:1 › publishing B clears B's draft and keeps A's (1.9s)
+  ✓  19 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:401:1 › another expert on this browser never sees the first one's draft (3.9s)
+  ✘  20 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:457:1 › a legacy draft is moved to its fixture once, and kept (10.9s)
+  ✘  21 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:483:1 › an empty legacy draft is dropped rather than offered (11.1s)
+  ✘  22 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:498:1 › a legacy draft with no fixture is listed as such, and moves to the fixture chosen for it (11.1s)
+  ✘  23 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:530:1 › a draft with no fixture never replaces a draft the chosen fixture already has (11.3s)
+  ✘  24 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:557:1 › a draft whose fixture kicked off is kept, and says it can no longer be published as prematch (12.5s)
+  ✘  25 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:580:1 › a browser that refuses to store the draft says so, and the words stay on the page (11.1s)
+  ✘  26 [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:609:1 › over fifty drafts, only the oldest whose fixture kicked off over a week ago is evicted (11.9s)
+
+
+  1) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:218:1 › A's draft survives opening B through match selection, reloads, and coming back 
+
+    Error: opening B overwrote A's draft in this browser: A's words are no longer stored
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      233 |     await storedWith(page, DRAFT_A.reasoning),
+      234 |     "opening B overwrote A's draft in this browser: A's words are no longer stored",
+    > 235 |   ).toBe(1);
+          |     ^
+      236 |
+      237 |   await typeDraft(page, DRAFT_B);
+      238 |   await page.reload();
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:235:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-A-s-d-4dbd1-ion-reloads-and-coming-back-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-A-s-d-4dbd1-ion-reloads-and-coming-back-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-A-s-d-4dbd1-ion-reloads-and-coming-back-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-A-s-d-4dbd1-ion-reloads-and-coming-back-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:252:1 › changing fixture inside the composer carries nothing across, keeps the draft, and follows the URL 
+
+    Error: Change fixture did not take matchId out of the URL
+
+    expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /matchId=/
+    Received string: "http://localhost:3101/expert/predictions/create?matchId=fx-a"
+    Timeout: 10000ms
+
+    Call log:
+      - Change fixture did not take matchId out of the URL with timeout 10000ms
+        24 × locator resolved to <html lang="en" class="dark" data-rh="lang" data-low-data="off">…</html>
+           - unexpected value "http://localhost:3101/expert/predictions/create?matchId=fx-a"
+
+
+      257 |
+      258 |   await page.getByRole('button', { name: 'Change fixture' }).click();
+    > 259 |   await expect(page, 'Change fixture did not take matchId out of the URL').not.toHaveURL(/matchId=/);
+          |                                                                                ^
+      260 |   await expect(page.locator('body'), 'the expert was not told A is kept').toContainText(COPY.keptA);
+      261 |   expect(await storedWith(page, DRAFT_A.reasoning)).toBe(1);
+      262 |
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:259:80
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-chang-af24f-e-draft-and-follows-the-URL-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-chang-af24f-e-draft-and-follows-the-URL-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-chang-af24f-e-draft-and-follows-the-URL-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-chang-af24f-e-draft-and-follows-the-URL-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:289:1 › opening a fixture without typing stores no draft and lists none 
+
+    Error: an untouched composer stored a draft
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "{\"fixture\":{\"id\":\"fx-b\",\"homeTeam\":\"Canon Yaounde\",\"awayTeam\":\"Tonnerre\",\"competition\":\"Premier League\",\"kickoff\":\"2026-10-23 23:18\"},\"values\":{\"homeWin\":\"\",\"draw\":\"\",\"awayWin\":\"\",\"conviction\":\"\",\"bttsEnabled\":false,\"bttsYes\":\"\",\"bttsNo\":\"\",\"bttsConviction\":\"\",\"over25Enabled\":false,\"over25\":\"\",\"under25\":\"\",\"over35Enabled\":false,\"over35\":\"\",\"under35\":\"\",\"totalsConviction\":\"\",\"reasoning\":\"\"},\"savedAt\":\"2026-10-21T01:18:31.932Z\"}",
+    + ]
+
+      291 |
+      292 |   await openComposer(page, B);
+    > 293 |   expect(await storedDrafts(page), 'an untouched composer stored a draft').toEqual([]);
+          |                                                                            ^
+      294 |
+      295 |   await page.goto('/expert/dashboard');
+      296 |   await page.waitForLoadState('networkidle');
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:293:76
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-openi-e8533-res-no-draft-and-lists-none-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-openi-e8533-res-no-draft-and-lists-none-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-openi-e8533-res-no-draft-and-lists-none-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-openi-e8533-res-no-draft-and-lists-none-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:314:1 › every discard asks first, and removes only the draft it names 
+
+    Error: the dashboard does not list both drafts
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('draft-summary')
+    Expected: 2
+    Received: 1
+    Timeout:  10000ms
+
+    Call log:
+      - the dashboard does not list both drafts getByTestId('draft-summary') with timeout 10000ms
+      - waiting for getByTestId('draft-summary')
+        24 × locator resolved to 1 element
+           - unexpected value "1"
+
+
+      324 |   await page.waitForLoadState('networkidle');
+      325 |   const summaries = page.getByTestId('draft-summary');
+    > 326 |   await expect(summaries, 'the dashboard does not list both drafts').toHaveCount(2);
+          |                                                                      ^
+      327 |   await expect(summaries.nth(0)).toContainText('Canon Yaounde v Tonnerre');
+      328 |   await expect(summaries.nth(1)).toContainText('Coton Sport v Union Douala');
+      329 |
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:326:70
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-every-f5e87-ves-only-the-draft-it-names-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-every-f5e87-ves-only-the-draft-it-names-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-every-f5e87-ves-only-the-draft-it-names-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-every-f5e87-ves-only-the-draft-it-names-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:370:1 › publishing B clears B's draft and keeps A's 
+
+    Error: publishing B removed A's draft
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      383 |
+      384 |   expect(await storedWith(page, DRAFT_B.reasoning), "B's draft outlived its publication").toBe(0);
+    > 385 |   expect(await storedWith(page, DRAFT_A.reasoning), "publishing B removed A's draft").toBe(1);
+          |                                                                                       ^
+      386 |
+      387 |   await page.goto('/expert/dashboard');
+      388 |   await page.waitForLoadState('networkidle');
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:385:87
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-publi-914c4-ars-B-s-draft-and-keeps-A-s-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-publi-914c4-ars-B-s-draft-and-keeps-A-s-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-publi-914c4-ars-B-s-draft-and-keeps-A-s-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-publi-914c4-ars-B-s-draft-and-keeps-A-s-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:457:1 › a legacy draft is moved to its fixture once, and kept 
+
+    Error: the legacy key was not retired
+
+    the legacy key was not retired
+
+    expect(received).toBeNull()
+
+    Received: "{\"fixture\":{\"id\":\"fx-a\",\"homeTeam\":\"Coton Sport\",\"awayTeam\":\"Union Douala\",\"competition\":\"Premier League\",\"kickoff\":\"2026-10-23 21:18\"},\"values\":{\"homeWin\":\"60\",\"draw\":\"25\",\"awayWin\":\"15\",\"conviction\":\"\",\"bttsEnabled\":false,\"bttsYes\":\"\",\"bttsNo\":\"\",\"bttsConviction\":\"\",\"over25Enabled\":false,\"over25\":\"\",\"under25\":\"\",\"over35Enabled\":false,\"over35\":\"\",\"under35\":\"\",\"totalsConviction\":\"\",\"reasoning\":\"legacy words\"},\"savedAt\":\"2026-10-21T01:18:52.599Z\"}"
+
+    Call Log:
+    - Timeout 10000ms exceeded while waiting on the predicate
+
+      465 |   await openComposer(page, A);
+      466 |   await expectFields(page, { home: '60', draw: '25', away: '15', reasoning: 'legacy words' });
+    > 467 |   await expect.poll(() => legacyKeyValue(page), { message: 'the legacy key was not retired' }).toBeNull();
+          |                                                                                                ^
+      468 |   expect(await storedWith(page, 'legacy words'), 'the legacy draft is stored once').toBe(1);
+      469 |
+      470 |   await page.reload();
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:467:96
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-leg-34953-o-its-fixture-once-and-kept-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-a-leg-34953-o-its-fixture-once-and-kept-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-leg-34953-o-its-fixture-once-and-kept-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-a-leg-34953-o-its-fixture-once-and-kept-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:483:1 › an empty legacy draft is dropped rather than offered 
+
+    Error: an empty draft was offered
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('draft-summary')
+    Expected: 0
+    Received: 1
+    Timeout:  10000ms
+
+    Call log:
+      - an empty draft was offered getByTestId('draft-summary') with timeout 10000ms
+      - waiting for getByTestId('draft-summary')
+        24 × locator resolved to 1 element
+           - unexpected value "1"
+
+
+      491 |   await page.goto('/expert/dashboard');
+      492 |   await page.waitForLoadState('networkidle');
+    > 493 |   await expect(page.getByTestId('draft-summary'), 'an empty draft was offered').toHaveCount(0);
+          |                                                                                 ^
+      494 |   await expect.poll(() => legacyKeyValue(page)).toBeNull();
+      495 |   expect(await storedDrafts(page)).toEqual([]);
+      496 | });
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:493:81
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-an-em-efb76-dropped-rather-than-offered-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-an-em-efb76-dropped-rather-than-offered-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-an-em-efb76-dropped-rather-than-offered-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-an-em-efb76-dropped-rather-than-offered-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:498:1 › a legacy draft with no fixture is listed as such, and moves to the fixture chosen for it 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('draft-row')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('draft-row') with timeout 10000ms
+      - waiting for getByTestId('draft-row')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      506 |   await page.goto('/expert/dashboard');
+      507 |   await page.waitForLoadState('networkidle');
+    > 508 |   await expect(draftRows(page)).toHaveCount(1);
+          |                                 ^
+      509 |   await expect(draftRows(page).first()).toContainText(COPY.noFixture);
+      510 |
+      511 |   await page.goto('/expert/predictions/create');
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:508:33
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-leg-82a92-o-the-fixture-chosen-for-it-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-a-leg-82a92-o-the-fixture-chosen-for-it-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-leg-82a92-o-the-fixture-chosen-for-it-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-a-leg-82a92-o-the-fixture-chosen-for-it-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:530:1 › a draft with no fixture never replaces a draft the chosen fixture already has 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('draft-row')
+    Expected: 2
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('draft-row') with timeout 10000ms
+      - waiting for getByTestId('draft-row')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      540 |
+      541 |   await page.goto('/expert/predictions/create');
+    > 542 |   await expect(draftRows(page)).toHaveCount(2);
+          |                                 ^
+      543 |   await draftRow(page, COPY.noFixture).getByRole('button', { name: COPY.continue, exact: true }).click();
+      544 |   await rowButton(page, A).click();
+      545 |   await expect(page).toHaveURL(/[?&]matchId=fx-a(&|$)/);
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:542:33
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-dra-42dce--chosen-fixture-already-has-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-a-dra-42dce--chosen-fixture-already-has-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-dra-42dce--chosen-fixture-already-has-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-a-dra-42dce--chosen-fixture-already-has-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:557:1 › a draft whose fixture kicked off is kept, and says it can no longer be published as prematch 
+
+    Error: a draft was pruned on its own
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('draft-row')
+    Expected: 2
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - a draft was pruned on its own getByTestId('draft-row') with timeout 10000ms
+      - waiting for getByTestId('draft-row')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      566 |     await page.goto('/expert/dashboard');
+      567 |     await page.waitForLoadState('networkidle');
+    > 568 |     await expect(draftRows(page), 'a draft was pruned on its own').toHaveCount(2);
+          |                                                                    ^
+      569 |     await expect(draftRow(page, 'Fovu Baham')).toContainText(COPY.kickedOff);
+      570 |     await expect(draftRow(page, 'Coton Sport')).not.toContainText(COPY.kickedOff);
+      571 |   }
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:568:68
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-dra-7810a-er-be-published-as-prematch-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-a-dra-7810a-er-be-published-as-prematch-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-dra-7810a-er-be-published-as-prematch-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-a-dra-7810a-er-be-published-as-prematch-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:580:1 › a browser that refuses to store the draft says so, and the words stay on the page 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('body')
+    Timeout: 10000ms
+    - Expected substring  - 1
+    + Received string     + 6
+
+    - This browser would not store your draft.
+    +
+    +     Skip to the matchesSPSoccer PredictionsHomeMatchesLeaguesSelectionsDashboard⚡ExpertText-onlyOffQAAccount menuOpen main menuBack to dashboardWrite a predictionCoton Sport v Union Douala · Premier League · 23 Oct 2026, 21:19Change fixtureYour viewEnter percentages, not decimals — type 55 for 55%. Only the markets you tick are published; the rest stay unavailable.Match resultYour own percentages for the three outcomes. Every prediction publishes this market.Coton Sport win*%Draw*%Union Douala win*%The three outcomes must total 100%.Your conviction in this call(optional)%How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.Other marketsTick only the markets you want to publish a view on. The rest stay unavailable.Both teams to scoreBoth teams to scoreLeft unticked, this market is not published and readers see it as unavailable.Over / under 2.5 goalsOver / under 2.5 goalsLeft unticked, this market is not published and readers see it as unavailable.Over / under 3.5 goalsOver / under 3.5 goalsLeft unticked, this market is not published and readers see it as unavailable.Your reasoning(optional)A-only words12 of 2000 characters. Published with your prediction so readers can weigh it.PreviewPublishPublishing makes this public immediately.What is already knownThe same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.Premier LeagueCoton SportHomeUnion DoualaAwayKick-off2026-10-23 21:19VenueTottenham Hotspur StadiumRound5ModelCoton Sport45%Draw30%Union Douala25%ExpertNo expert has published a prediction for this fixture.Advanced: fixture identifiersInternal match id: fx-alivescore: livescore:1877295Slip0SPSoccer PredictionsFixtures, results and model forecasts for Europe’s top five leagues and the Champions League, alongside predictions published by registered experts. Every probability names its source. Nothing here is betting advice.Language and time zoneReading settingsLanguageEnglishFrançaisThe words on this site. It does not change team names, competition names or a provider’s own message, which are shown as published.Time zoneDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+01:00 · clocks change during the yearKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · clocks change during the yearParis, Brussels · UTC+02:00 · clocks change during the yearMadrid · UTC+02:00 · clocks change during the yearBerlin · UTC+02:00 · clocks change during the yearRome · UTC+02:00 · clocks change during the yearLisbon · UTC+01:00 · clocks change during the yearUse this device’s zone (New York, Toronto) · UTC-04:00 · clocks change during the yearSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Times are shown in New York, Toronto · UTC-04:00.Every kick-off time on this site is shown in this zone, and “today” means a day in it.Language, time zone and where you are are three separate things, and this site treats them that way: choosing one changes nothing about the others, and none of them is taken as evidence of the others. Your country is not stored and not guessed.Quick LinksToday's matchesTomorrow's matchesLeaguesDashboardSupportHelp Centre (not published yet)Contact Us (not published yet)Privacy Policy (not published yet)Terms of Service (not published yet)© 2026 Soccer Predictions. All rights reserved.TwitterFacebookInstagram
+    +     
+    +   
+    +
+    +
+
+    Call log:
+      - Expect "toContainText" locator('body') with timeout 10000ms
+      - waiting for locator('body')
+        24 × locator resolved to <body class="bg-dark-950 text-white antialiased">…</body>
+           - unexpected value "
+        Skip to the matchesSPSoccer PredictionsHomeMatchesLeaguesSelectionsDashboard⚡ExpertText-onlyOffQAAccount menuOpen main menuBack to dashboardWrite a predictionCoton Sport v Union Douala · Premier League · 23 Oct 2026, 21:19Change fixtureYour viewEnter percentages, not decimals — type 55 for 55%. Only the markets you tick are published; the rest stay unavailable.Match resultYour own percentages for the three outcomes. Every prediction publishes this market.Coton Sport win*%Draw*%Union Douala win*%The three outcomes must total 100%.Your conviction in this call(optional)%How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.Other marketsTick only the markets you want to publish a view on. The rest stay unavailable.Both teams to scoreBoth teams to scoreLeft unticked, this market is not published and readers see it as unavailable.Over / under 2.5 goalsOver / under 2.5 goalsLeft unticked, this market is not published and readers see it as unavailable.Over / under 3.5 goalsOver / under 3.5 goalsLeft unticked, this market is not published and readers see it as unavailable.Your reasoning(optional)A-only words12 of 2000 characters. Published with your prediction so readers can weigh it.PreviewPublishPublishing makes this public immediately.What is already knownThe same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.Premier LeagueCoton SportHomeUnion DoualaAwayKick-off2026-10-23 21:19VenueTottenham Hotspur StadiumRound5ModelCoton Sport45%Draw30%Union Douala25%ExpertNo expert has published a prediction for this fixture.Advanced: fixture identifiersInternal match id: fx-alivescore: livescore:1877295Slip0SPSoccer PredictionsFixtures, results and model forecasts for Europe’s top five leagues and the Champions League, alongside predictions published by registered experts. Every probability names its source. Nothing here is betting advice.Language and time zoneReading settingsLanguageEnglishFrançaisThe words on this site. It does not change team names, competition names or a provider’s own message, which are shown as published.Time zoneDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+01:00 · clocks change during the yearKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · clocks change during the yearParis, Brussels · UTC+02:00 · clocks change during the yearMadrid · UTC+02:00 · clocks change during the yearBerlin · UTC+02:00 · clocks change during the yearRome · UTC+02:00 · clocks change during the yearLisbon · UTC+01:00 · clocks change during the yearUse this device’s zone (New York, Toronto) · UTC-04:00 · clocks change during the yearSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Times are shown in New York, Toronto · UTC-04:00.Every kick-off time on this site is shown in this zone, and “today” means a day in it.Language, time zone and where you are are three separate things, and this site treats them that way: choosing one changes nothing about the others, and none of them is taken as evidence of the others. Your country is not stored and not guessed.Quick LinksToday's matchesTomorrow's matchesLeaguesDashboardSupportHelp Centre (not published yet)Contact Us (not published yet)Privacy Policy (not published yet)Terms of Service (not published yet)© 2026 Soccer Predictions. All rights reserved.TwitterFacebookInstagram
+        
+      
+    
+    "
+
+
+      593 |   await page.locator('#composer-home').fill(DRAFT_A.home);
+      594 |   await page.locator('#composer-reasoning').fill(DRAFT_A.reasoning);
+    > 595 |   await expect(page.locator('body')).toContainText(COPY.saveFailed);
+          |                                      ^
+      596 |   await expect(page.locator('#composer-reasoning')).toHaveValue(DRAFT_A.reasoning);
+      597 |   expect(await storedDrafts(page)).toEqual([]);
+      598 |
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:595:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-bro-2ab57--the-words-stay-on-the-page-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-a-bro-2ab57--the-words-stay-on-the-page-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-bro-2ab57--the-words-stay-on-the-page-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-a-bro-2ab57--the-words-stay-on-the-page-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:609:1 › over fifty drafts, only the oldest whose fixture kicked off over a week ago is evicted 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 50
+    Received: 51
+
+    Call Log:
+    - Timeout 10000ms exceeded while waiting on the predicate
+
+      643 |   const ids = async () => (await storedDrafts(page))
+      644 |     .map(value => (JSON.parse(value) as { fixture?: { id?: string } }).fixture?.id ?? '?');
+    > 645 |   await expect.poll(async () => (await ids()).length).toBe(50);
+          |                                                       ^
+      646 |   const kept = await ids();
+      647 |   expect(kept, 'the oldest-saved draft past the grace was not the one evicted').not.toContain('old-1');
+      648 |   for (const id of ['fx-a', 'old-2', 'old-3', 'recent-ko', 'unknown-ko', 'future-1', 'future-45']) {
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:645:55
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-over--ef0e5--over-a-week-ago-is-evicted-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-over--ef0e5--over-a-week-ago-is-evicted-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-over--ef0e5--over-a-week-ago-is-evicted-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-over--ef0e5--over-a-week-ago-is-evicted-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:218:1 › A's draft survives opening B through match selection, reloads, and coming back 
+
+    Error: opening B overwrote A's draft in this browser: A's words are no longer stored
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      233 |     await storedWith(page, DRAFT_A.reasoning),
+      234 |     "opening B overwrote A's draft in this browser: A's words are no longer stored",
+    > 235 |   ).toBe(1);
+          |     ^
+      236 |
+      237 |   await typeDraft(page, DRAFT_B);
+      238 |   await page.reload();
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:235:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-A-s-d-4dbd1-ion-reloads-and-coming-back-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-A-s-d-4dbd1-ion-reloads-and-coming-back-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-A-s-d-4dbd1-ion-reloads-and-coming-back-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-A-s-d-4dbd1-ion-reloads-and-coming-back-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:252:1 › changing fixture inside the composer carries nothing across, keeps the draft, and follows the URL 
+
+    Error: Change fixture did not take matchId out of the URL
+
+    expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /matchId=/
+    Received string: "http://localhost:3101/expert/predictions/create?matchId=fx-a"
+    Timeout: 10000ms
+
+    Call log:
+      - Change fixture did not take matchId out of the URL with timeout 10000ms
+        24 × locator resolved to <html lang="en" class="dark" data-rh="lang" data-low-data="off">…</html>
+           - unexpected value "http://localhost:3101/expert/predictions/create?matchId=fx-a"
+
+
+      257 |
+      258 |   await page.getByRole('button', { name: 'Change fixture' }).click();
+    > 259 |   await expect(page, 'Change fixture did not take matchId out of the URL').not.toHaveURL(/matchId=/);
+          |                                                                                ^
+      260 |   await expect(page.locator('body'), 'the expert was not told A is kept').toContainText(COPY.keptA);
+      261 |   expect(await storedWith(page, DRAFT_A.reasoning)).toBe(1);
+      262 |
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:259:80
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-chang-af24f-e-draft-and-follows-the-URL-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-chang-af24f-e-draft-and-follows-the-URL-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-chang-af24f-e-draft-and-follows-the-URL-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-chang-af24f-e-draft-and-follows-the-URL-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:289:1 › opening a fixture without typing stores no draft and lists none 
+
+    Error: an untouched composer stored a draft
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "{\"fixture\":{\"id\":\"fx-b\",\"homeTeam\":\"Canon Yaounde\",\"awayTeam\":\"Tonnerre\",\"competition\":\"Premier League\",\"kickoff\":\"2026-10-23 23:20\"},\"values\":{\"homeWin\":\"\",\"draw\":\"\",\"awayWin\":\"\",\"conviction\":\"\",\"bttsEnabled\":false,\"bttsYes\":\"\",\"bttsNo\":\"\",\"bttsConviction\":\"\",\"over25Enabled\":false,\"over25\":\"\",\"under25\":\"\",\"over35Enabled\":false,\"over35\":\"\",\"under35\":\"\",\"totalsConviction\":\"\",\"reasoning\":\"\"},\"savedAt\":\"2026-10-21T01:20:28.876Z\"}",
+    + ]
+
+      291 |
+      292 |   await openComposer(page, B);
+    > 293 |   expect(await storedDrafts(page), 'an untouched composer stored a draft').toEqual([]);
+          |                                                                            ^
+      294 |
+      295 |   await page.goto('/expert/dashboard');
+      296 |   await page.waitForLoadState('networkidle');
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:293:76
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-openi-e8533-res-no-draft-and-lists-none-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-openi-e8533-res-no-draft-and-lists-none-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-openi-e8533-res-no-draft-and-lists-none-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-openi-e8533-res-no-draft-and-lists-none-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:314:1 › every discard asks first, and removes only the draft it names 
+
+    Error: the dashboard does not list both drafts
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('draft-summary')
+    Expected: 2
+    Received: 1
+    Timeout:  10000ms
+
+    Call log:
+      - the dashboard does not list both drafts getByTestId('draft-summary') with timeout 10000ms
+      - waiting for getByTestId('draft-summary')
+        24 × locator resolved to 1 element
+           - unexpected value "1"
+
+
+      324 |   await page.waitForLoadState('networkidle');
+      325 |   const summaries = page.getByTestId('draft-summary');
+    > 326 |   await expect(summaries, 'the dashboard does not list both drafts').toHaveCount(2);
+          |                                                                      ^
+      327 |   await expect(summaries.nth(0)).toContainText('Canon Yaounde v Tonnerre');
+      328 |   await expect(summaries.nth(1)).toContainText('Coton Sport v Union Douala');
+      329 |
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:326:70
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-every-f5e87-ves-only-the-draft-it-names-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-every-f5e87-ves-only-the-draft-it-names-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-every-f5e87-ves-only-the-draft-it-names-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-every-f5e87-ves-only-the-draft-it-names-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:370:1 › publishing B clears B's draft and keeps A's 
+
+    Error: publishing B removed A's draft
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      383 |
+      384 |   expect(await storedWith(page, DRAFT_B.reasoning), "B's draft outlived its publication").toBe(0);
+    > 385 |   expect(await storedWith(page, DRAFT_A.reasoning), "publishing B removed A's draft").toBe(1);
+          |                                                                                       ^
+      386 |
+      387 |   await page.goto('/expert/dashboard');
+      388 |   await page.waitForLoadState('networkidle');
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:385:87
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-publi-914c4-ars-B-s-draft-and-keeps-A-s-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-publi-914c4-ars-B-s-draft-and-keeps-A-s-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-publi-914c4-ars-B-s-draft-and-keeps-A-s-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-publi-914c4-ars-B-s-draft-and-keeps-A-s-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:457:1 › a legacy draft is moved to its fixture once, and kept 
+
+    Error: the legacy key was not retired
+
+    the legacy key was not retired
+
+    expect(received).toBeNull()
+
+    Received: "{\"fixture\":{\"id\":\"fx-a\",\"homeTeam\":\"Coton Sport\",\"awayTeam\":\"Union Douala\",\"competition\":\"Premier League\",\"kickoff\":\"2026-10-23 21:20\"},\"values\":{\"homeWin\":\"60\",\"draw\":\"25\",\"awayWin\":\"15\",\"conviction\":\"\",\"bttsEnabled\":false,\"bttsYes\":\"\",\"bttsNo\":\"\",\"bttsConviction\":\"\",\"over25Enabled\":false,\"over25\":\"\",\"under25\":\"\",\"over35Enabled\":false,\"over35\":\"\",\"under35\":\"\",\"totalsConviction\":\"\",\"reasoning\":\"legacy words\"},\"savedAt\":\"2026-10-21T01:20:49.487Z\"}"
+
+    Call Log:
+    - Timeout 10000ms exceeded while waiting on the predicate
+
+      465 |   await openComposer(page, A);
+      466 |   await expectFields(page, { home: '60', draw: '25', away: '15', reasoning: 'legacy words' });
+    > 467 |   await expect.poll(() => legacyKeyValue(page), { message: 'the legacy key was not retired' }).toBeNull();
+          |                                                                                                ^
+      468 |   expect(await storedWith(page, 'legacy words'), 'the legacy draft is stored once').toBe(1);
+      469 |
+      470 |   await page.reload();
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:467:96
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-leg-34953-o-its-fixture-once-and-kept-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-a-leg-34953-o-its-fixture-once-and-kept-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-leg-34953-o-its-fixture-once-and-kept-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-a-leg-34953-o-its-fixture-once-and-kept-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:483:1 › an empty legacy draft is dropped rather than offered 
+
+    Error: an empty draft was offered
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('draft-summary')
+    Expected: 0
+    Received: 1
+    Timeout:  10000ms
+
+    Call log:
+      - an empty draft was offered getByTestId('draft-summary') with timeout 10000ms
+      - waiting for getByTestId('draft-summary')
+        24 × locator resolved to 1 element
+           - unexpected value "1"
+
+
+      491 |   await page.goto('/expert/dashboard');
+      492 |   await page.waitForLoadState('networkidle');
+    > 493 |   await expect(page.getByTestId('draft-summary'), 'an empty draft was offered').toHaveCount(0);
+          |                                                                                 ^
+      494 |   await expect.poll(() => legacyKeyValue(page)).toBeNull();
+      495 |   expect(await storedDrafts(page)).toEqual([]);
+      496 | });
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:493:81
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-an-em-efb76-dropped-rather-than-offered-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-an-em-efb76-dropped-rather-than-offered-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-an-em-efb76-dropped-rather-than-offered-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-an-em-efb76-dropped-rather-than-offered-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  20) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:498:1 › a legacy draft with no fixture is listed as such, and moves to the fixture chosen for it 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('draft-row')
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('draft-row') with timeout 10000ms
+      - waiting for getByTestId('draft-row')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      506 |   await page.goto('/expert/dashboard');
+      507 |   await page.waitForLoadState('networkidle');
+    > 508 |   await expect(draftRows(page)).toHaveCount(1);
+          |                                 ^
+      509 |   await expect(draftRows(page).first()).toContainText(COPY.noFixture);
+      510 |
+      511 |   await page.goto('/expert/predictions/create');
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:508:33
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-leg-82a92-o-the-fixture-chosen-for-it-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-a-leg-82a92-o-the-fixture-chosen-for-it-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-leg-82a92-o-the-fixture-chosen-for-it-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-a-leg-82a92-o-the-fixture-chosen-for-it-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  21) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:530:1 › a draft with no fixture never replaces a draft the chosen fixture already has 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('draft-row')
+    Expected: 2
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" getByTestId('draft-row') with timeout 10000ms
+      - waiting for getByTestId('draft-row')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      540 |
+      541 |   await page.goto('/expert/predictions/create');
+    > 542 |   await expect(draftRows(page)).toHaveCount(2);
+          |                                 ^
+      543 |   await draftRow(page, COPY.noFixture).getByRole('button', { name: COPY.continue, exact: true }).click();
+      544 |   await rowButton(page, A).click();
+      545 |   await expect(page).toHaveURL(/[?&]matchId=fx-a(&|$)/);
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:542:33
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-dra-42dce--chosen-fixture-already-has-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-a-dra-42dce--chosen-fixture-already-has-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-dra-42dce--chosen-fixture-already-has-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-a-dra-42dce--chosen-fixture-already-has-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  22) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:557:1 › a draft whose fixture kicked off is kept, and says it can no longer be published as prematch 
+
+    Error: a draft was pruned on its own
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByTestId('draft-row')
+    Expected: 2
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - a draft was pruned on its own getByTestId('draft-row') with timeout 10000ms
+      - waiting for getByTestId('draft-row')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      566 |     await page.goto('/expert/dashboard');
+      567 |     await page.waitForLoadState('networkidle');
+    > 568 |     await expect(draftRows(page), 'a draft was pruned on its own').toHaveCount(2);
+          |                                                                    ^
+      569 |     await expect(draftRow(page, 'Fovu Baham')).toContainText(COPY.kickedOff);
+      570 |     await expect(draftRow(page, 'Coton Sport')).not.toContainText(COPY.kickedOff);
+      571 |   }
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:568:68
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-dra-7810a-er-be-published-as-prematch-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-a-dra-7810a-er-be-published-as-prematch-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-dra-7810a-er-be-published-as-prematch-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-a-dra-7810a-er-be-published-as-prematch-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  23) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:580:1 › a browser that refuses to store the draft says so, and the words stay on the page 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('body')
+    Timeout: 10000ms
+    - Expected substring  - 1
+    + Received string     + 6
+
+    - This browser would not store your draft.
+    +
+    +     Skip to the matchesSPSoccer PredictionsHomeMatchesLeaguesSelectionsDashboard⚡ExpertText-onlyOffQAAccount menuOpen main menuBack to dashboardWrite a predictionCoton Sport v Union Douala · Premier League · 23 Oct 2026 at 21:21Change fixtureYour viewEnter percentages, not decimals — type 55 for 55%. Only the markets you tick are published; the rest stay unavailable.Match resultYour own percentages for the three outcomes. Every prediction publishes this market.Coton Sport win*%Draw*%Union Douala win*%The three outcomes must total 100%.Your conviction in this call(optional)%How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.Other marketsTick only the markets you want to publish a view on. The rest stay unavailable.Both teams to scoreBoth teams to scoreLeft unticked, this market is not published and readers see it as unavailable.Over / under 2.5 goalsOver / under 2.5 goalsLeft unticked, this market is not published and readers see it as unavailable.Over / under 3.5 goalsOver / under 3.5 goalsLeft unticked, this market is not published and readers see it as unavailable.Your reasoning(optional)A-only words12 of 2000 characters. Published with your prediction so readers can weigh it.PreviewPublishPublishing makes this public immediately.What is already knownThe same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.Premier LeagueCoton SportHomeUnion DoualaAwayKick-off2026-10-23 21:21VenueTottenham Hotspur StadiumRound5ModelCoton Sport45%Draw30%Union Douala25%ExpertNo expert has published a prediction for this fixture.Advanced: fixture identifiersInternal match id: fx-alivescore: livescore:1877295Slip0SPSoccer PredictionsFixtures, results and model forecasts for Europe’s top five leagues and the Champions League, alongside predictions published by registered experts. Every probability names its source. Nothing here is betting advice.Language and time zoneReading settingsLanguageEnglishFrançaisThe words on this site. It does not change team names, competition names or a provider’s own message, which are shown as published.Time zoneDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+00:00 · clocks change during the yearKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · clocks change during the yearParis, Brussels · UTC+02:00 · clocks change during the yearMadrid · UTC+02:00 · clocks change during the yearBerlin · UTC+02:00 · clocks change during the yearRome · UTC+02:00 · clocks change during the yearLisbon · UTC+01:00 · clocks change during the yearUse this device’s zone (New York, Toronto) · UTC-04:00 · clocks change during the yearSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Times are shown in New York, Toronto · UTC-04:00.Every kick-off time on this site is shown in this zone, and “today” means a day in it.Language, time zone and where you are are three separate things, and this site treats them that way: choosing one changes nothing about the others, and none of them is taken as evidence of the others. Your country is not stored and not guessed.Quick LinksToday's matchesTomorrow's matchesLeaguesDashboardSupportHelp Centre (not published yet)Contact Us (not published yet)Privacy Policy (not published yet)Terms of Service (not published yet)© 2026 Soccer Predictions. All rights reserved.TwitterFacebookInstagram
+    +     
+    +   
+    +
+    +
+
+    Call log:
+      - Expect "toContainText" locator('body') with timeout 10000ms
+      - waiting for locator('body')
+        23 × locator resolved to <body class="bg-dark-950 text-white antialiased">…</body>
+           - unexpected value "
+        Skip to the matchesSPSoccer PredictionsHomeMatchesLeaguesSelectionsDashboard⚡ExpertText-onlyOffQAAccount menuOpen main menuBack to dashboardWrite a predictionCoton Sport v Union Douala · Premier League · 23 Oct 2026 at 21:21Change fixtureYour viewEnter percentages, not decimals — type 55 for 55%. Only the markets you tick are published; the rest stay unavailable.Match resultYour own percentages for the three outcomes. Every prediction publishes this market.Coton Sport win*%Draw*%Union Douala win*%The three outcomes must total 100%.Your conviction in this call(optional)%How strongly you hold this view. Left blank, no conviction is published — it is never inferred from how large your percentages are, and it is not an accuracy.Other marketsTick only the markets you want to publish a view on. The rest stay unavailable.Both teams to scoreBoth teams to scoreLeft unticked, this market is not published and readers see it as unavailable.Over / under 2.5 goalsOver / under 2.5 goalsLeft unticked, this market is not published and readers see it as unavailable.Over / under 3.5 goalsOver / under 3.5 goalsLeft unticked, this market is not published and readers see it as unavailable.Your reasoning(optional)A-only words12 of 2000 characters. Published with your prediction so readers can weigh it.PreviewPublishPublishing makes this public immediately.What is already knownThe same evidence the public match page shows. It is here to read, not to copy — none of your fields are filled in from it.Premier LeagueCoton SportHomeUnion DoualaAwayKick-off2026-10-23 21:21VenueTottenham Hotspur StadiumRound5ModelCoton Sport45%Draw30%Union Douala25%ExpertNo expert has published a prediction for this fixture.Advanced: fixture identifiersInternal match id: fx-alivescore: livescore:1877295Slip0SPSoccer PredictionsFixtures, results and model forecasts for Europe’s top five leagues and the Champions League, alongside predictions published by registered experts. Every probability names its source. Nothing here is betting advice.Language and time zoneReading settingsLanguageEnglishFrançaisThe words on this site. It does not change team names, competition names or a provider’s own message, which are shown as published.Time zoneDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+00:00 · clocks change during the yearKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · clocks change during the yearParis, Brussels · UTC+02:00 · clocks change during the yearMadrid · UTC+02:00 · clocks change during the yearBerlin · UTC+02:00 · clocks change during the yearRome · UTC+02:00 · clocks change during the yearLisbon · UTC+01:00 · clocks change during the yearUse this device’s zone (New York, Toronto) · UTC-04:00 · clocks change during the yearSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Times are shown in New York, Toronto · UTC-04:00.Every kick-off time on this site is shown in this zone, and “today” means a day in it.Language, time zone and where you are are three separate things, and this site treats them that way: choosing one changes nothing about the others, and none of them is taken as evidence of the others. Your country is not stored and not guessed.Quick LinksToday's matchesTomorrow's matchesLeaguesDashboardSupportHelp Centre (not published yet)Contact Us (not published yet)Privacy Policy (not published yet)Terms of Service (not published yet)© 2026 Soccer Predictions. All rights reserved.TwitterFacebookInstagram
+        
+      
+    
+    "
+
+
+      593 |   await page.locator('#composer-home').fill(DRAFT_A.home);
+      594 |   await page.locator('#composer-reasoning').fill(DRAFT_A.reasoning);
+    > 595 |   await expect(page.locator('body')).toContainText(COPY.saveFailed);
+          |                                      ^
+      596 |   await expect(page.locator('#composer-reasoning')).toHaveValue(DRAFT_A.reasoning);
+      597 |   expect(await storedDrafts(page)).toEqual([]);
+      598 |
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:595:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-bro-2ab57--the-words-stay-on-the-page-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-a-bro-2ab57--the-words-stay-on-the-page-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-a-bro-2ab57--the-words-stay-on-the-page-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-a-bro-2ab57--the-words-stay-on-the-page-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24) [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:609:1 › over fifty drafts, only the oldest whose fixture kicked off over a week ago is evicted 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 50
+    Received: 51
+
+    Call Log:
+    - Timeout 10000ms exceeded while waiting on the predicate
+
+      643 |   const ids = async () => (await storedDrafts(page))
+      644 |     .map(value => (JSON.parse(value) as { fixture?: { id?: string } }).fixture?.id ?? '?');
+    > 645 |   await expect.poll(async () => (await ids()).length).toBe(50);
+          |                                                       ^
+      646 |   const kept = await ids();
+      647 |   expect(kept, 'the oldest-saved draft past the grace was not the one evicted').not.toContain('old-1');
+      648 |   for (const id of ['fx-a', 'old-2', 'old-3', 'recent-ko', 'unknown-ko', 'future-1', 'future-45']) {
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/expert-drafts.spec.ts:645:55
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-over--ef0e5--over-a-week-ago-is-evicted-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-expert-drafts-over--ef0e5--over-a-week-ago-is-evicted-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-expert-drafts-over--ef0e5--over-a-week-ago-is-evicted-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-expert-drafts-over--ef0e5--over-a-week-ago-is-evicted-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24 failed
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:218:1 › A's draft survives opening B through match selection, reloads, and coming back 
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:252:1 › changing fixture inside the composer carries nothing across, keeps the draft, and follows the URL 
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:289:1 › opening a fixture without typing stores no draft and lists none 
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:314:1 › every discard asks first, and removes only the draft it names 
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:370:1 › publishing B clears B's draft and keeps A's 
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:457:1 › a legacy draft is moved to its fixture once, and kept 
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:483:1 › an empty legacy draft is dropped rather than offered 
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:498:1 › a legacy draft with no fixture is listed as such, and moves to the fixture chosen for it 
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:530:1 › a draft with no fixture never replaces a draft the chosen fixture already has 
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:557:1 › a draft whose fixture kicked off is kept, and says it can no longer be published as prematch 
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:580:1 › a browser that refuses to store the draft says so, and the words stay on the page 
+    [mocked-desktop] › e2e/mocked/expert-drafts.spec.ts:609:1 › over fifty drafts, only the oldest whose fixture kicked off over a week ago is evicted 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:218:1 › A's draft survives opening B through match selection, reloads, and coming back 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:252:1 › changing fixture inside the composer carries nothing across, keeps the draft, and follows the URL 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:289:1 › opening a fixture without typing stores no draft and lists none 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:314:1 › every discard asks first, and removes only the draft it names 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:370:1 › publishing B clears B's draft and keeps A's 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:457:1 › a legacy draft is moved to its fixture once, and kept 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:483:1 › an empty legacy draft is dropped rather than offered 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:498:1 › a legacy draft with no fixture is listed as such, and moves to the fixture chosen for it 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:530:1 › a draft with no fixture never replaces a draft the chosen fixture already has 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:557:1 › a draft whose fixture kicked off is kept, and says it can no longer be published as prematch 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:580:1 › a browser that refuses to store the draft says so, and the words stay on the page 
+    [mocked-mobile] › e2e/mocked/expert-drafts.spec.ts:609:1 › over fifty drafts, only the oldest whose fixture kicked off over a week ago is evicted 
+  2 passed (3.9m)

@@ -1,0 +1,42 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [live-isolated] › e2e/live-isolated/expert-drafts.spec.ts:141:1 › A's draft survives B, through real match selection and reloads, and nothing is published (7.6s)
+
+
+  1) [live-isolated] › e2e/live-isolated/expert-drafts.spec.ts:141:1 › A's draft survives B, through real match selection and reloads, and nothing is published 
+
+    Error: opening B overwrote A's draft in this browser
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      161 |   expect(idB).not.toBe(idA);
+      162 |   await expectFields(page, { home: '', draw: '', away: '', reasoning: '' });
+    > 163 |   expect(await storedWith(page, draftA.reasoning), "opening B overwrote A's draft in this browser").toBe(1);
+          |                                                                                                     ^
+      164 |
+      165 |   await typeDraft(page, draftB);
+      166 |   await reloadComposer(page);
+        at /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/live-isolated/expert-drafts.spec.ts:163:101
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-expert-draft-67d48-ds-and-nothing-is-published-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/live-isolated-expert-draft-67d48-ds-and-nothing-is-published-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/live-isolated-expert-draft-67d48-ds-and-nothing-is-published-live-isolated/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-expert-draft-67d48-ds-and-nothing-is-published-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/live-isolated-expert-draft-67d48-ds-and-nothing-is-published-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [live-isolated] › e2e/live-isolated/expert-drafts.spec.ts:141:1 › A's draft survives B, through real match selection and reloads, and nothing is published 

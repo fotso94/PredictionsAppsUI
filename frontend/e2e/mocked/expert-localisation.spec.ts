@@ -816,10 +816,18 @@ test('the moderation list reads its timestamps in the chosen zone too', async ({
  * THE DRAFT NOTICES, WHICH ARE THE ONLY PRIVATE SURFACE ON THESE SCREENS.
  *
  * A draft is half-written words an expert has not published and may never publish. It lives in
- * `localStorage`, keyed by the signed-in user's id, and the two sentences that describe it both
- * have to say three things at once: that it exists, when it was last saved, and — the part that
- * matters — that it is in this browser only and will not publish itself. Nothing else in this
- * file reaches those sentences, because they need a draft in storage before the page loads.
+ * `localStorage`, keyed by the signed-in user's id and the fixture's, and the sentences that
+ * describe it have to say three things at once: that it exists, when it was last saved, and — the
+ * part that matters — that it is in this browser only and will not publish itself. Nothing else
+ * in this file reaches those sentences, because they need a draft in storage before the page
+ * loads.
+ *
+ * THE SEED IS THE LEGACY v1 KEY on purpose. The store moves it to its per-fixture v2 key on the
+ * first read (components/expert/draft.ts), so these tests also prove that a draft written before
+ * drafts were per fixture still reaches the expert. `seedDraft` re-runs on every document load;
+ * the migration is idempotent, so that cannot duplicate it. The draft behaviour itself — A kept
+ * while B is opened, discards that ask, a publish that clears one fixture — is in
+ * ./expert-drafts.spec.ts, built by typing rather than seeding.
  *
  * They are also the sharpest test of the whole-sentence rule. English puts the fixture in the
  * middle and the "saved" phrase after it; the catalogue owns the entire sentence, so French is
@@ -858,25 +866,26 @@ async function seedDraft(page: Page, fixtureId: string, minutesAgo: number): Pro
 }
 
 for (const language of ['en', 'fr'] as const) {
-  test(`an unfinished draft for another fixture is offered in ${language}, whole sentence and all`, async ({ page }) => {
+  test(`a draft for another fixture is kept and listed in ${language}, whole sentence and all`, async ({ page }) => {
     const fixture = fixtureAt(KICKOFF_UTC, 'Coton Sport', 'Union Douala', MATCH_ID);
     await openAsExpert(page, { language, zone: DOUALA }, { fixtures: [fixture] });
     await seedDraft(page, 'a-different-fixture', 3);
+    const catalogue = language === 'en' ? en : fr;
 
     /*
-     * The journey that reaches this panel, rather than a URL that only looks like it would.
+     * The journey that reaches this list, rather than a URL that only looks like it would.
      *
-     * Opening the composer on a fixture the draft is NOT for sets the draft aside instead of
-     * restoring it — the expert asked for this match, so their half-written words about another
-     * one must not appear in these fields. The offer is made on the fixture-choosing screen,
-     * which is where the expert lands when they press "change fixture"; that is the only route
-     * to it, and going straight to a URL would have tested a branch nobody can reach.
+     * Opening the composer on a fixture the draft is NOT for opens that fixture EMPTY and leaves
+     * the other draft where it is, under its own fixture: the expert asked for this match, so
+     * their half-written words about another one must not appear in these fields, and must not
+     * be overwritten either (QA finding 2 — the old single slot lost them here). "Change fixture"
+     * leads to the picker, whose first card lists every unpublished draft.
      */
     await page.goto(`/expert/predictions/create?matchId=${MATCH_ID}`);
     await page.waitForLoadState('networkidle');
-    await page.getByRole('button', { name: (language === 'en' ? en : fr)['expert.compose.changeFixture'] }).click();
+    await expect(page.locator('textarea').first()).toHaveValue('');
+    await page.getByRole('button', { name: catalogue['expert.compose.changeFixture'] }).click();
 
-    const catalogue = language === 'en' ? en : fr;
     const duration = renderMessage(
       compileMessage(catalogue['duration.minutes']),
       LOCALE[language],
@@ -888,19 +897,21 @@ for (const language of ['en', 'fr'] as const) {
       LOCALE[language],
       { home: 'Coton Sport', away: 'Union Douala' },
     );
-    const sentence = renderMessage(
-      compileMessage(catalogue['expert.draft.unfinishedForSaved']),
-      LOCALE[language],
-      { fixture: fixtureLabel, ago },
-    );
+    const saved = renderMessage(compileMessage(catalogue['expert.draft.savedAgo']), LOCALE[language], { ago });
 
-    const text = plainSpaces(await bodyText(page));
-    expect(text, 'the draft notice was not the catalogue sentence').toContain(plainSpaces(sentence));
-    // And the promise the notice makes about where the words live.
-    expect(text).toContain(catalogue['expert.draft.notPublishedNote']);
-    // The fixture inside the sentence is emphasised, wherever the language put it.
-    await expect(page.locator('.card strong, .card .font-semibold').filter({ hasText: 'Coton Sport' }).first())
-      .toBeVisible();
+    await expect(page.getByRole('heading', { name: catalogue['expert.draft.listTitle'] })).toBeVisible();
+    const summary = page.getByTestId('draft-summary');
+    await expect(summary, 'the draft for the other fixture is not listed').toHaveCount(1);
+    expect(plainSpaces((await summary.innerText()).replace(/\s+/g, ' ')), 'the draft line was not the catalogue sentence')
+      .toBe(plainSpaces(`${fixtureLabel} · ${saved}`));
+    // And the promise the list makes about where the words live.
+    expect(plainSpaces(await bodyText(page))).toContain(plainSpaces(catalogue['expert.draft.listNote']));
+
+    // Still stored, word for word, after the composer opened another fixture.
+    const stored = await page.evaluate(() => Object.keys(window.localStorage)
+      .filter(key => key.startsWith('expert.composer.draft'))
+      .map(key => window.localStorage.getItem(key) ?? ''));
+    expect(stored.filter(value => value.includes('a private note nobody has published'))).toHaveLength(1);
   });
 
   test(`a restored draft says so in ${language}, and says it publishes nothing by itself`, async ({ page }) => {

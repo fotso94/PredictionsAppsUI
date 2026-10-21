@@ -4,7 +4,7 @@
  * THE ORDER OF THE SECTIONS IS THE POINT, AND METRICS DO NOT COME FIRST. Opening with four
  * metric tiles — total, published, pending, accuracy — gives a new expert "0, 0, 0, Not scored"
  * across the whole first screen: four empty boxes are not a starting point, and an accuracy tile
- * in prime space says only that nothing has ever been scored. So the work leads — continue the
+ * in prime space says only that nothing has ever been scored. So the work leads — continue a
  * draft you left, choose a match, what you have recently published — the counts sit below it
  * where they are a record rather than an obstacle, and moderation, which does not gate
  * publication, is last.
@@ -59,8 +59,8 @@ import EmptyState from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { getErrorMessage } from '@/utils/errors'
 import { useAuth } from '@/hooks/useAuth'
-import { ComposerDraft, clearDraft, readDraft } from '@/components/expert/draft'
-import { relativeTime } from '@/components/ui/freshness'
+import { ComposerDraft, clearDraft, listDrafts, UNASSIGNED } from '@/components/expert/draft'
+import DraftList from '@/components/expert/DraftList'
 import { backendInstant, formatDate, formatNumber } from '@/i18n'
 import { useT } from '@/i18n/react'
 import type { TranslateFn } from '@/i18n'
@@ -182,6 +182,9 @@ const RecentRow: React.FC<{
   )
 }
 
+/** How many drafts the dashboard shows before "See all drafts". */
+const DASHBOARD_DRAFTS = 3
+
 const ExpertDashboardPage: React.FC = () => {
   const t = useT()
   const { user } = useAuth()
@@ -193,10 +196,12 @@ const ExpertDashboardPage: React.FC = () => {
   const [recentPredictions, setRecentPredictions] = useState<ExpertPredictionResponse[]>([])
   const [reviewQueue, setReviewQueue] = useState<ExpertPredictionResponse[]>([])
   const [processingId, setProcessingId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<ComposerDraft | null>(null)
+  /** This expert's unpublished drafts in this browser, newest first. One per fixture. */
+  const [drafts, setDrafts] = useState<ComposerDraft[]>(() => listDrafts(userId))
+  const [draftDiscarded, setDraftDiscarded] = useState(false)
 
   useEffect(() => {
-    setDraft(readDraft(userId))
+    setDrafts(listDrafts(userId))
   }, [userId])
 
   const loadDashboardData = useCallback(async () => {
@@ -250,13 +255,15 @@ const ExpertDashboardPage: React.FC = () => {
     }
   }
 
-  const discardDraft = () => {
-    clearDraft(userId)
-    setDraft(null)
+  /** Only ever after the row's own confirmation, and only that fixture's draft. */
+  const discardDraft = (draft: ComposerDraft) => {
+    clearDraft(userId, draft.slot)
+    setDrafts(listDrafts(userId))
+    setDraftDiscarded(true)
   }
 
-  /** "3 minutes ago" / « il y a 3 minutes », in the reader's language. Null when unreadable. */
-  const savedAt = draft ? relativeTime(draft.savedAt) : null
+  /** The newest three; the composer's picker lists them all. */
+  const shownDrafts = drafts.slice(0, DASHBOARD_DRAFTS)
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
@@ -278,66 +285,31 @@ const ExpertDashboardPage: React.FC = () => {
       <section aria-labelledby="next-heading">
         <h2 id="next-heading" className="sr-only">{t('expert.dashboard.nextHeading')}</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {draft && (
+          {drafts.length > 0 && (
             <div className="card border-primary-800 p-4 sm:col-span-2">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-white">
-                    <PencilSquareIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                    {t('expert.draft.continueTitle')}
-                  </p>
-                  {/*
-                    NO `truncate` HERE, AND THAT IS LOAD-BEARING RATHER THAN A TIDY-UP.
-
-                    `truncate` is `white-space: nowrap` with `overflow: hidden`, and on this line
-                    it loses words outright: at 360px in French the saved-ago run ends 106px past
-                    the paragraph it lives in, and because the clipping is on this paragraph and
-                    not on the page, the DOCUMENT does not scroll sideways to show it or any test
-                    that measures the document. « il y a 7 minutes » is half as long again as
-                    "7 minutes ago", and that is the normal case, not a pathological one: French
-                    runs reliably longer than English, so a single-line box measured in English
-                    is a box that loses a French sentence.
-
-                    The answer is to let the line wrap. Nothing here needs to be one line: it is a
-                    card, not a table row, and a fixture name over two lines costs a few pixels of
-                    height where a clipped line costs the reader the information. `break-words`
-                    covers the one case wrapping cannot — a single token longer than the card.
-
-                    Shortening the French to fit is the other way to make the measurement pass,
-                    and it is the wrong one: it makes the language that needs
-                    the room the one that has to give it up, and the next longer string — a
-                    two-hour-old draft, a longer team name — breaks it again.
-                  */}
-                  <p className="mt-1 break-words text-sm text-secondary-200" data-testid="draft-summary">
-                    {draft.fixture && draft.fixture.homeTeam
-                      ? t('expert.fixtureShort', { home: draft.fixture.homeTeam, away: draft.fixture.awayTeam })
-                      : t('expert.draft.noFixture')}
-                    {/*
-                      `savedAgo` in components/expert/draft.ts returns hard-coded English ("3
-                      minutes ago", "yesterday") and that module is another package's. This is
-                      `relativeTime`, which is the same idea already translated: it builds the
-                      duration first and then lets the catalogue put the frame where the language
-                      wants it — "3 minutes ago", « il y a 3 minutes ».
-                    */}
-                    {savedAt && (
-                      <span className="text-secondary-400" data-testid="draft-saved-ago">
-                        {' · '}{t('expert.draft.savedAgo', { ago: savedAt })}
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-1 text-xs text-secondary-400">{t('expert.draft.localOnly')}</p>
-                </div>
-                <div className="flex flex-shrink-0 flex-wrap gap-2">
-                  <Link
-                    to={draft.fixture?.id ? `/expert/predictions/create?matchId=${encodeURIComponent(draft.fixture.id)}` : '/expert/predictions/create'}
-                    className="btn btn-sm btn-primary"
-                  >
-                    {t('expert.draft.continue')}
-                  </Link>
-                  <button type="button" onClick={discardDraft} className="btn btn-sm btn-ghost">{t('expert.draft.discard')}</button>
-                </div>
-              </div>
+              <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                <PencilSquareIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                {t('expert.draft.listTitle')}
+              </p>
+              <p className="mt-1 text-xs text-secondary-400">{t('expert.draft.listNote')}</p>
+              {/* Each row's summary line WRAPS rather than truncating; DraftList says why. */}
+              <DraftList
+                className="mt-3"
+                drafts={shownDrafts}
+                continueHref={draft => (draft.slot === UNASSIGNED
+                  ? '/expert/predictions/create'
+                  : `/expert/predictions/create?matchId=${encodeURIComponent(draft.slot)}`)}
+                onDiscard={discardDraft}
+              />
+              {drafts.length > DASHBOARD_DRAFTS && (
+                <Link to="/expert/predictions/create" className="focus-ring mt-3 inline-block text-xs font-medium text-primary-300 hover:text-primary-200">
+                  {t('expert.draft.seeAll')}
+                </Link>
+              )}
             </div>
+          )}
+          {draftDiscarded && (
+            <p className="text-xs text-secondary-300 sm:col-span-2" role="status">{t('expert.draft.discarded')}</p>
           )}
 
           <Link
