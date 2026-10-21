@@ -170,17 +170,27 @@ export async function cleanupQaPredictions(api: APIRequestContext, token: string
   return removed;
 }
 
-/** A match from the local database that the QA expert can attach a prediction to. */
-export async function anyUpcomingMatch(api: APIRequestContext): Promise<ApiMatch | null> {
+/**
+ * A match from the local database that the QA expert can attach a PREMATCH prediction to: stored as
+ * scheduled AND kicking off at least UPCOMING_MARGIN_MS from now. The stored status alone is not
+ * enough: the isolated clone's scheduler is off, so a fixture stays 'scheduled' after its kick-off,
+ * and a prediction published on it is (correctly) after kick-off. Selecting by status alone made the
+ * specs that assert the prematch case pass only before the day's first kick-off. The margin covers
+ * the length of a spec run.
+ */
+const UPCOMING_MARGIN_MS = 30 * 60 * 1000;
+
+export async function anyUpcomingMatch(api: APIRequestContext, now: number = Date.now()): Promise<ApiMatch | null> {
   for (let offset = 0; offset < 8; offset += 1) {
-    const day = new Date();
+    const day = new Date(now);
     day.setUTCDate(day.getUTCDate() + offset);
     const iso = day.toISOString().slice(0, 10);
     // refresh=false keeps this a database read: no provider request is made
     const response = await api.get(`/api/v1/matches?date=${iso}&refresh=false`);
     if (!response.ok()) continue;
     const body = await response.json();
-    const upcoming = (body.matches || []).find((m: ApiMatch) => m.status === 'scheduled');
+    const upcoming = (body.matches || []).find((m: ApiMatch) =>
+      m.status === 'scheduled' && Number.isFinite(Date.parse(m.kickoff_utc)) && Date.parse(m.kickoff_utc) > now + UPCOMING_MARGIN_MS);
     if (upcoming) return upcoming;
   }
   return null;
