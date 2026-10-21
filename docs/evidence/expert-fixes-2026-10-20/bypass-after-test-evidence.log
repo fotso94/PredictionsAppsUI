@@ -1,0 +1,9 @@
+# (scrubbed: pre-fix export -> <prefix-export> x0, worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, relative temp path -> <tmp>/ x0, home prefix -> ~ x0, pytest temp user -> <user> x0, test database password -> *** x0; nothing else edited)
+# exit=0
+# bypass AFTER: scripts/tests (the evidence runner), the two new tests included
+# code under test: exactly commit b6c35b28 (the working tree was clean at HEAD b6c35b28)
+# cd <worktree> && backend/venv311/bin/python -m pytest scripts/tests -q -p no:cacheprovider -o addopts='' -rfs
+# expected: 94 passed (92 + 2)
+........................................................................ [ 76%]
+......................                                                   [100%]
+94 passed in 1.54s

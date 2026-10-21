@@ -1,0 +1,390 @@
+# (scrubbed: pre-fix export -> <prefix-export> x14, worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x4, relative temp path -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=1
+# bypass BEFORE: the real configuration's refusal runs (node --test e2e/guard/refusal-runs.test.mjs) on the pre-fix tree, with the seven new cases
+# code under test: a84affd3 (before the fix), exported with git archive to <prefix-export>, with ONLY the final test files of b6c35b28 laid over it; venv311, node_modules and backend/.env are links to the worktree's
+# cd <prefix-export>/frontend && node --test --test-reporter=spec e2e/guard/refusal-runs.test.mjs; every run behind net-tripwire.cjs (NODE_OPTIONS=--require), stand-ins on free ports for every API a case names
+# expected: 7 failed - the mocked default is :3100; -c e2e/live and the repository-root form run the live specs with no preflight (their Node requests to the stand-ins were caught by the tripwire); a configuration without globalSetup runs a mocked test to a pass (on the isolated frontend :3101); in checkouts called ...-mocked / ...-live / ...-live-isolated the projects select other directories' specs (--list only); the 11 existing cases pass
+✔ the live-isolated project does not exist unless E2E_STACK selects it (329.968166ms)
+✔ the live project does not exist unless E2E_STACK selects it (282.080208ms)
+✔ an E2E_STACK that is not exactly one stack is refused when the configuration loads (828.971625ms)
+✔ live-isolated pointed at servers the policy does not name is refused before any test (307.251125ms)
+✔ live-isolated with no isolated API URL is refused, not defaulted (283.959542ms)
+✔ the live backend or frontend named as the isolated pair is refused before anything is sent (281.312208ms)
+✔ an isolated API that is also the main API is refused (277.139958ms)
+✔ a mocked run whose frontend URL is a backend is refused (276.521875ms)
+✔ a URL carrying a password is refused and the password is never printed (282.10275ms)
+✔ an approved mocked run starts and passes, and Node reaches for no server but the web font host (1563.087125ms)
+✔ the approved isolated pair passes the preflight: one GET to the isolated backend and nothing else from Node (804.252125ms)
+✖ a mocked run never uses the live frontend: the default is the isolated one, and :3100 is refused (884.2175ms)
+✖ live specs run under another configuration (no global setup) refuse before their first request (714.645959ms)
+✖ live and live-isolated specs named from the repository root (no configuration at all) refuse too (1153.174ms)
+✖ workers refuse when no preflight passed in their runner, as in watch mode, which ignores a failed global setup (1523.840084ms)
+✖ in a checkout called PredictionsAppsUI-mocked, each project selects only its own directory (1147.953625ms)
+✖ in a checkout called PredictionsAppsUI-live, each project selects only its own directory (1113.666792ms)
+✖ in a checkout called PredictionsAppsUI-live-isolated, each project selects only its own directory (1127.161708ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 11
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13215.51275
+
+✖ failing tests:
+
+test at e2e/guard/refusal-runs.test.mjs:222:1
+✖ a mocked run never uses the live frontend: the default is the isolated one, and :3100 is refused (884.2175ms)
+  AssertionError [ERR_ASSERTION]: exit 1
+  isolation preflight: PASS (policy sha256 e2abbcc34d12)
+    mocked-desktop, mocked-mobile, mocked-mobile-360: frontend http://localhost:3100; every /api/v1 call is answered by the stubs
+    (nothing was sent to any server)
+  Error: No tests found
+  
+  
+      at TestContext.<anonymous> (file://<prefix-export>/frontend/e2e/guard/refusal-runs.test.mjs:225:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'isolation preflight: PASS (policy sha256 e2abbcc34d12)\n  mocked-desktop, mocked-mobile, mocked-mobile-360: frontend http://localhost:3100; every /api/v1 call is answered by the stubs\n  (nothing was sent to any server)\nError: No tests found\n\n',
+    expected: /isolation preflight: PASS[\s\S]*mocked-desktop[^\n]*: frontend http:\/\/localhost:3101;/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:231:1
+✖ live specs run under another configuration (no global setup) refuse before their first request (714.645959ms)
+  AssertionError [ERR_ASSERTION]: Node connected or tried to
+  exit 1
+  
+  Running 1 test using 1 worker
+  
+  [1/1] e2e/live/real-data.spec.ts:81:1 › three distinct forecast timestamps reach the API
+    1) e2e/live/real-data.spec.ts:81:1 › three distinct forecast timestamps reach the API ────────────
+  
+      Error: apiRequestContext.get: net tripwire: connection to 127.0.0.1:56743 blocked
+      Call log:
+        - → GET http://127.0.0.1:56743/api/v1/matches?date=2026-10-21&refresh=false
+          - user-agent: Playwright/1.63.0 (arm64; macOS 26.7) node/24.8
+          - accept: */*
+          - accept-encoding: gzip,deflate,br
+  
+  
+        82 |   const api = await apiContext();
+        83 |   const today = new Date().toISOString().slice(0, 10);
+      > 84 |   const response = await api.get(`/api/v1/matches?date=${today}&refresh=false`);
+           |                              ^
+        85 |   const body = await response.json();
+        86 |   const withForecast = (body.matches || []).find((m: ApiMatch) => m.forecast);
+        87 |   test.skip(!withForecast, 'no forecast in the local database today');
+          at <prefix-export>/frontend/e2e/live/real-data.spec.ts:84:30
+  
+      Error Context: ../../../../../../../../..<tmp>/isolation-guard-run-fgEmZj/artifacts/real-data-three-distinct-forecast-timestamps-reach-the-API/error-context.md
+  
+  
+    1 failed
+      e2e/live/real-data.spec.ts:81:1 › three distinct forecast timestamps reach the API ─────────────
+  
+  net: blocked 127.0.0.1:56743 pid 93176
+  + actual - expected
+  
+  + [
+  +   'blocked 127.0.0.1:56743 pid 93176'
+  + ]
+  - []
+  
+      at refusedInTheWorker (file://<prefix-export>/frontend/e2e/guard/refusal-runs.test.mjs:215:10)
+      at TestContext.<anonymous> (file://<prefix-export>/frontend/e2e/guard/refusal-runs.test.mjs:238:5)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'blocked 127.0.0.1:56743 pid 93176' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:242:1
+✖ live and live-isolated specs named from the repository root (no configuration at all) refuse too (1153.174ms)
+  AssertionError [ERR_ASSERTION]: Node connected or tried to
+  exit 1
+  
+  Running 2 tests using 1 worker
+  
+  [1/2] frontend/e2e/live/real-data.spec.ts:81:1 › three distinct forecast timestamps reach the API
+    1) frontend/e2e/live/real-data.spec.ts:81:1 › three distinct forecast timestamps reach the API ───
+  
+      Error: apiRequestContext.get: net tripwire: connection to 127.0.0.1:56745 blocked
+      Call log:
+        - → GET http://127.0.0.1:56745/api/v1/matches?date=2026-10-21&refresh=false
+          - user-agent: Playwright/1.63.0 (arm64; macOS 26.7) node/24.8
+          - accept: */*
+          - accept-encoding: gzip,deflate,br
+  
+  
+        82 |   const api = await apiContext();
+        83 |   const today = new Date().toISOString().slice(0, 10);
+      > 84 |   const response = await api.get(`/api/v1/matches?date=${today}&refresh=false`);
+           |                              ^
+        85 |   const body = await response.json();
+        86 |   const withForecast = (body.matches || []).find((m: ApiMatch) => m.forecast);
+        87 |   test.skip(!withForecast, 'no forecast in the local database today');
+          at <prefix-export>/frontend/e2e/live/real-data.spec.ts:84:30
+  
+      Error Context: ../../../../../../../..<tmp>/isolation-guard-run-0cbD30/artifacts/frontend-e2e-live-real-dat-a2853-st-timestamps-reach-the-API/error-context.md
+  
+  
+  [2/2] frontend/e2e/live-isolated/expert-delete-idempotent.spec.ts:103:1 › a DELETE sent twice answers 200 both times with one deletion time, and the row leaves the public match
+    2) frontend/e2e/live-isolated/expert-delete-idempotent.spec.ts:103:1 › a DELETE sent twice answers 200 both times with one deletion time, and the row leaves the public match 
+  
+      Error: no backend answers at http://127.0.0.1:56746: start the isolated pair first (scripts/local-servers.sh start isolated)
+  
+         at frontend/e2e/support/isolated.ts:39
+  
+        37 |   if (!health || !health.ok()) {
+        38 |     await api.dispose();
+      > 39 |     throw new Error(`no backend answers at ${ISOLATED_API}: start the isolated pair first `
+           |           ^
+        40 |       + '(scripts/local-servers.sh start isolated)');
+        41 |   }
+        42 |   const body = (await health.json()) as { database?: unknown };
+          at isolatedApiContext (<prefix-export>/frontend/e2e/support/isolated.ts:39:11)
+          at <prefix-export>/frontend/e2e/live-isolated/expert-delete-idempotent.spec.ts:48:9
+  
+      Error Context: ../../../../../../../..<tmp>/isolation-guard-run-0cbD30/artifacts/frontend-e2e-live-isolated-cc1c8-row-leaves-the-public-match/error-context.md
+  
+      Error Context: ../../../../../../../..<tmp>/isolation-guard-run-0cbD30/artifacts/frontend-e2e-live-isolated-cc1c8-row-leaves-the-public-match/error-context.md
+  
+  
+    2 failed
+      frontend/e2e/live/real-data.spec.ts:81:1 › three distinct forecast timestamps reach the API ────
+      frontend/e2e/live-isolated/expert-delete-idempotent.spec.ts:103:1 › a DELETE sent twice answers 200 both times with one deletion time, and the row leaves the public match 
+  
+  net: blocked 127.0.0.1:56745 pid 93183; blocked 127.0.0.1:56746 pid 93199
+  + actual - expected
+  
+  + [
+  +   'blocked 127.0.0.1:56745 pid 93183',
+  +   'blocked 127.0.0.1:56746 pid 93199'
+  + ]
+  - []
+  
+      at refusedInTheWorker (file://<prefix-export>/frontend/e2e/guard/refusal-runs.test.mjs:215:10)
+      at TestContext.<anonymous> (file://<prefix-export>/frontend/e2e/guard/refusal-runs.test.mjs:248:5)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'blocked 127.0.0.1:56745 pid 93183', 'blocked 127.0.0.1:56746 pid 93199' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:252:1
+✖ workers refuse when no preflight passed in their runner, as in watch mode, which ignores a failed global setup (1523.840084ms)
+  AssertionError [ERR_ASSERTION]: Node connected or tried to
+  exit 0
+  
+  Running 1 test using 1 worker
+  
+  [1/1] [mocked-desktop] › e2e/mocked/provider-states.spec.ts:59:1 › the status banner stays away when every provider is healthy
+    1 passed (1.2s)
+  
+  net: blocked fonts.googleapis.com:443 pid 93210
+  + actual - expected
+  
+  + [
+  +   'blocked fonts.googleapis.com:443 pid 93210'
+  + ]
+  - []
+  
+      at refusedInTheWorker (file://<prefix-export>/frontend/e2e/guard/refusal-runs.test.mjs:215:10)
+      at TestContext.<anonymous> (file://<prefix-export>/frontend/e2e/guard/refusal-runs.test.mjs:264:5)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'blocked fonts.googleapis.com:443 pid 93210' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:302:3
+✖ in a checkout called PredictionsAppsUI-mocked, each project selects only its own directory (1147.953625ms)
+  AssertionError [ERR_ASSERTION]: exit 0
+  ied, with zero and "not set" kept apart, in en
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:269:3 › what changed is a sentence in en, never the backend's field names
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:293:3 › the card names the expert by username, never by email or the source enum, in en
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:310:3 › the late-publication chip appears only when the backend says so, in en
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:338:3 › a prediction withdrawn before kick-off and published again after it says it is not scored, in en
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:218:3 › an earlier version shows every market it carried, with zero and "not set" kept apart, in fr
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:269:3 › what changed is a sentence in fr, never the backend's field names
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:293:3 › the card names the expert by username, never by email or the source enum, in fr
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:310:3 › the late-publication chip appears only when the backend says so, in fr
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:338:3 › a prediction withdrawn before kick-off and published again after it says it is not scored, in fr
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:378:1 › revisions are grouped per prediction, each under its own author
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:408:1 › an author with no public name, or a name shaped like an email, is shown as the generic Expert label
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:427:1 › a version recorded before a market existed says so, and no structured changes means no change line
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:451:1 › a withdrawn figure, a new one, a change inside one whole percent, and rewritten text each say what happened
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:530:3 › both pickers mark a fixture that has kicked off, and still offer it, in en
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:555:3 › the composer and its preview warn on a fixture that has kicked off, in en
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:587:3 › editing after kickoff says the version that stood at kickoff is what counts, in en
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:530:3 › both pickers mark a fixture that has kicked off, and still offer it, in fr
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:555:3 › the composer and its preview warn on a fixture that has kicked off, in fr
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:587:3 › editing after kickoff says the version that stood at kickoff is what counts, in fr
+    [mocked-mobile-360] › mocked/revision-history.spec.ts:621:1 › a prediction on a kicked-off fixture is still published when the expert presses publish
+  Total: 1531 tests in 49 files
+  
+  + actual - expected
+  
+    {
+      'mocked-desktop': [
+  +     'guard',
+  +     'live',
+  +     'live-isolated',
+        'mocked'
+      ],
+      'mocked-mobile': [
+  +     'guard',
+  +     'live',
+  +     'live-isolated',
+        'mocked'
+      ],
+      'mocked-mobile-360': [
+        'mocked'
+      ]
+  
+      at TestContext.<anonymous> (file://<prefix-export>/frontend/e2e/guard/refusal-runs.test.mjs:312:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { 'mocked-desktop': [ 'guard', 'live', 'live-isolated', 'mocked' ], 'mocked-mobile': [ 'guard', 'live', 'live-isolated', 'mocked' ], 'mocked-mobile-360': [ 'mocked' ] },
+    expected: { 'mocked-desktop': [ 'mocked' ], 'mocked-mobile': [ 'mocked' ], 'mocked-mobile-360': [ 'mocked' ] },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:302:3
+✖ in a checkout called PredictionsAppsUI-live, each project selects only its own directory (1113.666792ms)
+  AssertionError [ERR_ASSERTION]: exit 0
+  ransition day in New York › both ends of a 25-hour local day are shown
+    [live] › mocked/timezone.spec.ts:198:3 › a daylight-saving transition day in New York › the first hour of the next local day is not
+    [live] › mocked/upcoming-empty-state.spec.ts:114:1 › an empty day names when the competitions play again, and who plays
+    [live] › mocked/upcoming-empty-state.spec.ts:132:1 › the same answer reads as French for a French reader
+    [live] › mocked/upcoming-empty-state.spec.ts:149:1 › a calendar that was read and lists nothing says so
+    [live] › mocked/upcoming-empty-state.spec.ts:162:1 › a calendar nobody could read is reported as not known, never as no football
+    [live] › mocked/upcoming-empty-state.spec.ts:177:1 › a request that fails adds nothing at all to the empty state
+    [live] › mocked/upcoming-empty-state.spec.ts:192:1 › an answer that missed some calendars does not speak for the ones it missed
+    [live] › mocked/upcoming-empty-state.spec.ts:208:1 › a partial answer with nothing in it is not reported as a calendar with nothing in it
+    [live] › mocked/upcoming-empty-state.spec.ts:256:1 › a day that could not find out does not stop the next empty day from asking
+    [live] › mocked/upcoming-empty-state.spec.ts:297:1 › an answer already given is not paid for again on the next empty day
+    [live] › mocked/upcoming-empty-state.spec.ts:314:1 › a day with fixtures on it never asks when football resumes
+    [live] › mocked/upcoming-empty-state.spec.ts:484:1 › an answer is kept up to the age limit and asked again past it, kickoff or no kickoff
+    [live] › mocked/upcoming-empty-state.spec.ts:511:1 › an answer whose kickoff has passed is asked again, long before it is old
+    [live] › mocked/upcoming-empty-state.spec.ts:534:1 › an answer that names nothing to come expires on the clock like any other
+    [live] › mocked/upcoming-empty-state.spec.ts:566:1 › a kickoff that passes while the reader is away is re-asked when they come back to the tab
+    [live] › mocked/upcoming-empty-state.spec.ts:588:1 › coming back to the tab asks nothing when the answer on screen is still good
+    [live] › mocked/upcoming-empty-state.spec.ts:617:1 › a tab that is not in front does no work when the events arrive
+    [live] › mocked/upcoming-empty-state.spec.ts:668:1 › a refresh that fails leaves the notice the reader was reading on screen
+    [live] › mocked/upcoming-empty-state.spec.ts:699:1 › a refresh the backend refuses to spend on leaves the notice alone
+    [live] › mocked/upcoming-empty-state.spec.ts:739:1 › a return that could not find out is not re-asked by the return after it
+    [live] › mocked/upcoming-empty-state.spec.ts:801:1 › automatic updates switched off stops the note re-asking when the reader comes back
+    [live] › mocked/upcoming-empty-state.spec.ts:820:1 › the same reader with automatic updates on does get the refresh
+    [live] › mocked/upcoming-empty-state.spec.ts:847:1 › empty days opened faster than the answer arrives share the one request
+  Total: 1963 tests in 49 files
+  
+  + actual - expected
+  
+    {
+  +   'mocked-desktop': [
+  +     'mocked'
+  +   ],
+  +   'mocked-mobile': [
+  +     'mocked'
+  +   ],
+  +   'mocked-mobile-360': [
+  +     'mocked'
+  +   ],
+      live: [
+  +     'guard',
+        'live',
+  +     'live-isolated',
+  +     'mocked'
+      ]
+    }
+  
+      at TestContext.<anonymous> (file://<prefix-export>/frontend/e2e/guard/refusal-runs.test.mjs:312:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { 'mocked-desktop': [ 'mocked' ], 'mocked-mobile': [ 'mocked' ], 'mocked-mobile-360': [ 'mocked' ], live: [ 'guard', 'live', 'live-isolated', 'mocked' ] },
+    expected: { live: [ 'live' ] },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at e2e/guard/refusal-runs.test.mjs:302:3
+✖ in a checkout called PredictionsAppsUI-live-isolated, each project selects only its own directory (1127.161708ms)
+  AssertionError [ERR_ASSERTION]: exit 0
+  is not
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:114:1 › an empty day names when the competitions play again, and who plays
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:132:1 › the same answer reads as French for a French reader
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:149:1 › a calendar that was read and lists nothing says so
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:162:1 › a calendar nobody could read is reported as not known, never as no football
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:177:1 › a request that fails adds nothing at all to the empty state
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:192:1 › an answer that missed some calendars does not speak for the ones it missed
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:208:1 › a partial answer with nothing in it is not reported as a calendar with nothing in it
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:256:1 › a day that could not find out does not stop the next empty day from asking
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:297:1 › an answer already given is not paid for again on the next empty day
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:314:1 › a day with fixtures on it never asks when football resumes
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:484:1 › an answer is kept up to the age limit and asked again past it, kickoff or no kickoff
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:511:1 › an answer whose kickoff has passed is asked again, long before it is old
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:534:1 › an answer that names nothing to come expires on the clock like any other
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:566:1 › a kickoff that passes while the reader is away is re-asked when they come back to the tab
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:588:1 › coming back to the tab asks nothing when the answer on screen is still good
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:617:1 › a tab that is not in front does no work when the events arrive
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:668:1 › a refresh that fails leaves the notice the reader was reading on screen
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:699:1 › a refresh the backend refuses to spend on leaves the notice alone
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:739:1 › a return that could not find out is not re-asked by the return after it
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:801:1 › automatic updates switched off stops the note re-asking when the reader comes back
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:820:1 › the same reader with automatic updates on does get the refresh
+    [live-isolated] › mocked/upcoming-empty-state.spec.ts:847:1 › empty days opened faster than the answer arrives share the one request
+  Total: 1963 tests in 49 files
+  
+  + actual - expected
+  
+    {
+      'live-isolated': [
+  +     'guard',
+  +     'live',
+        'live-isolated',
+  +     'mocked'
+      ],
+      'mocked-desktop': [
+        'mocked'
+      ],
+      'mocked-mobile': [
+  
+      at TestContext.<anonymous> (file://<prefix-export>/frontend/e2e/guard/refusal-runs.test.mjs:312:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { 'mocked-desktop': [ 'mocked' ], 'mocked-mobile': [ 'mocked' ], 'mocked-mobile-360': [ 'mocked' ], 'live-isolated': [ 'guard', 'live', 'live-isolated', 'mocked' ] },
+    expected: { 'mocked-desktop': [ 'mocked' ], 'mocked-mobile': [ 'mocked' ], 'mocked-mobile-360': [ 'mocked' ], 'live-isolated': [ 'live-isolated' ] },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

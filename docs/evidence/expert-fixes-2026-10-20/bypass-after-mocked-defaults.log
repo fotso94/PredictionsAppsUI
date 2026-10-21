@@ -1,0 +1,26 @@
+# (scrubbed: pre-fix export -> <prefix-export> x0, worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, relative temp path -> <tmp>/ x0, home prefix -> ~ x0, pytest temp user -> <user> x0, test database password -> *** x0; nothing else edited)
+# exit=0
+# bypass AFTER: one mocked spec on the DEFAULTS (E2E_BASE_URL, E2E_API_URL and E2E_STACK unset): its pages now come from the isolated frontend :3101
+# code under test: exactly commit b6c35b28 (the working tree was clean at HEAD b6c35b28)
+# cd <worktree>/frontend && ./node_modules/.bin/playwright test --project=mocked-desktop --project=mocked-mobile --project=mocked-mobile-360 e2e/mocked/provider-states.spec.ts --output=<scratchpad>/verify/mocked-out --reporter=list
+# expected: the preflight PASS line names frontend http://localhost:3101; 12 passed (the 360 project does not list this file)
+isolation preflight: PASS (policy sha256 e2abbcc34d12)
+  mocked-desktop, mocked-mobile, mocked-mobile-360: frontend http://localhost:3101; every /api/v1 call is answered by the stubs
+  (nothing was sent to any server)
+
+Running 12 tests using 1 worker
+
+  ✓   1 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:15:1 › an exhausted daily allowance reads as paused, not unavailable (942ms)
+  ✓   2 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:26:1 › an expired or rejected trial is surfaced to the reader (813ms)
+  ✓   3 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:36:1 › a day with no fixtures shows an empty state, not an error (788ms)
+  ✓   4 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:46:1 › a backend failure shows an error state, not an empty day (784ms)
+  ✓   5 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:59:1 › the status banner stays away when every provider is healthy (798ms)
+  ✓   6 [mocked-desktop] › e2e/mocked/provider-states.spec.ts:66:1 › a loading state appears before the data arrives (2.8s)
+  ✓   7 [mocked-mobile] › e2e/mocked/provider-states.spec.ts:15:1 › an exhausted daily allowance reads as paused, not unavailable (1.3s)
+  ✓   8 [mocked-mobile] › e2e/mocked/provider-states.spec.ts:26:1 › an expired or rejected trial is surfaced to the reader (970ms)
+  ✓   9 [mocked-mobile] › e2e/mocked/provider-states.spec.ts:36:1 › a day with no fixtures shows an empty state, not an error (897ms)
+  ✓  10 [mocked-mobile] › e2e/mocked/provider-states.spec.ts:46:1 › a backend failure shows an error state, not an empty day (873ms)
+  ✓  11 [mocked-mobile] › e2e/mocked/provider-states.spec.ts:59:1 › the status banner stays away when every provider is healthy (942ms)
+  ✓  12 [mocked-mobile] › e2e/mocked/provider-states.spec.ts:66:1 › a loading state appears before the data arrives (3.0s)
+
+  12 passed (15.8s)

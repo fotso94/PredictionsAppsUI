@@ -1,0 +1,54 @@
+# (scrubbed: pre-fix export -> <prefix-export> x0, worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, relative temp path -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=1
+# bypass BEFORE: scripts/tests on the pre-fix tree, with the two new tests of scripts/tests/test_test_evidence.py
+# code under test: a84affd3 (before the fix), exported with git archive to <prefix-export>, with ONLY the final test files of b6c35b28 laid over it; venv311, node_modules and backend/.env are links to the worktree's
+# cd <prefix-export> && backend/venv311/bin/python -m pytest scripts/tests -q -p no:cacheprovider -o addopts='' -rfs
+# expected: 2 failed (the runner hands the mocked projects the live frontend :3100, and its preflight looks for it), 92 passed
+........................................................................ [ 76%]
+....................FF                                                   [100%]
+=================================== FAILURES ===================================
+______ test_a_mocked_project_never_loads_its_pages_from_the_live_frontend ______
+
+    def test_a_mocked_project_never_loads_its_pages_from_the_live_frontend():
+        """playwright.config.ts's preflight refuses the live frontend (:3100) for the mocked projects
+        (2026-10-21 review: it serves the main checkout's code, whose API is the live backend, and only
+        the page stubs stood in front of it). So the runner hands them the isolated frontend, and only
+        the live project the main pair's frontend."""
+        raw = Path("/r")
+        for project in ("mocked-desktop", "mocked-mobile", "mocked-mobile-360"):
+            env = te.playwright_env(project, raw, "http://localhost:3100", "http://127.0.0.1:8000",
+                                    "http://localhost:3101", "http://127.0.0.1:8001")
+>           assert env["E2E_BASE_URL"] == "http://localhost:3101", project
+E           AssertionError: mocked-desktop
+E           assert 'http://localhost:3100' == 'http://localhost:3101'
+E             - http://localhost:3101
+E             ?                     ^
+E             + http://localhost:3100
+E             ?                     ^
+
+scripts/tests/test_test_evidence.py:1427: AssertionError
+_ test_a_mocked_run_needs_the_isolated_frontend_and_never_looks_for_the_live_one _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a02d5d0>
+
+    def test_a_mocked_run_needs_the_isolated_frontend_and_never_looks_for_the_live_one(monkeypatch):
+        seen = []
+    
+        def listener(port):
+            seen.append(port)
+            return {"listening": False}
+    
+        monkeypatch.setattr(te, "repo_state", lambda: {"head": "0" * 40, "dirty": False, "dirty_paths": []})
+        monkeypatch.setattr(te, "origin_main", lambda: {})
+        monkeypatch.setattr(te, "find_foreign_runners", lambda: [])
+        monkeypatch.setattr(te, "listener", listener)
+        _, refusals, _ = te.preflight(options(suites="mocked-desktop,mocked-mobile"))
+>       assert "nothing is listening for the frontend-isolated at http://localhost:3101" in refusals, refusals
+E       AssertionError: ['nothing is listening for the frontend at http://localhost:3100']
+E       assert 'nothing is listening for the frontend-isolated at http://localhost:3101' in ['nothing is listening for the frontend at http://localhost:3100']
+
+scripts/tests/test_test_evidence.py:1447: AssertionError
+=========================== short test summary info ============================
+FAILED scripts/tests/test_test_evidence.py::test_a_mocked_project_never_loads_its_pages_from_the_live_frontend
+FAILED scripts/tests/test_test_evidence.py::test_a_mocked_run_needs_the_isolated_frontend_and_never_looks_for_the_live_one
+2 failed, 92 passed in 1.55s

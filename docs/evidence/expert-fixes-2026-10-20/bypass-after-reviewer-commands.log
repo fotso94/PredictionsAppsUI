@@ -1,0 +1,46 @@
+# (scrubbed: pre-fix export -> <prefix-export> x0, worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, relative temp path -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=0
+# bypass AFTER: the same commands on the fixed tree (the script is scripts/check_connections.py now)
+# code under test: exactly commit b6c35b28 (the working tree was clean at HEAD b6c35b28)
+# same tripwire and refused environment as bypass-before-reviewer-commands.log
+# expected: every command exits 78 at collection with a refusal and no tripwire entry
+$ pytest -q -p no:cacheprovider -o addopts= --co --noconftest scripts/check_connections.py
+--- output tail ---
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+exit=78
+tripwire entries: []
+refusal printed | no CANARY
+
+$ pytest -q -p no:cacheprovider -o addopts= --co --confcutdir=scripts scripts/check_connections.py
+--- output tail ---
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+exit=78
+tripwire entries: []
+refusal printed | no CANARY
+
+$ pytest -q -p no:cacheprovider -o addopts= --co --import-mode=importlib --confcutdir=tests --rootdir=.. tests/test_cache_services.py tests/test_health.py tests/test_auth.py
+--- output tail ---
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+exit=78
+tripwire entries: []
+refusal printed | no CANARY
+
+$ pytest -q -p no:cacheprovider -o addopts= --co --noconftest --import-mode=importlib -c /dev/null tests/test_cache_services.py
+--- output tail ---
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+exit=78
+tripwire entries: []
+refusal printed | no CANARY
+
+$ pytest -q -p no:cacheprovider -o addopts= --co scripts/check_connections.py
+--- output tail ---
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+exit=78
+tripwire entries: []
+refusal printed | no CANARY
+

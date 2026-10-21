@@ -1,0 +1,46 @@
+# (scrubbed: pre-fix export -> <prefix-export> x0, worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, relative temp path -> <tmp>/ x0, home prefix -> ~ x0, test database password -> *** x0; nothing else edited)
+# exit=0
+# bypass BEFORE: the reviewers' own commands, collect-only, as a person sees them, on the pre-fix tree
+# code under test: a84affd3 (before the fix), exported with git archive to <prefix-export>, with ONLY the final test files of b6c35b28 laid over it; venv311, node_modules and backend/.env are links to the worktree's
+# each runs behind the guard tests' tripwire (BOOT, extracted from tests/core/test_target_guard.py: every socket connect, name lookup, psycopg2.connect and httpx request recorded and blocked) with an environment the guard refuses - DATABASE_URL/TEST_DATABASE_URL 127.0.0.1:<dead>/unapproved_db, REDIS_URL 127.0.0.1:<dead>/0 - and nothing else exported; <scratchpad>/verify/run_tripwired.py prints exit, tripwire entries and whether a refusal was printed
+# expected: the four bypass commands exit 0 with no refusal (collected), the control (last, no flag) exits 78
+$ pytest -q -p no:cacheprovider -o addopts= --co --noconftest scripts/test_connections.py
+--- output tail ---
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+5 tests collected in 0.14s
+exit=0
+tripwire entries: []
+no refusal printed | no CANARY
+
+$ pytest -q -p no:cacheprovider -o addopts= --co --confcutdir=scripts scripts/test_connections.py
+--- output tail ---
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+5 tests collected in 0.11s
+exit=0
+tripwire entries: []
+no refusal printed | no CANARY
+
+$ pytest -q -p no:cacheprovider -o addopts= --co --import-mode=importlib --confcutdir=tests --rootdir=.. tests/test_cache_services.py tests/test_health.py tests/test_auth.py
+--- output tail ---
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+50 tests collected in 0.04s
+exit=0
+tripwire entries: [{"kind": "import", "target": "app.main"}, {"kind": "import", "target": "app.db.session"}]
+no refusal printed | no CANARY
+
+$ pytest -q -p no:cacheprovider -o addopts= --co --noconftest --import-mode=importlib -c /dev/null tests/test_cache_services.py
+--- output tail ---
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+17 tests collected in 0.08s
+exit=0
+tripwire entries: []
+no refusal printed | no CANARY
+
+$ pytest -q -p no:cacheprovider -o addopts= --co scripts/test_connections.py
+--- output tail ---
+  (add LEASE_TEST_REDIS_URL=redis://127.0.0.1:6390/9 and RACE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5440/forecast_race_test to run the real-Redis and race tests)
+Exit 78.
+exit=78
+tripwire entries: []
+refusal printed | no CANARY
+

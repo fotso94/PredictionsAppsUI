@@ -1,0 +1,11 @@
+# (scrubbed: pre-fix export -> <prefix-export> x0, worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, relative temp path -> <tmp>/ x0, home prefix -> ~ x0, pytest temp user -> <user> x0, test database password -> *** x0; nothing else edited)
+# exit=0
+# bypass AFTER: .claude/launch.json's backend-isolated entry - its guard command over the entry's own environment, and the fixed /health database name for it - with every connect and lookup blocked
+# code under test: exactly commit b6c35b28 (the working tree was clean at HEAD b6c35b28)
+# <scratchpad>/verify/isolated_entry_check.py: runs the entry's guard part (python -m app.core.target_guard --role isolated-backend --json) behind the BOOT tripwire, then driver_database(settings.DATABASE_URL) under an audit hook that blocks socket connects; reads backend/.env like the backend does, prints no value from it
+# expected: the guard approves (exit 0, no codes, no tripwire entry) and the database is soccer_predictions_e2e - what GET /health said before the fix for this configuration, so the running :8001 (started on the pre-fix code, not restarted here) answers the same
+entry command: sh -c './venv311/bin/python -m app.core.target_guard --role isolated-backend && exec ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001'
+guard over the entry's environment: exit=0 ok=True codes=[]
+  targets: redis REDIS_DB_EXPERT_TOOLS localhost:6379/12; redis REDIS_DB_MATCH_DATA localhost:6379/14; redis REDIS_DB_ML_MODELS localhost:6379/13; redis REDIS_DB_PREDICTIONS localhost:6379/11; redis REDIS_DB_RATE_LIMIT localhost:6379/15; redis REDIS_DB_SESSIONS localhost:6379/10; redis default (REDIS_DB) localhost:6379/10; settings database localhost:5432/soccer_predictions_e2e
+  tripwire entries: none
+fixed /health database for this environment: soccer_predictions_e2e 

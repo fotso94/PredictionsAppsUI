@@ -1,0 +1,32 @@
+# (scrubbed: pre-fix export -> <prefix-export> x0, worktree path -> <worktree> x0, scratchpad -> <scratchpad> x0, system temp dir -> <tmp>/ x0, relative temp path -> <tmp>/ x0, home prefix -> ~ x0, pytest temp user -> <user> x0, test database password -> *** x0; nothing else edited)
+# exit=0
+# bypass AFTER: the real configuration's refusal runs, the seven new cases included
+# code under test: exactly commit b6c35b28 (the working tree was clean at HEAD b6c35b28)
+# cd <worktree>/frontend && node --test --test-reporter=spec e2e/guard/refusal-runs.test.mjs; one Playwright run at a time, each behind net-tripwire.cjs; the approved isolated-pair case sends its one GET to :8001 (the isolated backend, pid unchanged, still the pre-fix code: its /health answer for its own configuration is the same, see bypass-after-isolated-entry.log)
+# expected: 18 passed (11 + 7)
+✔ the live-isolated project does not exist unless E2E_STACK selects it (296.889583ms)
+✔ the live project does not exist unless E2E_STACK selects it (282.679792ms)
+✔ an E2E_STACK that is not exactly one stack is refused when the configuration loads (850.0295ms)
+✔ live-isolated pointed at servers the policy does not name is refused before any test (283.009ms)
+✔ live-isolated with no isolated API URL is refused, not defaulted (280.645208ms)
+✔ the live backend or frontend named as the isolated pair is refused before anything is sent (284.860625ms)
+✔ an isolated API that is also the main API is refused (281.363583ms)
+✔ a mocked run whose frontend URL is a backend is refused (282.314333ms)
+✔ a URL carrying a password is refused and the password is never printed (281.133667ms)
+✔ an approved mocked run starts and passes, and Node reaches for no server but the web font host (1530.559416ms)
+✔ the approved isolated pair passes the preflight: one GET to the isolated backend and nothing else from Node (633.956959ms)
+✔ a mocked run never uses the live frontend: the default is the isolated one, and :3100 is refused (812.509417ms)
+✔ live specs run under another configuration (no global setup) refuse before their first request (558.96625ms)
+✔ live and live-isolated specs named from the repository root (no configuration at all) refuse too (989.609459ms)
+✔ workers refuse when no preflight passed in their runner, as in watch mode, which ignores a failed global setup (580.421541ms)
+✔ in a checkout called PredictionsAppsUI-mocked, each project selects only its own directory (962.65475ms)
+✔ in a checkout called PredictionsAppsUI-live, each project selects only its own directory (390.082333ms)
+✔ in a checkout called PredictionsAppsUI-live-isolated, each project selects only its own directory (1150.361959ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10765.614625
