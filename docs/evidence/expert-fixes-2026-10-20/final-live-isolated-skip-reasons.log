@@ -1,0 +1,26 @@
+# FINAL run 8b: the skip reasons of the 3 tests the whole live-isolated run skipped, as the runner records them (json reporter annotations), from a rerun of the two specs that hold them
+# branch expert-fixes at 2759f592 (working tree clean); isolated backend pid 1692 (commit 2759f592, database soccer_predictions_e2e), Vite :3101 pid 1982
+# run at 2026-10-21T07:45:40Z; cd frontend && PLAYWRIGHT_JSON_OUTPUT_NAME=<scratchpad>/sk.json E2E_BASE_URL=http://localhost:3101 npx playwright test e2e/live-isolated/parlay-journey.spec.ts e2e/live-isolated/suggestion-journey.spec.ts --project=live-isolated --workers=1 --reporter=list,json
+# per test, from the json report (file:line | title | status | reason):
+# live-isolated/parlay-journey.spec.ts:58 | a real fixture → a selection → a saved, recorded combination, with no provider request | skipped | reason: needs two upcoming fixtures with a stored forecast at http://127.0.0.1:8001; found 0
+# live-isolated/parlay-journey.spec.ts:124 | suggestions come from stored forecasts and add to the slip without a provider request | skipped | reason: no qualifying combination at http://127.0.0.1:8001: none of the 57 fixtures in the window qualifies: 56 with only an out-of-date forecast (left out unless out-of-date forecasts are included); 1 without a stored forecast
+# live-isolated/suggestion-journey.spec.ts:108 | the identity check rejects a wrong selection, a wrong snapshot and a wrong fixture | passed
+# live-isolated/suggestion-journey.spec.ts:125 | a suggested combination becomes a recorded slip through the page, selection for selection | skipped | reason: the page's own request (legs=3, min_probability=0.6) returned no combination at http://127.0.0.1:8001: none of the 57 fixtures in the window qualifies: 56 with only an out-of-date forecast (left out unless out-of-date forecasts are included); 1 without a stored forecast
+# live-isolated/suggestion-journey.spec.ts:196 | a settled slip shows its results, and viewing it again changes nothing | passed
+# json reporter stats: expected=2 skipped=3 unexpected=0 flaky=0
+# the same three tests skipped in final-live-isolated-all.log; each skip is the spec's own data guard on the clone's content, not an unreachable target:
+# the isolated backend runs with the scheduler off and no provider credentials, so the clone's stored forecasts are as old as the clone, and the suggestion endpoint leaves an out-of-date forecast out
+# list reporter output of this run follows
+
+Running 5 tests using 1 worker
+
+  -  1 [live-isolated] › e2e/live-isolated/parlay-journey.spec.ts:58:1 › a real fixture → a selection → a saved, recorded combination, with no provider request
+  -  2 [live-isolated] › e2e/live-isolated/parlay-journey.spec.ts:124:1 › suggestions come from stored forecasts and add to the slip without a provider request
+  ✓  3 [live-isolated] › e2e/live-isolated/suggestion-journey.spec.ts:108:1 › the identity check rejects a wrong selection, a wrong snapshot and a wrong fixture (6ms)
+  -  4 [live-isolated] › e2e/live-isolated/suggestion-journey.spec.ts:125:1 › a suggested combination becomes a recorded slip through the page, selection for selection
+  ✓  5 [live-isolated] › e2e/live-isolated/suggestion-journey.spec.ts:196:1 › a settled slip shows its results, and viewing it again changes nothing (1.9s)
+
+  3 skipped
+  2 passed (4.7s)
+# exit=0
+# (the local worktree path is written <worktree> (0 line(s) of output) and the home prefix ~; terminal colour codes stripped; nothing else edited)

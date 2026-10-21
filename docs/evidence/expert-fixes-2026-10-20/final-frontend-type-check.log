@@ -1,0 +1,9 @@
+# FINAL run 2/9: npm run type-check (frontend) on HEAD of expert-fixes
+# branch expert-fixes at 2759f592 (working tree clean)
+# run at 2026-10-21T07:06:43Z; cd frontend && npm run type-check
+
+> soccer-predictions-frontend@1.0.0 type-check
+> tsc --noEmit
+
+# exit=0
+# (the local worktree path is written <worktree> (0 line(s) of output) and the home prefix ~; terminal colour codes stripped; nothing else edited)

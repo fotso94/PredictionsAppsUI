@@ -1,0 +1,48 @@
+# final consolidated runs, PREFLIGHT, recorded at 2026-10-21T07:04:59Z
+# branch expert-fixes at 2759f592 (2759f592306ce70fd29d06e30935fd09797dac6d)
+# git status --porcelain (empty = clean):
+#   [0 line(s)]
+# other test runners (pytest / playwright test) running before the first run:
+#   [none listed above = none running; the long-lived @playwright/mcp browser-tool servers are not test runners and are excluded]
+# isolated backend restarted on HEAD: scripts/local-servers.sh stop backend-isolated && scripts/local-servers.sh start backend-isolated
+#   (was pid 70388, started 2026-10-21T05:48:34Z on commit 34527e5c; now pid 1692)
+# listener :8001 pid 1692 started 'Wed Oct 21 03:04:21 2026    ' (local EDT) cwd <worktree>/backend
+#   command: ~/Documents/DevProjects/PredictionsAppsUI/backend/venv311/bin/python3.11 ./venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001
+# listener :3101 pid 1982 started 'Tue Oct 20 19:25:26 2026    ' (local EDT) cwd <worktree>/frontend
+#   command: node <worktree>/frontend/node_modules/.bin/vite --port 3101 --strictPort --mode dev8001
+# GET http://127.0.0.1:8001/health:
+#   {
+#       "status": "healthy",
+#       "environment": "development",
+#       "version": "0.1.0",
+#       "started_at": "2026-10-21T07:04:21Z",
+#       "database": "soccer_predictions_e2e",
+#       "source": {
+#           "commit": "2759f592306ce70fd29d06e30935fd09797dac6d",
+#           "commit_dirty_app_files": [],
+#           "app_tree_sha256": "7138445ead1da33f2c8ca9597a7a08c90d9ebdf6fbad5da0fb11256a20f75539",
+#           "app_files": 91,
+#           "started_at": "2026-10-21T07:04:21Z"
+#       }
+#   }
+# app tree digest of the checkout (backend/app, app.core.source_identity.app_tree_digest): ('7138445ead1da33f2c8ca9597a7a08c90d9ebdf6fbad5da0fb11256a20f75539', 91)
+# environment of the :8001 process (non-secret flags; provider credentials reported as empty / NON-EMPTY only, never their value):
+#   POSTGRES_DB=soccer_predictions_e2e
+#   SYNC_SCHEDULER_ENABLED=false
+#   EMAIL_ENABLED=false
+#   REDIS_DB_SESSIONS=10
+#   REDIS_DB_PREDICTIONS=11
+#   REDIS_DB_EXPERT_TOOLS=12
+#   REDIS_DB_ML_MODELS=13
+#   REDIS_DB_MATCH_DATA=14
+#   REDIS_DB_RATE_LIMIT=15
+#   BACKEND_CORS_ORIGINS=["http://localhost:3101","http://127.0.0.1:3101"]
+#   LIVESCORE_API_KEY empty
+#   LIVESCORE_API_SECRET empty
+#   GAMEFORECAST_API_KEY empty
+#   API_FOOTBALL_KEY empty
+#   THESPORTSDB_KEY empty
+# frontend :3101 reads frontend/.env.dev8001.local: VITE_API_BASE_URL=http://localhost:8001
+# test services for the backend suite: expert-fixes-race-pg 127.0.0.1:5440->5440/tcp;expert-fixes-test-redis 127.0.0.1:6390->6390/tcp;
+# note: <worktree>/backend/venv311 is a symlink to the main checkout's venv311 (the interpreter and installed packages only); the process imports app/ from its cwd <worktree>/backend, which the digest above confirms
+# ALLOW_TEST_DATA_CLASSIFICATION=true is set in backend/.env (a symlink to the main checkout's gitignored backend/.env, read by the :8001 process at start); it lets the QA suite classify its own records as test data

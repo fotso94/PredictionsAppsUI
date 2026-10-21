@@ -1,0 +1,151 @@
+# FINAL QA inventory of the isolated clone soccer_predictions_e2e, read after every final run (read-only)
+# run at 2026-10-21T07:47:47Z; docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' soccer_predictions_postgres psql -U postgres -d soccer_predictions_e2e -v ON_ERROR_STOP=1 -X -e < inventory.sql
+# every statement is a SELECT, inside BEGIN TRANSACTION READ ONLY ... ROLLBACK, with default_transaction_read_only=on for the session as well; psql echoes each statement (-e) above its result
+# "this round" = created_at after 2026-10-20 23:00:00 UTC (the model timestamps are naive UTC, datetime.utcnow; the server TimeZone is UTC); "during the final runs" = after the isolated backend restart at 2026-10-21T07:04:21Z
+# the QA addresses below are the suite's own fixture accounts on the predictions-local.dev test domain, not personal data
+BEGIN TRANSACTION READ ONLY;
+BEGIN
+SELECT current_database() AS database, current_setting('transaction_read_only') AS read_only, now() AS read_at;
+        database        | read_only |            read_at            
+------------------------+-----------+-------------------------------
+ soccer_predictions_e2e | on        | 2026-10-21 07:47:47.340268+00
+(1 row)
+
+SELECT username, email, user_type, account_status, created_at, deleted_at
+  FROM users.users
+ WHERE email LIKE '%@predictions-local.dev' AND created_at > '2026-10-20 23:00:00'
+ ORDER BY created_at;
+     username     |                 email                  | user_type | account_status |         created_at         | deleted_at 
+------------------+----------------------------------------+-----------+----------------+----------------------------+------------
+ qa_account_forms | qa.account-forms@predictions-local.dev | REGULAR   | ACTIVE         | 2026-10-21 00:20:55.726989 | 
+(1 row)
+
+SELECT count(*) AS qa_accounts_total,
+       count(*) FILTER (WHERE created_at > '2026-10-20 23:00:00') AS created_this_round,
+       count(*) FILTER (WHERE deleted_at IS NOT NULL) AS soft_deleted
+  FROM users.users WHERE email LIKE '%@predictions-local.dev';
+ qa_accounts_total | created_this_round | soft_deleted 
+-------------------+--------------------+--------------
+                 4 |                  1 |            0
+(1 row)
+
+SELECT username, user_type, created_at FROM users.users WHERE email LIKE '%@predictions-local.dev' ORDER BY created_at;
+         username         | user_type |         created_at         
+--------------------------+-----------+----------------------------
+ expert_phase1            | EXPERT    | 2026-09-18 01:58:34.90585
+ qa_expert_local          | EXPERT    | 2026-09-18 04:01:51.456926
+ qa_codex_expert_20261020 | EXPERT    | 2026-10-20 22:40:42.103149
+ qa_account_forms         | REGULAR   | 2026-10-21 00:20:55.726989
+(4 rows)
+
+SELECT count(*) AS live_qa_predictions
+  FROM predictions.predictions p JOIN users.users u ON u.id = p.created_by
+ WHERE u.email LIKE '%@predictions-local.dev' AND p.deleted_at IS NULL;
+ live_qa_predictions 
+---------------------
+                   0
+(1 row)
+
+SELECT p.id, u.username, p.status, p.is_test_data, p.created_at, left(p.reasoning, 40) AS reasoning_start
+  FROM predictions.predictions p JOIN users.users u ON u.id = p.created_by
+ WHERE u.email LIKE '%@predictions-local.dev' AND p.deleted_at IS NULL
+ ORDER BY p.created_at;
+ id | username | status | is_test_data | created_at | reasoning_start 
+----+----------+--------+--------------+------------+-----------------
+(0 rows)
+
+SELECT CASE WHEN u.email LIKE '%@predictions-local.dev' THEN 'QA account (' || u.username || ')' ELSE 'non-QA account' END AS owner,
+       (p.deleted_at IS NOT NULL) AS soft_deleted, p.is_test_data, p.source, count(*) AS predictions
+  FROM predictions.predictions p JOIN users.users u ON u.id = p.created_by
+ WHERE p.created_at > '2026-10-20 23:00:00'
+ GROUP BY 1, 2, 3, 4 ORDER BY 1, 2, 3, 4;
+            owner             | soft_deleted | is_test_data |    source     | predictions 
+------------------------------+--------------+--------------+---------------+-------------
+ QA account (qa_expert_local) | t            | t            | EXPERT_MANUAL |         290
+ QA account (qa_expert_local) | t            |              | EXPERT_MANUAL |          13
+(2 rows)
+
+SELECT count(*) AS soft_deleted_created_this_round,
+       count(*) FILTER (WHERE p.is_test_data IS TRUE) AS classified_test_data,
+       count(*) FILTER (WHERE p.is_test_data IS NOT TRUE) AS not_classified,
+       min(p.created_at) AS first_created, max(p.created_at) AS last_created
+  FROM predictions.predictions p
+ WHERE p.created_at > '2026-10-20 23:00:00' AND p.deleted_at IS NOT NULL;
+ soft_deleted_created_this_round | classified_test_data | not_classified |       first_created        |       last_created        
+---------------------------------+----------------------+----------------+----------------------------+---------------------------
+                             303 |                  290 |             13 | 2026-10-20 23:24:43.914133 | 2026-10-21 07:46:16.69876
+(1 row)
+
+SELECT count(*) AS soft_deleted_during_final_runs
+  FROM predictions.predictions p
+ WHERE p.created_at >= '2026-10-21 07:04:21' AND p.deleted_at IS NOT NULL;
+ soft_deleted_during_final_runs 
+--------------------------------
+                             43
+(1 row)
+
+SELECT left(coalesce(p.reasoning, '(no reasoning)'), 32) AS reasoning_start, p.is_test_data, count(*) AS predictions
+  FROM predictions.predictions p
+ WHERE p.created_at > '2026-10-20 23:00:00' AND p.deleted_at IS NOT NULL AND p.is_test_data IS NOT TRUE
+ GROUP BY 1, 2 ORDER BY 3 DESC, 1;
+         reasoning_start          | is_test_data | predictions 
+----------------------------------+--------------+-------------
+ [e2e-qa] home side has the stron |              |          13
+(1 row)
+
+SELECT 'predictions.prediction_audit' AS audit_table, action AS action, count(*) AS rows
+  FROM predictions.prediction_audit WHERE created_at > '2026-10-20 23:00:00' GROUP BY 2
+UNION ALL SELECT 'audit.audit_log', action::text, count(*) FROM audit.audit_log WHERE created_at > '2026-10-20 23:00:00' GROUP BY 2
+UNION ALL SELECT 'audit.prediction_change_log', change_type::text, count(*) FROM audit.prediction_change_log WHERE created_at > '2026-10-20 23:00:00' GROUP BY 2
+UNION ALL SELECT 'audit.user_action_log', action_type::text, count(*) FROM audit.user_action_log WHERE created_at > '2026-10-20 23:00:00' GROUP BY 2
+UNION ALL SELECT 'audit.admin_action_log', action_type::text, count(*) FROM audit.admin_action_log WHERE created_at > '2026-10-20 23:00:00' GROUP BY 2
+UNION ALL SELECT 'audit.system_event_log', event_type::text, count(*) FROM audit.system_event_log WHERE created_at > '2026-10-20 23:00:00' GROUP BY 2
+UNION ALL SELECT 'audit.data_access_log', '(all)', count(*) FROM audit.data_access_log WHERE created_at > '2026-10-20 23:00:00'
+UNION ALL SELECT 'audit.data_export_log', '(all)', count(*) FROM audit.data_export_log WHERE created_at > '2026-10-20 23:00:00'
+UNION ALL SELECT 'audit.gdpr_consent_log', '(all)', count(*) FROM audit.gdpr_consent_log WHERE created_at > '2026-10-20 23:00:00'
+UNION ALL SELECT 'users.user_activity_log', activity_type::text, count(*) FROM users.user_activity_log WHERE created_at > '2026-10-20 23:00:00' GROUP BY 2
+UNION ALL SELECT 'users.admin_activity_log', action_type::text, count(*) FROM users.admin_activity_log WHERE created_at > '2026-10-20 23:00:00' GROUP BY 2
+ORDER BY 1, 2;
+         audit_table          |       action        | rows 
+------------------------------+---------------------+------
+ audit.audit_log              | ARCHIVE             |   13
+ audit.audit_log              | CREATE              |  303
+ audit.audit_log              | DELETE              |  303
+ audit.audit_log              | PUBLISH             |   13
+ audit.audit_log              | UPDATE              |   30
+ audit.data_access_log        | (all)               |    0
+ audit.data_export_log        | (all)               |    0
+ audit.gdpr_consent_log       | (all)               |    0
+ predictions.prediction_audit | publication_changed |   26
+ predictions.prediction_audit | updated             |   30
+(10 rows)
+
+SELECT pa.action, (u.email LIKE '%@predictions-local.dev') AS qa_owned, count(*) AS rows
+  FROM predictions.prediction_audit pa
+  JOIN predictions.predictions p ON p.id = pa.prediction_id
+  JOIN users.users u ON u.id = p.created_by
+ WHERE pa.created_at > '2026-10-20 23:00:00'
+ GROUP BY 1, 2 ORDER BY 1, 2;
+       action        | qa_owned | rows 
+---------------------+----------+------
+ publication_changed | t        |   26
+ updated             | t        |   30
+(2 rows)
+
+SELECT a.action::text AS action, a.resource_type, coalesce((u.email LIKE '%@predictions-local.dev')::text, 'no user') AS qa_actor, count(*) AS rows
+  FROM audit.audit_log a LEFT JOIN users.users u ON u.id = a.user_id
+ WHERE a.created_at > '2026-10-20 23:00:00'
+ GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;
+ action  | resource_type | qa_actor | rows 
+---------+---------------+----------+------
+ ARCHIVE | prediction    | true     |   13
+ CREATE  | prediction    | true     |  303
+ DELETE  | prediction    | true     |  303
+ PUBLISH | prediction    | true     |   13
+ UPDATE  | prediction    | true     |   30
+(5 rows)
+
+ROLLBACK;
+ROLLBACK
+# exit=0
+# (the local worktree path is written <worktree> (0 line(s) of output) and the home prefix ~; terminal colour codes stripped; nothing else edited)
