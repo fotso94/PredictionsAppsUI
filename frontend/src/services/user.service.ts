@@ -20,11 +20,16 @@ export interface UserProfile {
   last_login_at: string | null;
 }
 
+/**
+ * PUT /users/me is a partial update, and which KEYS are sent matters (backend
+ * UserUpdateRequest): an absent key leaves the field alone, null clears first_name, last_name or
+ * avatar_url, and username can be changed but never cleared (422).
+ */
 export interface UpdateProfileRequest {
-  first_name?: string;
-  last_name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
   username?: string;
-  avatar_url?: string;
+  avatar_url?: string | null;
 }
 
 export interface ChangePasswordRequest {

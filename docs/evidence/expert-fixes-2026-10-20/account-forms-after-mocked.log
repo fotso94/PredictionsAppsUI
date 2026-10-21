@@ -1,0 +1,43 @@
+# account-forms AFTER (mocked): the new regression spec against the fix
+# branch expert-fixes at 79fab411 plus the uncommitted fix (committed together with this log); served by the worktree Vite :3101
+# run at 2026-10-21T00:37:23Z; cd frontend && E2E_BASE_URL=http://localhost:3101 npx playwright test e2e/mocked/account-forms.spec.ts --project=mocked-desktop --project=mocked-mobile
+# playwright exit=0: 34 passed
+
+Running 34 tests using 1 worker
+
+  ✓   1 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by mouse opens the form and saves nothing (1.8s)
+  ✓   2 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Enter opens the form and saves nothing (1.8s)
+  ✓   3 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Space opens the form and saves nothing (1.8s)
+  ✓   4 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:293:1 › Cancel sends nothing and puts every original value back (3.3s)
+  ✓   5 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:320:1 › Save sends exactly one normalised PUT, the header follows without a reload, and it survives one (3.2s)
+  ✓   6 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:360:1 › pressing Enter in a field saves once (2.8s)
+  ✓   7 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:376:1 › a double activation of Save while it is in flight sends one PUT (3.6s)
+  ✓   8 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:392:1 › clearing an optional name and the avatar sends null for each, and succeeds (1.9s)
+  ✓   9 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:419:1 › an account whose names were never supplied can change its username (2.0s)
+  ✓  10 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:446:1 › a failed save keeps the edits and says so, sends one request, and a retry sends exactly one more (4.0s)
+  ✓  11 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:484:1 › after a failed save, Cancel puts the stored values back and sends nothing more (3.4s)
+  ✓  12 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:508:1 › every profile field has an accessible name, and says what it holds (305ms)
+  ✓  13 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:541:1 › every password field has an accessible name and the autocomplete a password manager needs (288ms)
+  ✓  14 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:558:1 › a wrong current password is refused with the server's reason, and the reader stays signed in (1.8s)
+  ✓  15 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:580:1 › a confirmation that does not match sends nothing (1.8s)
+  ✓  16 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in en (3.1s)
+  ✓  17 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in fr (3.1s)
+  ✓  18 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by mouse opens the form and saves nothing (2.3s)
+  ✓  19 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Enter opens the form and saves nothing (1.9s)
+  ✓  20 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Space opens the form and saves nothing (1.9s)
+  ✓  21 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:293:1 › Cancel sends nothing and puts every original value back (3.5s)
+  ✓  22 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:320:1 › Save sends exactly one normalised PUT, the header follows without a reload, and it survives one (6.2s)
+  ✓  23 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:360:1 › pressing Enter in a field saves once (3.0s)
+  ✓  24 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:376:1 › a double activation of Save while it is in flight sends one PUT (3.8s)
+  ✓  25 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:392:1 › clearing an optional name and the avatar sends null for each, and succeeds (2.1s)
+  ✓  26 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:419:1 › an account whose names were never supplied can change its username (2.1s)
+  ✓  27 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:446:1 › a failed save keeps the edits and says so, sends one request, and a retry sends exactly one more (7.1s)
+  ✓  28 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:484:1 › after a failed save, Cancel puts the stored values back and sends nothing more (3.5s)
+  ✓  29 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:508:1 › every profile field has an accessible name, and says what it holds (401ms)
+  ✓  30 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:541:1 › every password field has an accessible name and the autocomplete a password manager needs (373ms)
+  ✓  31 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:558:1 › a wrong current password is refused with the server's reason, and the reader stays signed in (1.9s)
+  ✓  32 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:580:1 › a confirmation that does not match sends nothing (1.9s)
+  ✓  33 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in en (3.1s)
+  ✓  34 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in fr (3.2s)
+
+  34 passed (1.5m)

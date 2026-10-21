@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { userService, type UserProfile, type UpdateProfileRequest } from '@/services/user.service';
 import Card from '@/components/ui/Card';
@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { getErrorMessage } from '@/utils/errors';
 import { backendInstant, formatDate, zoneLabel } from '@/i18n';
 import { useT } from '@/i18n/react';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * The reader's own account details.
@@ -31,19 +32,82 @@ import { useT } from '@/i18n/react';
  * ── WHAT IS NOT TRANSLATED ──────────────────────────────────────────────────────────────────
  *
  * The account type and the account status are the backend's own words, rendered as it sent them.
+ *
+ * ── EDIT USED TO SAVE ───────────────────────────────────────────────────────────────────────
+ *
+ * The action row swapped an unkeyed type="button" Edit for an unkeyed type="submit" Save in the
+ * same position. React reused the one <button> and changed its type inside the click, so the
+ * browser's default action for that click submitted the form: Edit PUT the unchanged values and
+ * closed the editor again, by mouse and by keyboard alike. Now the three buttons carry their own
+ * keys, so Save is never the node that was clicked as Edit, Edit's click prevents its default
+ * action, and handleSubmit refuses any submit that is not a Save in edit mode.
+ *
+ * ── WHAT A SAVE SENDS ───────────────────────────────────────────────────────────────────────
+ *
+ * Every field, explicitly (see toPayload): strings trimmed, and a blank first name, last name or
+ * avatar sent as null, which is how the backend's contract clears one. It used to send '' for a
+ * name the account never had, which was refused with 422 and took any username change with it.
+ * After a save the signed-in user is read again (refreshUser), so the header shows the new name
+ * without a reload.
  */
+
+/** The form's own state: what is in each input, always a string. */
+interface ProfileForm {
+  username: string;
+  first_name: string;
+  last_name: string;
+  avatar_url: string;
+}
+
+const toForm = (profile: UserProfile): ProfileForm => ({
+  username: profile.username || '',
+  first_name: profile.first_name || '',
+  last_name: profile.last_name || '',
+  avatar_url: profile.avatar_url || '',
+});
+
+/** What a save sends: the whole form, trimmed, with a blank optional field as an explicit clear. */
+const toPayload = (form: ProfileForm): UpdateProfileRequest => ({
+  username: form.username.trim(),
+  first_name: form.first_name.trim() || null,
+  last_name: form.last_name.trim() || null,
+  avatar_url: form.avatar_url.trim() || null,
+});
+
+/** Mirror the limits on UserUpdateRequest in backend/app/schemas/users.py. */
+const USERNAME_MIN_LENGTH = 3;
+const USERNAME_MAX_LENGTH = 50;
+const NAME_MAX_LENGTH = 100;
+const AVATAR_URL_MAX_LENGTH = 500;
+
 const ProfilePage: React.FC = () => {
   const t = useT();
+  const { refreshUser } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState<UpdateProfileRequest>({
+  const [formData, setFormData] = useState<ProfileForm>({
     first_name: '',
     last_name: '',
     username: '',
     avatar_url: '',
   });
+  /** Set synchronously when a save starts, so a second submit in the same tick is refused too. */
+  const saveInFlight = useRef(false);
+  const usernameInput = useRef<HTMLInputElement>(null);
+  const editButton = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+
+  /**
+   * Focus follows the mode, so a keyboard reader is never left on a button that just vanished:
+   * into the first editable field on Edit, back onto Edit after Save or Cancel.
+   */
+  useEffect(() => {
+    if (isEditing) usernameInput.current?.focus();
+    else if (wasEditing.current) editButton.current?.focus();
+    wasEditing.current = isEditing;
+  }, [isEditing]);
 
   // Load profile data
   useEffect(() => {
@@ -52,12 +116,7 @@ const ProfilePage: React.FC = () => {
         setIsLoading(true);
         const data = await userService.getProfile();
         setProfile(data);
-        setFormData({
-          first_name: data.first_name || '',
-          last_name: data.last_name || '',
-          username: data.username || '',
-          avatar_url: data.avatar_url || '',
-        });
+        setFormData(toForm(data));
       } catch (error) {
         console.error('Failed to load profile:', error);
         toast.error(t('auth.profile.loadFailed'));
@@ -74,31 +133,41 @@ const ProfilePage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Only a Save in edit mode saves: never a submit while the form is read-only, and never a
+    // second one while the first is still on its way.
+    if (!isEditing || saveInFlight.current) return;
+    saveInFlight.current = true;
 
     try {
       setIsSaving(true);
-      const updatedProfile = await userService.updateProfile(formData);
+      const updatedProfile = await userService.updateProfile(toPayload(formData));
       setProfile(updatedProfile);
+      // What the server stored, not what was typed: trimmed, and a cleared field empty.
+      setFormData(toForm(updatedProfile));
       setIsEditing(false);
       toast.success(t('auth.profile.saved'));
+      // The header reads the signed-in user, not this page. The save has already succeeded, so a
+      // failed refresh is logged rather than reported as a failed save.
+      refreshUser().catch((error) => console.error('Failed to refresh the signed-in user:', error));
     } catch (error) {
+      // Still editing, every value kept: the reader can correct, retry or cancel.
       console.error('Failed to update profile:', error);
       const errorMessage = getErrorMessage(error, t('auth.profile.saveFailed'));
       toast.error(errorMessage);
     } finally {
+      saveInFlight.current = false;
       setIsSaving(false);
     }
   };
 
+  const handleEdit = (e: React.MouseEvent<HTMLButtonElement>) => {
+    // Belt and braces with the keys below: whatever this node becomes, its click submits nothing.
+    e.preventDefault();
+    setIsEditing(true);
+  };
+
   const handleCancel = () => {
-    if (profile) {
-      setFormData({
-        first_name: profile.first_name || '',
-        last_name: profile.last_name || '',
-        username: profile.username || '',
-        avatar_url: profile.avatar_url || '',
-      });
-    }
+    if (profile) setFormData(toForm(profile));
     setIsEditing(false);
   };
 
@@ -139,11 +208,14 @@ const ProfilePage: React.FC = () => {
               <div className="space-y-6">
                 {/* Email (read-only) */}
                 <div>
-                  <label className="block text-sm font-medium text-secondary-300 mb-2">
+                  <label htmlFor="profile-email" className="block text-sm font-medium text-secondary-300 mb-2">
                     {t('auth.profile.email')}
                   </label>
                   <input
+                    id="profile-email"
+                    name="email"
                     type="email"
+                    autoComplete="email"
                     value={profile?.email || ''}
                     disabled
                     className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-secondary-400 cursor-not-allowed"
@@ -155,11 +227,18 @@ const ProfilePage: React.FC = () => {
 
                 {/* Username */}
                 <div>
-                  <label className="block text-sm font-medium text-secondary-300 mb-2">
+                  <label htmlFor="profile-username" className="block text-sm font-medium text-secondary-300 mb-2">
                     {t('auth.profile.username')}
                   </label>
                   <input
+                    ref={usernameInput}
+                    id="profile-username"
+                    name="username"
                     type="text"
+                    autoComplete="username"
+                    required
+                    minLength={USERNAME_MIN_LENGTH}
+                    maxLength={USERNAME_MAX_LENGTH}
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     disabled={!isEditing}
@@ -172,11 +251,15 @@ const ProfilePage: React.FC = () => {
 
                 {/* First Name */}
                 <div>
-                  <label className="block text-sm font-medium text-secondary-300 mb-2">
+                  <label htmlFor="profile-first-name" className="block text-sm font-medium text-secondary-300 mb-2">
                     {t('auth.profile.firstName')}
                   </label>
                   <input
+                    id="profile-first-name"
+                    name="first_name"
                     type="text"
+                    autoComplete="given-name"
+                    maxLength={NAME_MAX_LENGTH}
                     value={formData.first_name}
                     onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                     disabled={!isEditing}
@@ -189,11 +272,15 @@ const ProfilePage: React.FC = () => {
 
                 {/* Last Name */}
                 <div>
-                  <label className="block text-sm font-medium text-secondary-300 mb-2">
+                  <label htmlFor="profile-last-name" className="block text-sm font-medium text-secondary-300 mb-2">
                     {t('auth.profile.lastName')}
                   </label>
                   <input
+                    id="profile-last-name"
+                    name="last_name"
                     type="text"
+                    autoComplete="family-name"
+                    maxLength={NAME_MAX_LENGTH}
                     value={formData.last_name}
                     onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                     disabled={!isEditing}
@@ -206,11 +293,15 @@ const ProfilePage: React.FC = () => {
 
                 {/* Avatar URL */}
                 <div>
-                  <label className="block text-sm font-medium text-secondary-300 mb-2">
+                  <label htmlFor="profile-avatar-url" className="block text-sm font-medium text-secondary-300 mb-2">
                     {t('auth.profile.avatarUrl')}
                   </label>
                   <input
+                    id="profile-avatar-url"
+                    name="avatar_url"
                     type="url"
+                    autoComplete="url"
+                    maxLength={AVATAR_URL_MAX_LENGTH}
                     value={formData.avatar_url}
                     onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
                     disabled={!isEditing}
@@ -262,12 +353,15 @@ const ProfilePage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Action Buttons */}
+                {/* Action Buttons. Each has its own key: unkeyed, Save reused the clicked Edit's
+                    node and the click submitted the form (see the note at the top). */}
                 <div className="flex gap-4 pt-4">
                   {!isEditing ? (
                     <button
+                      key="edit"
+                      ref={editButton}
                       type="button"
-                      onClick={() => setIsEditing(true)}
+                      onClick={handleEdit}
                       className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
                     >
                       {t('auth.profile.edit')}
@@ -275,6 +369,7 @@ const ProfilePage: React.FC = () => {
                   ) : (
                     <>
                       <button
+                        key="save"
                         type="submit"
                         disabled={isSaving}
                         className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -282,6 +377,7 @@ const ProfilePage: React.FC = () => {
                         {t(isSaving ? 'auth.profile.saving' : 'auth.profile.save')}
                       </button>
                       <button
+                        key="cancel"
                         type="button"
                         onClick={handleCancel}
                         disabled={isSaving}

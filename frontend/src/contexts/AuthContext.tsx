@@ -6,6 +6,7 @@ import type {
   User,
   AuthTokens,
   AuthContextType,
+  LogoutOptions,
   RegisterRequest,
 } from '@/types/auth';
 import { mapBackendUserToFrontend } from '@/types/auth';
@@ -189,8 +190,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   /**
    * Logout user
+   *
+   * Ends THIS browser's session: the refresh token it holds is blacklisted by POST /auth/logout,
+   * both tokens leave localStorage and the state is cleared before /login is shown, so the sign-in
+   * form is usable rather than bounced back to '/'. It signs nothing else out.
    */
-  const logout = useCallback(async (): Promise<void> => {
+  const logout = useCallback(async (options: LogoutOptions = {}): Promise<void> => {
+    const notify = options.notify ?? true;
     try {
       setIsLoading(true);
       await authService.logout();
@@ -200,7 +206,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setTokens(null);
       setError(null);
 
-      toast.success('Logged out successfully');
+      if (notify) toast.success('Logged out successfully');
       navigate('/login');
     } catch (err) {
       console.error('Logout error:', err);
@@ -238,6 +244,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [navigate]);
 
   /**
+   * Read the signed-in user again, after something changed it (a profile save).
+   *
+   * The same request and mapping as boot (GET /auth/me, mapBackendUserToFrontend), so what the
+   * header shows afterwards is by construction what a reload would show. `user` was otherwise set
+   * only at boot, login and register, which is why a saved name stayed stale until a reload.
+   *
+   * Never touches isLoading: that would make ProtectedRoute unmount the page that asked.
+   */
+  const refreshUser = useCallback(async (): Promise<void> => {
+    const response = await authService.getCurrentUser();
+    // Signed out while the request was out: do not put a user back into a session that has ended.
+    if (!tokenManager.hasTokens()) return;
+    setUser(mapBackendUserToFrontend(response.user));
+  }, []);
+
+  /**
    * Clear error state
    */
   const clearError = useCallback((): void => {
@@ -255,6 +277,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     refreshToken,
+    refreshUser,
     clearError,
   };
 

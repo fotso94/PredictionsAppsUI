@@ -161,10 +161,12 @@ const auth: Area<'auth'> = {
   'auth.change.confirmPlaceholder': 'Confirmez le nouveau mot de passe',
   'auth.change.rules': 'Doit comporter au moins {count, plural, one {# caractère} other {# caractères}}, dont une majuscule, une minuscule et un chiffre',
   'auth.change.noteLabel': 'Remarque\u00a0:',
-  'auth.change.note': 'Changer votre mot de passe vous déconnectera de tous vos appareils. Vous devrez vous reconnecter avec votre nouveau mot de passe.',
+  // Changé délibérément, comme l’anglais (voir auth.en.ts) : aucune déconnexion de « tous vos
+  // appareils » n’avait lieu. Seul cet appareil est déconnecté.
+  'auth.change.note': 'Changer votre mot de passe vous déconnecte sur cet appareil, et vous devrez vous reconnecter avec votre nouveau mot de passe. Les autres appareils déjà connectés ne sont pas déconnectés automatiquement\u00a0: déconnectez-vous vous-même sur chacun d’eux.',
   'auth.change.submit': 'Changer le mot de passe',
   'auth.change.submitting': 'Changement en cours...',
-  'auth.change.success': 'Mot de passe changé. Vous avez été déconnecté de tous vos appareils.',
+  'auth.change.success': 'Mot de passe changé. Cet appareil est maintenant déconnecté\u00a0: connectez-vous avec votre nouveau mot de passe. Les autres appareils déjà connectés ne sont pas déconnectés automatiquement.',
   'auth.change.failed': 'Impossible de changer le mot de passe',
 
   // ─── le profil ──────────────────────────────────────────────────────────────────────────

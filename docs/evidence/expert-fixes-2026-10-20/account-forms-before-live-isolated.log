@@ -1,0 +1,233 @@
+# (home-directory prefix shortened to ~ in 9 line(s) before committing; nothing else edited)
+# account-forms BEFORE (live-isolated): the new spec against the unchanged product code, on the isolated pair
+# branch expert-fixes at 79fab411; frontend/src restored to HEAD for this run; Vite :3101 (--mode dev8001) and backend :8001 pid 17529, cwd the worktree backend, health soccer_predictions_e2e 79fab411 feafe8681d7e
+# run ended 2026-10-21T00:36:30Z; cd frontend && npx playwright test e2e/live-isolated/account-profile.spec.ts --project=live-isolated --workers=1
+# playwright exit=1: 2 failed; the dedicated QA account was restored by the spec's afterAll (verified by an API sign-in with the original password)
+
+Running 2 tests using 1 worker
+
+  ✘  1 [live-isolated] › e2e/live-isolated/account-profile.spec.ts:180:1 › the profile form edits, cancels, saves once and keeps what it saved, on the real backend (1.5s)
+  ✘  2 [live-isolated] › e2e/live-isolated/account-profile.spec.ts:258:1 › a password change signs this browser out, the new password works and the old one does not; a browser already signed in elsewhere stays signed in (36.3s)
+
+
+  1) [live-isolated] › e2e/live-isolated/account-profile.spec.ts:180:1 › the profile form edits, cancels, saves once and keeps what it saved, on the real backend 
+
+    Error: Edit must not save (watched 1500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      198 |     const editPut = sent(page, isProfilePut);
+      199 |     await editButton(page).click();
+    > 200 |     expect(await editPut, `Edit must not save (watched ${ABSENCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                   ^
+      201 |     expect(puts, 'no PUT may have left the browser').toEqual([]);
+      202 |     await expect(firstName).toBeEnabled();
+      203 |
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/live-isolated/account-profile.spec.ts:200:83
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-account-prof-d67a3-t-saved-on-the-real-backend-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/live-isolated-account-prof-d67a3-t-saved-on-the-real-backend-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/live-isolated-account-prof-d67a3-t-saved-on-the-real-backend-live-isolated/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-account-prof-d67a3-t-saved-on-the-real-backend-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/live-isolated-account-prof-d67a3-t-saved-on-the-real-backend-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [live-isolated] › e2e/live-isolated/account-profile.spec.ts:258:1 › a password change signs this browser out, the new password works and the old one does not; a browser already signed in elsewhere stays signed in 
+
+    Error: this browser is signed out through /auth/logout
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: undefined
+
+      319 |     const softly = expect.configure({ soft: true, timeout: 5000 });
+      320 |     const logout = await logoutResponse;
+    > 321 |     softly(logout?.status(), 'this browser is signed out through /auth/logout').toBe(200);
+          |                                                                                 ^
+      322 |     softly(logout?.request().postDataJSON()?.refresh_token === thisRefresh, 'with the refresh token it held').toBe(true);
+      323 |     await softly.poll(() => holdsTokens(page), { message: 'no token stays in this browser' }).toEqual([false, false]);
+      324 |     await softly(page).toHaveURL(/\/login$/);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/live-isolated/account-profile.spec.ts:321:81
+
+    Error: with the refresh token it held
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      320 |     const logout = await logoutResponse;
+      321 |     softly(logout?.status(), 'this browser is signed out through /auth/logout').toBe(200);
+    > 322 |     softly(logout?.request().postDataJSON()?.refresh_token === thisRefresh, 'with the refresh token it held').toBe(true);
+          |                                                                                                               ^
+      323 |     await softly.poll(() => holdsTokens(page), { message: 'no token stays in this browser' }).toEqual([false, false]);
+      324 |     await softly(page).toHaveURL(/\/login$/);
+      325 |     await softly(signInButton(page)).toBeVisible();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/live-isolated/account-profile.spec.ts:322:111
+
+    Error: no token stays in this browser
+
+    no token stays in this browser
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   false,
+    -   false,
+    +   true,
+    +   true,
+      ]
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      321 |     softly(logout?.status(), 'this browser is signed out through /auth/logout').toBe(200);
+      322 |     softly(logout?.request().postDataJSON()?.refresh_token === thisRefresh, 'with the refresh token it held').toBe(true);
+    > 323 |     await softly.poll(() => holdsTokens(page), { message: 'no token stays in this browser' }).toEqual([false, false]);
+          |                                                                                               ^
+      324 |     await softly(page).toHaveURL(/\/login$/);
+      325 |     await softly(signInButton(page)).toBeVisible();
+      326 |     await softly(page.getByText(authEn['auth.change.success'], { exact: true })).toBeVisible();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/live-isolated/account-profile.spec.ts:323:95
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/login$/
+    Received string:  "http://localhost:3101/"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "soft toHaveURL" with timeout 5000ms
+        14 × locator resolved to <html lang="en" class="dark" data-rh="lang" data-low-data="off">…</html>
+           - unexpected value "http://localhost:3101/"
+
+
+      322 |     softly(logout?.request().postDataJSON()?.refresh_token === thisRefresh, 'with the refresh token it held').toBe(true);
+      323 |     await softly.poll(() => holdsTokens(page), { message: 'no token stays in this browser' }).toEqual([false, false]);
+    > 324 |     await softly(page).toHaveURL(/\/login$/);
+          |                        ^
+      325 |     await softly(signInButton(page)).toBeVisible();
+      326 |     await softly(page.getByText(authEn['auth.change.success'], { exact: true })).toBeVisible();
+      327 |     await softly(page.locator('body')).not.toContainText('all devices');
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/live-isolated/account-profile.spec.ts:324:24
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: 'Sign in', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "soft toBeVisible" getByRole('button', { name: 'Sign in', exact: true }) with timeout 5000ms
+      - waiting for getByRole('button', { name: 'Sign in', exact: true })
+
+
+      323 |     await softly.poll(() => holdsTokens(page), { message: 'no token stays in this browser' }).toEqual([false, false]);
+      324 |     await softly(page).toHaveURL(/\/login$/);
+    > 325 |     await softly(signInButton(page)).toBeVisible();
+          |                                      ^
+      326 |     await softly(page.getByText(authEn['auth.change.success'], { exact: true })).toBeVisible();
+      327 |     await softly(page.locator('body')).not.toContainText('all devices');
+      328 |     const bounced = await page
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/live-isolated/account-profile.spec.ts:325:38
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Password changed successfully. You have been logged out from all devices.', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "soft toBeVisible" getByText('Password changed successfully. You have been logged out from all devices.', { exact: true }) with timeout 5000ms
+      - waiting for getByText('Password changed successfully. You have been logged out from all devices.', { exact: true })
+
+
+      324 |     await softly(page).toHaveURL(/\/login$/);
+      325 |     await softly(signInButton(page)).toBeVisible();
+    > 326 |     await softly(page.getByText(authEn['auth.change.success'], { exact: true })).toBeVisible();
+          |                                                                                  ^
+      327 |     await softly(page.locator('body')).not.toContainText('all devices');
+      328 |     const bounced = await page
+      329 |       .waitForURL(url => !url.pathname.startsWith('/login'), { timeout: BOUNCE_WINDOW_MS })
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/live-isolated/account-profile.spec.ts:326:82
+
+    Error: the sign-in form stays put (watched 2500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      329 |       .waitForURL(url => !url.pathname.startsWith('/login'), { timeout: BOUNCE_WINDOW_MS })
+      330 |       .then(() => true, () => false);
+    > 331 |     softly(bounced, `the sign-in form stays put (watched ${BOUNCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                    ^
+      332 |     softly(passwordStatuses).toEqual([400, 200]);
+      333 |     // Everything below assumes this browser really was signed out.
+      334 |     expect(await holdsTokens(page), 'this browser must not still hold its session').toEqual([false, false]);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/live-isolated/account-profile.spec.ts:331:84
+
+    Error: this browser must not still hold its session
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   false,
+    -   false,
+    +   true,
+    +   true,
+      ]
+
+      332 |     softly(passwordStatuses).toEqual([400, 200]);
+      333 |     // Everything below assumes this browser really was signed out.
+    > 334 |     expect(await holdsTokens(page), 'this browser must not still hold its session').toEqual([false, false]);
+          |                                                                                     ^
+      335 |
+      336 |     // On the server: the refresh token this browser held is revoked by that sign-out.
+      337 |     const reusedRefresh = await api.post('/api/v1/auth/refresh', { data: { refresh_token: thisRefresh } });
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/live-isolated/account-profile.spec.ts:334:85
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-account-prof-fa86c-n-elsewhere-stays-signed-in-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-account-prof-fa86c-n-elsewhere-stays-signed-in-live-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/live-isolated-account-prof-fa86c-n-elsewhere-stays-signed-in-live-isolated/error-context.md
+
+    Error Context: e2e/.artifacts/live-isolated-account-prof-fa86c-n-elsewhere-stays-signed-in-live-isolated/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/live-isolated-account-prof-fa86c-n-elsewhere-stays-signed-in-live-isolated/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/live-isolated-account-prof-fa86c-n-elsewhere-stays-signed-in-live-isolated/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [live-isolated] › e2e/live-isolated/account-profile.spec.ts:180:1 › the profile form edits, cancels, saves once and keeps what it saved, on the real backend 
+    [live-isolated] › e2e/live-isolated/account-profile.spec.ts:258:1 › a password change signs this browser out, the new password works and the old one does not; a browser already signed in elsewhere stays signed in 

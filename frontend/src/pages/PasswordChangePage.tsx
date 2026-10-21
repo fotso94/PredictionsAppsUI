@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { getErrorMessage } from '@/utils/errors';
 import { useT } from '@/i18n/react';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Change a password while signed in.
@@ -15,6 +16,15 @@ import { useT } from '@/i18n/react';
  * character" are different sentences, and French puts 0 with the singular too. So the minimum is
  * a named constant the sentence is given, not a digit written into two catalogues — see
  * src/i18n/messages/auth.en.ts, which states the plural branches around the hole.
+ *
+ * WHAT A CHANGE DOES TO SESSIONS, and therefore all the page may say about it. On success this
+ * browser is signed out through logout(): its refresh token is blacklisted by /auth/logout, both
+ * tokens leave localStorage, the state is cleared and the sign-in form is shown. It used to keep
+ * the session and navigate to /login two seconds later, where LoginPage, seeing a signed-in
+ * reader, sent them home. No other device is signed out: access tokens are stateless and last
+ * until they expire, and /auth/refresh does not consult the refresh tokens the backend deletes
+ * (see the docstring of PUT /users/me/password). The note and the success message say exactly
+ * that, and no longer claim a logout "from all devices".
  */
 
 /** Mirrors `min_length=8` on the change-password fields in backend/app/schemas/users.py:75. */
@@ -23,6 +33,7 @@ const MIN_PASSWORD_LENGTH = 8;
 const PasswordChangePage: React.FC = () => {
   const t = useT();
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPasswords, setShowPasswords] = useState({
     current: false,
@@ -37,6 +48,7 @@ const PasswordChangePage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     // Validate passwords match
     if (formData.new_password !== formData.confirm_password) {
@@ -50,22 +62,24 @@ const PasswordChangePage: React.FC = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
       await userService.changePassword(formData);
-      toast.success(t('auth.change.success'));
-      
-      // Redirect to login after 2 seconds
-      setTimeout(() => {
-        navigate('/login');
-      }, 2000);
     } catch (error) {
+      // Refused (a wrong current password, a rule the server enforces): still signed in, still here.
       console.error('Failed to change password:', error);
       const errorMessage = getErrorMessage(error, t('auth.change.failed'));
       toast.error(errorMessage);
-    } finally {
       setIsSubmitting(false);
+      return;
     }
+
+    // Longer than the default: it says what happened here and what did not happen elsewhere.
+    toast.success(t('auth.change.success'), { duration: 8000 });
+    // Ends this browser's session and shows the sign-in form. Its own toast is off: it is
+    // hard-coded English and would only repeat the sentence above. This page is unmounted by the
+    // time it resolves, so nothing runs after it.
+    await logout({ notify: false });
   };
 
   const togglePasswordVisibility = (field: 'current' | 'new' | 'confirm') => {
@@ -91,11 +105,14 @@ const PasswordChangePage: React.FC = () => {
               <div className="space-y-6">
                 {/* Current Password */}
                 <div>
-                  <label className="block text-sm font-medium text-secondary-300 mb-2">
+                  <label htmlFor="password-current" className="block text-sm font-medium text-secondary-300 mb-2">
                     {t('auth.change.current')}
                   </label>
                   <div className="relative">
                     <input
+                      id="password-current"
+                      name="current_password"
+                      autoComplete="current-password"
                       type={showPasswords.current ? 'text' : 'password'}
                       value={formData.current_password}
                       onChange={(e) =>
@@ -122,11 +139,14 @@ const PasswordChangePage: React.FC = () => {
 
                 {/* New Password */}
                 <div>
-                  <label className="block text-sm font-medium text-secondary-300 mb-2">
+                  <label htmlFor="password-new" className="block text-sm font-medium text-secondary-300 mb-2">
                     {t('auth.change.new')}
                   </label>
                   <div className="relative">
                     <input
+                      id="password-new"
+                      name="new_password"
+                      autoComplete="new-password"
                       type={showPasswords.new ? 'text' : 'password'}
                       value={formData.new_password}
                       onChange={(e) =>
@@ -157,11 +177,14 @@ const PasswordChangePage: React.FC = () => {
 
                 {/* Confirm New Password */}
                 <div>
-                  <label className="block text-sm font-medium text-secondary-300 mb-2">
+                  <label htmlFor="password-confirm" className="block text-sm font-medium text-secondary-300 mb-2">
                     {t('auth.change.confirm')}
                   </label>
                   <div className="relative">
                     <input
+                      id="password-confirm"
+                      name="confirm_password"
+                      autoComplete="new-password"
                       type={showPasswords.confirm ? 'text' : 'password'}
                       value={formData.confirm_password}
                       onChange={(e) =>

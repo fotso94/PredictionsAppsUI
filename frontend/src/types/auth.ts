@@ -144,11 +144,26 @@ export interface AuthState {
   error: string | null;
 }
 
+export interface LogoutOptions {
+  /**
+   * Show the "Logged out successfully" toast. Defaults to true, which is what the header's Sign
+   * out wants. A caller that has just said something truer itself (a changed password) passes
+   * false: the toast is hard-coded English and would contradict, or repeat, that message.
+   */
+  notify?: boolean;
+}
+
 export interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (options?: LogoutOptions) => Promise<void>;
   refreshToken: () => Promise<void>;
+  /**
+   * Read the signed-in user again from GET /auth/me, the same request and mapping the app boots
+   * with, so the header after a profile save shows exactly what a reload would. Leaves the session
+   * alone if it fails; the caller decides what a failure means.
+   */
+  refreshUser: () => Promise<void>;
   clearError: () => void;
 }
 

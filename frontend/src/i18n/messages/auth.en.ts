@@ -162,10 +162,17 @@ const auth = {
   'auth.change.confirmPlaceholder': 'Confirm new password',
   'auth.change.rules': 'Must be at least {count, plural, one {# character} other {# characters}} with uppercase, lowercase, and number',
   'auth.change.noteLabel': 'Note:',
-  'auth.change.note': 'Changing your password will log you out from all devices. You will need to log in again with your new password.',
+  /**
+   * A DELIBERATE COPY CHANGE, the one exception to "exactly as shipped" besides agreement. Both
+   * sentences used to promise a logout "from all devices", which never happened: a change signs
+   * out this browser only (PasswordChangePage.tsx), access tokens are stateless and last until
+   * they expire, and /auth/refresh does not consult the refresh tokens the backend deletes. They
+   * now say what happens here and, as plainly, what does not happen anywhere else.
+   */
+  'auth.change.note': 'Changing your password signs you out on this device, and you will need to sign in again with your new password. Other devices that are already signed in are not signed out automatically: sign out on them yourself.',
   'auth.change.submit': 'Change Password',
   'auth.change.submitting': 'Changing Password...',
-  'auth.change.success': 'Password changed successfully. You have been logged out from all devices.',
+  'auth.change.success': 'Password changed. This device is now signed out: sign in with your new password. Other devices that are already signed in are not signed out automatically.',
   'auth.change.failed': 'Failed to change password',
 
   // ─── the profile ────────────────────────────────────────────────────────────────────────

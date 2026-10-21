@@ -1,0 +1,1914 @@
+# (home-directory prefix shortened to ~ in 68 line(s) before committing; nothing else edited)
+# account-forms BEFORE (mocked): the new regression spec against the unchanged product code
+# branch expert-fixes at 79fab411; frontend/src restored to HEAD for this run (the fix was backed up and put back byte-identical afterwards); served by the worktree Vite :3101
+# run ended 2026-10-21T00:35:46Z; cd frontend && E2E_BASE_URL=http://localhost:3101 npx playwright test e2e/mocked/account-forms.spec.ts --project=mocked-desktop --project=mocked-mobile
+# playwright exit=1: 30 failed, 4 passed (the 4 passes are the wrong-current-password and mismatch tests, which pin behaviour the old code already had)
+
+Running 34 tests using 1 worker
+
+  ✘   1 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by mouse opens the form and saves nothing (448ms)
+  ✘   2 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Enter opens the form and saves nothing (345ms)
+  ✘   3 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Space opens the form and saves nothing (337ms)
+  ✘   4 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:293:1 › Cancel sends nothing and puts every original value back (422ms)
+  ✘   5 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:320:1 › Save sends exactly one normalised PUT, the header follows without a reload, and it survives one (415ms)
+  ✘   6 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:360:1 › pressing Enter in a field saves once (365ms)
+  ✘   7 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:376:1 › a double activation of Save while it is in flight sends one PUT (399ms)
+  ✘   8 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:392:1 › clearing an optional name and the avatar sends null for each, and succeeds (373ms)
+  ✘   9 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:419:1 › an account whose names were never supplied can change its username (419ms)
+  ✘  10 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:446:1 › a failed save keeps the edits and says so, sends one request, and a retry sends exactly one more (371ms)
+  ✘  11 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:484:1 › after a failed save, Cancel puts the stored values back and sends nothing more (413ms)
+  ✘  12 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:508:1 › every profile field has an accessible name, and says what it holds (10.3s)
+  ✘  13 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:541:1 › every password field has an accessible name and the autocomplete a password manager needs (10.4s)
+  ✓  14 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:558:1 › a wrong current password is refused with the server's reason, and the reader stays signed in (1.8s)
+  ✓  15 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:580:1 › a confirmation that does not match sends nothing (1.8s)
+  ✘  16 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in en (45.2s)
+  ✘  17 [mocked-desktop] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in fr (45.1s)
+  ✘  18 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by mouse opens the form and saves nothing (805ms)
+  ✘  19 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Enter opens the form and saves nothing (575ms)
+  ✘  20 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Space opens the form and saves nothing (566ms)
+  ✘  21 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:293:1 › Cancel sends nothing and puts every original value back (570ms)
+  ✘  22 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:320:1 › Save sends exactly one normalised PUT, the header follows without a reload, and it survives one (606ms)
+  ✘  23 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:360:1 › pressing Enter in a field saves once (595ms)
+  ✘  24 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:376:1 › a double activation of Save while it is in flight sends one PUT (600ms)
+  ✘  25 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:392:1 › clearing an optional name and the avatar sends null for each, and succeeds (621ms)
+  ✘  26 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:419:1 › an account whose names were never supplied can change its username (598ms)
+  ✘  27 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:446:1 › a failed save keeps the edits and says so, sends one request, and a retry sends exactly one more (598ms)
+  ✘  28 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:484:1 › after a failed save, Cancel puts the stored values back and sends nothing more (594ms)
+  ✘  29 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:508:1 › every profile field has an accessible name, and says what it holds (10.6s)
+  ✘  30 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:541:1 › every password field has an accessible name and the autocomplete a password manager needs (10.6s)
+  ✓  31 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:558:1 › a wrong current password is refused with the server's reason, and the reader stays signed in (2.1s)
+  ✓  32 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:580:1 › a confirmation that does not match sends nothing (2.0s)
+  ✘  33 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in en (45.2s)
+  ✘  34 [mocked-mobile] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in fr (45.2s)
+
+
+  1) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by mouse opens the form and saves nothing 
+
+    Error: Edit by mouse must not save (watched 1500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      281 |       await page.keyboard.press(how);
+      282 |     }
+    > 283 |     expect(await putSent, `Edit by ${how} must not save (watched ${ABSENCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                             ^
+      284 |     expect(state.puts, 'no PUT body may have reached the backend').toEqual([]);
+      285 |
+      286 |     for (const field of [username, firstName, lastName, avatar]) await expect(field).toBeEnabled();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:283:93
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--08efc--the-form-and-saves-nothing-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-Edit--08efc--the-form-and-saves-nothing-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--08efc--the-form-and-saves-nothing-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-Edit--08efc--the-form-and-saves-nothing-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Enter opens the form and saves nothing 
+
+    Error: Edit by Enter must not save (watched 1500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      281 |       await page.keyboard.press(how);
+      282 |     }
+    > 283 |     expect(await putSent, `Edit by ${how} must not save (watched ${ABSENCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                             ^
+      284 |     expect(state.puts, 'no PUT body may have reached the backend').toEqual([]);
+      285 |
+      286 |     for (const field of [username, firstName, lastName, avatar]) await expect(field).toBeEnabled();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:283:93
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--f3595--the-form-and-saves-nothing-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-Edit--f3595--the-form-and-saves-nothing-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--f3595--the-form-and-saves-nothing-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-Edit--f3595--the-form-and-saves-nothing-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Space opens the form and saves nothing 
+
+    Error: Edit by Space must not save (watched 1500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      281 |       await page.keyboard.press(how);
+      282 |     }
+    > 283 |     expect(await putSent, `Edit by ${how} must not save (watched ${ABSENCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                             ^
+      284 |     expect(state.puts, 'no PUT body may have reached the backend').toEqual([]);
+      285 |
+      286 |     for (const field of [username, firstName, lastName, avatar]) await expect(field).toBeEnabled();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:283:93
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--49451--the-form-and-saves-nothing-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-Edit--49451--the-form-and-saves-nothing-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--49451--the-form-and-saves-nothing-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-Edit--49451--the-form-and-saves-nothing-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:293:1 › Cancel sends nothing and puts every original value back 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      298 |   const editPut = sent(page, isProfilePut);
+      299 |   await editButton(page).click();
+    > 300 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      301 |
+      302 |   await username.fill('qa-cancelled');
+      303 |   await firstName.fill('Changed');
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:300:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Cance-d1309-s-every-original-value-back-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-Cance-d1309-s-every-original-value-back-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Cance-d1309-s-every-original-value-back-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-Cance-d1309-s-every-original-value-back-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:320:1 › Save sends exactly one normalised PUT, the header follows without a reload, and it survives one 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      325 |   const editPut = sent(page, isProfilePut);
+      326 |   await editButton(page).click();
+    > 327 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      328 |
+      329 |   await firstName.fill('  Audited  ');
+      330 |   const meCallsBeforeSave = state.meCalls;
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:327:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Save--32c8a--reload-and-it-survives-one-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-Save--32c8a--reload-and-it-survives-one-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Save--32c8a--reload-and-it-survives-one-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-Save--32c8a--reload-and-it-survives-one-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:360:1 › pressing Enter in a field saves once 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      364 |   const editPut = sent(page, isProfilePut);
+      365 |   await editButton(page).click();
+    > 366 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      367 |
+      368 |   await fields(page).lastName.fill('Entered');
+      369 |   const putRequest = page.waitForRequest(isProfilePut);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:366:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-pressing-Enter-in-a-field-saves-once-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-pressing-Enter-in-a-field-saves-once-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-pressing-Enter-in-a-field-saves-once-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-pressing-Enter-in-a-field-saves-once-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:376:1 › a double activation of Save while it is in flight sends one PUT 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      381 |   const editPut = sent(page, isProfilePut);
+      382 |   await editButton(page).click();
+    > 383 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      384 |
+      385 |   await fields(page).firstName.fill('Twice');
+      386 |   await saveButton(page).dblclick();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:383:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-dou-ae4a3--is-in-flight-sends-one-PUT-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-a-dou-ae4a3--is-in-flight-sends-one-PUT-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-dou-ae4a3--is-in-flight-sends-one-PUT-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-a-dou-ae4a3--is-in-flight-sends-one-PUT-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:392:1 › clearing an optional name and the avatar sends null for each, and succeeds 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      397 |   const editPut = sent(page, isProfilePut);
+      398 |   await editButton(page).click();
+    > 399 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      400 |
+      401 |   // A name of spaces is blank once trimmed. (Spaces in the URL field would be stopped by the
+      402 |   // browser's own type="url" check before any submit, which is the browser's business.)
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:399:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-clear-7138c--null-for-each-and-succeeds-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-clear-7138c--null-for-each-and-succeeds-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-clear-7138c--null-for-each-and-succeeds-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-clear-7138c--null-for-each-and-succeeds-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:419:1 › an account whose names were never supplied can change its username 
+
+    Error: a name that was never supplied must not be sent as an empty string
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "first_name",
+    +   "last_name",
+    + ]
+
+      430 |   const leaked = await editBody;
+      431 |   expect.soft(leaked === null ? [] : ['first_name', 'last_name'].filter(field => leaked[field] === ''),
+    > 432 |     'a name that was never supplied must not be sent as an empty string').toEqual([]);
+          |                                                                           ^
+      433 |   expect(leaked, 'Edit must not save').toBeNull();
+      434 |
+      435 |   await username.fill('qa-renamed');
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:432:75
+
+    Error: Edit must not save
+
+    expect(received).toBeNull()
+
+    Received: {"avatar_url": "", "first_name": "", "last_name": "", "username": "qa-regular"}
+
+      431 |   expect.soft(leaked === null ? [] : ['first_name', 'last_name'].filter(field => leaked[field] === ''),
+      432 |     'a name that was never supplied must not be sent as an empty string').toEqual([]);
+    > 433 |   expect(leaked, 'Edit must not save').toBeNull();
+          |                                        ^
+      434 |
+      435 |   await username.fill('qa-renamed');
+      436 |   const putRequest = page.waitForRequest(isProfilePut);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:433:40
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-an-ac-2bdc6-ied-can-change-its-username-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-an-ac-2bdc6-ied-can-change-its-username-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-an-ac-2bdc6-ied-can-change-its-username-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-an-ac-2bdc6-ied-can-change-its-username-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:446:1 › a failed save keeps the edits and says so, sends one request, and a retry sends exactly one more 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      452 |   const editPut = sent(page, isProfilePut);
+      453 |   await editButton(page).click();
+    > 454 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      455 |
+      456 |   await firstName.fill('Retried');
+      457 |   await username.fill('qa-retried');
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:454:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-fai-e3c77-etry-sends-exactly-one-more-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-a-fai-e3c77-etry-sends-exactly-one-more-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-fai-e3c77-etry-sends-exactly-one-more-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-a-fai-e3c77-etry-sends-exactly-one-more-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:484:1 › after a failed save, Cancel puts the stored values back and sends nothing more 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      490 |   const editPut = sent(page, isProfilePut);
+      491 |   await editButton(page).click();
+    > 492 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      493 |
+      494 |   await firstName.fill('Abandoned');
+      495 |   const failedRequest = page.waitForRequest(isProfilePut);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:492:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-after-41f6d-back-and-sends-nothing-more-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-after-41f6d-back-and-sends-nothing-more-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-after-41f6d-back-and-sends-nothing-more-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-after-41f6d-back-and-sends-nothing-more-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:508:1 › every profile field has an accessible name, and says what it holds 
+
+    Error: "Email" must name exactly one field
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByLabel('Email', { exact: true })
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - "Email" must name exactly one field getByLabel('Email', { exact: true }) with timeout 10000ms
+      - waiting for getByLabel('Email', { exact: true })
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      518 |   for (const [label, id, name, autocomplete] of expected) {
+      519 |     const field = page.getByLabel(label, { exact: true });
+    > 520 |     await expect(field, `"${label}" must name exactly one field`).toHaveCount(1);
+          |                                                                   ^
+      521 |     await expect(field).toHaveAttribute('id', id);
+      522 |     await expect(field).toHaveAttribute('name', name);
+      523 |     await expect(field).toHaveAttribute('autocomplete', autocomplete);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:520:67
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-every-b641a-name-and-says-what-it-holds-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-every-b641a-name-and-says-what-it-holds-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-every-b641a-name-and-says-what-it-holds-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-every-b641a-name-and-says-what-it-holds-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:541:1 › every password field has an accessible name and the autocomplete a password manager needs 
+
+    Error: "Current Password" must name exactly one field
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByLabel('Current Password', { exact: true })
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - "Current Password" must name exactly one field getByLabel('Current Password', { exact: true }) with timeout 10000ms
+      - waiting for getByLabel('Current Password', { exact: true })
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      550 |     // exact: "New Password" is also inside "Confirm New Password".
+      551 |     const field = page.getByLabel(label, { exact: true });
+    > 552 |     await expect(field, `"${label}" must name exactly one field`).toHaveCount(1);
+          |                                                                   ^
+      553 |     await expect(field).toHaveAttribute('id', id);
+      554 |     await expect(field).toHaveAttribute('autocomplete', autocomplete);
+      555 |   }
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:552:67
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-every-f6b0d-te-a-password-manager-needs-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-every-f6b0d-te-a-password-manager-needs-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-every-f6b0d-te-a-password-manager-needs-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-every-f6b0d-te-a-password-manager-needs-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in en 
+
+    Error: expect(locator).not.toContainText(expected) failed
+
+    Locator: locator('body')
+    Expected substring: not "all devices"
+    Received string: "
+        Skip to the matchesSPSoccer PredictionsHomeMatchesLeaguesSelectionsDashboardText-onlyOffQAAccount menuOpen main menuChange PasswordUpdate your account passwordCurrent PasswordNew PasswordMust be at least 8 characters with uppercase, lowercase, and numberConfirm New PasswordNote: Changing your password will log you out from all devices. You will need to log in again with your new password.Change PasswordCancelSlip0SPSoccer PredictionsFixtures, results and model forecasts for Europe’s top five leagues and the Champions League, alongside predictions published by registered experts. Every probability names its source. Nothing here is betting advice.Language and time zoneReading settingsLanguageEnglishFrançaisThe words on this site. It does not change team names, competition names or a provider’s own message, which are shown as published.Time zoneDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+01:00 · clocks change during the yearKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · clocks change during the yearParis, Brussels · UTC+02:00 · clocks change during the yearMadrid · UTC+02:00 · clocks change during the yearBerlin · UTC+02:00 · clocks change during the yearRome · UTC+02:00 · clocks change during the yearLisbon · UTC+01:00 · clocks change during the yearUse this device’s zone (New York, Toronto) · UTC-04:00 · clocks change during the yearSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Times are shown in New York, Toronto · UTC-04:00.Every kick-off time on this site is shown in this zone, and “today” means a day in it.Language, time zone and where you are are three separate things, and this site treats them that way: choosing one changes nothing about the others, and none of them is taken as evidence of the others. Your country is not stored and not guessed.Quick LinksToday's matchesTomorrow's matchesLeaguesDashboardSupportHelp Centre (not published yet)Contact Us (not published yet)Privacy Policy (not published yet)Terms of Service (not published yet)© 2026 Soccer Predictions. All rights reserved.TwitterFacebookInstagram
+        
+      
+    
+    "
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "soft not toContainText" locator('body') with timeout 5000ms
+      - waiting for locator('body')
+        14 × locator resolved to <body class="bg-dark-950 text-white antialiased">…</body>
+           - unexpected value "
+        Skip to the matchesSPSoccer PredictionsHomeMatchesLeaguesSelectionsDashboardText-onlyOffQAAccount menuOpen main menuChange PasswordUpdate your account passwordCurrent PasswordNew PasswordMust be at least 8 characters with uppercase, lowercase, and numberConfirm New PasswordNote: Changing your password will log you out from all devices. You will need to log in again with your new password.Change PasswordCancelSlip0SPSoccer PredictionsFixtures, results and model forecasts for Europe’s top five leagues and the Champions League, alongside predictions published by registered experts. Every probability names its source. Nothing here is betting advice.Language and time zoneReading settingsLanguageEnglishFrançaisThe words on this site. It does not change team names, competition names or a provider’s own message, which are shown as published.Time zoneDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+01:00 · clocks change during the yearKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · clocks change during the yearParis, Brussels · UTC+02:00 · clocks change during the yearMadrid · UTC+02:00 · clocks change during the yearBerlin · UTC+02:00 · clocks change during the yearRome · UTC+02:00 · clocks change during the yearLisbon · UTC+01:00 · clocks change during the yearUse this device’s zone (New York, Toronto) · UTC-04:00 · clocks change during the yearSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Times are shown in New York, Toronto · UTC-04:00.Every kick-off time on this site is shown in this zone, and “today” means a day in it.Language, time zone and where you are are three separate things, and this site treats them that way: choosing one changes nothing about the others, and none of them is taken as evidence of the others. Your country is not stored and not guessed.Quick LinksToday's matchesTomorrow's matchesLeaguesDashboardSupportHelp Centre (not published yet)Contact Us (not published yet)Privacy Policy (not published yet)Terms of Service (not published yet)© 2026 Soccer Predictions. All rights reserved.TwitterFacebookInstagram
+        
+      
+    
+    "
+
+
+      608 |     await expect(page.getByText(catalogue['auth.change.note'])).toBeVisible();
+      609 |     const pageText = page.locator('body');
+    > 610 |     await softly(pageText).not.toContainText('all devices');
+          |                                ^
+      611 |     await softly(pageText).not.toContainText('tous vos appareils');
+      612 |
+      613 |     const placeholders = (key: 'auth.change.currentPlaceholder' | 'auth.change.newPlaceholder' | 'auth.change.confirmPlaceholder') =>
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:610:32
+
+    Error: the change must sign this browser out through /auth/logout
+
+    expect(received).not.toBeNull()
+
+    Received: null
+
+      624 |     // This browser's session ends: its refresh token is handed to /auth/logout, and both tokens go.
+      625 |     const logout = await logoutRequest;
+    > 626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+          |                                                                                      ^
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:626:86
+
+    Error: the refresh token this browser held is the one revoked
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: {"refresh_token": "e2e-account-forms-refresh-token"}
+    Received: undefined
+
+      625 |     const logout = await logoutRequest;
+      626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+    > 627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+          |                                                                                              ^
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+      630 |
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:627:94
+
+    Error: exactly one sign-out reached the backend
+
+    exactly one sign-out reached the backend
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+    > 628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+          |                                                                                                            ^
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+      630 |
+      631 |     // A sign-in form the reader can use...
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:628:108
+
+    Error: no token may stay in this browser
+
+    no token may stay in this browser
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   null,
+    -   null,
+    +   "e2e-account-forms-access-token",
+    +   "e2e-account-forms-refresh-token",
+      ]
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+    > 629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+          |                                                                                                   ^
+      630 |
+      631 |     // A sign-in form the reader can use...
+      632 |     await softly(page).toHaveURL(/\/login$/);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:629:99
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/login$/
+    Received string:  "http://localhost:3101/"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "soft toHaveURL" with timeout 5000ms
+        14 × locator resolved to <html lang="en" class="dark" data-rh="lang" data-low-data="off">…</html>
+           - unexpected value "http://localhost:3101/"
+
+
+      630 |
+      631 |     // A sign-in form the reader can use...
+    > 632 |     await softly(page).toHaveURL(/\/login$/);
+          |                        ^
+      633 |     await softly(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:632:24
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: 'Sign in', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "soft toBeVisible" getByRole('button', { name: 'Sign in', exact: true }) with timeout 5000ms
+      - waiting for getByRole('button', { name: 'Sign in', exact: true })
+
+
+      631 |     // A sign-in form the reader can use...
+      632 |     await softly(page).toHaveURL(/\/login$/);
+    > 633 |     await softly(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+          |                                                                                                   ^
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+      636 |     await softly(page.getByText(catalogue['auth.change.success'], { exact: true })).toBeVisible();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:633:99
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Password changed successfully. You have been logged out from all devices.', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "soft toBeVisible" getByText('Password changed successfully. You have been logged out from all devices.', { exact: true }) with timeout 5000ms
+      - waiting for getByText('Password changed successfully. You have been logged out from all devices.', { exact: true })
+
+
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+    > 636 |     await softly(page.getByText(catalogue['auth.change.success'], { exact: true })).toBeVisible();
+          |                                                                                     ^
+      637 |     await softly(pageText).not.toContainText('all devices');
+      638 |     await softly(pageText).not.toContainText('tous vos appareils');
+      639 |     await softly(page.getByText('Logged out successfully')).toHaveCount(0);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:636:85
+
+    Error: the sign-in form must stay put (watched 2500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      644 |       .waitForURL(url => !url.pathname.startsWith('/login'), { timeout: BOUNCE_WINDOW_MS })
+      645 |       .then(() => true, () => false);
+    > 646 |     softly(bounced, `the sign-in form must stay put (watched ${BOUNCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                        ^
+      647 |
+      648 |     // And the session really is gone: a reload does not find one (the seed is one-shot).
+      649 |     await page.goto('/password-change');
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:646:88
+
+    Test timeout of 45000ms exceeded.
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/login$/
+    Received string:  "http://localhost:3101/password-change"
+
+    Call log:
+      - Expect "toHaveURL" with timeout 10000ms
+        23 × locator resolved to <html lang="en" class="dark" data-rh="lang" data-low-data="off">…</html>
+           - unexpected value "http://localhost:3101/password-change"
+      - Test ended.
+
+
+      648 |     // And the session really is gone: a reload does not find one (the seed is one-shot).
+      649 |     await page.goto('/password-change');
+    > 650 |     await expect(page).toHaveURL(/\/login$/);
+          |                        ^
+      651 |     await expect(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+      652 |   });
+      653 | }
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:650:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-cha-e925b-rm-and-says-only-that-in-en-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-a-cha-e925b-rm-and-says-only-that-in-en-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-cha-e925b-rm-and-says-only-that-in-en-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-a-cha-e925b-rm-and-says-only-that-in-en-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [mocked-desktop] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in fr 
+
+    Error: expect(locator).not.toContainText(expected) failed
+
+    Locator: locator('body')
+    Expected substring: not "tous vos appareils"
+    Received string: "
+        Aller directement aux matchsSPSoccer PredictionsAccueilMatchsCompétitionsSélectionsTableau de bordText-onlyOffQAMenu du compteOuvrir le menu principalChanger le mot de passeMettez à jour le mot de passe de votre compteMot de passe actuelNouveau mot de passeDoit comporter au moins 8 caractères, dont une majuscule, une minuscule et un chiffreConfirmer le nouveau mot de passeRemarque : Changer votre mot de passe vous déconnectera de tous vos appareils. Vous devrez vous reconnecter avec votre nouveau mot de passe.Changer le mot de passeAnnulerCoupon0SPSoccer PredictionsMatchs, résultats et prévisions du modèle pour les cinq grands championnats européens et la Champions League, ainsi que les pronostics publiés par des experts inscrits. Chaque probabilité indique sa source. Rien ici n’est un conseil de pari.Langue et fuseau horaireRéglages de lectureLangueEnglishFrançaisLa langue des textes de ce site. Elle ne change ni les noms d’équipes, ni les noms de compétitions, ni le message d’un fournisseur, qui sont affichés tels que publiés.Fuseau horaireDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+01:00 · changement d’heure dans l’annéeKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · changement d’heure dans l’annéeParis, Brussels · UTC+02:00 · changement d’heure dans l’annéeMadrid · UTC+02:00 · changement d’heure dans l’annéeBerlin · UTC+02:00 · changement d’heure dans l’annéeRome · UTC+02:00 · changement d’heure dans l’annéeLisbon · UTC+01:00 · changement d’heure dans l’annéeUtiliser le fuseau de cet appareil (New York, Toronto) · UTC-04:00 · changement d’heure dans l’annéeSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Les heures sont affichées en New York, Toronto · UTC−4 (UTC-04:00).Toutes les heures de coup d’envoi de ce site sont affichées dans ce fuseau, et « aujourd’hui » désigne une journée dans ce fuseau.La langue, le fuseau horaire et le lieu où vous êtes sont trois choses distinctes, et ce site les traite ainsi : choisir l’un ne change rien aux autres, et aucun n’est considéré comme une preuve des autres. Votre pays n’est ni enregistré ni deviné.Liens rapidesMatchs du jourMatchs de demainCompétitionsTableau de bordAssistanceCentre d’aide (pas encore publié)Nous contacter (pas encore publié)Politique de confidentialité (pas encore publié)Conditions d’utilisation (pas encore publié)© 2026 Soccer Predictions. Tous droits réservés.TwitterFacebookInstagram
+        
+      
+    
+    "
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "soft not toContainText" locator('body') with timeout 5000ms
+      - waiting for locator('body')
+        14 × locator resolved to <body class="bg-dark-950 text-white antialiased">…</body>
+           - unexpected value "
+        Aller directement aux matchsSPSoccer PredictionsAccueilMatchsCompétitionsSélectionsTableau de bordText-onlyOffQAMenu du compteOuvrir le menu principalChanger le mot de passeMettez à jour le mot de passe de votre compteMot de passe actuelNouveau mot de passeDoit comporter au moins 8 caractères, dont une majuscule, une minuscule et un chiffreConfirmer le nouveau mot de passeRemarque : Changer votre mot de passe vous déconnectera de tous vos appareils. Vous devrez vous reconnecter avec votre nouveau mot de passe.Changer le mot de passeAnnulerCoupon0SPSoccer PredictionsMatchs, résultats et prévisions du modèle pour les cinq grands championnats européens et la Champions League, ainsi que les pronostics publiés par des experts inscrits. Chaque probabilité indique sa source. Rien ici n’est un conseil de pari.Langue et fuseau horaireRéglages de lectureLangueEnglishFrançaisLa langue des textes de ce site. Elle ne change ni les noms d’équipes, ni les noms de compétitions, ni le message d’un fournisseur, qui sont affichés tels que publiés.Fuseau horaireDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+01:00 · changement d’heure dans l’annéeKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · changement d’heure dans l’annéeParis, Brussels · UTC+02:00 · changement d’heure dans l’annéeMadrid · UTC+02:00 · changement d’heure dans l’annéeBerlin · UTC+02:00 · changement d’heure dans l’annéeRome · UTC+02:00 · changement d’heure dans l’annéeLisbon · UTC+01:00 · changement d’heure dans l’annéeUtiliser le fuseau de cet appareil (New York, Toronto) · UTC-04:00 · changement d’heure dans l’annéeSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Les heures sont affichées en New York, Toronto · UTC−4 (UTC-04:00).Toutes les heures de coup d’envoi de ce site sont affichées dans ce fuseau, et « aujourd’hui » désigne une journée dans ce fuseau.La langue, le fuseau horaire et le lieu où vous êtes sont trois choses distinctes, et ce site les traite ainsi : choisir l’un ne change rien aux autres, et aucun n’est considéré comme une preuve des autres. Votre pays n’est ni enregistré ni deviné.Liens rapidesMatchs du jourMatchs de demainCompétitionsTableau de bordAssistanceCentre d’aide (pas encore publié)Nous contacter (pas encore publié)Politique de confidentialité (pas encore publié)Conditions d’utilisation (pas encore publié)© 2026 Soccer Predictions. Tous droits réservés.TwitterFacebookInstagram
+        
+      
+    
+    "
+
+
+      609 |     const pageText = page.locator('body');
+      610 |     await softly(pageText).not.toContainText('all devices');
+    > 611 |     await softly(pageText).not.toContainText('tous vos appareils');
+          |                                ^
+      612 |
+      613 |     const placeholders = (key: 'auth.change.currentPlaceholder' | 'auth.change.newPlaceholder' | 'auth.change.confirmPlaceholder') =>
+      614 |       page.getByPlaceholder(catalogue[key], { exact: true });
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:611:32
+
+    Error: the change must sign this browser out through /auth/logout
+
+    expect(received).not.toBeNull()
+
+    Received: null
+
+      624 |     // This browser's session ends: its refresh token is handed to /auth/logout, and both tokens go.
+      625 |     const logout = await logoutRequest;
+    > 626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+          |                                                                                      ^
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:626:86
+
+    Error: the refresh token this browser held is the one revoked
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: {"refresh_token": "e2e-account-forms-refresh-token"}
+    Received: undefined
+
+      625 |     const logout = await logoutRequest;
+      626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+    > 627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+          |                                                                                              ^
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+      630 |
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:627:94
+
+    Error: exactly one sign-out reached the backend
+
+    exactly one sign-out reached the backend
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+    > 628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+          |                                                                                                            ^
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+      630 |
+      631 |     // A sign-in form the reader can use...
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:628:108
+
+    Error: no token may stay in this browser
+
+    no token may stay in this browser
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   null,
+    -   null,
+    +   "e2e-account-forms-access-token",
+    +   "e2e-account-forms-refresh-token",
+      ]
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+    > 629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+          |                                                                                                   ^
+      630 |
+      631 |     // A sign-in form the reader can use...
+      632 |     await softly(page).toHaveURL(/\/login$/);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:629:99
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/login$/
+    Received string:  "http://localhost:3101/"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "soft toHaveURL" with timeout 5000ms
+        14 × locator resolved to <html lang="fr" class="dark" data-rh="lang" data-low-data="off">…</html>
+           - unexpected value "http://localhost:3101/"
+
+
+      630 |
+      631 |     // A sign-in form the reader can use...
+    > 632 |     await softly(page).toHaveURL(/\/login$/);
+          |                        ^
+      633 |     await softly(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:632:24
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: 'Se connecter', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "soft toBeVisible" getByRole('button', { name: 'Se connecter', exact: true }) with timeout 5000ms
+      - waiting for getByRole('button', { name: 'Se connecter', exact: true })
+
+
+      631 |     // A sign-in form the reader can use...
+      632 |     await softly(page).toHaveURL(/\/login$/);
+    > 633 |     await softly(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+          |                                                                                                   ^
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+      636 |     await softly(page.getByText(catalogue['auth.change.success'], { exact: true })).toBeVisible();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:633:99
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Mot de passe changé. Vous avez été déconnecté de tous vos appareils.', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "soft toBeVisible" getByText('Mot de passe changé. Vous avez été déconnecté de tous vos appareils.', { exact: true }) with timeout 5000ms
+      - waiting for getByText('Mot de passe changé. Vous avez été déconnecté de tous vos appareils.', { exact: true })
+
+
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+    > 636 |     await softly(page.getByText(catalogue['auth.change.success'], { exact: true })).toBeVisible();
+          |                                                                                     ^
+      637 |     await softly(pageText).not.toContainText('all devices');
+      638 |     await softly(pageText).not.toContainText('tous vos appareils');
+      639 |     await softly(page.getByText('Logged out successfully')).toHaveCount(0);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:636:85
+
+    Error: the sign-in form must stay put (watched 2500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      644 |       .waitForURL(url => !url.pathname.startsWith('/login'), { timeout: BOUNCE_WINDOW_MS })
+      645 |       .then(() => true, () => false);
+    > 646 |     softly(bounced, `the sign-in form must stay put (watched ${BOUNCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                        ^
+      647 |
+      648 |     // And the session really is gone: a reload does not find one (the seed is one-shot).
+      649 |     await page.goto('/password-change');
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:646:88
+
+    Test timeout of 45000ms exceeded.
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/login$/
+    Received string:  "http://localhost:3101/password-change"
+
+    Call log:
+      - Expect "toHaveURL" with timeout 10000ms
+        23 × locator resolved to <html lang="fr" class="dark" data-rh="lang" data-low-data="off">…</html>
+           - unexpected value "http://localhost:3101/password-change"
+      - Test ended.
+
+
+      648 |     // And the session really is gone: a reload does not find one (the seed is one-shot).
+      649 |     await page.goto('/password-change');
+    > 650 |     await expect(page).toHaveURL(/\/login$/);
+          |                        ^
+      651 |     await expect(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+      652 |   });
+      653 | }
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:650:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-cha-79efd-rm-and-says-only-that-in-fr-mocked-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-a-cha-79efd-rm-and-says-only-that-in-fr-mocked-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-cha-79efd-rm-and-says-only-that-in-fr-mocked-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-a-cha-79efd-rm-and-says-only-that-in-fr-mocked-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by mouse opens the form and saves nothing 
+
+    Error: Edit by mouse must not save (watched 1500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      281 |       await page.keyboard.press(how);
+      282 |     }
+    > 283 |     expect(await putSent, `Edit by ${how} must not save (watched ${ABSENCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                             ^
+      284 |     expect(state.puts, 'no PUT body may have reached the backend').toEqual([]);
+      285 |
+      286 |     for (const field of [username, firstName, lastName, avatar]) await expect(field).toBeEnabled();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:283:93
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--08efc--the-form-and-saves-nothing-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-Edit--08efc--the-form-and-saves-nothing-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--08efc--the-form-and-saves-nothing-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-Edit--08efc--the-form-and-saves-nothing-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Enter opens the form and saves nothing 
+
+    Error: Edit by Enter must not save (watched 1500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      281 |       await page.keyboard.press(how);
+      282 |     }
+    > 283 |     expect(await putSent, `Edit by ${how} must not save (watched ${ABSENCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                             ^
+      284 |     expect(state.puts, 'no PUT body may have reached the backend').toEqual([]);
+      285 |
+      286 |     for (const field of [username, firstName, lastName, avatar]) await expect(field).toBeEnabled();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:283:93
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--f3595--the-form-and-saves-nothing-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-Edit--f3595--the-form-and-saves-nothing-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--f3595--the-form-and-saves-nothing-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-Edit--f3595--the-form-and-saves-nothing-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Space opens the form and saves nothing 
+
+    Error: Edit by Space must not save (watched 1500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      281 |       await page.keyboard.press(how);
+      282 |     }
+    > 283 |     expect(await putSent, `Edit by ${how} must not save (watched ${ABSENCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                             ^
+      284 |     expect(state.puts, 'no PUT body may have reached the backend').toEqual([]);
+      285 |
+      286 |     for (const field of [username, firstName, lastName, avatar]) await expect(field).toBeEnabled();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:283:93
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--49451--the-form-and-saves-nothing-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-Edit--49451--the-form-and-saves-nothing-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Edit--49451--the-form-and-saves-nothing-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-Edit--49451--the-form-and-saves-nothing-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:293:1 › Cancel sends nothing and puts every original value back 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      298 |   const editPut = sent(page, isProfilePut);
+      299 |   await editButton(page).click();
+    > 300 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      301 |
+      302 |   await username.fill('qa-cancelled');
+      303 |   await firstName.fill('Changed');
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:300:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Cance-d1309-s-every-original-value-back-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-Cance-d1309-s-every-original-value-back-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Cance-d1309-s-every-original-value-back-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-Cance-d1309-s-every-original-value-back-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  20) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:320:1 › Save sends exactly one normalised PUT, the header follows without a reload, and it survives one 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      325 |   const editPut = sent(page, isProfilePut);
+      326 |   await editButton(page).click();
+    > 327 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      328 |
+      329 |   await firstName.fill('  Audited  ');
+      330 |   const meCallsBeforeSave = state.meCalls;
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:327:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Save--32c8a--reload-and-it-survives-one-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-Save--32c8a--reload-and-it-survives-one-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-Save--32c8a--reload-and-it-survives-one-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-Save--32c8a--reload-and-it-survives-one-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  21) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:360:1 › pressing Enter in a field saves once 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      364 |   const editPut = sent(page, isProfilePut);
+      365 |   await editButton(page).click();
+    > 366 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      367 |
+      368 |   await fields(page).lastName.fill('Entered');
+      369 |   const putRequest = page.waitForRequest(isProfilePut);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:366:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-pressing-Enter-in-a-field-saves-once-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-pressing-Enter-in-a-field-saves-once-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-pressing-Enter-in-a-field-saves-once-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-pressing-Enter-in-a-field-saves-once-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  22) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:376:1 › a double activation of Save while it is in flight sends one PUT 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      381 |   const editPut = sent(page, isProfilePut);
+      382 |   await editButton(page).click();
+    > 383 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      384 |
+      385 |   await fields(page).firstName.fill('Twice');
+      386 |   await saveButton(page).dblclick();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:383:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-dou-ae4a3--is-in-flight-sends-one-PUT-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-a-dou-ae4a3--is-in-flight-sends-one-PUT-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-dou-ae4a3--is-in-flight-sends-one-PUT-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-a-dou-ae4a3--is-in-flight-sends-one-PUT-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  23) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:392:1 › clearing an optional name and the avatar sends null for each, and succeeds 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      397 |   const editPut = sent(page, isProfilePut);
+      398 |   await editButton(page).click();
+    > 399 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      400 |
+      401 |   // A name of spaces is blank once trimmed. (Spaces in the URL field would be stopped by the
+      402 |   // browser's own type="url" check before any submit, which is the browser's business.)
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:399:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-clear-7138c--null-for-each-and-succeeds-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-clear-7138c--null-for-each-and-succeeds-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-clear-7138c--null-for-each-and-succeeds-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-clear-7138c--null-for-each-and-succeeds-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:419:1 › an account whose names were never supplied can change its username 
+
+    Error: a name that was never supplied must not be sent as an empty string
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "first_name",
+    +   "last_name",
+    + ]
+
+      430 |   const leaked = await editBody;
+      431 |   expect.soft(leaked === null ? [] : ['first_name', 'last_name'].filter(field => leaked[field] === ''),
+    > 432 |     'a name that was never supplied must not be sent as an empty string').toEqual([]);
+          |                                                                           ^
+      433 |   expect(leaked, 'Edit must not save').toBeNull();
+      434 |
+      435 |   await username.fill('qa-renamed');
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:432:75
+
+    Error: Edit must not save
+
+    expect(received).toBeNull()
+
+    Received: {"avatar_url": "", "first_name": "", "last_name": "", "username": "qa-regular"}
+
+      431 |   expect.soft(leaked === null ? [] : ['first_name', 'last_name'].filter(field => leaked[field] === ''),
+      432 |     'a name that was never supplied must not be sent as an empty string').toEqual([]);
+    > 433 |   expect(leaked, 'Edit must not save').toBeNull();
+          |                                        ^
+      434 |
+      435 |   await username.fill('qa-renamed');
+      436 |   const putRequest = page.waitForRequest(isProfilePut);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:433:40
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-an-ac-2bdc6-ied-can-change-its-username-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-an-ac-2bdc6-ied-can-change-its-username-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-an-ac-2bdc6-ied-can-change-its-username-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-an-ac-2bdc6-ied-can-change-its-username-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  25) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:446:1 › a failed save keeps the edits and says so, sends one request, and a retry sends exactly one more 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      452 |   const editPut = sent(page, isProfilePut);
+      453 |   await editButton(page).click();
+    > 454 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      455 |
+      456 |   await firstName.fill('Retried');
+      457 |   await username.fill('qa-retried');
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:454:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-fai-e3c77-etry-sends-exactly-one-more-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-a-fai-e3c77-etry-sends-exactly-one-more-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-fai-e3c77-etry-sends-exactly-one-more-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-a-fai-e3c77-etry-sends-exactly-one-more-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  26) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:484:1 › after a failed save, Cancel puts the stored values back and sends nothing more 
+
+    Error: Edit must not save
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      490 |   const editPut = sent(page, isProfilePut);
+      491 |   await editButton(page).click();
+    > 492 |   expect(await editPut, 'Edit must not save').toBe(false);
+          |                                               ^
+      493 |
+      494 |   await firstName.fill('Abandoned');
+      495 |   const failedRequest = page.waitForRequest(isProfilePut);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:492:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-after-41f6d-back-and-sends-nothing-more-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-after-41f6d-back-and-sends-nothing-more-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-after-41f6d-back-and-sends-nothing-more-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-after-41f6d-back-and-sends-nothing-more-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:508:1 › every profile field has an accessible name, and says what it holds 
+
+    Error: "Email" must name exactly one field
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByLabel('Email', { exact: true })
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - "Email" must name exactly one field getByLabel('Email', { exact: true }) with timeout 10000ms
+      - waiting for getByLabel('Email', { exact: true })
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      518 |   for (const [label, id, name, autocomplete] of expected) {
+      519 |     const field = page.getByLabel(label, { exact: true });
+    > 520 |     await expect(field, `"${label}" must name exactly one field`).toHaveCount(1);
+          |                                                                   ^
+      521 |     await expect(field).toHaveAttribute('id', id);
+      522 |     await expect(field).toHaveAttribute('name', name);
+      523 |     await expect(field).toHaveAttribute('autocomplete', autocomplete);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:520:67
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-every-b641a-name-and-says-what-it-holds-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-every-b641a-name-and-says-what-it-holds-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-every-b641a-name-and-says-what-it-holds-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-every-b641a-name-and-says-what-it-holds-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  28) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:541:1 › every password field has an accessible name and the autocomplete a password manager needs 
+
+    Error: "Current Password" must name exactly one field
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByLabel('Current Password', { exact: true })
+    Expected: 1
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - "Current Password" must name exactly one field getByLabel('Current Password', { exact: true }) with timeout 10000ms
+      - waiting for getByLabel('Current Password', { exact: true })
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      550 |     // exact: "New Password" is also inside "Confirm New Password".
+      551 |     const field = page.getByLabel(label, { exact: true });
+    > 552 |     await expect(field, `"${label}" must name exactly one field`).toHaveCount(1);
+          |                                                                   ^
+      553 |     await expect(field).toHaveAttribute('id', id);
+      554 |     await expect(field).toHaveAttribute('autocomplete', autocomplete);
+      555 |   }
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:552:67
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-every-f6b0d-te-a-password-manager-needs-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-every-f6b0d-te-a-password-manager-needs-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-every-f6b0d-te-a-password-manager-needs-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-every-f6b0d-te-a-password-manager-needs-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  29) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in en 
+
+    Error: expect(locator).not.toContainText(expected) failed
+
+    Locator: locator('body')
+    Expected substring: not "all devices"
+    Received string: "
+        Skip to the matchesSPSoccer PredictionsHomeMatchesLeaguesSelectionsDashboardText-onlyOffQAAccount menuOpen main menuChange PasswordUpdate your account passwordCurrent PasswordNew PasswordMust be at least 8 characters with uppercase, lowercase, and numberConfirm New PasswordNote: Changing your password will log you out from all devices. You will need to log in again with your new password.Change PasswordCancelSlip0SPSoccer PredictionsFixtures, results and model forecasts for Europe’s top five leagues and the Champions League, alongside predictions published by registered experts. Every probability names its source. Nothing here is betting advice.Language and time zoneReading settingsLanguageEnglishFrançaisThe words on this site. It does not change team names, competition names or a provider’s own message, which are shown as published.Time zoneDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+00:00 · clocks change during the yearKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · clocks change during the yearParis, Brussels · UTC+02:00 · clocks change during the yearMadrid · UTC+02:00 · clocks change during the yearBerlin · UTC+02:00 · clocks change during the yearRome · UTC+02:00 · clocks change during the yearLisbon · UTC+01:00 · clocks change during the yearUse this device’s zone (New York, Toronto) · UTC-04:00 · clocks change during the yearSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Times are shown in New York, Toronto · UTC-04:00.Every kick-off time on this site is shown in this zone, and “today” means a day in it.Language, time zone and where you are are three separate things, and this site treats them that way: choosing one changes nothing about the others, and none of them is taken as evidence of the others. Your country is not stored and not guessed.Quick LinksToday's matchesTomorrow's matchesLeaguesDashboardSupportHelp Centre (not published yet)Contact Us (not published yet)Privacy Policy (not published yet)Terms of Service (not published yet)© 2026 Soccer Predictions. All rights reserved.TwitterFacebookInstagram
+        
+      
+    
+    "
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "soft not toContainText" locator('body') with timeout 5000ms
+      - waiting for locator('body')
+        14 × locator resolved to <body class="bg-dark-950 text-white antialiased">…</body>
+           - unexpected value "
+        Skip to the matchesSPSoccer PredictionsHomeMatchesLeaguesSelectionsDashboardText-onlyOffQAAccount menuOpen main menuChange PasswordUpdate your account passwordCurrent PasswordNew PasswordMust be at least 8 characters with uppercase, lowercase, and numberConfirm New PasswordNote: Changing your password will log you out from all devices. You will need to log in again with your new password.Change PasswordCancelSlip0SPSoccer PredictionsFixtures, results and model forecasts for Europe’s top five leagues and the Champions League, alongside predictions published by registered experts. Every probability names its source. Nothing here is betting advice.Language and time zoneReading settingsLanguageEnglishFrançaisThe words on this site. It does not change team names, competition names or a provider’s own message, which are shown as published.Time zoneDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+00:00 · clocks change during the yearKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · clocks change during the yearParis, Brussels · UTC+02:00 · clocks change during the yearMadrid · UTC+02:00 · clocks change during the yearBerlin · UTC+02:00 · clocks change during the yearRome · UTC+02:00 · clocks change during the yearLisbon · UTC+01:00 · clocks change during the yearUse this device’s zone (New York, Toronto) · UTC-04:00 · clocks change during the yearSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Times are shown in New York, Toronto · UTC-04:00.Every kick-off time on this site is shown in this zone, and “today” means a day in it.Language, time zone and where you are are three separate things, and this site treats them that way: choosing one changes nothing about the others, and none of them is taken as evidence of the others. Your country is not stored and not guessed.Quick LinksToday's matchesTomorrow's matchesLeaguesDashboardSupportHelp Centre (not published yet)Contact Us (not published yet)Privacy Policy (not published yet)Terms of Service (not published yet)© 2026 Soccer Predictions. All rights reserved.TwitterFacebookInstagram
+        
+      
+    
+    "
+
+
+      608 |     await expect(page.getByText(catalogue['auth.change.note'])).toBeVisible();
+      609 |     const pageText = page.locator('body');
+    > 610 |     await softly(pageText).not.toContainText('all devices');
+          |                                ^
+      611 |     await softly(pageText).not.toContainText('tous vos appareils');
+      612 |
+      613 |     const placeholders = (key: 'auth.change.currentPlaceholder' | 'auth.change.newPlaceholder' | 'auth.change.confirmPlaceholder') =>
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:610:32
+
+    Error: the change must sign this browser out through /auth/logout
+
+    expect(received).not.toBeNull()
+
+    Received: null
+
+      624 |     // This browser's session ends: its refresh token is handed to /auth/logout, and both tokens go.
+      625 |     const logout = await logoutRequest;
+    > 626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+          |                                                                                      ^
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:626:86
+
+    Error: the refresh token this browser held is the one revoked
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: {"refresh_token": "e2e-account-forms-refresh-token"}
+    Received: undefined
+
+      625 |     const logout = await logoutRequest;
+      626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+    > 627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+          |                                                                                              ^
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+      630 |
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:627:94
+
+    Error: exactly one sign-out reached the backend
+
+    exactly one sign-out reached the backend
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+    > 628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+          |                                                                                                            ^
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+      630 |
+      631 |     // A sign-in form the reader can use...
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:628:108
+
+    Error: no token may stay in this browser
+
+    no token may stay in this browser
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   null,
+    -   null,
+    +   "e2e-account-forms-access-token",
+    +   "e2e-account-forms-refresh-token",
+      ]
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+    > 629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+          |                                                                                                   ^
+      630 |
+      631 |     // A sign-in form the reader can use...
+      632 |     await softly(page).toHaveURL(/\/login$/);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:629:99
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/login$/
+    Received string:  "http://localhost:3101/"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "soft toHaveURL" with timeout 5000ms
+        14 × locator resolved to <html lang="en" class="dark" data-rh="lang" data-low-data="off">…</html>
+           - unexpected value "http://localhost:3101/"
+
+
+      630 |
+      631 |     // A sign-in form the reader can use...
+    > 632 |     await softly(page).toHaveURL(/\/login$/);
+          |                        ^
+      633 |     await softly(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:632:24
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: 'Sign in', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "soft toBeVisible" getByRole('button', { name: 'Sign in', exact: true }) with timeout 5000ms
+      - waiting for getByRole('button', { name: 'Sign in', exact: true })
+
+
+      631 |     // A sign-in form the reader can use...
+      632 |     await softly(page).toHaveURL(/\/login$/);
+    > 633 |     await softly(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+          |                                                                                                   ^
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+      636 |     await softly(page.getByText(catalogue['auth.change.success'], { exact: true })).toBeVisible();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:633:99
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Password changed successfully. You have been logged out from all devices.', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "soft toBeVisible" getByText('Password changed successfully. You have been logged out from all devices.', { exact: true }) with timeout 5000ms
+      - waiting for getByText('Password changed successfully. You have been logged out from all devices.', { exact: true })
+
+
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+    > 636 |     await softly(page.getByText(catalogue['auth.change.success'], { exact: true })).toBeVisible();
+          |                                                                                     ^
+      637 |     await softly(pageText).not.toContainText('all devices');
+      638 |     await softly(pageText).not.toContainText('tous vos appareils');
+      639 |     await softly(page.getByText('Logged out successfully')).toHaveCount(0);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:636:85
+
+    Error: the sign-in form must stay put (watched 2500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      644 |       .waitForURL(url => !url.pathname.startsWith('/login'), { timeout: BOUNCE_WINDOW_MS })
+      645 |       .then(() => true, () => false);
+    > 646 |     softly(bounced, `the sign-in form must stay put (watched ${BOUNCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                        ^
+      647 |
+      648 |     // And the session really is gone: a reload does not find one (the seed is one-shot).
+      649 |     await page.goto('/password-change');
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:646:88
+
+    Test timeout of 45000ms exceeded.
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/login$/
+    Received string:  "http://localhost:3101/password-change"
+
+    Call log:
+      - Expect "toHaveURL" with timeout 10000ms
+        4 × locator resolved to <html lang="en" class="dark" data-rh="lang" data-low-data="off" data-scroll-restore="converging">…</html>
+          - unexpected value "http://localhost:3101/password-change"
+        19 × locator resolved to <html lang="en" class="dark" data-rh="lang" data-low-data="off">…</html>
+           - unexpected value "http://localhost:3101/password-change"
+      - Test ended.
+
+
+      648 |     // And the session really is gone: a reload does not find one (the seed is one-shot).
+      649 |     await page.goto('/password-change');
+    > 650 |     await expect(page).toHaveURL(/\/login$/);
+          |                        ^
+      651 |     await expect(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+      652 |   });
+      653 | }
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:650:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-cha-e925b-rm-and-says-only-that-in-en-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-a-cha-e925b-rm-and-says-only-that-in-en-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-cha-e925b-rm-and-says-only-that-in-en-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-a-cha-e925b-rm-and-says-only-that-in-en-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  30) [mocked-mobile] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in fr 
+
+    Error: expect(locator).not.toContainText(expected) failed
+
+    Locator: locator('body')
+    Expected substring: not "tous vos appareils"
+    Received string: "
+        Aller directement aux matchsSPSoccer PredictionsAccueilMatchsCompétitionsSélectionsTableau de bordText-onlyOffQAMenu du compteOuvrir le menu principalChanger le mot de passeMettez à jour le mot de passe de votre compteMot de passe actuelNouveau mot de passeDoit comporter au moins 8 caractères, dont une majuscule, une minuscule et un chiffreConfirmer le nouveau mot de passeRemarque : Changer votre mot de passe vous déconnectera de tous vos appareils. Vous devrez vous reconnecter avec votre nouveau mot de passe.Changer le mot de passeAnnulerCoupon0SPSoccer PredictionsMatchs, résultats et prévisions du modèle pour les cinq grands championnats européens et la Champions League, ainsi que les pronostics publiés par des experts inscrits. Chaque probabilité indique sa source. Rien ici n’est un conseil de pari.Langue et fuseau horaireRéglages de lectureLangueEnglishFrançaisLa langue des textes de ce site. Elle ne change ni les noms d’équipes, ni les noms de compétitions, ni le message d’un fournisseur, qui sont affichés tels que publiés.Fuseau horaireDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+00:00 · changement d’heure dans l’annéeKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · changement d’heure dans l’annéeParis, Brussels · UTC+02:00 · changement d’heure dans l’annéeMadrid · UTC+02:00 · changement d’heure dans l’annéeBerlin · UTC+02:00 · changement d’heure dans l’annéeRome · UTC+02:00 · changement d’heure dans l’annéeLisbon · UTC+01:00 · changement d’heure dans l’annéeUtiliser le fuseau de cet appareil (New York, Toronto) · UTC-04:00 · changement d’heure dans l’annéeSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Les heures sont affichées en New York, Toronto · UTC−4 (UTC-04:00).Toutes les heures de coup d’envoi de ce site sont affichées dans ce fuseau, et « aujourd’hui » désigne une journée dans ce fuseau.La langue, le fuseau horaire et le lieu où vous êtes sont trois choses distinctes, et ce site les traite ainsi : choisir l’un ne change rien aux autres, et aucun n’est considéré comme une preuve des autres. Votre pays n’est ni enregistré ni deviné.Liens rapidesMatchs du jourMatchs de demainCompétitionsTableau de bordAssistanceCentre d’aide (pas encore publié)Nous contacter (pas encore publié)Politique de confidentialité (pas encore publié)Conditions d’utilisation (pas encore publié)© 2026 Soccer Predictions. Tous droits réservés.TwitterFacebookInstagram
+        
+      
+    
+    "
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "soft not toContainText" locator('body') with timeout 5000ms
+      - waiting for locator('body')
+        14 × locator resolved to <body class="bg-dark-950 text-white antialiased">…</body>
+           - unexpected value "
+        Aller directement aux matchsSPSoccer PredictionsAccueilMatchsCompétitionsSélectionsTableau de bordText-onlyOffQAMenu du compteOuvrir le menu principalChanger le mot de passeMettez à jour le mot de passe de votre compteMot de passe actuelNouveau mot de passeDoit comporter au moins 8 caractères, dont une majuscule, une minuscule et un chiffreConfirmer le nouveau mot de passeRemarque : Changer votre mot de passe vous déconnectera de tous vos appareils. Vous devrez vous reconnecter avec votre nouveau mot de passe.Changer le mot de passeAnnulerCoupon0SPSoccer PredictionsMatchs, résultats et prévisions du modèle pour les cinq grands championnats européens et la Champions League, ainsi que les pronostics publiés par des experts inscrits. Chaque probabilité indique sa source. Rien ici n’est un conseil de pari.Langue et fuseau horaireRéglages de lectureLangueEnglishFrançaisLa langue des textes de ce site. Elle ne change ni les noms d’équipes, ni les noms de compétitions, ni le message d’un fournisseur, qui sont affichés tels que publiés.Fuseau horaireDouala, Yaoundé · UTC+01:00Lagos, Abuja · UTC+01:00Abidjan, Accra · UTC+00:00Casablanca · UTC+00:00 · changement d’heure dans l’annéeKinshasa · UTC+01:00Nairobi · UTC+03:00Johannesburg · UTC+02:00London · UTC+01:00 · changement d’heure dans l’annéeParis, Brussels · UTC+02:00 · changement d’heure dans l’annéeMadrid · UTC+02:00 · changement d’heure dans l’annéeBerlin · UTC+02:00 · changement d’heure dans l’annéeRome · UTC+02:00 · changement d’heure dans l’annéeLisbon · UTC+01:00 · changement d’heure dans l’annéeUtiliser le fuseau de cet appareil (New York, Toronto) · UTC-04:00 · changement d’heure dans l’annéeSão Paulo · UTC-03:00Dubai · UTC+04:00UTC · UTC+00:00Les heures sont affichées en New York, Toronto · UTC−4 (UTC-04:00).Toutes les heures de coup d’envoi de ce site sont affichées dans ce fuseau, et « aujourd’hui » désigne une journée dans ce fuseau.La langue, le fuseau horaire et le lieu où vous êtes sont trois choses distinctes, et ce site les traite ainsi : choisir l’un ne change rien aux autres, et aucun n’est considéré comme une preuve des autres. Votre pays n’est ni enregistré ni deviné.Liens rapidesMatchs du jourMatchs de demainCompétitionsTableau de bordAssistanceCentre d’aide (pas encore publié)Nous contacter (pas encore publié)Politique de confidentialité (pas encore publié)Conditions d’utilisation (pas encore publié)© 2026 Soccer Predictions. Tous droits réservés.TwitterFacebookInstagram
+        
+      
+    
+    "
+
+
+      609 |     const pageText = page.locator('body');
+      610 |     await softly(pageText).not.toContainText('all devices');
+    > 611 |     await softly(pageText).not.toContainText('tous vos appareils');
+          |                                ^
+      612 |
+      613 |     const placeholders = (key: 'auth.change.currentPlaceholder' | 'auth.change.newPlaceholder' | 'auth.change.confirmPlaceholder') =>
+      614 |       page.getByPlaceholder(catalogue[key], { exact: true });
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:611:32
+
+    Error: the change must sign this browser out through /auth/logout
+
+    expect(received).not.toBeNull()
+
+    Received: null
+
+      624 |     // This browser's session ends: its refresh token is handed to /auth/logout, and both tokens go.
+      625 |     const logout = await logoutRequest;
+    > 626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+          |                                                                                      ^
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:626:86
+
+    Error: the refresh token this browser held is the one revoked
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: {"refresh_token": "e2e-account-forms-refresh-token"}
+    Received: undefined
+
+      625 |     const logout = await logoutRequest;
+      626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+    > 627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+          |                                                                                              ^
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+      630 |
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:627:94
+
+    Error: exactly one sign-out reached the backend
+
+    exactly one sign-out reached the backend
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      626 |     softly(logout, 'the change must sign this browser out through /auth/logout').not.toBeNull();
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+    > 628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+          |                                                                                                            ^
+      629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+      630 |
+      631 |     // A sign-in form the reader can use...
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:628:108
+
+    Error: no token may stay in this browser
+
+    no token may stay in this browser
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   null,
+    -   null,
+    +   "e2e-account-forms-access-token",
+    +   "e2e-account-forms-refresh-token",
+      ]
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      627 |     softly(logout?.postDataJSON(), 'the refresh token this browser held is the one revoked').toEqual({ refresh_token: REFRESH_TOKEN });
+      628 |     await softly.poll(() => state.logouts.length, { message: 'exactly one sign-out reached the backend' }).toBe(1);
+    > 629 |     await softly.poll(() => storedTokens(page), { message: 'no token may stay in this browser' }).toEqual([null, null]);
+          |                                                                                                   ^
+      630 |
+      631 |     // A sign-in form the reader can use...
+      632 |     await softly(page).toHaveURL(/\/login$/);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:629:99
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/login$/
+    Received string:  "http://localhost:3101/"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "soft toHaveURL" with timeout 5000ms
+        14 × locator resolved to <html lang="fr" class="dark" data-rh="lang" data-low-data="off">…</html>
+           - unexpected value "http://localhost:3101/"
+
+
+      630 |
+      631 |     // A sign-in form the reader can use...
+    > 632 |     await softly(page).toHaveURL(/\/login$/);
+          |                        ^
+      633 |     await softly(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:632:24
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: 'Se connecter', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "soft toBeVisible" getByRole('button', { name: 'Se connecter', exact: true }) with timeout 5000ms
+      - waiting for getByRole('button', { name: 'Se connecter', exact: true })
+
+
+      631 |     // A sign-in form the reader can use...
+      632 |     await softly(page).toHaveURL(/\/login$/);
+    > 633 |     await softly(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+          |                                                                                                   ^
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+      636 |     await softly(page.getByText(catalogue['auth.change.success'], { exact: true })).toBeVisible();
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:633:99
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Mot de passe changé. Vous avez été déconnecté de tous vos appareils.', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "soft toBeVisible" getByText('Mot de passe changé. Vous avez été déconnecté de tous vos appareils.', { exact: true }) with timeout 5000ms
+      - waiting for getByText('Mot de passe changé. Vous avez été déconnecté de tous vos appareils.', { exact: true })
+
+
+      634 |
+      635 |     // ...told the truthful sentence, and not a hard-coded English logout toast.
+    > 636 |     await softly(page.getByText(catalogue['auth.change.success'], { exact: true })).toBeVisible();
+          |                                                                                     ^
+      637 |     await softly(pageText).not.toContainText('all devices');
+      638 |     await softly(pageText).not.toContainText('tous vos appareils');
+      639 |     await softly(page.getByText('Logged out successfully')).toHaveCount(0);
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:636:85
+
+    Error: the sign-in form must stay put (watched 2500 ms)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      644 |       .waitForURL(url => !url.pathname.startsWith('/login'), { timeout: BOUNCE_WINDOW_MS })
+      645 |       .then(() => true, () => false);
+    > 646 |     softly(bounced, `the sign-in form must stay put (watched ${BOUNCE_WINDOW_MS} ms)`).toBe(false);
+          |                                                                                        ^
+      647 |
+      648 |     // And the session really is gone: a reload does not find one (the seed is one-shot).
+      649 |     await page.goto('/password-change');
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:646:88
+
+    Test timeout of 45000ms exceeded.
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/login$/
+    Received string:  "http://localhost:3101/password-change"
+
+    Call log:
+      - Expect "toHaveURL" with timeout 10000ms
+        4 × locator resolved to <html lang="fr" class="dark" data-rh="lang" data-low-data="off" data-scroll-restore="converging">…</html>
+          - unexpected value "http://localhost:3101/password-change"
+        19 × locator resolved to <html lang="fr" class="dark" data-rh="lang" data-low-data="off">…</html>
+           - unexpected value "http://localhost:3101/password-change"
+      - Test ended.
+
+
+      648 |     // And the session really is gone: a reload does not find one (the seed is one-shot).
+      649 |     await page.goto('/password-change');
+    > 650 |     await expect(page).toHaveURL(/\/login$/);
+          |                        ^
+      651 |     await expect(page.getByRole('button', { name: catalogue['auth.login.submit'], exact: true })).toBeVisible();
+      652 |   });
+      653 | }
+        at ~/Documents/DevProjects/PredictionsAppsUI-expert-fixes/frontend/e2e/mocked/account-forms.spec.ts:650:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-cha-79efd-rm-and-says-only-that-in-fr-mocked-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: e2e/.artifacts/mocked-account-forms-a-cha-79efd-rm-and-says-only-that-in-fr-mocked-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    e2e/.artifacts/mocked-account-forms-a-cha-79efd-rm-and-says-only-that-in-fr-mocked-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace e2e/.artifacts/mocked-account-forms-a-cha-79efd-rm-and-says-only-that-in-fr-mocked-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  30 failed
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by mouse opens the form and saves nothing 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Enter opens the form and saves nothing 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Space opens the form and saves nothing 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:293:1 › Cancel sends nothing and puts every original value back 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:320:1 › Save sends exactly one normalised PUT, the header follows without a reload, and it survives one 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:360:1 › pressing Enter in a field saves once 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:376:1 › a double activation of Save while it is in flight sends one PUT 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:392:1 › clearing an optional name and the avatar sends null for each, and succeeds 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:419:1 › an account whose names were never supplied can change its username 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:446:1 › a failed save keeps the edits and says so, sends one request, and a retry sends exactly one more 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:484:1 › after a failed save, Cancel puts the stored values back and sends nothing more 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:508:1 › every profile field has an accessible name, and says what it holds 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:541:1 › every password field has an accessible name and the autocomplete a password manager needs 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in en 
+    [mocked-desktop] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in fr 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by mouse opens the form and saves nothing 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Enter opens the form and saves nothing 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:270:3 › Edit by Space opens the form and saves nothing 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:293:1 › Cancel sends nothing and puts every original value back 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:320:1 › Save sends exactly one normalised PUT, the header follows without a reload, and it survives one 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:360:1 › pressing Enter in a field saves once 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:376:1 › a double activation of Save while it is in flight sends one PUT 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:392:1 › clearing an optional name and the avatar sends null for each, and succeeds 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:419:1 › an account whose names were never supplied can change its username 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:446:1 › a failed save keeps the edits and says so, sends one request, and a retry sends exactly one more 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:484:1 › after a failed save, Cancel puts the stored values back and sends nothing more 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:508:1 › every profile field has an accessible name, and says what it holds 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:541:1 › every password field has an accessible name and the autocomplete a password manager needs 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in en 
+    [mocked-mobile] › e2e/mocked/account-forms.spec.ts:597:3 › a changed password signs this browser out onto a usable sign-in form, and says only that, in fr 
+  4 passed (4.2m)
