@@ -1,0 +1,128 @@
+# The forecast pass of 2026-10-24 12:09Z and its retry at 18:10Z: what the live machine recorded (read-only extracts, taken 2026-10-24T19:13:11Z)
+# Live backend: pid 93218, started 2026-10-23T00:05:22Z, release 69ac15f8. Log timestamps below are the backend's local clock (EDT = UTC-4) unless marked Z.
+
+## 1. Host sleep and wake (pmset -g log; local time), 11:00-12:30 EDT window is 07:00-08:30 EDT
+2026-10-24 07:33:33 DarkWake DarkWake from Deep Idle [CDNP] : due to
+2026-10-24 07:33:38 Sleep Entering Sleep state due to 'Maintenance Sleep':TCPKeepAlive=active Using
+2026-10-24 07:51:34 DarkWake DarkWake from Deep Idle [CDNP] : due to
+2026-10-24 07:51:36 Sleep Entering Sleep state due to 'Sleep Service Back
+2026-10-24 08:09:25 DarkWake DarkWake from Deep Idle [CDNP] : due to
+2026-10-24 08:09:55 Sleep Entering Sleep state due to 'Sleep Service Back
+2026-10-24 08:26:54 DarkWake DarkWake from Deep Idle [CDNP] : due to
+2026-10-24 08:26:56 Sleep Entering Sleep state due to 'Sleep Service Back
+2026-10-24 08:30:39 DarkWake DarkWake from Deep Idle [CDNP] : due to
+2026-10-24 08:30:44 Sleep Entering Sleep state due to 'Maintenance Sleep':TCPKeepAlive=active Using
+
+## 2. The backend log around the pass (non-SQL lines; provider credentials are redacted by the logger and again here)
+2026-10-24 07:51:37 - app.services.settlement - INFO - settlement soccer-regulation-time-v2: 15 match(es) considered, expert {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 15, 'void'
+2026-10-24 07:51:37 - app.services.sync_scheduler - INFO - Background sync pass ran: live, results, recover, settle
+2026-10-24 08:09:26 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&competition_id=4 "HTTP/1.1 200 OK"
+2026-10-24 08:09:29 - httpx - INFO - HTTP Request: GET https://game-forecast-api.p.rapidapi.com/events?league_id=3&start_at_start=2026-10-24&start_at_end=2026-10-31&page=1&page_size=50 "HTTP/1.1 200 OK"
+2026-10-24 08:09:31 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&competition_id=1 "HTTP/1.1 200 OK"
+2026-10-24 08:09:32 - app.services.sync_lease - WARNING - gameforecast forecast sync lease lost: a write was refused: the lease is no longer this worker's
+2026-10-24 08:09:32 - app.services.settlement - INFO - settlement soccer-regulation-time-v2: 15 match(es) considered, expert {'settled': 0, 'updated': 0, 'unchanged': 0, 'void': 0, 'not_scored': 0}, provider {'settled': 0, 'updated': 0, 'unchanged': 15, 'void'
+2026-10-24 08:09:32 - app.services.sync_scheduler - INFO - Background sync pass ran: live, forecasts, settle
+...then no forecasts task until:
+1837337:2026-10-24 14:10:22 - httpx - INFO - HTTP Request: GET https://game-forecast-api.p.rapidapi.com/events?league_id=4&start_at_start=2026-10-24&start_at_end=2026-10-31&page=1&page_size=50 "HTTP/1.1 200 OK"
+1843993:2026-10-24 14:10:29 - httpx - INFO - HTTP Request: GET https://game-forecast-api.p.rapidapi.com/events?league_id=13&start_at_start=2026-10-24&start_at_end=2026-10-31&page=1&page_size=50 "HTTP/1.1 200 OK"
+1851707:2026-10-24 14:10:33 - httpx - INFO - HTTP Request: GET https://game-forecast-api.p.rapidapi.com/events?league_id=15&start_at_start=2026-10-24&start_at_end=2026-10-31&page=1&page_size=50 "HTTP/1.1 200 OK"
+1857757:2026-10-24 14:10:36 - httpx - INFO - HTTP Request: GET https://game-forecast-api.p.rapidapi.com/events?league_id=14&start_at_start=2026-10-24&start_at_end=2026-10-31&page=1&page_size=50 "HTTP/1.1 200 OK"
+1861264:2026-10-24 14:10:41 - app.services.sync_scheduler - INFO - Background sync pass ran: live, forecasts
+
+## 3. Lines per second in the backend log, 07:51-08:10 EDT: the whole pass ran inside the 30-second wake that began 08:09:25 EDT (12:09:25Z)
+   1 lines at 07:51:37
+   1006 lines at 08:09:25
+   1 lines at 08:09:26
+   1816 lines at 08:09:27
+   1 lines at 08:09:29
+   694 lines at 08:09:30
+   927 lines at 08:09:31
+   933 lines at 08:09:32
+
+## 4. Redis's own clock: RDB saves logged by the Redis container (UTC), 10:00-13:00Z. A save on the 900-second rule fires when Redis's clock reads lastsave+900 with a change pending.
+1:M 24 Oct 2026 10:00:24.006 * 10 changes in 300 seconds. Saving...
+1:M 24 Oct 2026 11:03:37.762 * 1 changes in 900 seconds. Saving...
+1:M 24 Oct 2026 11:21:06.431 * 1 changes in 900 seconds. Saving...
+1:M 24 Oct 2026 12:09:32.309 * 1 changes in 900 seconds. Saving...
+1:M 24 Oct 2026 12:26:59.091 * 1 changes in 900 seconds. Saving...
+# Writes the application made at wakes where no save fired although 900 s had passed by the host's clock: the live passes at 10:16:03Z (06:16:03 EDT) and 11:51:37Z (07:51:37 EDT).
+
+## 5. The scheduler's stored task state for forecasts after the day's last pass (Redis db4, sync:task:forecasts)
+{
+ "last_run_at": "2026-10-24T18:10:41.676253+00:00",
+ "next_due_at": "2026-10-25T00:10:41.676253+00:00",
+ "last_error_at": "2026-10-24T12:09:32.311060+00:00",
+ "last_error": null,
+ "failures": 21,
+ "consecutive_failures": 0,
+ "backoff_seconds": null,
+ "runs": 121,
+ "last_duration_ms": 23900
+}
+last_result.plan: {
+ "policy": "daily-slot",
+ "fetch": [
+  "ligue_1",
+  "la_liga",
+  "premier_league",
+  "bundesliga",
+  "champions_league",
+  "uefa_nations_league",
+  "concacaf_nations_league"
+ ],
+ "recheck": [],
+ "ineligible": {
+  "serie_a": "same-day-run for 2026-10-24 at 2026-10-24T12:09:30.460237+00:00; one slot per UTC day"
+ },
+ "deferred_first": [],
+ "publication_hour": 12,
+ "hour_reached": true
+}
+last_result.skipped: ['serie_a'] deferred: [] order: ['ligue_1', 'la_liga', 'premier_league', 'bundesliga', 'champions_league', 'uefa_nations_league', 'concacaf_nations_league', 'serie_a']
+
+## 6. Provider usage for UTC day 2026-10-24 (Redis db5)
+  gameforecast  5
+  livescore     137
+  api_football  12
+  thesportsdb   3
+usage: paste [-s] [-d delimiters] file ...
+  gameforecast by_reason: 
+
+## 7. The day's fixtures and their forecast evidence (PostgreSQL soccer_predictions, read-only). kickoff | league | status | newest prematch fetch | its model run | post-kickoff snapshots | flagged after kickoff | scored rows
+  11:30Z | Premier League | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  12:00Z | La Liga | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  13:00Z | Serie A | FINISHED | 10-24 12:09 | 10-24 00:00 | 0 | 0 | 1
+  13:00Z | Serie A | FINISHED | 10-24 12:09 | 10-24 00:00 | 0 | 0 | 1
+  13:30Z | Bundesliga | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  13:30Z | Bundesliga | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  13:30Z | Bundesliga | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  13:30Z | Bundesliga | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  13:30Z | Bundesliga | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  14:00Z | Premier League | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  14:00Z | Premier League | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  14:15Z | La Liga | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  16:00Z | Serie A | FINISHED | 10-24 12:09 | 10-24 00:00 | 0 | 0 | 1
+  16:30Z | Bundesliga | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  16:30Z | La Liga | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  16:30Z | Premier League | FINISHED | 10-23 12:05 | 10-23 00:00 | 1 | 1 | 1
+  18:45Z | Ligue 1 | LIVE | 10-24 18:10 | 10-24 00:00 | 0 | 0 | 0
+  18:45Z | Serie A | LIVE | 10-24 12:09 | 10-24 00:00 | 0 | 0 | 0
+  19:00Z | La Liga | LIVE | 10-24 18:10 | 10-24 00:00 | 0 | 0 | 0
+
+## 8. Which snapshot each scored row used (kickoff | league | fetched | captured_before_kickoff | prematch)
+  11:30Z | Premier League | 10-23 12:05 | t | t
+  12:00Z | La Liga | 10-23 12:05 | t | t
+  13:00Z | Serie A | 10-24 12:09 | t | t
+  13:00Z | Serie A | 10-24 12:09 | t | t
+  13:30Z | Bundesliga | 10-23 12:05 | t | t
+  13:30Z | Bundesliga | 10-23 12:05 | t | t
+  13:30Z | Bundesliga | 10-23 12:05 | t | t
+  13:30Z | Bundesliga | 10-23 12:05 | t | t
+  13:30Z | Bundesliga | 10-23 12:05 | t | t
+  14:00Z | Premier League | 10-23 12:05 | t | t
+  14:00Z | Premier League | 10-23 12:05 | t | t
+  14:15Z | La Liga | 10-23 12:05 | t | t
+  16:00Z | Serie A | 10-24 12:09 | t | t
+  16:30Z | Bundesliga | 10-23 12:05 | t | t
+  16:30Z | La Liga | 10-23 12:05 | t | t
+  16:30Z | Premier League | 10-23 12:05 | t | t

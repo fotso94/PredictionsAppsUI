@@ -1,0 +1,164 @@
+# Redis RDB saves (the Redis container's own clock) against the host's sleep/wake record (pmset -g log), 2026-10-23 18:00Z to 2026-10-24 15:30Z.
+# 'since wake' = seconds since the most recent host wake per pmset; 'since prev save' = seconds since the previous save by Redis's clock; 'rule' = which save rule fired.
+# Reading: with the host awake all afternoon (10-23 18:02Z onwards) saves fire every 301 s like clockwork. During the dark-wake regime a '1ch/900s' save fires in the first seconds of SOME wakes,
+# >=900 s after the previous one, although the application wrote to Redis at earlier wakes once 900 s had passed by the host's clock (e.g. 10:16:03Z and 11:51:37Z): Redis's clock had not advanced.
+# The save at 12:09:32Z is the moment the forecast pass lost its lease.
+save (Redis clock, UTC)    host (pmset) since wake  since prev save  rule
+2026-10-23T18:02:23+00:00  awake             4932s            nans  10ch/300s
+2026-10-23T18:07:24+00:00  awake             5233s            301s  10ch/300s
+2026-10-23T18:12:25+00:00  awake             5534s            301s  10ch/300s
+2026-10-23T18:17:26+00:00  awake             5835s            301s  10ch/300s
+2026-10-23T18:22:27+00:00  awake             6136s            301s  10ch/300s
+2026-10-23T18:27:28+00:00  awake             6437s            301s  10ch/300s
+2026-10-23T18:32:29+00:00  awake             6738s            301s  10ch/300s
+2026-10-23T18:37:30+00:00  awake             7039s            301s  10ch/300s
+2026-10-23T18:42:31+00:00  awake             7340s            301s  10ch/300s
+2026-10-23T18:47:32+00:00  awake             7641s            301s  10ch/300s
+2026-10-23T18:52:33+00:00  awake             7942s            301s  10ch/300s
+2026-10-23T18:57:34+00:00  awake             8243s            301s  10ch/300s
+2026-10-23T19:02:35+00:00  awake             8544s            301s  10ch/300s
+2026-10-23T19:07:36+00:00  awake             8845s            301s  10ch/300s
+2026-10-23T19:12:37+00:00  awake             9146s            301s  10ch/300s
+2026-10-23T19:17:38+00:00  awake             9447s            301s  10ch/300s
+2026-10-23T19:22:39+00:00  awake             9748s            301s  10ch/300s
+2026-10-23T19:27:40+00:00  awake            10049s            301s  10ch/300s
+2026-10-23T19:32:41+00:00  awake            10350s            301s  10ch/300s
+2026-10-23T19:37:42+00:00  awake            10651s            301s  10ch/300s
+2026-10-23T19:42:43+00:00  awake            10952s            301s  10ch/300s
+2026-10-23T19:47:44+00:00  awake            11253s            301s  10ch/300s
+2026-10-23T19:52:45+00:00  awake            11554s            301s  10ch/300s
+2026-10-23T19:57:46+00:00  awake            11855s            301s  10ch/300s
+2026-10-23T20:02:47+00:00  awake            12156s            301s  10ch/300s
+2026-10-23T20:07:48+00:00  awake            12457s            301s  10ch/300s
+2026-10-23T20:12:49+00:00  awake            12758s            301s  10ch/300s
+2026-10-23T20:17:50+00:00  awake            13059s            301s  10ch/300s
+2026-10-23T20:22:51+00:00  awake            13360s            301s  10ch/300s
+2026-10-23T20:27:52+00:00  awake            13661s            301s  10ch/300s
+2026-10-23T20:32:53+00:00  awake            13962s            301s  10ch/300s
+2026-10-23T20:37:54+00:00  awake            14263s            301s  10ch/300s
+2026-10-23T20:42:55+00:00  awake            14564s            301s  10ch/300s
+2026-10-23T20:47:56+00:00  awake            14865s            301s  10ch/300s
+2026-10-23T20:52:57+00:00  awake            15166s            301s  10ch/300s
+2026-10-23T20:57:58+00:00  awake            15467s            301s  10ch/300s
+2026-10-23T21:02:59+00:00  awake            15768s            301s  10ch/300s
+2026-10-23T21:08:52+00:00  awake            16121s            353s  10ch/300s
+2026-10-23T21:13:53+00:00  awake            16422s            301s  10ch/300s
+2026-10-23T21:18:54+00:00  awake            16723s            301s  10ch/300s
+2026-10-23T21:23:55+00:00  awake            17024s            301s  10ch/300s
+2026-10-23T21:29:55+00:00  awake            17384s            360s  10ch/300s
+2026-10-23T21:34:56+00:00  awake            17685s            301s  10ch/300s
+2026-10-23T21:39:57+00:00  awake            17986s            301s  10ch/300s
+2026-10-23T21:44:58+00:00  awake            18287s            301s  10ch/300s
+2026-10-23T21:49:59+00:00  awake            18588s            301s  10ch/300s
+2026-10-23T21:55:00+00:00  awake            18889s            301s  10ch/300s
+2026-10-23T22:00:01+00:00  awake            19190s            301s  10ch/300s
+2026-10-23T22:05:02+00:00  awake            19491s            301s  10ch/300s
+2026-10-23T22:10:03+00:00  awake            19792s            301s  10ch/300s
+2026-10-23T22:15:04+00:00  awake            20093s            301s  10ch/300s
+2026-10-23T22:20:05+00:00  awake            20394s            301s  10ch/300s
+2026-10-23T22:25:06+00:00  awake            20695s            301s  10ch/300s
+2026-10-23T22:30:26+00:00  awake            21015s            320s  10ch/300s
+2026-10-23T22:35:27+00:00  awake            21316s            301s  10ch/300s
+2026-10-23T22:40:28+00:00  awake            21617s            301s  10ch/300s
+2026-10-23T22:45:29+00:00  awake            21918s            301s  10ch/300s
+2026-10-23T22:50:30+00:00  awake            22219s            301s  10ch/300s
+2026-10-23T22:55:31+00:00  awake            22520s            301s  10ch/300s
+2026-10-23T23:00:32+00:00  awake            22821s            301s  10ch/300s
+2026-10-23T23:05:33+00:00  awake            23122s            301s  10ch/300s
+2026-10-23T23:10:34+00:00  awake            23423s            301s  10ch/300s
+2026-10-23T23:15:35+00:00  awake            23724s            301s  10ch/300s
+2026-10-23T23:20:36+00:00  awake            24025s            301s  10ch/300s
+2026-10-23T23:25:37+00:00  awake            24326s            301s  10ch/300s
+2026-10-23T23:30:38+00:00  awake            24627s            301s  10ch/300s
+2026-10-23T23:35:39+00:00  awake            24928s            301s  10ch/300s
+2026-10-23T23:40:40+00:00  awake            25229s            301s  10ch/300s
+2026-10-24T00:02:06+00:00  awake               25s           1286s  1ch/900s
+2026-10-24T00:22:10+00:00  awake                0s           1204s  1ch/900s
+2026-10-24T00:28:23+00:00  awake                1s            373s  10ch/300s
+2026-10-24T00:48:30+00:00  asleep               7s           1207s  1ch/900s
+2026-10-24T01:00:45+00:00  awake                1s            735s  10ch/300s
+2026-10-24T01:05:46+00:00  awake               10s            301s  10ch/300s
+2026-10-24T01:26:53+00:00  asleep               6s           1267s  1ch/900s
+2026-10-24T01:50:29+00:00  awake                1s           1416s  1ch/900s
+2026-10-24T02:02:08+00:00  awake                3s            699s  10ch/300s
+2026-10-24T02:38:16+00:00  awake               24s           2168s  1ch/900s
+2026-10-24T02:53:50+00:00  awake                0s            934s  1ch/900s
+2026-10-24T02:58:53+00:00  awake                1s            303s  10ch/300s
+2026-10-24T03:13:01+00:00  awake                1s            848s  10ch/300s
+2026-10-24T03:25:00+00:00  awake                5s            719s  10ch/300s
+2026-10-24T03:34:32+00:00  awake               16s            572s  10ch/300s
+2026-10-24T03:41:50+00:00  awake                1s            438s  10ch/300s
+2026-10-24T04:00:49+00:00  awake                2s           1139s  1ch/900s
+2026-10-24T04:08:06+00:00  awake                1s            437s  10ch/300s
+2026-10-24T04:27:00+00:00  awake                2s           1134s  1ch/900s
+2026-10-24T04:57:44+00:00  awake               10s           1844s  1ch/900s
+2026-10-24T05:06:13+00:00  awake                0s            509s  10ch/300s
+2026-10-24T05:24:05+00:00  awake                3s           1072s  1ch/900s
+2026-10-24T06:03:52+00:00  awake                1s           2387s  1ch/900s
+2026-10-24T06:49:55+00:00  awake                2s           2763s  1ch/900s
+2026-10-24T07:07:20+00:00  awake               24s           1045s  1ch/900s
+2026-10-24T07:31:59+00:00  awake                6s           1479s  1ch/900s
+2026-10-24T07:41:41+00:00  asleep               6s            582s  10ch/300s
+2026-10-24T08:08:24+00:00  awake               23s           1603s  1ch/900s
+2026-10-24T08:26:39+00:00  awake                0s           1095s  1ch/900s
+2026-10-24T08:34:10+00:00  awake               10s            451s  10ch/300s
+2026-10-24T08:51:41+00:00  awake                7s           1051s  1ch/900s
+2026-10-24T09:50:29+00:00  asleep               2s           3528s  1ch/900s
+2026-10-24T10:00:24+00:00  awake               27s            595s  10ch/300s
+2026-10-24T11:03:37+00:00  awake                5s           3793s  1ch/900s
+2026-10-24T11:21:06+00:00  asleep               3s           1049s  1ch/900s
+2026-10-24T12:09:32+00:00  awake                7s           2906s  1ch/900s
+2026-10-24T12:26:59+00:00  awake                0s           1047s  1ch/900s
+2026-10-24T13:11:26+00:00  awake                9s           2667s  1ch/900s
+2026-10-24T13:31:40+00:00  awake                1s           1214s  1ch/900s
+2026-10-24T13:57:18+00:00  awake               11s           1538s  1ch/900s
+2026-10-24T14:08:32+00:00  awake                5s            674s  10ch/300s
+2026-10-24T14:18:35+00:00  awake               19s            603s  10ch/300s
+2026-10-24T14:47:57+00:00  awake                0s           1762s  1ch/900s
+2026-10-24T14:59:34+00:00  awake                2s            697s  10ch/300s
+2026-10-24T15:06:08+00:00  awake                0s            394s  10ch/300s
+2026-10-24T15:21:06+00:00  awake               22s            898s  10ch/300s
+2026-10-24T15:26:08+00:00  awake              324s            302s  10ch/300s
+
+# Host sleep/wake transitions 2026-10-24 10:00Z-13:00Z (pmset, converted to UTC):
+   10:00:27Z asleep
+   10:00:29Z awake
+   10:16:03Z awake
+   10:16:05Z asleep
+   10:16:08Z awake
+   10:28:39Z awake
+   10:28:45Z asleep
+   10:28:46Z awake
+   10:46:05Z awake
+   10:46:07Z asleep
+   10:46:10Z awake
+   11:03:32Z awake
+   11:04:02Z asleep
+   11:04:04Z awake
+   11:21:03Z awake
+   11:21:05Z asleep
+   11:21:08Z awake
+   11:29:39Z awake
+   11:29:44Z asleep
+   11:29:46Z awake
+   11:33:33Z awake
+   11:33:38Z asleep
+   11:33:40Z awake
+   11:51:34Z awake
+   11:51:36Z asleep
+   11:51:39Z awake
+   12:09:25Z awake
+   12:09:55Z asleep
+   12:09:57Z awake
+   12:26:54Z awake
+   12:26:56Z asleep
+   12:26:59Z awake
+   12:30:39Z awake
+   12:30:44Z asleep
+   12:30:46Z awake
+   12:46:31Z awake
+   12:46:33Z asleep
+   12:46:36Z awake
+   12:54:44Z awake
+   12:54:49Z asleep
+   12:54:51Z awake
