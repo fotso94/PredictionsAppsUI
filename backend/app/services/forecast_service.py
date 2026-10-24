@@ -451,7 +451,8 @@ class ForecastService:
         return self.policy.plan(list(self.keys), kickoff_of=self._next_kickoff,
                                 last_sync_of=self._last_sync, force=force)
 
-    def ensure_synced(self, days_ahead: Optional[int] = None, force: bool = False) -> Dict[str, Any]:
+    def ensure_synced(self, days_ahead: Optional[int] = None, force: bool = False,
+                      recovery: bool = False) -> Dict[str, Any]:
         """Refresh every covered competition the refresh policy says is eligible, in its order.
 
         Each competition's turn is decided in a fixed order, and the order is the point:
@@ -468,6 +469,10 @@ class ForecastService:
         `force` bypasses eligibility and nothing else. Re-attaching forecasts already paid for
         runs on every path, for every competition, and never consults the policy or the budget.
 
+        `recovery` marks the scheduler's retry of an interrupted pass: it walks the turns that pass
+        still owed - the plan's fetch list - and leaves the day's re-check of an older run to the
+        ordinary pass that follows (`_leased_pass`).
+
         Eligibility is decided after the sync lock is taken, from the shared state at that moment,
         so a worker that waited for the lock never acts on a plan another worker has since made
         untrue; the lock is released on every path that took it.
@@ -482,6 +487,8 @@ class ForecastService:
         report["policy"] = policy.name
         report["retried"] = {}
         report["deferred"] = []
+        if recovery:
+            report["recovery"] = True
         # The memo exists so one page render does not ask Redis the same question thirty times.
         # A sync is a new operation, so it re-reads: another worker may have paused the provider since.
         self._cooldown_cache = _UNSET
@@ -526,7 +533,7 @@ class ForecastService:
             # Under the lease scope every budget reservation is owner-checked inside its own script,
             # and the providers' control-state writes (page counts, league ids) are fenced.
             with lease_scope(lease):
-                return self._leased_pass(report, policy, days_ahead, force)
+                return self._leased_pass(report, policy, days_ahead, force, recovery)
         except LeaseLost as exc:
             # Another worker may be running the pass now. This one has sent nothing since it noticed
             # and every write it attempted after the loss was refused by the fence; it records
@@ -550,7 +557,7 @@ class ForecastService:
             self._release_sync_lock()
 
     def _leased_pass(self, report: Dict[str, Any], policy: RefreshPolicy, days_ahead: int,
-                     force: bool) -> Dict[str, Any]:
+                     force: bool, recovery: bool = False) -> Dict[str, Any]:
         """The pass proper, run only while this worker holds the sync lease.
 
         Every shared write below goes through the fenced cache `ensure_synced` installed, so it
@@ -581,7 +588,18 @@ class ForecastService:
             report["order"] = order
             report["skipped"] = list(plan.ineligible)
             report["plan"] = plan.to_dict()
-        for key in (plan.order if plan is not None else []):
+        turns: List[str] = list(plan.order) if plan is not None else []
+        if plan is not None and recovery and plan.recheck:
+            # The retry of an interrupted pass completes what that pass OWED - the turns of its fetch
+            # list - and leaves the day's one re-check of an older run to the ordinary pass that
+            # follows. Re-checked by the 12:05 retry instead, with yesterday's run still the one
+            # served, the re-check is spent, and the 18:05 pass that would have bought today's run
+            # finds the competition ineligible until tomorrow.
+            for key in plan.recheck:
+                report.setdefault("recheck_skipped", {})[key] = (
+                    "left to the ordinary pass: a recovery retry buys only the turns the interrupted pass owed")
+            turns = list(plan.fetch)
+        for key in turns:
             recheck = key in plan.recheck
             # Still this worker's? Asked again before every turn, renewing the lease as it does.
             self._confirm_lease()

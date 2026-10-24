@@ -7,13 +7,13 @@ it took the sync lease, fetched Serie A and recorded Serie A's daily slot at 12:
 lease for Bundesliga's turn, and at 12:09:32 its next fenced write was refused - "the lease is no
 longer this worker's". Seven seconds into a five-minute term, with nobody else running.
 
-The lease had expired in Redis, prematurely. Redis runs in Docker Desktop's Linux VM, whose clock
-stands still while the host sleeps and is stepped forward some seconds after a wake. The evidence is
-Redis's own RDB saves ("1 changes in 900 seconds"): on that morning they fired at the first seconds of
-some wakes, never at the earlier wakes where the application had written, and one fired at
-12:09:32.309 - the instant the pass lost its lease. A lease taken under a clock about 35 minutes
-behind, then stepped past the term, is a lease that has expired. Renewal cannot protect against
-that: PEXPIRE is relative to the same clock.
+The lease had expired in Redis, prematurely. The most likely cause - an inference from Redis's own
+RDB-save log, not a direct observation - is the clock of Docker Desktop's Linux VM, where Redis runs:
+it stands still while the host sleeps and is stepped forward some seconds after a wake. The saves
+("1 changes in 900 seconds") fired that morning at the first seconds of some wakes, never at the
+earlier wakes where the application had written, and one fired at 12:09:32.309 - the instant the pass
+lost its lease. A lease taken under a clock about 35 minutes behind, then stepped past the term, is a
+lease that has expired. Renewal cannot protect against that: PEXPIRE is relative to the same clock.
 
 The pass was then recorded as a FAILURE, and the scheduler's failure backoff is the task's own
 interval: six hours. Bundesliga, the Premier League, La Liga and Ligue 1 were fetched at 18:10Z.
@@ -31,7 +31,7 @@ finished work. The pass and the task now say how they ended: completed, partial,
 
 HOW TIME IS SIMULATED. Two clocks: `clock` is the application's (the host's, which was right), and
 `redis_clock` is the Redis stand-in's own, which expires keys - started 2140 s behind and stepped to
-real time at the moment the incident's was. The decisive tests import nothing this round added, so
+real time at the moment the incident's is inferred to have been. The decisive tests import nothing this round added, so
 this file runs against the previous implementation and fails there for the six-hour wait. The same
 interruption runs against a real, isolated Redis at the end, where "the clock stepped past the term"
 is produced the way test_sync_lease_redis.py produces a lapsed lease. The network is closed.
@@ -73,8 +73,8 @@ from tests.services.test_sync_scheduler import Clock, LockingFakeRedis
 
 #: The pass of the incident began at 12:09:25Z, the first second of a 30-second dark wake.
 START = datetime(2026, 10, 24, 12, 9, 25, tzinfo=timezone.utc)
-#: The server's clock had stood still through the two host sleeps before that wake (11:33:40 to
-#: 11:51:34 and 11:51:39 to 12:09:25) and was stepped forward at 12:09:32.
+#: By that inference the server's clock had stood still through the two host sleeps before that wake
+#: (11:33:40 to 11:51:34 and 11:51:39 to 12:09:25) and was stepped forward at 12:09:32.
 LAG = timedelta(seconds=2140)
 TERM = timedelta(seconds=300)                # SYNC_LOCK_TTL_SECONDS
 FIFTEEN_MINUTES = timedelta(minutes=15)
@@ -98,7 +98,7 @@ def clock():
 
 @pytest.fixture
 def redis_clock():
-    """The Redis server's clock, as the incident found it: behind, and about to be stepped."""
+    """The Redis server's clock as the incident is inferred to have found it: behind, about to be stepped."""
     return Clock(START - LAG)
 
 
@@ -535,3 +535,148 @@ def test_on_a_real_redis_the_interrupted_pass_is_retried_within_fifteen_minutes_
     assert not real.exists(LOCK) and renewal_workers_alive() == []
     policy = h.new_service().policy
     assert all(policy.slot(key)["outcome"] == OUTCOME_SAME_DAY_RUN for key in KEYS)
+
+
+# ================================================================== 7. the retry owes the turns, not the re-check; midnight is not a deadline
+def test_a_recovery_retry_leaves_an_older_model_re_check_to_the_ordinary_pass(clock, redis, redis_clock):
+    """12:00: Serie A is served yesterday's run and takes its slot as `older-run`, which owes the day
+    ONE re-check later. The lease is lost before Bundesliga finishes. 12:05: the retry buys Bundesliga
+    and nothing else - it does not spend Serie A's re-check on a run that has not changed. Today's run
+    is published at 13:00; the ordinary pass of 18:05 re-checks Serie A and gets it (and re-checks
+    Bundesliga too, which the retry had been served the same old run for)."""
+    from tests.services.test_forecast_refresh_policy import todays_run, yesterdays_run
+    from app.services.forecast_refresh_policy import OUTCOME_OLDER_RUN
+
+    noon = START.replace(hour=12, minute=0, second=0)
+    published = noon.replace(hour=13)
+    advance(clock, redis_clock, noon)
+    redis_clock.now = noon - LAG
+    keys = ["serie_a", "bundesliga"]
+    h = Harness(clock, redis, keys=keys, kickoffs=KICKOFFS,
+                run_at=lambda now: todays_run(now) if now >= published else yesterdays_run(now))
+    scheduler = scheduler_over(h, clock, lambda svc: stepping_the_server_clock_before(svc, "bundesliga", redis_clock, clock))
+
+    first = run(scheduler)
+    assert first["result"].get("lease_lost") is True and h.calls() == ["serie_a"]
+    slot = h.new_service().policy.slot("serie_a")
+    assert slot["outcome"] == OUTCOME_OLDER_RUN and "recheck" not in slot
+
+    advance(clock, redis_clock, next_due(scheduler))                       # 12:05
+    retry = run(scheduler)
+    assert retry["ok"] is True
+    assert h.calls() == ["serie_a", "bundesliga"], "the retry bought the unfinished competition and nothing else"
+    assert "recheck" not in h.new_service().policy.slot("serie_a"), "Serie A's one re-check of the day is still owed"
+    assert retry["result"].get("rechecked", []) == []
+    assert "serie_a" in retry["result"].get("recheck_skipped", {})
+
+    later = next_due(scheduler)
+    assert later == clock.now + timedelta(seconds=scheduler.interval(TASK_FORECASTS))     # 18:05
+    advance(clock, redis_clock, later)
+    ordinary = run(scheduler)
+    assert ordinary["ok"] is True and h.calls() == ["serie_a", "bundesliga", "serie_a", "bundesliga"]
+    for key in keys:
+        slot = h.new_service().policy.slot(key)
+        assert slot["outcome"] == OUTCOME_SAME_DAY_RUN and slot["first_outcome"] == OUTCOME_OLDER_RUN
+        assert slot["recheck"]["outcome"] == OUTCOME_SAME_DAY_RUN
+    assert ordinary["result"]["rechecked"] == ["serie_a", "bundesliga"]
+    assert h.budget.used_today() == 4, "four requests in the day: two turns and the two re-checks they earned, none wasted"
+
+
+def test_an_interruption_just_before_midnight_still_waits_the_recovery_minimum(clock, redis, redis_clock):
+    """23:59: the pass is interrupted. The retry is due at 00:04 - one lease term - and not at 00:01,
+    the budget reset two minutes away. On the new day, before the publication hour, the retry finds
+    nothing eligible and buys nothing: the reset gave back an allowance, not a reason to fetch."""
+    late = START.replace(hour=23, minute=59, second=0)
+    advance(clock, redis_clock, late)
+    redis_clock.now = late - LAG
+    h = Harness(clock, redis, keys=KEYS, kickoffs=KICKOFFS)
+    scheduler = scheduler_over(h, clock, lambda svc: stepping_the_server_clock_before(svc, "bundesliga", redis_clock, clock))
+
+    assert run(scheduler)["result"].get("lease_lost") is True and h.calls() == ["serie_a"]
+    due = next_due(scheduler)
+    assert due == late + TERM, f"the retry waits {due - late}: one lease term across midnight, not the reset at 00:01"
+
+    advance(clock, redis_clock, due)                                        # 00:04 the next day
+    retry = run(scheduler)
+    assert retry["ok"] is True and h.calls() == ["serie_a"], "nothing is eligible before the publication hour, so nothing was bought"
+    assert all("publication hour" in why for why in retry["result"]["plan"]["ineligible"].values())
+    assert "recovery" not in scheduler.state(TASK_FORECASTS)
+
+    advance(clock, redis_clock, next_due(scheduler))                        # 06:04: still before the hour
+    assert run(scheduler)["ok"] is True and h.calls() == ["serie_a"]
+    advance(clock, redis_clock, next_due(scheduler))                        # 12:04: the new day's pass
+    assert run(scheduler)["ok"] is True and h.calls() == ["serie_a"] + KEYS, "the new day's slots, bought at the ordinary hour"
+
+
+def test_a_provider_pause_that_outlasts_midnight_is_waited_for_in_full(clock, redis, redis_clock):
+    late = START.replace(hour=23, minute=50, second=0)
+    advance(clock, redis_clock, late)
+    redis_clock.now = late - LAG
+    h = Harness(clock, redis, keys=KEYS, kickoffs=KICKOFFS)
+    scheduler = scheduler_over(h, clock, lambda svc: stepping_the_server_clock_before(svc, "bundesliga", redis_clock, clock))
+    run(scheduler)
+    retry_at = next_due(scheduler)                                           # 23:55
+
+    advance(clock, redis_clock, retry_at - timedelta(seconds=60))
+    h.new_service()._pause("the provider answered 503 to a page load", 5760)   # until 01:30
+    paused_until = clock.now + timedelta(seconds=5760)
+    advance(clock, redis_clock, retry_at)
+    deferred = run(scheduler)
+    assert deferred["result"].get("paused") is True and h.calls() == ["serie_a"]
+    assert next_due(scheduler) == paused_until, "the pause is waited for in full; the reset at 00:01 does not cut it short"
+
+    advance(clock, redis_clock, paused_until)                                # 01:30: before the publication hour
+    done = run(scheduler)
+    assert done["ok"] is True and h.calls() == ["serie_a"], "the pause ended, the gate still applies: nothing bought"
+    assert "recovery" not in scheduler.state(TASK_FORECASTS)
+
+
+def test_an_episode_crosses_midnight_and_a_restart_without_losing_count_and_ends_in_completion(clock, redis, redis_clock):
+    """23:52 interrupted; 23:57 and 00:07 (after a restart) the lease is another worker's; 00:27 still
+    - the third retry is the last, and the ordinary backoff follows. The count survives midnight and
+    the restart. Once the other worker lets go, the next ordinary pass after the hour completes."""
+    late = START.replace(hour=23, minute=52, second=0)
+    advance(clock, redis_clock, late)
+    redis_clock.now = late - LAG
+    h = Harness(clock, redis, keys=KEYS, kickoffs=KICKOFFS)
+    scheduler = scheduler_over(h, clock, lambda svc: stepping_the_server_clock_before(svc, "bundesliga", redis_clock, clock))
+    assert run(scheduler)["result"].get("lease_lost") is True and h.calls() == ["serie_a"]
+    assert next_due(scheduler) == late + TERM                               # 23:57
+
+    def another_worker_is_at_it():
+        """Each time the retry comes due, some other worker holds the lease (its own, taken just now)."""
+        other = SyncLease(redis, LOCK, 300)
+        assert other.acquire()
+        return other
+
+    advance(clock, redis_clock, next_due(scheduler))
+    other = another_worker_is_at_it()
+    assert "already running" in run(scheduler)["result"]["error"]
+    assert next_due(scheduler) == clock.now + timedelta(seconds=600)        # 00:07, across midnight
+    assert other.release()
+
+    restarted = scheduler_over(h, clock)                                    # the backend restarted meanwhile
+    advance(clock, redis_clock, next_due(restarted))
+    other = another_worker_is_at_it()
+    assert "already running" in run(restarted)["result"]["error"]
+    state = restarted.state(TASK_FORECASTS)
+    assert state["recovery"]["attempts"] == 3, "the third attempt of ONE episode, not the first of a new day's"
+    assert next_due(restarted) == clock.now + timedelta(seconds=1200)       # 00:27
+    assert other.release()
+
+    advance(clock, redis_clock, next_due(restarted))
+    other = another_worker_is_at_it()
+    assert "already running" in run(restarted)["result"]["error"]
+    state = restarted.state(TASK_FORECASTS)
+    assert "recovery" not in state and state["last_recovery"]["attempts"] == 3 and state["last_recovery"].get("exhausted_at")
+    assert state["consecutive_failures"] == 1 and state["backoff_seconds"] == restarted.interval(TASK_FORECASTS)
+    assert next_due(restarted) == clock.now + timedelta(seconds=restarted.interval(TASK_FORECASTS))   # 06:27
+    assert h.calls() == ["serie_a"], "no retry spent anything while the lease was another worker's"
+
+    assert other.release()
+    advance(clock, redis_clock, next_due(restarted))                        # 06:27: before the hour
+    assert run(restarted)["ok"] is True and h.calls() == ["serie_a"]
+    advance(clock, redis_clock, next_due(restarted))                        # 12:27
+    done = run(restarted)
+    assert done["ok"] is True and h.calls() == ["serie_a"] + KEYS
+    assert restarted.state(TASK_FORECASTS)["last_outcome"] == "completed"

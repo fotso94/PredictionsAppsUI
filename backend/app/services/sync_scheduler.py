@@ -99,9 +99,11 @@ BACKOFF_MAX_SECONDS = 6 * 3600
 #: A forecasts pass that stopped for a reason of COORDINATION rather than of the provider - its sync
 #: lease lost mid-pass, or found held by another worker when the pass came due - is retried on a
 #: short, bounded schedule instead of being backed off like a failure. On 2026-10-24 the lease was
-#: lost after one of five competitions (the Redis server's clock, in Docker Desktop's VM, had stood
-#: still through two host sleeps and was stepped forward by more than the lease's term some seconds
-#: after the wake), the pass was recorded as a failure, and the ordinary backoff - the task's own
+#: lost after one of five competitions (most likely because the Redis server's clock, in Docker
+#: Desktop's VM, had stood still through two host sleeps and was stepped forward past the lease's
+#: term seconds after the wake - an inference from Redis's own save log, see
+#: docs/evidence/forecast-recovery-2026-10-24/REPORT.md), the pass was recorded as a failure, and the
+#: ordinary backoff - the task's own
 #: six-hour interval - left the other four competitions unfetched until 18:10 UTC: eleven fixtures
 #: kicked off in the gap on the previous day's forecasts, with the allowance at 5 of 8. Nothing a
 #: retry could buy twice was at stake: the daily-slot policy keeps the slot of every competition the
@@ -112,8 +114,13 @@ BACKOFF_MAX_SECONDS = 6 * 3600
 #: retry that finds the provider paused waits for the pause instead (`paused_until`); one that finds
 #: the allowance spent is skipped exactly as any pass is. A provider's failure is not an
 #: interruption and keeps its backoff: a retry after one is a request nobody asked for, and it may
-#: fail again. The episode lives in the task's state in Redis, so a restart neither resets its
-#: count nor repeats finished work.
+#: fail again. The retry buys the turns the interrupted pass owed and leaves the day's re-check of
+#: an older run to the ordinary pass (`ForecastService.ensure_synced(recovery=True)`). Unlike the
+#: ordinary waits, a retry is not pulled forward to the budget reset: the reset gives back an
+#: allowance, not a reason to retry sooner than the minimum or before a provider's pause has ended,
+#: and what the new day may buy is decided by the eligibility rules as ever. The episode lives in
+#: the task's state in Redis and spans midnight and restarts, so neither resets its count nor
+#: repeats finished work.
 FORECASTS_RECOVERY_RETRY_SECONDS = 300
 FORECASTS_RECOVERY_MAX_RETRIES = 3
 FORECAST_PASS_OUTCOMES: FrozenSet[str] = frozenset({FORECAST_PASS_COMPLETED, FORECAST_PASS_PARTIAL,
@@ -474,8 +481,15 @@ class SyncScheduler:
             # fresh day's allowance spent waiting for a quota that came back at midnight. `min`
             # only ever pulls the retry earlier, so a short backoff is untouched, and
             # `backoff_seconds` above still records the real penalty.
-            state["next_due_at"] = min(now + timedelta(seconds=backoff),
-                                       _next_budget_reset(now)).isoformat()
+            due = min(now + timedelta(seconds=backoff), _next_budget_reset(now))
+            if name == TASK_FORECASTS and isinstance(result, dict):
+                # ...but never before a pause the pass reported (`paused_until`): the reset gives
+                # back our allowance, not the provider's answer, and a pass before the pause ends is
+                # deferred again for nothing.
+                paused_until = _parse(result.get("paused_until"))
+                if paused_until is not None and paused_until > due:
+                    due = paused_until
+            state["next_due_at"] = due.isoformat()
         self._save_state(name, state)
         return state
 
@@ -483,21 +497,21 @@ class SyncScheduler:
                                  now: datetime, error: Optional[str]) -> bool:
         """Put the next forecasts pass on the recovery schedule, or say no: the ordinary wait applies.
 
-        An episode is one UTC day's run of retries after an interruption. It starts when a pass is
-        interrupted (`partial`) or finds the lease held by another worker (`deferred`), and only
-        then: a pause or a spent allowance met with no episode open keeps the wait it always had.
-        Each pass inside the episode, whatever it meets, counts as an attempt; a pass that finds the
-        provider paused waits for the pause to end and no less than its scheduled delay. Past
-        FORECASTS_RECOVERY_MAX_RETRIES the episode is marked spent and the caller backs off.
+        An episode is the run of retries that follows one interruption, however many days or
+        restarts it spans. It starts when a pass is interrupted (`partial`) or finds the lease held
+        by another worker (`deferred`), and only then: a pause or a spent allowance met with no
+        episode open keeps the wait it always had. Each pass inside the episode, whatever it meets,
+        counts as an attempt; a pass that finds the provider paused waits for the pause to end and
+        no less than its scheduled delay. Past FORECASTS_RECOVERY_MAX_RETRIES the episode is marked
+        spent and the caller backs off. It ends when a pass completes or fails (`_record`).
         """
         result = result if isinstance(result, dict) else {}
-        today = now.date().isoformat()
         episode = state.get("recovery")
-        active = isinstance(episode, dict) and episode.get("day") == today
+        active = isinstance(episode, dict)
         if not active:
             if kind == FORECAST_PASS_DEFERRED and not result.get("lease_held"):
                 return False
-            episode = {"day": today, "started_at": now.isoformat(), "attempts": 0}
+            episode = {"started_at": now.isoformat(), "attempts": 0}
         attempts = int(episode.get("attempts") or 0)
         if attempts >= FORECASTS_RECOVERY_MAX_RETRIES:
             episode["exhausted_at"] = now.isoformat()
@@ -507,8 +521,10 @@ class SyncScheduler:
         paused_until = _parse(result.get("paused_until"))
         if paused_until is not None and paused_until > due:
             due = paused_until
-        # Never past the next budget reset, like every other wait here.
-        due = min(due, _next_budget_reset(now))
+        # Not clamped to the budget reset, unlike the ordinary waits: an interruption at 23:59 would
+        # otherwise be retried at 00:01, under the minimum, and a pause the provider's answer set
+        # would be cut short at midnight. The reset gives back an allowance; what the new day may
+        # buy is decided by the eligibility rules, which before the publication hour buy nothing.
         episode.update({"attempts": attempts + 1, "reason": kind,
                         "detail": str(error or "")[:MAX_ERROR_CHARS],
                         "unfinished": result.get("unfinished"), "retry_at": due.isoformat()})
@@ -1067,7 +1083,11 @@ class SyncScheduler:
     def _run_forecasts(self, services: _Services) -> Tuple[Dict[str, Any], bool, Optional[str]]:
         # ForecastService already rotates least-recently-synced first, holds its own lock, enforces
         # its own per-competition interval and stops before reserving when its allowance is gone.
-        report = services.forecast.ensure_synced()
+        # Inside a recovery episode (FORECASTS_RECOVERY_RETRY_SECONDS) the pass is the retry of an
+        # interrupted one: it completes the turns that pass owed and leaves re-checks to the
+        # ordinary pass that follows.
+        recovery = isinstance(self.state(TASK_FORECASTS).get("recovery"), dict)
+        report = services.forecast.ensure_synced(recovery=recovery)
         error = report.get("error")
         return report, not error, error
 
