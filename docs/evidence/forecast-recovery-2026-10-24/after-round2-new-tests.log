@@ -1,0 +1,76 @@
+# 2026-10-24T19:48:15Z in /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend at 4ee18890 (forecast-recovery); dirty files: 3
+# python 3.11.9; pytest args: tests/services/test_forecast_recovery.py -v
+============================= test session starts ==============================
+platform darwin -- Python 3.11.9, pytest-7.4.3, pluggy-1.6.0 -- /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend/venv311/bin/python
+rootdir: /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend
+configfile: pyproject.toml
+plugins: cov-4.1.0, asyncio-0.21.1, anyio-3.7.1
+asyncio: mode=Mode.STRICT
+collecting ... collected 15 items
+
+tests/services/test_forecast_recovery.py::test_the_incident_a_server_clock_step_past_the_term_ends_the_pass_after_one_competition PASSED [  6%]
+tests/services/test_forecast_recovery.py::test_an_interrupted_pass_is_retried_within_fifteen_minutes_and_finishes_what_it_owed PASSED [ 13%]
+tests/services/test_forecast_recovery.py::test_repeated_interruptions_are_retried_on_a_bounded_schedule_and_then_backed_off PASSED [ 20%]
+tests/services/test_forecast_recovery.py::test_a_competing_worker_holding_the_lease_when_the_retry_is_due_defers_it_without_a_request PASSED [ 26%]
+tests/services/test_forecast_recovery.py::test_a_provider_cooldown_at_retry_time_defers_the_retry_until_the_cooldown_ends PASSED [ 33%]
+tests/services/test_forecast_recovery.py::test_an_exhausted_allowance_at_retry_time_is_skipped_like_any_pass_and_resumes_at_the_reset PASSED [ 40%]
+tests/services/test_forecast_recovery.py::test_a_restart_between_the_interruption_and_the_retry_keeps_the_schedule_and_the_finished_slot PASSED [ 46%]
+tests/services/test_forecast_recovery.py::test_a_late_answer_from_the_previous_owner_cannot_overwrite_what_the_retry_fetched PASSED [ 53%]
+tests/services/test_forecast_recovery.py::test_the_pass_report_and_the_task_state_say_how_the_pass_ended PASSED [ 60%]
+tests/services/test_forecast_recovery.py::test_against_the_real_registry_the_retry_adds_no_duplicate_snapshot_and_scoring_keeps_the_prematch_one PASSED [ 66%]
+tests/services/test_forecast_recovery.py::test_on_a_real_redis_the_interrupted_pass_is_retried_within_fifteen_minutes_and_finishes PASSED [ 73%]
+tests/services/test_forecast_recovery.py::test_a_recovery_retry_leaves_an_older_model_re_check_to_the_ordinary_pass PASSED [ 80%]
+tests/services/test_forecast_recovery.py::test_an_interruption_just_before_midnight_still_waits_the_recovery_minimum PASSED [ 86%]
+tests/services/test_forecast_recovery.py::test_a_provider_pause_that_outlasts_midnight_is_waited_for_in_full PASSED [ 93%]
+tests/services/test_forecast_recovery.py::test_an_episode_crosses_midnight_and_a_restart_without_losing_count_and_ends_in_completion PASSED [100%]
+
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+target guard: backend-tests approved - settings database localhost:5432/soccer_predictions_test; test database localhost:5432/soccer_predictions_test; race database 127.0.0.1:5440/forecast_race_test; redis default (REDIS_DB) 127.0.0.1:6390/0; redis REDIS_DB_SESSIONS 127.0.0.1:6390/0; redis REDIS_DB_PREDICTIONS 127.0.0.1:6390/1; redis REDIS_DB_EXPERT_TOOLS 127.0.0.1:6390/2; redis REDIS_DB_ML_MODELS 127.0.0.1:6390/3; redis REDIS_DB_MATCH_DATA 127.0.0.1:6390/4; redis REDIS_DB_RATE_LIMIT 127.0.0.1:6390/5; lease redis 127.0.0.1:6390/9,10,11 (policy sha256 e2abbcc34d12)
+======================= 15 passed, 18 warnings in 0.59s ========================
+# exit 0 at 2026-10-24T19:48:17Z

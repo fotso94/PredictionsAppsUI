@@ -1,8 +1,15 @@
 # Forecast lease loss and the six-hour retry: cause, correction and evidence (2026-10-24)
 
-Branch `forecast-recovery`, from the live release `69ac15f8`. **Isolated fix, verified. Not merged, not deployed.** A rollout
-is a separate owner instruction. Everything below was read from the live machine without a provider request,
-and every test ran in a separate checkout against approved test targets and throwaway services.
+Branch `forecast-recovery`, from the live release `69ac15f8`. **Isolated fix, verified, in two rounds. Not merged,
+not deployed.** A rollout is a separate owner instruction. Everything below was read from the live machine
+without a provider request, and every test ran in a separate checkout against approved test targets and
+throwaway services.
+
+- Round 1 (`6b086063`, evidence `4ee18890`): the interrupted pass is retried within minutes, not after six hours.
+- Round 2 (this commit): the retry buys only the turns the interrupted pass owed, leaving the day's re-check
+  of an older model to the ordinary pass; and recovery timing is separated from the budget reset — the
+  five-minute minimum and a provider's pause hold across midnight, and an episode survives midnight and
+  a restart without losing its count.
 
 ## 1. What happened (verified)
 
@@ -39,9 +46,10 @@ second in the log, §3 of the timeline), inside the first eight seconds of the w
   there is none. A takeover would have required a second worker in that two-second window.
 - The pass ran seven seconds into a 300-second term, after an 18-minute sleep preceded by another.
 
-**Inferred, and strongly supported: the Redis server's clock, not the lease's logic.** Redis runs in
-Docker Desktop's Linux VM. Redis's own clock is visible in its RDB-save log, because a "1 change in 900
-seconds" save fires exactly when Redis's clock reads `lastsave + 900` with a change pending:
+**Inferred — not observed directly — and strongly supported: the Redis server's clock, not the lease's
+logic.** Redis runs in Docker Desktop's Linux VM. Redis's own clock is visible in its RDB-save log, because
+a "1 change in 900 seconds" save fires exactly when Redis's clock reads `lastsave + 900` with a change
+pending:
 
 - With the host awake all afternoon on 2026-10-23, saves fired every 301 s like clockwork.
 - During the dark-wake regime, saves fired only in the first seconds of *some* wakes, more than 900 s
@@ -60,24 +68,28 @@ seconds" save fires exactly when Redis's clock reads `lastsave + 900` with a cha
 records the step (the host and VM logs under `~/Library/Containers/com.docker.docker/Data/log` carry no
 clock or time-sync message for the day). The size of the lag is inferred from the sleep durations. The
 five-minute-expiry defect fixed on 2026-10-18 did not return: renewal ran and succeeded; the term was
-cut short by the server's clock, not by the lack of renewal.
+cut short — by that inference — by the server's clock, not by the lack of renewal. Every mention of the
+clock step in the code comments and tests carries the same label.
 
-**The six-hour delay is established in the code.** `SyncScheduler._record` treats every forecasts pass
+**The six-hour delay is established in the code.** `SyncScheduler._record` treated every forecasts pass
 that reports an `error` as a failure; its backoff is `max(interval, 300 s) × 2^(n−1)`, and the task's
-interval is 21 600 s. The first failure therefore waits six hours (clamped only to the next UTC reset).
+interval is 21 600 s. The first failure therefore waited six hours (clamped only to the next UTC reset).
 The retry at 18:10:22Z is the first scheduler tick after 18:09:32Z at which the Mac was awake.
 
 ## 3. The correction
 
 Two files, no migration, no setting, no change to the lease, its term, its renewal, its fencing, the
-budget, the slots or scoring.
+budget, the slots, the publication gate, force-refresh or scoring.
 
 **`app/services/forecast_service.py`** — the pass says how it ended. `report["outcome"]` is one of
 `completed` (every eligible turn taken), `partial` (interrupted by the lost lease; `unfinished` lists
 the eligible competitions not reached), `deferred` (another worker holds the lease → `lease_held`; the
 provider is paused → `paused`, with `paused_until`; or turns were deferred to the allowance's reset) or
-`failed` (a provider refused or errored; no coordination at all). The cooldown payload now records
-`until` beside `reason`.
+`failed` (a provider refused or errored; no coordination at all). The cooldown payload records `until`
+beside `reason`. **Round 2:** `ensure_synced(recovery=True)` — the scheduler's retry of an interrupted
+pass — walks only the plan's fetch list, the turns the interrupted pass owed, and records each re-check
+of an older run as `recheck_skipped` ("left to the ordinary pass"). The re-check itself, its allowance and
+its eligibility are untouched: the ordinary pass that follows makes it.
 
 **`app/services/sync_scheduler.py`** — an interrupted pass is retried soon, within bounds.
 
@@ -95,22 +107,31 @@ provider is paused → `paused`, with `paused_until`; or turns were deferred to 
 - During an episode `consecutive_failures` and `backoff_seconds` are untouched (no failure streak); the
   `failures` count, `last_error` and `last_error_at` are recorded as before. `last_outcome`, `recovery`
   and `last_recovery` are published by `status()` and the pass report.
+- **Round 2:** a retry's due time is **not** pulled forward to the budget reset (the ordinary waits still
+  are): an interruption at 23:59 is retried at 00:04, and a pause that outlasts midnight is waited for in
+  full. The ordinary failure path, for the forecasts task, also never schedules before a `paused_until`
+  the pass reported. An episode is no longer keyed to a UTC day: it stays open across midnight and
+  restarts until a pass completes or fails or its attempts are spent, so the count is never reset by the
+  date. What a pass may buy after the reset is decided by the eligibility rules as ever — before the
+  publication hour, nothing — so a budget reset alone never causes a fetch. The retry pass is run with
+  `recovery=True` while an episode is open.
 
 **Maximum retry frequency:** one recovery retry per 300 s at most; at most three per episode (worst
-case 35 minutes of retries after an interruption, then the regular 6 h backoff); an episode is one UTC
-day's and ends on completion or failure. Each retry buys only competitions the daily-slot policy still
-finds eligible, so no competition is bought twice in a day because of a retry.
+case 35 minutes of retries after an interruption, then the regular 6 h backoff); an episode ends on
+completion or failure, whatever the date. Each retry buys only competitions the daily-slot policy still
+finds eligible for a *fetch*, so no competition is bought twice in a day because of a retry, and no
+re-check is spent by one.
 
 ## 4. Tests
 
-`tests/services/test_forecast_recovery.py`, 11 tests. Time is simulated with two clocks: the
-application's, and the Redis stand-in's own, started 2 140 s behind and stepped to real time at the
-moment the incident's was.
+`tests/services/test_forecast_recovery.py`, 15 tests (11 from round 1, 4 from round 2). Time is simulated
+with two clocks: the application's, and the Redis stand-in's own, started 2 140 s behind and stepped to real
+time at the moment the incident's is inferred to have been.
 
 | Test | Pins |
 |---|---|
 | the incident, reproduced | Serie A fetched and its slot kept; the lease renewed for Bundesliga's turn; the turn's first write refused with the live log's message; one request spent. Passes before and after: the lease behaves as designed. |
-| **retried within fifteen minutes and finishes what it owed** (decisive) | next due ≤ 15 min and ≥ one term; no busy loop before it; the retry buys exactly the four remaining, each before its kick-off; Serie A once; 5 requests. **Before: "the retry waits 6:00:00".** |
+| **retried within fifteen minutes and finishes what it owed** (decisive, round 1) | next due ≤ 15 min and ≥ one term; no busy loop before it; the retry buys exactly the four remaining, each before its kick-off; Serie A once; 5 requests. **Before: "the retry waits 6:00:00".** |
 | repeated interruptions, bounded | waits 300, 600, 1200 s, then the 21 600 s backoff; nothing spent by any retry; Serie A's slot stands. |
 | competing worker holds the lease at retry time | deferred without a request; the other lease untouched; not a failure; completes after it is released. |
 | provider cooldown at retry time | the retry waits for the pause, then completes. |
@@ -120,18 +141,29 @@ moment the incident's was.
 | the report and the task state say how the pass ended | completed / partial / deferred / failed, the episode's attempts, the provider failure's unchanged backoff. |
 | against the real registry (PostgreSQL) | no duplicate snapshot; the fixture that kicked off inside the gap gets a snapshot flagged after kick-off; `prematch_snapshots` keeps the prematch one; original retrieval times untouched. |
 | on a real, isolated Redis | the same interruption and retry with the real Lua scripts and the real budget counter. |
+| **a recovery retry leaves an older-model re-check to the ordinary pass** (decisive, round 2) | 12:00 Serie A served yesterday's run (slot `older-run`); interrupted before Bundesliga; 12:05 the retry buys Bundesliga and nothing else, Serie A's re-check still owed; today's run published at 13:00; 18:05 the ordinary pass re-checks and gets it (Bundesliga too, served the same old run at 12:05); 4 requests in the day, none wasted. **Before: the 12:05 retry re-checked Serie A.** |
+| **an interruption just before midnight still waits the recovery minimum** (decisive, round 2) | 23:59 interrupted → retry at 00:04, not 00:01; at 00:04 nothing is eligible before the publication hour and nothing is bought; the new day's slots are bought at 12:04. **Before: "the retry waits 0:02:00".** |
+| **a provider pause that outlasts midnight is waited for in full** (decisive, round 2) | pause until 01:30 set before the 23:55 retry → next due 01:30, not 00:01; at 01:30 the gate still applies, nothing bought. **Before: 00:01.** |
+| **an episode crosses midnight and a restart without losing count, and ends in completion** (decisive, round 2) | 23:52 interrupted; 23:57 and, after a restart, 00:07 and 00:27 the lease is another worker's; the third attempt is the last (`attempts` 3, `exhausted_at`), then the ordinary backoff; nothing spent; after the release, the next pass after the hour completes. **Before: the 00:07 retry was scheduled for 00:01 and the day change opened a new episode.** |
 
 **Results** (logs beside this file; targets approved by the isolation guard, line quoted in each log):
 
 | Run | Result | Log |
 |---|---|---|
-| The new file against the original code `69ac15f8` (same file, throwaway detached worktree) | **7 failed, 4 passed** — decisive failure: "the retry waits 6:00:00" | [before-new-tests.log](before-new-tests.log) |
-| The new file against the fix | 11 passed, 0 failed, 0 skipped | [after-new-tests.log](after-new-tests.log) |
-| 13 related suites (scheduler, forecast service, lease, concurrency, takeover gaps, policy, order, verdict, health, recovery, coverage budget, provider API) | 312 passed | [after-related-suites.log](after-related-suites.log) |
-| **Full backend suite**, explicit approved targets, real isolated Redis and race PostgreSQL included | **2014 passed, 0 failed, 0 skipped, exit 0** (62 s; 2003 before this round + 11) | [after-backend-full-suite.log](after-backend-full-suite.log) |
-| Lease / concurrency / recovery / scheduler group, 20 consecutive runs | 20 × 114 passed, 0 failing iterations | [after-lease-group-repeated-20.log](after-lease-group-repeated-20.log) |
+| Round 1: the file's 11 tests against the original code `69ac15f8` (same file, throwaway detached worktree) | **7 failed, 4 passed** — decisive failure: "the retry waits 6:00:00" | [before-new-tests.log](before-new-tests.log) |
+| Round 1: against the fix `6b086063` | 11 passed | [after-new-tests.log](after-new-tests.log) |
+| Round 1: 13 related suites | 312 passed | [after-related-suites.log](after-related-suites.log) |
+| Round 1: full backend suite | 2014 passed, 0 failed, 0 skipped, exit 0 | [after-backend-full-suite.log](after-backend-full-suite.log) |
+| Round 1: lease / concurrency / recovery / scheduler group, 20 consecutive runs | 20 × 114 passed | [after-lease-group-repeated-20.log](after-lease-group-repeated-20.log) |
+| **Round 2: the final file's 15 tests against `4ee18890`** (same file, throwaway detached worktree) | **4 failed, 11 passed** — the four round-2 regressions fail with the reported symptoms | [before-round2-new-tests.log](before-round2-new-tests.log) |
+| Round 2: against the correction | 15 passed | [after-round2-new-tests.log](after-round2-new-tests.log) |
+| Round 2: 13 related suites | 312 passed | [after-round2-related-suites.log](after-round2-related-suites.log) |
+| **Round 2: full backend suite**, explicit approved targets, real isolated Redis and race PostgreSQL included, after the final application edits | **2018 passed, 0 failed, 0 skipped, exit 0** (67 s) | [after-round2-backend-full-suite.log](after-round2-backend-full-suite.log) |
+| Round 2: lease / concurrency / recovery / scheduler group, 20 consecutive runs | 20 × 118 passed, 0 failing iterations | [after-round2-lease-group-repeated-20.log](after-round2-lease-group-repeated-20.log) |
 
-No browser suite was run: the frontend is unchanged.
+No browser suite was run: the frontend is unchanged. The round-1 logs were missing from `4ee18890`
+(`.gitignore` ignores `*.log`); every log is now force-added to the branch, sanitized (the test database
+password is masked before it is written), and listed in `SHA256SUMS`.
 
 ## 5. Isolation
 
@@ -140,10 +172,11 @@ No browser suite was run: the frontend is unchanged.
   rounds; the guard refuses any value that only `.env` supplies.
 - Targets, approved by `app.core.target_guard` before every run: PostgreSQL `localhost:5432/soccer_predictions_test`
   and the throwaway `127.0.0.1:5440/forecast_race_test`; the throwaway Redis `127.0.0.1:6390` (application
-  databases 0–5, lease tests 9–11). Both throwaways were started empty for this round and stopped after it.
-- Live, read-only throughout, unchanged at the end: `/health` `69ac15f8`, tree `02195dc1…`, pid 93218
-  started 2026-10-23T00:05:22Z, scheduler enabled; ceilings GameForecast 8, Live Score 1200, API-Football 90,
-  TheSportsDB 1000; no live record, Redis key or configuration touched; no provider request made.
+  databases 0–5, lease tests 9–11). Both throwaways were started empty for each round and stopped after it.
+- Live, read-only throughout, unchanged at the end of each round: `/health` `69ac15f8`, tree `02195dc1…`,
+  pid 93218 started 2026-10-23T00:05:22Z, scheduler enabled; ceilings GameForecast 8, Live Score 1200,
+  API-Football 90, TheSportsDB 1000; no live record, Redis key or configuration touched; no provider
+  request made.
 
 ## 6. Limitations
 
@@ -156,16 +189,12 @@ No browser suite was run: the frontend is unchanged.
 - Recovery is rehearsed in isolation only, on the fake and on a real isolated Redis; it has not run on live.
 - "Within 15 minutes" holds when the scheduler ticks: on a sleeping Mac the retry fires at the first
   dark wake after it is due, which on 2026-10-24 came every 15–20 minutes.
-- A hand-run `scripts/sync_once.py` pass does not open or count toward an episode unless it is run
-  through the scheduler's state (it is: the script calls `SyncScheduler.run_once()`).
+- A recovery retry that spans midnight buys nothing before the publication hour, like any pass; the
+  previous day's unfinished turns are then moot, and the new day's slots are bought at the ordinary hour.
+- A hand-run `scripts/sync_once.py` pass shares the scheduler's state (the script calls
+  `SyncScheduler.run_once()`), so it counts toward an open episode like any pass.
 
 ## 7. Files
 
-| File | SHA-256 |
-|---|---|
-| `backend/app/services/forecast_service.py` | see `SHA256SUMS` |
-| `backend/app/services/sync_scheduler.py` | see `SHA256SUMS` |
-| `backend/tests/services/test_forecast_recovery.py` | see `SHA256SUMS` |
-
 `SHA256SUMS` beside this file covers the three source files (paths relative to the repository root) and
-every log and extract in this folder.
+every log and extract in this folder, as of the final round-2 commit.

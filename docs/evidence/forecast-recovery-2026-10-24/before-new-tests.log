@@ -1,0 +1,286 @@
+# 2026-10-24T19:11:48Z in /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend at 69ac15f8 (); dirty files: 1
+# python 3.11.9; pytest args: tests/services/test_forecast_recovery.py -v
+============================= test session starts ==============================
+platform darwin -- Python 3.11.9, pytest-7.4.3, pluggy-1.6.0 -- /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend/venv311/bin/python
+rootdir: /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend
+configfile: pyproject.toml
+plugins: cov-4.1.0, asyncio-0.21.1, anyio-3.7.1
+asyncio: mode=Mode.STRICT
+collecting ... collected 11 items
+
+tests/services/test_forecast_recovery.py::test_the_incident_a_server_clock_step_past_the_term_ends_the_pass_after_one_competition PASSED [  9%]
+tests/services/test_forecast_recovery.py::test_an_interrupted_pass_is_retried_within_fifteen_minutes_and_finishes_what_it_owed FAILED [ 18%]
+tests/services/test_forecast_recovery.py::test_repeated_interruptions_are_retried_on_a_bounded_schedule_and_then_backed_off FAILED [ 27%]
+tests/services/test_forecast_recovery.py::test_a_competing_worker_holding_the_lease_when_the_retry_is_due_defers_it_without_a_request FAILED [ 36%]
+tests/services/test_forecast_recovery.py::test_a_provider_cooldown_at_retry_time_defers_the_retry_until_the_cooldown_ends FAILED [ 45%]
+tests/services/test_forecast_recovery.py::test_an_exhausted_allowance_at_retry_time_is_skipped_like_any_pass_and_resumes_at_the_reset PASSED [ 54%]
+tests/services/test_forecast_recovery.py::test_a_restart_between_the_interruption_and_the_retry_keeps_the_schedule_and_the_finished_slot PASSED [ 63%]
+tests/services/test_forecast_recovery.py::test_a_late_answer_from_the_previous_owner_cannot_overwrite_what_the_retry_fetched PASSED [ 72%]
+tests/services/test_forecast_recovery.py::test_the_pass_report_and_the_task_state_say_how_the_pass_ended FAILED [ 81%]
+tests/services/test_forecast_recovery.py::test_against_the_real_registry_the_retry_adds_no_duplicate_snapshot_and_scoring_keeps_the_prematch_one FAILED [ 90%]
+tests/services/test_forecast_recovery.py::test_on_a_real_redis_the_interrupted_pass_is_retried_within_fifteen_minutes_and_finishes FAILED [100%]
+
+=================================== FAILURES ===================================
+_ test_an_interrupted_pass_is_retried_within_fifteen_minutes_and_finishes_what_it_owed _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10fe41810>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10ff6e610>
+redis_clock = <tests.services.test_sync_scheduler.Clock object at 0x10ff6f050>
+
+    def test_an_interrupted_pass_is_retried_within_fifteen_minutes_and_finishes_what_it_owed(clock, redis, redis_clock):
+        """The previous implementation recorded the interrupted pass as a failure and backed it off the
+        task's own interval: six hours, during which eleven fixtures kicked off. Now the retry comes
+        within one lease term, and buys exactly the four competitions still owed - Serie A once."""
+        h = Harness(clock, redis, keys=KEYS, kickoffs=KICKOFFS)
+        scheduler = scheduler_over(h, clock, lambda svc: stepping_the_server_clock_before(svc, "bundesliga", redis_clock, clock))
+    
+        first = run(scheduler)
+        assert first["ran"] and first["result"].get("lease_lost") is True and h.calls() == ["serie_a"]
+        due = next_due(scheduler)
+>       assert due <= clock.now + FIFTEEN_MINUTES, (
+            f"the retry waits {due - clock.now}; the previous implementation waited the whole "
+            f"{scheduler.interval(TASK_FORECASTS)} s interval as its backoff")
+E       AssertionError: the retry waits 6:00:00; the previous implementation waited the whole 21600 s interval as its backoff
+E       assert datetime.datetime(2026, 10, 24, 18, 9, 25, tzinfo=datetime.timezone.utc) <= (datetime.datetime(2026, 10, 24, 12, 9, 25, tzinfo=datetime.timezone.utc) + datetime.timedelta(seconds=900))
+E        +  where datetime.datetime(2026, 10, 24, 12, 9, 25, tzinfo=datetime.timezone.utc) = <tests.services.test_sync_scheduler.Clock object at 0x10fe41810>.now
+
+tests/services/test_forecast_recovery.py:199: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-24 15:11:49 - app.services.sync_lease - WARNING - stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+_ test_repeated_interruptions_are_retried_on_a_bounded_schedule_and_then_backed_off _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10ff47c10>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10ff44550>
+redis_clock = <tests.services.test_sync_scheduler.Clock object at 0x10ff441d0>
+
+    def test_repeated_interruptions_are_retried_on_a_bounded_schedule_and_then_backed_off(clock, redis, redis_clock):
+        """Three retries, each twice the wait before - 5, 10, 20 minutes - and the fourth interruption
+        is treated as the failure it has become. None of them spends a request: the lease is lost
+        before Bundesliga's turn reserves one, and Serie A's slot stands throughout."""
+        h = Harness(clock, redis, keys=KEYS, kickoffs=KICKOFFS)
+    
+        def lagging_again(svc):
+            redis_clock.now = clock.now - LAG               # the server's clock is behind again...
+            return stepping_the_server_clock_before(svc, "bundesliga", redis_clock, clock)   # ...and steps
+    
+        scheduler = scheduler_over(h, clock, lagging_again)
+        waits = []
+        for _ in range(4):
+>           assert run(scheduler)["result"].get("lease_lost") is True
+E           assert None is True
+E            +  where None = <built-in method get of dict object at 0x10fe82780>('lease_lost')
+E            +    where <built-in method get of dict object at 0x10fe82780> = {'competitions': {}, 'deferred': [], 'order': ['serie_a', 'bundesliga', 'premier_league', 'la_liga', 'ligue_1'], 'plan': {'deferred_first': [], 'fetch': [], 'hour_reached': False, 'ineligible': {'bundesliga': "before the observed publication hour (12:00 UTC); a fetch now would buy the previous day's run", 'la_liga': "before the observed publication hour (12:00 UTC); a fetch now would buy the previous day's run", 'ligue_1': "before the observed publication hour (12:00 UTC); a fetch now would buy the previous day's run", 'premier_league': "before the observed publication hour (12:00 UTC); a fetch now would buy the previous day's run", ...}, ...}, ...}.get
+
+tests/services/test_forecast_recovery.py:236: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-24 15:11:49 - app.services.sync_lease - WARNING - stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+2026-10-24 15:11:49 - app.services.sync_lease - WARNING - stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+_ test_a_competing_worker_holding_the_lease_when_the_retry_is_due_defers_it_without_a_request _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10f8f9250>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10f89d090>
+redis_clock = <tests.services.test_sync_scheduler.Clock object at 0x10f8f9150>
+
+    def test_a_competing_worker_holding_the_lease_when_the_retry_is_due_defers_it_without_a_request(clock, redis, redis_clock):
+        h = Harness(clock, redis, keys=KEYS, kickoffs=KICKOFFS)
+        scheduler = scheduler_over(h, clock, lambda svc: stepping_the_server_clock_before(svc, "bundesliga", redis_clock, clock))
+        run(scheduler)
+        assert h.calls() == ["serie_a"]
+        advance(clock, redis_clock, next_due(scheduler))
+    
+        other = SyncLease(redis, LOCK, 300)
+        assert other.acquire(), "another worker is mid-pass when the retry comes due"
+        deferred = run(scheduler)
+        assert deferred["ran"] and deferred["ok"] is False and "already running" in deferred["result"]["error"]
+        assert h.calls() == ["serie_a"], "nothing bought, nothing cleared"
+        assert redis.get(LOCK) == other.token, "the other worker's lease was left exactly as it was"
+        again = next_due(scheduler)
+>       assert clock.now + TERM <= again <= clock.now + FIFTEEN_MINUTES
+E       assert datetime.datetime(2026, 10, 25, 0, 1, tzinfo=datetime.timezone.utc) <= (datetime.datetime(2026, 10, 24, 18, 9, 25, tzinfo=datetime.timezone.utc) + datetime.timedelta(seconds=900))
+E        +  where datetime.datetime(2026, 10, 24, 18, 9, 25, tzinfo=datetime.timezone.utc) = <tests.services.test_sync_scheduler.Clock object at 0x10f8f9250>.now
+
+tests/services/test_forecast_recovery.py:264: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-24 15:11:49 - app.services.sync_lease - WARNING - stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+_ test_a_provider_cooldown_at_retry_time_defers_the_retry_until_the_cooldown_ends _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10e40a790>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10fcb3250>
+redis_clock = <tests.services.test_sync_scheduler.Clock object at 0x10fcb0610>
+
+    def test_a_provider_cooldown_at_retry_time_defers_the_retry_until_the_cooldown_ends(clock, redis, redis_clock):
+        h = Harness(clock, redis, keys=KEYS, kickoffs=KICKOFFS)
+        scheduler = scheduler_over(h, clock, lambda svc: stepping_the_server_clock_before(svc, "bundesliga", redis_clock, clock))
+        run(scheduler)
+        retry_at = next_due(scheduler)
+    
+        advance(clock, redis_clock, retry_at - timedelta(seconds=60))
+        h.new_service()._pause("the provider answered 503 to a page load", 7200)   # set by another path
+        paused_until = clock.now + timedelta(seconds=7200)
+        advance(clock, redis_clock, retry_at)
+        deferred = run(scheduler)
+        assert deferred["ran"] and deferred["result"].get("paused") is True
+        assert h.calls() == ["serie_a"], "a paused provider is not called"
+>       assert next_due(scheduler) == paused_until, "the retry waits for the pause, not a fixed delay"
+E       AssertionError: the retry waits for the pause, not a fixed delay
+E       assert datetime.datetime(2026, 10, 25, 0, 1, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 24, 20, 8, 25, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 25, 0, 1, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10fcb24d0>)
+
+tests/services/test_forecast_recovery.py:286: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-24 15:11:49 - app.services.sync_lease - WARNING - stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+________ test_the_pass_report_and_the_task_state_say_how_the_pass_ended ________
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10febf1d0>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10febea10>
+redis_clock = <tests.services.test_sync_scheduler.Clock object at 0x10febd090>
+
+    def test_the_pass_report_and_the_task_state_say_how_the_pass_ended(clock, redis, redis_clock):
+>       from app.services.forecast_service import PASS_COMPLETED, PASS_DEFERRED, PASS_FAILED, PASS_PARTIAL
+E       ImportError: cannot import name 'PASS_COMPLETED' from 'app.services.forecast_service' (/Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend/app/services/forecast_service.py)
+
+tests/services/test_forecast_recovery.py:367: ImportError
+_ test_against_the_real_registry_the_retry_adds_no_duplicate_snapshot_and_scoring_keeps_the_prematch_one _
+
+db = <sqlalchemy.orm.session.Session object at 0x10fbd1350>
+
+    def test_against_the_real_registry_the_retry_adds_no_duplicate_snapshot_and_scoring_keeps_the_prematch_one(db):
+        """Yesterday's pass left a prematch snapshot on both fixtures. Today's pass is interrupted after
+        Serie A; the second fixture kicks off before the retry. The retry fetches it once more, after
+        kick-off: that snapshot is stored, flagged as captured after kick-off, and never scored - the
+        prematch one still is. Serie A keeps exactly the snapshots its two fetches produced."""
+        keys = ["serie_a", DB_KEY]
+        # Both kick off inside the gap between the interruption (12:09:25Z) and the retry; the plan walks
+        # the nearer kick-off first, so Serie A is the competition the interrupted pass does fetch.
+        kickoffs = {"serie_a": START + timedelta(minutes=1, seconds=35),       # 12:11:00Z
+                    DB_KEY: START + timedelta(minutes=3, seconds=35)}          # 12:13:00Z
+        clock = Clock(START - timedelta(days=1, minutes=4, seconds=25))   # yesterday's pass, 12:05Z
+        redis_clock = Clock(clock.now)
+        redis = LockingFakeRedis(clock=redis_clock)
+        cache = MatchCache(client=redis)
+        budget = RequestBudget(PROVIDER, 8, client=redis, now=clock)
+        provider = TwoFixturesProvider(budget, clock, kickoffs, expected=keys)
+        registry = MatchRegistry(db)
+        serie_a = registry.upsert_fixture(ProviderFixture(
+            provider="livescore", external_id="ls-sa-1",
+            competition=ProviderCompetition(provider="livescore", external_id="4", name="Serie A", key="serie_a"),
+            home=ProviderTeam(provider="livescore", external_id="ls-inter", name="Inter"),
+            away=ProviderTeam(provider="livescore", external_id="ls-milan", name="Milan"),
+            kickoff_utc=kickoffs["serie_a"], status="scheduled"))
+        second = _store_the_fixture(registry, kickoff=kickoffs[DB_KEY])
+        db.flush()
+    
+        def build(step: Optional[str] = None) -> ForecastService:
+            svc = ForecastService(db, provider=provider, cache=cache, now=clock(), keys=keys, sync_fixtures=False)
+            svc.registry = registry
+            return stepping_the_server_clock_before(svc, step, redis_clock, clock) if step else svc
+    
+        scheduler = SyncScheduler(session_factory=lambda: db, cache=cache, now=clock,
+                                  match_service_factory=lambda _db: MagicMock(),
+                                  forecast_service_factory=lambda _db: build(DB_KEY),
+                                  tasks=[TASK_FORECASTS], close_sessions=False, budget_client=redis)
+    
+        yesterday = run(scheduler)                           # D-1 12:05Z: both fetched, both prematch
+        assert yesterday["ok"] is True and [k for k, _ in provider.calls] == keys
+        db.flush()
+        assert len(build().snapshots_for_match(serie_a.id, PROVIDER)) == 1
+        [first_second] = build().snapshots_for_match(second.id, PROVIDER)
+        assert first_second.captured_before_kickoff is True
+    
+        advance(clock, redis_clock, START)                   # D 12:09:25Z, the server's clock behind again
+        redis_clock.now = START - LAG
+        today = run(scheduler)
+        assert today["result"].get("lease_lost") is True and [k for k, _ in provider.calls] == keys + ["serie_a"]
+        retry_at = next_due(scheduler)
+>       assert retry_at <= START + FIFTEEN_MINUTES
+E       assert datetime.datetime(2026, 10, 24, 18, 9, 25, tzinfo=datetime.timezone.utc) <= (datetime.datetime(2026, 10, 24, 12, 9, 25, tzinfo=datetime.timezone.utc) + datetime.timedelta(seconds=900))
+
+tests/services/test_forecast_recovery.py:492: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-24 15:11:49 - app.services.sync_lease - WARNING - stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+_ test_on_a_real_redis_the_interrupted_pass_is_retried_within_fifteen_minutes_and_finishes _
+
+real = Redis<ConnectionPool<Connection<host=127.0.0.1,port=6390,db=9>>>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x1100ba310>
+
+    @pytest.mark.skipif(not REAL_URL, reason="LEASE_TEST_REDIS_URL is not set: no isolated Redis to run the real scripts on")
+    def test_on_a_real_redis_the_interrupted_pass_is_retried_within_fifteen_minutes_and_finishes(real, clock):
+        h = Harness(clock, real, keys=KEYS, kickoffs=KICKOFFS)
+        stepped = {}
+        scheduler = scheduler_over(h, clock, lambda svc: lapsing_the_lease_before(svc, "bundesliga", real, stepped))
+    
+        first = run(scheduler)
+        assert first["result"].get("lease_lost") is True
+        assert "a write was refused: the lease is no longer this worker's" in first["result"]["error"]
+        assert h.calls() == ["serie_a"] and h.budget.used_today() == 1, "the real budget counter moved once"
+        due = next_due(scheduler)
+>       assert clock.now + TERM <= due <= clock.now + FIFTEEN_MINUTES
+E       assert datetime.datetime(2026, 10, 24, 18, 9, 25, tzinfo=datetime.timezone.utc) <= (datetime.datetime(2026, 10, 24, 12, 9, 25, tzinfo=datetime.timezone.utc) + datetime.timedelta(seconds=900))
+E        +  where datetime.datetime(2026, 10, 24, 12, 9, 25, tzinfo=datetime.timezone.utc) = <tests.services.test_sync_scheduler.Clock object at 0x1100ba310>.now
+
+tests/services/test_forecast_recovery.py:529: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-24 15:11:49 - app.services.sync_lease - WARNING - stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-forecast-recovery-before/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+target guard: backend-tests approved - settings database localhost:5432/soccer_predictions_test; test database localhost:5432/soccer_predictions_test; race database 127.0.0.1:5440/forecast_race_test; redis default (REDIS_DB) 127.0.0.1:6390/0; redis REDIS_DB_SESSIONS 127.0.0.1:6390/0; redis REDIS_DB_PREDICTIONS 127.0.0.1:6390/1; redis REDIS_DB_EXPERT_TOOLS 127.0.0.1:6390/2; redis REDIS_DB_ML_MODELS 127.0.0.1:6390/3; redis REDIS_DB_MATCH_DATA 127.0.0.1:6390/4; redis REDIS_DB_RATE_LIMIT 127.0.0.1:6390/5; lease redis 127.0.0.1:6390/9,10,11 (policy sha256 e2abbcc34d12)
+=================== 7 failed, 4 passed, 18 warnings in 0.58s ===================
+# exit 1 at 2026-10-24T19:11:49Z
