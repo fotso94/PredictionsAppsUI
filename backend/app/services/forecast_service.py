@@ -65,6 +65,19 @@ SYNC_LOCK_KEY = "forecast:sync_lock:{provider}"
 #: it - a crashed worker, or one cut off from Redis - so another worker can then take over.
 SYNC_LOCK_TTL_SECONDS = 300
 SYNC_LOCK_RENEW_SECONDS = 100
+#: How a pass ended, said in the report's `outcome` for the scheduler that decides when to come back
+#: (`SyncScheduler._record`). `completed`: every eligible competition had its turn. `partial`: the
+#: pass was interrupted by its own coordination - the lease lost mid-pass - with eligible turns still
+#: owed; `unfinished` names them. `deferred`: nothing was bought because another worker holds the
+#: lease (`lease_held`), the provider is paused (`paused`, until `paused_until`), or turns were
+#: deferred to the allowance's reset. `failed`: a provider refused or errored, or the pass could not
+#: coordinate at all. On 2026-10-24 a pass interrupted after one of five competitions was recorded
+#: as a plain failure and backed off six hours; the distinction is what lets the scheduler retry an
+#: interruption within minutes while leaving a provider failure the wait it has always had.
+PASS_COMPLETED = "completed"
+PASS_PARTIAL = "partial"
+PASS_DEFERRED = "deferred"
+PASS_FAILED = "failed"
 
 _UNSET = object()
 AUTH_COOLDOWN_SECONDS = 30 * 60
@@ -462,6 +475,7 @@ class ForecastService:
         report: Dict[str, Any] = {"provider": self.provider.name if self.provider else None, "competitions": {}, "skipped": []}
         if not self.provider:
             report["error"] = "no prediction provider configured"
+            report["outcome"] = PASS_FAILED
             return report
         days_ahead = days_ahead or settings.GAMEFORECAST_SYNC_DAYS_AHEAD
         policy = self.policy
@@ -478,6 +492,8 @@ class ForecastService:
             self._retry_all_pending(self.keys, report)
             report["error"] = f"skipped (recent failure: {cooling})"
             report["paused"] = True
+            report["paused_until"] = self._cooldown_until()
+            report["outcome"] = PASS_DEFERRED
             report["synced_at"] = self.now.isoformat()
             self._record_status(report)
             return report
@@ -489,9 +505,12 @@ class ForecastService:
             refusal = self._lock_refusal or "the lease could not be taken"
             if refusal == HOLDER_REFUSAL:
                 report["error"] = f"a {self.provider.name} sync is already running"
+                report["lease_held"] = True
+                report["outcome"] = PASS_DEFERRED
             else:
                 report["error"] = f"forecast sync refused: {refusal}"
                 report["coordination_unavailable"] = True
+                report["outcome"] = PASS_FAILED
             self._retry_all_pending(list(self.keys), report)
             report["synced_at"] = self.now.isoformat()
             return report
@@ -515,6 +534,12 @@ class ForecastService:
             report["lease_lost"] = True
             report["error"] = (f"stopped: this worker lost the {self.provider.name} sync lease ({exc}); "
                                "no further request was started and nothing more was written")
+            report["outcome"] = PASS_PARTIAL
+            # What the pass still owed, for the scheduler's retry: every competition the plan meant to
+            # fetch that had not had its turn. None when the lease went before a plan was made.
+            plan = report.get("plan")
+            report["unfinished"] = ([key for key in plan.get("fetch", []) if key not in report["competitions"]]
+                                    if isinstance(plan, dict) else None)
             report["synced_at"] = self.now.isoformat()
             return report
         finally:
@@ -535,6 +560,7 @@ class ForecastService:
         `ensure_synced` turns into a clean stop.
         """
         stop_reason: Optional[str] = None
+        stopped_by: Optional[str] = None       # "provider" or "allowance", once something stopped the pass
         deferred_now: Dict[str, str] = {}
         succeeded: set = set()
         plan: Optional[RefreshPlan] = None
@@ -589,6 +615,7 @@ class ForecastService:
                                        f"rather than reordering by price, which would starve {key} "
                                        f"permanently. Paused for {seconds}s, per {decided_by}")
                         self._pause(stop_reason, seconds)
+                        stopped_by = "allowance"
                         break
                     if recheck:
                         # A re-check is paid from what is left over and nothing is left: it is
@@ -615,6 +642,7 @@ class ForecastService:
                     report.setdefault("rechecked", []).append(key)
             except ProviderNotConfiguredError as exc:
                 stop_reason = str(exc)
+                stopped_by = "provider"
                 break
             except ProviderError as exc:
                 report["competitions"][key] = {"error": str(exc)}
@@ -622,6 +650,7 @@ class ForecastService:
                 policy.record_failed(key, str(exc))
                 # quota/auth failures affect every competition: stop here and back off
                 stop_reason = str(exc)
+                stopped_by = "provider"
                 if isinstance(exc, ProviderQuotaError):
                     # The provider's own window, when it published one, decides how long this
                     # is - not our assumption about when its day turns.
@@ -638,6 +667,8 @@ class ForecastService:
             self._retry_all_pending(order, report)
             report["error"] = f"skipped (recent failure: {cooling})"
             report["paused"] = True
+            report["paused_until"] = self._cooldown_until()
+            report["outcome"] = PASS_DEFERRED
             report["synced_at"] = self.now.isoformat()
             self._record_status(report)
             return report
@@ -655,6 +686,7 @@ class ForecastService:
                            f"next competition the allowance could serve, and {first} leads the next pass. "
                            f"Paused for {seconds}s, per {decided_by}")
             self._pause(stop_reason, seconds)
+            stopped_by = "allowance"
         if stop_reason:
             # A competition whose own request failed was not synced either: it belongs at the head of
             # the next run just like the ones that were never reached. Re-checks are not owed, so
@@ -663,6 +695,17 @@ class ForecastService:
             report["deferred"] = deferred
             report["error"] = stop_reason + (
                 f"; {len(deferred)} competition(s) deferred to the next reset" if deferred else "")
+            report["unfinished"] = deferred
+            # Turns the allowance could not pay for wait for its reset: a deferral, with the pause
+            # that was just set saying until when. A provider's refusal or error is a failure, and
+            # the scheduler keeps backing one off: a retry after it is a request nobody asked for.
+            if stopped_by == "allowance":
+                report["outcome"] = PASS_DEFERRED
+                report["paused_until"] = self._cooldown_until()
+            else:
+                report["outcome"] = PASS_FAILED
+        else:
+            report["outcome"] = PASS_COMPLETED
         report["synced_at"] = self.now.isoformat()
         self._record_status(report)
         return report
@@ -735,9 +778,13 @@ class ForecastService:
                 report.setdefault("retried", {})[key] = retried
 
     def _pause(self, reason: str, seconds: int) -> None:
-        self.cache.set(COOLDOWN_KEY.format(provider=self.provider.name), {"reason": reason},
+        # `until` is the moment the pause ends, for a reader - the scheduler's retry of an
+        # interrupted pass waits for it rather than for a fixed delay. The key's TTL still decides.
+        until = self.now + timedelta(seconds=max(int(seconds), 0))
+        payload = {"reason": reason, "until": until.isoformat()}
+        self.cache.set(COOLDOWN_KEY.format(provider=self.provider.name), payload,
                        ttl=seconds, stale_ttl=seconds)
-        self._cooldown_cache = reason
+        self._cooldown_cache = payload
 
     # ------------------------------------------------------------------ concurrency
     def _acquire_sync_lock(self) -> bool:
@@ -1313,13 +1360,21 @@ class ForecastService:
         A page renders thirty matches; each one must not hit Redis for the same answer.
         """
         if self._cooldown_cache is _UNSET:
-            reason = None
+            cooling = None
             if self.provider:
-                cooling = self.cache.get(COOLDOWN_KEY.format(provider=self.provider.name))
-                if isinstance(cooling, dict):
-                    reason = cooling.get("reason")
-            self._cooldown_cache = reason
-        return self._cooldown_cache
+                stored = self.cache.get(COOLDOWN_KEY.format(provider=self.provider.name))
+                if isinstance(stored, dict):
+                    cooling = stored
+            self._cooldown_cache = cooling
+        cached = self._cooldown_cache
+        return cached.get("reason") if isinstance(cached, dict) else None
+
+    def _cooldown_until(self) -> Optional[str]:
+        """When the pause `_cooldown_reason` reports ends (ISO 8601), or None: not paused, or a pause
+        written before the end was recorded, whose key still expires on its own."""
+        self._cooldown_reason()
+        cached = self._cooldown_cache
+        return cached.get("until") if isinstance(cached, dict) else None
 
     def freshness(self, record: Optional[ProviderForecastRecord], match: Match) -> Dict[str, Any]:
         """Never present an old forecast as current: report stale/kickoff_passed explicitly.

@@ -45,7 +45,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
 from app.core.config import settings
-from app.services.forecast_service import ForecastService
+from app.services.forecast_service import (
+    PASS_COMPLETED as FORECAST_PASS_COMPLETED, PASS_DEFERRED as FORECAST_PASS_DEFERRED,
+    PASS_FAILED as FORECAST_PASS_FAILED, PASS_PARTIAL as FORECAST_PASS_PARTIAL, ForecastService,
+)
 from app.services.match_cache import MatchCache
 from app.services.match_data_service import (
     CALL_CACHE, CALL_DEFERRED, CALL_FAILED, CALL_FRESH, CALL_STALE, COVERAGE_CALENDAR_KEY,
@@ -93,6 +96,28 @@ LOCK_TTL_SECONDS = 15 * 60
 #: A failing task never retries sooner than this, whatever its normal interval is.
 BACKOFF_MIN_SECONDS = 300
 BACKOFF_MAX_SECONDS = 6 * 3600
+#: A forecasts pass that stopped for a reason of COORDINATION rather than of the provider - its sync
+#: lease lost mid-pass, or found held by another worker when the pass came due - is retried on a
+#: short, bounded schedule instead of being backed off like a failure. On 2026-10-24 the lease was
+#: lost after one of five competitions (the Redis server's clock, in Docker Desktop's VM, had stood
+#: still through two host sleeps and was stepped forward by more than the lease's term some seconds
+#: after the wake), the pass was recorded as a failure, and the ordinary backoff - the task's own
+#: six-hour interval - left the other four competitions unfetched until 18:10 UTC: eleven fixtures
+#: kicked off in the gap on the previous day's forecasts, with the allowance at 5 of 8. Nothing a
+#: retry could buy twice was at stake: the daily-slot policy keeps the slot of every competition the
+#: interrupted pass did fetch, so a retry buys only what is still owed.
+#:
+#: The first wait is one lease term, because by then a lease nobody renews has lapsed; each further
+#: wait doubles; after FORECASTS_RECOVERY_MAX_RETRIES in one episode the ordinary backoff applies. A
+#: retry that finds the provider paused waits for the pause instead (`paused_until`); one that finds
+#: the allowance spent is skipped exactly as any pass is. A provider's failure is not an
+#: interruption and keeps its backoff: a retry after one is a request nobody asked for, and it may
+#: fail again. The episode lives in the task's state in Redis, so a restart neither resets its
+#: count nor repeats finished work.
+FORECASTS_RECOVERY_RETRY_SECONDS = 300
+FORECASTS_RECOVERY_MAX_RETRIES = 3
+FORECAST_PASS_OUTCOMES: FrozenSet[str] = frozenset({FORECAST_PASS_COMPLETED, FORECAST_PASS_PARTIAL,
+                                                     FORECAST_PASS_DEFERRED, FORECAST_PASS_FAILED})
 
 #: Keep the stored summary small: it is read by the status endpoint on every call.
 MAX_STORED_ERRORS = 10
@@ -182,6 +207,23 @@ PASS_FAILING_OUTCOMES: FrozenSet[str] = frozenset({CALL_FAILED, CALL_STALE, CALL
 #: (`by_outcome` says which ended how), `skipped` when there was no call to judge.
 PASS_PARTIAL = "partial"
 PASS_SKIPPED = "skipped"
+
+
+def forecast_pass_outcome(result: Optional[Dict[str, Any]], ok: bool) -> str:
+    """How a forecasts pass ended: as its own report says (`ForecastService` states `outcome`), or,
+    for a report that does not, from the verdict and the lease flags it has always carried."""
+    if isinstance(result, dict):
+        said = result.get("outcome")
+        if said in FORECAST_PASS_OUTCOMES:
+            return said
+        if ok:
+            return FORECAST_PASS_COMPLETED
+        if result.get("lease_lost"):
+            return FORECAST_PASS_PARTIAL
+        if result.get("lease_held"):
+            return FORECAST_PASS_DEFERRED
+        return FORECAST_PASS_FAILED
+    return FORECAST_PASS_COMPLETED if ok else FORECAST_PASS_FAILED
 
 
 def _pass_outcome(calls: Dict[str, Dict[str, Any]]) -> str:
@@ -386,6 +428,18 @@ class SyncScheduler:
         # because the provider charged those all the same.
         state["last_requests_sent"] = dict(sent or {})
         state["last_skip_reason"] = None
+        if name == TASK_FORECASTS:
+            # An interrupted forecasts pass is retried soon and within bounds (see
+            # FORECASTS_RECOVERY_RETRY_SECONDS); a completed or failed one ends any such episode.
+            kind = forecast_pass_outcome(result, ok)
+            state["last_outcome"] = kind
+            if kind in (FORECAST_PASS_PARTIAL, FORECAST_PASS_DEFERRED) and \
+                    self._schedule_forecast_retry(state, result, kind, now, error):
+                self._save_state(name, state)
+                return state
+            episode = state.pop("recovery", None)
+            if isinstance(episode, dict):
+                state["last_recovery"] = {**episode, "ended": kind, "ended_at": now.isoformat()}
         if ok:
             state["last_success_at"] = now.isoformat()
             state["consecutive_failures"] = 0
@@ -424,6 +478,48 @@ class SyncScheduler:
                                        _next_budget_reset(now)).isoformat()
         self._save_state(name, state)
         return state
+
+    def _schedule_forecast_retry(self, state: Dict[str, Any], result: Optional[Dict[str, Any]], kind: str,
+                                 now: datetime, error: Optional[str]) -> bool:
+        """Put the next forecasts pass on the recovery schedule, or say no: the ordinary wait applies.
+
+        An episode is one UTC day's run of retries after an interruption. It starts when a pass is
+        interrupted (`partial`) or finds the lease held by another worker (`deferred`), and only
+        then: a pause or a spent allowance met with no episode open keeps the wait it always had.
+        Each pass inside the episode, whatever it meets, counts as an attempt; a pass that finds the
+        provider paused waits for the pause to end and no less than its scheduled delay. Past
+        FORECASTS_RECOVERY_MAX_RETRIES the episode is marked spent and the caller backs off.
+        """
+        result = result if isinstance(result, dict) else {}
+        today = now.date().isoformat()
+        episode = state.get("recovery")
+        active = isinstance(episode, dict) and episode.get("day") == today
+        if not active:
+            if kind == FORECAST_PASS_DEFERRED and not result.get("lease_held"):
+                return False
+            episode = {"day": today, "started_at": now.isoformat(), "attempts": 0}
+        attempts = int(episode.get("attempts") or 0)
+        if attempts >= FORECASTS_RECOVERY_MAX_RETRIES:
+            episode["exhausted_at"] = now.isoformat()
+            state["recovery"] = episode
+            return False
+        due = now + timedelta(seconds=FORECASTS_RECOVERY_RETRY_SECONDS * (2 ** attempts))
+        paused_until = _parse(result.get("paused_until"))
+        if paused_until is not None and paused_until > due:
+            due = paused_until
+        # Never past the next budget reset, like every other wait here.
+        due = min(due, _next_budget_reset(now))
+        episode.update({"attempts": attempts + 1, "reason": kind,
+                        "detail": str(error or "")[:MAX_ERROR_CHARS],
+                        "unfinished": result.get("unfinished"), "retry_at": due.isoformat()})
+        state["recovery"] = episode
+        state["failures"] = int(state.get("failures") or 0) + 1
+        state["last_error_at"] = now.isoformat()
+        state["last_error"] = str(error or "the pass was interrupted")[:MAX_ERROR_CHARS]
+        # Not a failure streak: the provider did nothing, so the exponential backoff stays untouched.
+        state["backoff_seconds"] = None
+        state["next_due_at"] = due.isoformat()
+        return True
 
     def _record_skip(self, name: str, reason: str, advance: bool) -> None:
         now = self.now
@@ -1089,6 +1185,10 @@ class SyncScheduler:
             if not ok:
                 outcome["error"] = state.get("last_error")
                 outcome["consecutive_failures"] = state.get("consecutive_failures")
+            if name == TASK_FORECASTS:
+                outcome["outcome"] = state.get("last_outcome")
+                if state.get("recovery"):
+                    outcome["recovery"] = state["recovery"]
             return outcome
         finally:
             self._release_lock(name)
@@ -1480,6 +1580,12 @@ class SyncScheduler:
                 "next_due_at": state.get("next_due_at"),
                 "due_now": is_due,
                 "reason_not_due": why,
+                # The forecasts task only: how its last pass ended (completed, partial, deferred or
+                # failed), the recovery episode an interrupted pass opened while it is open, and
+                # the last one that closed. None for the other tasks.
+                "last_outcome": state.get("last_outcome"),
+                "recovery": state.get("recovery"),
+                "last_recovery": state.get("last_recovery"),
                 # Per provider, what the last pass that ran was granted. None for a task whose last
                 # pass was recorded before this was kept.
                 "last_requests_sent": state.get("last_requests_sent"),
