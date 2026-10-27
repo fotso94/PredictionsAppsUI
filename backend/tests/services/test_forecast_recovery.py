@@ -217,7 +217,12 @@ def test_an_interrupted_pass_is_retried_within_fifteen_minutes_and_finishes_what
         "each forecast received before its first kick-off of the day")
     state = scheduler.state(TASK_FORECASTS)
     assert state["consecutive_failures"] == 0 and state["backoff_seconds"] is None
-    assert next_due(scheduler) == clock.now + timedelta(seconds=scheduler.interval(TASK_FORECASTS))
+    # The ordinary cadence resumes on its own grid: the first slot at least an hour after a pass
+    # that spent requests, 18:12 - not six hours after the retry's completion, which is what
+    # drifted live's passes by hours after every host sleep (tests/services/test_forecast_cadence.py),
+    # and not the 12:12 slot minutes away, which could only re-check what was just fetched.
+    assert next_due(scheduler) == START.replace(hour=18, minute=12, second=0)
+    assert next_due(scheduler) < clock.now + timedelta(seconds=scheduler.interval(TASK_FORECASTS))
 
 
 def test_repeated_interruptions_are_retried_on_a_bounded_schedule_and_then_backed_off(clock, redis, redis_clock):
@@ -326,7 +331,7 @@ def test_a_restart_between_the_interruption_and_the_retry_keeps_the_schedule_and
     done = run(after)
     assert done["ok"] is True
     assert h.calls() == KEYS and h.budget.used_today() == 5, "the finished slot was not repeated after the restart"
-    assert next_due(after) == clock.now + timedelta(seconds=after.interval(TASK_FORECASTS))
+    assert next_due(after) == START.replace(hour=18, minute=12, second=0), "the grid, not six hours after the retry"
 
 
 def test_a_late_answer_from_the_previous_owner_cannot_overwrite_what_the_retry_fetched(clock, redis, redis_clock):
@@ -570,7 +575,10 @@ def test_a_recovery_retry_leaves_an_older_model_re_check_to_the_ordinary_pass(cl
     assert "serie_a" in retry["result"].get("recheck_skipped", {})
 
     later = next_due(scheduler)
-    assert later == clock.now + timedelta(seconds=scheduler.interval(TASK_FORECASTS))     # 18:05
+    # The ordinary slot after a pass that spent requests is the first one at least an hour after it
+    # ended: 18:12 on the grid, not the 12:12 slot seven minutes away, which could only have spent
+    # Serie A's one re-check of the day on a run that had not changed.
+    assert later == START.replace(hour=18, minute=12, second=0)                             # 18:12
     advance(clock, redis_clock, later)
     ordinary = run(scheduler)
     assert ordinary["ok"] is True and h.calls() == ["serie_a", "bundesliga", "serie_a", "bundesliga"]
@@ -602,9 +610,14 @@ def test_an_interruption_just_before_midnight_still_waits_the_recovery_minimum(c
     assert all("publication hour" in why for why in retry["result"]["plan"]["ineligible"].values())
     assert "recovery" not in scheduler.state(TASK_FORECASTS)
 
-    advance(clock, redis_clock, next_due(scheduler))                        # 06:04: still before the hour
+    # The ordinary grid resumes. The episode spent a request, so the slot twelve minutes after the
+    # retry (00:12) is skipped for the first one at least an hour away: 06:12, before the hour,
+    # buys nothing; 12:12 buys the new day.
+    advance(clock, redis_clock, next_due(scheduler))                        # 06:12: still before the hour
+    assert clock.now == late.replace(hour=6, minute=12) + timedelta(days=1)
     assert run(scheduler)["ok"] is True and h.calls() == ["serie_a"]
-    advance(clock, redis_clock, next_due(scheduler))                        # 12:04: the new day's pass
+    advance(clock, redis_clock, next_due(scheduler))                        # 12:12: the new day's pass
+    assert clock.now == late.replace(hour=12, minute=12) + timedelta(days=1)
     assert run(scheduler)["ok"] is True and h.calls() == ["serie_a"] + KEYS, "the new day's slots, bought at the ordinary hour"
 
 

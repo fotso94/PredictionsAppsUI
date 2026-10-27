@@ -257,6 +257,12 @@ def forecast_replay(policy: str, scenario: Scenario) -> ForecastReplay:
     settings.GAMEFORECAST_SYNC_INTERVAL_HOURS = 22
     settings.SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR = 12
     settings.GAMEFORECAST_DAILY_REQUEST_BUDGET = CEILING
+    # The two policies are compared under the cadence they were compared under in October 2026: six
+    # hours from each pass's completion. The anchored grid that replaced it on live's scheduler
+    # (SYNC_FORECASTS_SLOT_ANCHOR_UTC) is a property of the scheduler, not of either policy, and has
+    # its own tests (tests/services/test_forecast_cadence.py); under it the elapsed-interval rule's
+    # 39.9-hour gap below would not occur, which says nothing about the rule.
+    settings.SYNC_FORECASTS_SLOT_ANCHOR_UTC = ""
     clock = Clock()
     redis = LockingFakeRedis(clock=clock)
     cache = MatchCache(client=redis)

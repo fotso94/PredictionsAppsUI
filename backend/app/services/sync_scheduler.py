@@ -39,9 +39,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
 from app.core.config import settings
@@ -123,6 +124,13 @@ BACKOFF_MAX_SECONDS = 6 * 3600
 #: repeats finished work.
 FORECASTS_RECOVERY_RETRY_SECONDS = 300
 FORECASTS_RECOVERY_MAX_RETRIES = 3
+#: A pass that SPENT requests is followed by the first ordinary slot at least this long after it
+#: ended, not by a slot minutes away: the only thing such a slot could do is re-check the fetch
+#: just made, and the policy allows one re-check a day per competition - spent on the same answer,
+#: it is gone, and the day's run is missed when it is published an hour later. A pass that spent
+#: nothing (before the publication hour; every slot already served) is followed by the first slot
+#: after it BEGAN, so a slot it crossed is run at once, exactly once.
+FORECASTS_SLOT_SPACING_SECONDS = 3600
 FORECAST_PASS_OUTCOMES: FrozenSet[str] = frozenset({FORECAST_PASS_COMPLETED, FORECAST_PASS_PARTIAL,
                                                      FORECAST_PASS_DEFERRED, FORECAST_PASS_FAILED})
 
@@ -178,6 +186,36 @@ def _parse(value: Optional[str]) -> Optional[datetime]:
 
 def _clip(errors: Sequence[str]) -> List[str]:
     return [str(e)[:MAX_ERROR_CHARS] for e in list(errors)[:MAX_STORED_ERRORS]]
+
+
+def parse_slot_anchor(value: Any) -> Optional[time]:
+    """"HH:MM" (UTC) as a time, or None for anything else: the grid is then undefined and the task
+    waits its interval from completion, as it always did."""
+    text = str(value or "").strip()
+    match = re.fullmatch(r"(\d{1,2}):(\d{2})", text)
+    if not match:
+        return None
+    hour, minute = int(match.group(1)), int(match.group(2))
+    if hour > 23 or minute > 59:
+        return None
+    return time(hour=hour, minute=minute)
+
+
+def forecast_slot_after(instant: datetime, anchor: Optional[time], interval_seconds: int) -> Optional[datetime]:
+    """The first ordinary forecasts slot strictly after `instant`, on the grid `anchor` + k * interval.
+
+    The grid repeats daily only when the interval divides a day (6 h does; 7 h would not), so any
+    other interval has no grid and the caller falls back to counting from completion. Strictly after:
+    a pass that started exactly on its slot is followed by the next one, never by itself.
+    """
+    if anchor is None or interval_seconds <= 0 or 86400 % interval_seconds:
+        return None
+    instant = instant.astimezone(timezone.utc) if instant.tzinfo else instant.replace(tzinfo=timezone.utc)
+    step = timedelta(seconds=interval_seconds)
+    slot = datetime.combine(instant.date() - timedelta(days=1), anchor, tzinfo=timezone.utc)
+    while slot <= instant:
+        slot += step
+    return slot
 
 
 def _next_budget_reset(now: datetime) -> datetime:
@@ -422,11 +460,35 @@ class SyncScheduler:
         base = max(self.interval(name), BACKOFF_MIN_SECONDS)
         return int(min(base * (2 ** max(consecutive_failures - 1, 0)), BACKOFF_MAX_SECONDS))
 
+    def slot_anchor(self, name: str) -> Optional[time]:
+        """The wall-clock anchor of this task's ordinary grid, or None: only the forecasts task has one."""
+        if name != TASK_FORECASTS:
+            return None
+        return parse_slot_anchor(settings.SYNC_FORECASTS_SLOT_ANCHOR_UTC)
+
+    def _ordinary_due(self, name: str, after: datetime, spent: bool = False) -> datetime:
+        """When the next ORDINARY pass is due, once a pass that began at `after` has ended.
+
+        The forecasts task is anchored: the first grid slot after the pass began, or - when the
+        pass spent requests - the first slot no sooner than FORECASTS_SLOT_SPACING_SECONDS after it
+        ended. A pass that ran late keeps the grid where it was, so a sleep across any number of
+        slots costs one catch-up pass (the one that was due when the host went to sleep) and the
+        slots after it stand; a pass that spent nothing and was long enough to cross the next slot
+        is followed by that slot at once, exactly once. Every other task, and the forecasts task
+        without a grid, waits its interval from now.
+        """
+        floor = max(after, self.now + timedelta(seconds=FORECASTS_SLOT_SPACING_SECONDS)) if spent else after
+        slot = forecast_slot_after(floor, self.slot_anchor(name), self.interval(name))
+        return slot if slot is not None else self.now + timedelta(seconds=self.interval(name))
+
     def _record(self, name: str, *, result: Optional[Dict[str, Any]], ok: bool,
                 error: Optional[str], started: datetime,
                 sent: Optional[Dict[str, int]] = None) -> Dict[str, Any]:
         now = self.now
         state = self.state(name)
+        # What the pass before this one sent: a recovery pass that closes an episode inherits the
+        # interrupted pass's spending when it decides how soon the next ordinary slot may come.
+        previous_sent = dict(state.get("last_requests_sent") or {})
         state["last_run_at"] = now.isoformat()
         state["last_duration_ms"] = int(max((now - started).total_seconds(), 0) * 1000)
         state["runs"] = int(state.get("runs") or 0) + 1
@@ -434,7 +496,12 @@ class SyncScheduler:
         # Per provider, every request this pass was granted - including by a pass that then raised,
         # because the provider charged those all the same.
         state["last_requests_sent"] = dict(sent or {})
+        spent = any(int(v or 0) > 0 for v in (sent or {}).values())
         state["last_skip_reason"] = None
+        # The ordinary grid counts from when this pass began. A recovery pass that closes an episode
+        # counts from the interrupted pass instead: the retries were never slots, and the slot the
+        # interruption fell in is still the one that is owed.
+        anchor_from = started
         if name == TASK_FORECASTS:
             # An interrupted forecasts pass is retried soon and within bounds (see
             # FORECASTS_RECOVERY_RETRY_SECONDS); a completed or failed one ends any such episode.
@@ -447,12 +514,14 @@ class SyncScheduler:
             episode = state.pop("recovery", None)
             if isinstance(episode, dict):
                 state["last_recovery"] = {**episode, "ended": kind, "ended_at": now.isoformat()}
+                anchor_from = _parse(episode.get("started_at")) or started
+                spent = spent or any(int(v or 0) > 0 for v in previous_sent.values())
         if ok:
             state["last_success_at"] = now.isoformat()
             state["consecutive_failures"] = 0
             state["last_error"] = None
             state["backoff_seconds"] = None
-            state["next_due_at"] = (now + timedelta(seconds=self.interval(name))).isoformat()
+            state["next_due_at"] = self._ordinary_due(name, anchor_from, spent=spent).isoformat()
         else:
             failures = int(state.get("consecutive_failures") or 0) + 1
             state["failures"] = int(state.get("failures") or 0) + 1
@@ -545,9 +614,12 @@ class SyncScheduler:
         if advance:
             # Re-asking every minute is free but pointless, and it floods the log. Wait a normal
             # interval - but never past the next budget reset: a task blocked late in the evening
-            # should resume when the allowance comes back, not hours into the new day.
-            state["next_due_at"] = min(now + timedelta(seconds=self.interval(name)),
-                                       _next_budget_reset(now)).isoformat()
+            # should resume when the allowance comes back, not hours into the new day. The forecasts
+            # task waits for its next slot instead, which is at most its interval away and, at
+            # 12 minutes past the reset, as good as the reset for a task the allowance blocked.
+            slot = forecast_slot_after(now, self.slot_anchor(name), self.interval(name))
+            state["next_due_at"] = (slot if slot is not None else
+                                    min(now + timedelta(seconds=self.interval(name)), _next_budget_reset(now))).isoformat()
         self._save_state(name, state)
 
     # ------------------------------------------------------------------ locking

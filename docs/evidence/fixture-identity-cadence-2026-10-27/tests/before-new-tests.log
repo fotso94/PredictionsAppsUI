@@ -1,0 +1,829 @@
+# 2026-10-27T22:32:58Z in /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-45c8b0cf/backend at 45c8b0cf (); dirty files: 2
+# python 3.11.9; pytest args: tests/services/test_forecast_cadence.py tests/services/test_superseded_listings.py -q -rfs
+ss.FFFFFFFFFFFFFF..FFFFsFFFF..FF.FF.FF.FF.EEEEEEEEEE                     [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_the_repair_finds_the_split_and_plans_every_reference __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d5f1690>
+
+    @pytest.fixture
+    def as_the_previous_code(monkeypatch):
+        """Store the re-issue the way the previous registry did: never a join, always a new row."""
+>       monkeypatch.setattr(MatchRegistry, "superseded_listing_for", lambda self, *a, **k: (None, []))
+E       AttributeError: <class 'app.services.match_registry.MatchRegistry'> has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:497: AttributeError
+______________ ERROR at setup of test_the_dry_run_changes_nothing ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d8e7050>
+
+    @pytest.fixture
+    def as_the_previous_code(monkeypatch):
+        """Store the re-issue the way the previous registry did: never a join, always a new row."""
+>       monkeypatch.setattr(MatchRegistry, "superseded_listing_for", lambda self, *a, **k: (None, []))
+E       AttributeError: <class 'app.services.match_registry.MatchRegistry'> has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:497: AttributeError
+_ ERROR at setup of test_the_repair_folds_the_dropped_listing_into_its_successor _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d901510>
+
+    @pytest.fixture
+    def as_the_previous_code(monkeypatch):
+        """Store the re-issue the way the previous registry did: never a join, always a new row."""
+>       monkeypatch.setattr(MatchRegistry, "superseded_listing_for", lambda self, *a, **k: (None, []))
+E       AttributeError: <class 'app.services.match_registry.MatchRegistry'> has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:497: AttributeError
+_________ ERROR at setup of test_a_second_application_changes_nothing __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d0efd90>
+
+    @pytest.fixture
+    def as_the_previous_code(monkeypatch):
+        """Store the re-issue the way the previous registry did: never a join, always a new row."""
+>       monkeypatch.setattr(MatchRegistry, "superseded_listing_for", lambda self, *a, **k: (None, []))
+E       AttributeError: <class 'app.services.match_registry.MatchRegistry'> has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:497: AttributeError
+____________ ERROR at setup of test_the_repair_touches_no_other_row ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d1a9590>
+
+    @pytest.fixture
+    def as_the_previous_code(monkeypatch):
+        """Store the re-issue the way the previous registry did: never a join, always a new row."""
+>       monkeypatch.setattr(MatchRegistry, "superseded_listing_for", lambda self, *a, **k: (None, []))
+E       AttributeError: <class 'app.services.match_registry.MatchRegistry'> has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:497: AttributeError
+___ ERROR at setup of test_the_repair_does_not_see_a_played_dropped_listing ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d8b34d0>
+
+    @pytest.fixture
+    def as_the_previous_code(monkeypatch):
+        """Store the re-issue the way the previous registry did: never a join, always a new row."""
+>       monkeypatch.setattr(MatchRegistry, "superseded_listing_for", lambda self, *a, **k: (None, []))
+E       AttributeError: <class 'app.services.match_registry.MatchRegistry'> has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:497: AttributeError
+_______ ERROR at setup of test_the_repair_refuses_when_the_rounds_differ _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d5dcd10>
+
+    @pytest.fixture
+    def as_the_previous_code(monkeypatch):
+        """Store the re-issue the way the previous registry did: never a join, always a new row."""
+>       monkeypatch.setattr(MatchRegistry, "superseded_listing_for", lambda self, *a, **k: (None, []))
+E       AttributeError: <class 'app.services.match_registry.MatchRegistry'> has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:497: AttributeError
+____ ERROR at setup of test_the_repair_refuses_a_current_forecast_collision ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d5dead0>
+
+    @pytest.fixture
+    def as_the_previous_code(monkeypatch):
+        """Store the re-issue the way the previous registry did: never a join, always a new row."""
+>       monkeypatch.setattr(MatchRegistry, "superseded_listing_for", lambda self, *a, **k: (None, []))
+E       AttributeError: <class 'app.services.match_registry.MatchRegistry'> has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:497: AttributeError
+__ ERROR at setup of test_the_repair_reports_a_non_league_pair_and_refuses_it __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d3db6d0>
+
+    @pytest.fixture
+    def as_the_previous_code(monkeypatch):
+        """Store the re-issue the way the previous registry did: never a join, always a new row."""
+>       monkeypatch.setattr(MatchRegistry, "superseded_listing_for", lambda self, *a, **k: (None, []))
+E       AttributeError: <class 'app.services.match_registry.MatchRegistry'> has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:497: AttributeError
+___________ ERROR at setup of test_the_repair_refuses_two_successors ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d3667d0>
+
+    @pytest.fixture
+    def as_the_previous_code(monkeypatch):
+        """Store the re-issue the way the previous registry did: never a join, always a new row."""
+>       monkeypatch.setattr(MatchRegistry, "superseded_listing_for", lambda self, *a, **k: (None, []))
+E       AttributeError: <class 'app.services.match_registry.MatchRegistry'> has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:497: AttributeError
+=================================== FAILURES ===================================
+____ test_a_late_pass_is_followed_by_the_grid_not_by_six_hours_after_itself ____
+
+cache = <app.services.match_cache.MatchCache object at 0x10d493a50>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d490250>
+
+    def test_a_late_pass_is_followed_by_the_grid_not_by_six_hours_after_itself(cache, clock):
+        """The 10-26 incident: the 18:14 pass ran at the wake, 20:51, and the next one at 02:51."""
+        scheduler = build(cache, clock)
+        run(scheduler)                                           # 12:12, on its slot
+        clock.now = DAY.replace(hour=20, minute=51, second=7)    # the host slept across 18:12 and woke here
+        late = run(scheduler)
+        assert late["ran"] is True
+>       assert next_due(scheduler) == MIDNIGHT, (
+            f"next due {next_due(scheduler)}; the previous implementation scheduled "
+            f"{clock.now + timedelta(seconds=INTERVAL)}, six hours after the delayed completion")
+E       AssertionError: next due 2026-10-27 02:51:07+00:00; the previous implementation scheduled 2026-10-27 02:51:07+00:00, six hours after the delayed completion
+E       assert datetime.datetime(2026, 10, 27, 2, 51, 7, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 27, 0, 12, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 27, 2, 51, 7, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10d493dd0>)
+
+tests/services/test_forecast_cadence.py:167: AssertionError
+___________ test_a_sleep_across_one_slot_costs_exactly_one_catch_up ____________
+
+cache = <app.services.match_cache.MatchCache object at 0x10d0f0e90>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d0f3450>
+
+    def test_a_sleep_across_one_slot_costs_exactly_one_catch_up(cache, clock):
+        scheduler = build(cache, clock)
+        run(scheduler)
+        clock.now = DAY.replace(hour=20, minute=30)
+        assert run(scheduler)["ran"] is True, "the pass due at 18:12 runs once at the wake"
+        clock.now = DAY.replace(hour=20, minute=31)
+        assert run(scheduler)["ran"] is False, "and only once"
+        clock.now = MIDNIGHT - timedelta(seconds=1)
+        assert run(scheduler)["ran"] is False
+        clock.now = MIDNIGHT
+>       assert run(scheduler)["ran"] is True
+E       assert False is True
+
+tests/services/test_forecast_cadence.py:182: AssertionError
+_________ test_a_sleep_across_several_slots_costs_exactly_one_catch_up _________
+
+cache = <app.services.match_cache.MatchCache object at 0x10d62b090>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d629910>
+
+    def test_a_sleep_across_several_slots_costs_exactly_one_catch_up(cache, clock):
+        """Asleep from 12:13 on the 26th to 08:00 on the 27th: 18:12, 00:12 and 06:12 missed, one pass runs."""
+        forecast = RecordingForecastService(clock, completed())
+        scheduler = build(cache, clock, forecast)
+        run(scheduler)
+        clock.now = DAY + timedelta(days=1, hours=8)
+        assert run(scheduler)["ran"] is True
+        assert run(scheduler)["ran"] is False, "the missed slots are not replayed"
+        assert forecast.calls == 2
+>       assert next_due(scheduler) == NOON + timedelta(days=1), "the day's first post-noon slot is where it always was"
+E       AssertionError: the day's first post-noon slot is where it always was
+E       assert datetime.datetime(2026, 10, 27, 14, 0, tzinfo=datetime.timezone.utc) == (datetime.datetime(2026, 10, 26, 12, 12, tzinfo=datetime.timezone.utc) + datetime.timedelta(days=1))
+E        +  where datetime.datetime(2026, 10, 27, 14, 0, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10d628f10>)
+E        +  and   datetime.timedelta(days=1) = timedelta(days=1)
+
+tests/services/test_forecast_cadence.py:194: AssertionError
+_________________ test_waking_before_noon_keeps_the_noon_slot __________________
+
+cache = <app.services.match_cache.MatchCache object at 0x10d628e10>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d629010>
+
+    def test_waking_before_noon_keeps_the_noon_slot(cache, clock):
+        scheduler = build(cache, clock)
+        run(scheduler)
+        clock.now = DAY + timedelta(days=1, hours=11, minutes=50)
+        assert run(scheduler)["ran"] is True                      # the catch-up, before the gate
+        clock.now = DAY + timedelta(days=1, hours=12, minutes=12)
+>       assert run(scheduler)["ran"] is True, "noon is still noon"
+E       AssertionError: noon is still noon
+E       assert False is True
+
+tests/services/test_forecast_cadence.py:203: AssertionError
+______ test_waking_after_noon_runs_the_catch_up_and_then_the_evening_slot ______
+
+cache = <app.services.match_cache.MatchCache object at 0x10d62ac90>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d62ae90>
+
+    def test_waking_after_noon_runs_the_catch_up_and_then_the_evening_slot(cache, clock):
+        scheduler = build(cache, clock)
+        run(scheduler)
+        clock.now = DAY + timedelta(days=1, hours=15, minutes=18)
+        assert run(scheduler)["ran"] is True
+>       assert next_due(scheduler) == EVENING + timedelta(days=1)
+E       assert datetime.datetime(2026, 10, 27, 21, 18, tzinfo=datetime.timezone.utc) == (datetime.datetime(2026, 10, 26, 18, 12, tzinfo=datetime.timezone.utc) + datetime.timedelta(days=1))
+E        +  where datetime.datetime(2026, 10, 27, 21, 18, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10d62afd0>)
+E        +  and   datetime.timedelta(days=1) = timedelta(days=1)
+
+tests/services/test_forecast_cadence.py:211: AssertionError
+______________________ test_the_grid_crosses_utc_midnight ______________________
+
+cache = <app.services.match_cache.MatchCache object at 0x10d63f050>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d63de50>
+
+    def test_the_grid_crosses_utc_midnight(cache, clock):
+        scheduler = build(cache, clock)
+        clock.now = DAY.replace(hour=23, minute=50)
+        run(scheduler)
+>       assert next_due(scheduler) == MIDNIGHT
+E       assert datetime.datetime(2026, 10, 27, 5, 50, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 27, 0, 12, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 27, 5, 50, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10d63f510>)
+
+tests/services/test_forecast_cadence.py:218: AssertionError
+______________ test_a_restart_after_a_delayed_pass_keeps_the_grid ______________
+
+cache = <app.services.match_cache.MatchCache object at 0x10d59ce50>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d59ca50>
+
+    def test_a_restart_after_a_delayed_pass_keeps_the_grid(cache, clock):
+        scheduler = build(cache, clock)
+        clock.now = DAY.replace(hour=15, minute=18)
+        run(scheduler)
+        restarted = build(cache, clock)                           # a fresh scheduler over the same store
+        clock.now = DAY.replace(hour=17)
+        assert restarted.due(TASK_FORECASTS)[0] is False
+        clock.now = EVENING
+>       assert restarted.due(TASK_FORECASTS)[0] is True
+E       assert False is True
+
+tests/services/test_forecast_cadence.py:232: AssertionError
+______ test_a_long_pass_that_crosses_a_slot_is_followed_by_that_slot_once ______
+
+cache = <app.services.match_cache.MatchCache object at 0x10d59f950>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d59d550>
+
+    def test_a_long_pass_that_crosses_a_slot_is_followed_by_that_slot_once(cache, clock):
+        """Began at 11:50, took forty minutes: the 12:12 slot it crossed is due at once, then 18:12."""
+        forecast = RecordingForecastService(clock, completed(), takes=40 * 60)
+        scheduler = build(cache, clock, forecast)
+        clock.now = DAY.replace(hour=11, minute=50)
+        run(scheduler)
+        assert clock.now == DAY.replace(hour=12, minute=30)
+>       assert next_due(scheduler) == NOON and scheduler.due(TASK_FORECASTS)[0] is True
+E       assert (datetime.datetime(2026, 10, 26, 18, 30, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 26, 12, 12, tzinfo=datetime.timezone.utc))
+E        +  where datetime.datetime(2026, 10, 26, 18, 30, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10d59e150>)
+
+tests/services/test_forecast_cadence.py:243: AssertionError
+___________ test_a_catch_up_before_the_publication_hour_buys_nothing ___________
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d63ef50>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10d63fa90>
+
+    def test_a_catch_up_before_the_publication_hour_buys_nothing(clock, redis):
+        """The policy decides what a pass buys; a catch-up at 08:00 is before the gate and fetches nothing."""
+        h = Harness(clock, redis, keys=POLICY_KEYS)
+        scheduler = scheduler_over(h, clock)
+        clock.now = DAY.replace(hour=8)                           # as if the 00:12 and 06:12 slots were slept through
+        report = run(scheduler)
+        assert report["ran"] is True and report["ok"] is True
+        assert h.calls() == [] and h.budget.used_today() == 0
+        assert all("before the observed publication hour" in why
+                   for why in report["result"]["plan"]["ineligible"].values())
+>       assert next_due(scheduler) == NOON
+E       assert datetime.datetime(2026, 10, 26, 14, 0, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 26, 12, 12, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 26, 14, 0, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10cc62a10>)
+
+tests/services/test_forecast_cadence.py:261: AssertionError
+________ test_already_served_competitions_are_ineligible_on_a_catch_up _________
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d50b8d0>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10d50a5d0>
+
+    def test_already_served_competitions_are_ineligible_on_a_catch_up(clock, redis):
+        h = Harness(clock, redis, keys=POLICY_KEYS)
+        scheduler = scheduler_over(h, clock)
+        run(scheduler)                                            # 12:12: every slot same-day-run
+        assert sorted(h.calls()) == sorted(POLICY_KEYS)
+        clock.now = DAY.replace(hour=20, minute=51)               # slept across 18:12
+        report = run(scheduler)
+        assert report["ran"] is True
+        assert sorted(h.calls()) == sorted(POLICY_KEYS) and h.budget.used_today() == len(POLICY_KEYS), "nothing bought twice"
+        policy = h.new_service().policy
+        assert all(policy.slot(key)["outcome"] == OUTCOME_SAME_DAY_RUN for key in POLICY_KEYS)
+>       assert next_due(scheduler) == MIDNIGHT
+E       assert datetime.datetime(2026, 10, 27, 2, 51, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 27, 0, 12, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 27, 2, 51, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10cda7c90>)
+
+tests/services/test_forecast_cadence.py:279: AssertionError
+_____ test_a_spent_allowance_waits_for_the_next_slot_and_is_not_a_refresh ______
+
+cache = <app.services.match_cache.MatchCache object at 0x10d3c5750>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d3c5a90>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10d3c69d0>
+
+    def test_a_spent_allowance_waits_for_the_next_slot_and_is_not_a_refresh(cache, clock, redis):
+        budget = RequestBudget("stub-forecast", daily_limit=8, client=redis, now=clock)
+        redis.store[budget_key("stub-forecast", clock.now)] = 8
+        forecast = RecordingForecastService(clock, completed())
+        forecast.provider = MagicMock(budget=budget)
+        scheduler = build(cache, clock, forecast)
+        clock.now = DAY.replace(hour=15, minute=18)
+        report = run(scheduler)
+        assert report["ran"] is False and report["skipped"] == "budget_spent" and forecast.calls == 0
+        state = scheduler.state(TASK_FORECASTS)
+        assert state.get("last_success_at") is None and state.get("last_run_at") is None
+>       assert next_due(scheduler) == EVENING, "the next slot, not six hours after the skip"
+E       AssertionError: the next slot, not six hours after the skip
+E       assert datetime.datetime(2026, 10, 26, 21, 18, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 26, 18, 12, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 26, 21, 18, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10b3c6990>)
+
+tests/services/test_forecast_cadence.py:293: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 18:32:59 - app.services.sync_scheduler - INFO - Sync task forecasts skipped: daily request budget is spent for stub-forecast (8/8 used; 0 held back for page loads)
+------------------------------ Captured log call -------------------------------
+INFO     app.services.sync_scheduler:sync_scheduler.py:1179 Sync task forecasts skipped: daily request budget is spent for stub-forecast (8/8 used; 0 held back for page loads)
+__________ test_a_failed_pass_keeps_its_backoff_and_is_not_a_refresh ___________
+
+cache = <app.services.match_cache.MatchCache object at 0x10d71fe10>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d71cad0>
+
+    def test_a_failed_pass_keeps_its_backoff_and_is_not_a_refresh(cache, clock):
+        forecast = RecordingForecastService(clock, completed())
+        scheduler = build(cache, clock, forecast)
+        run(scheduler)                                            # 12:12, fine
+        forecast._report = {"provider": "stub", "error": "boom", "outcome": "failed"}
+        clock.now = EVENING
+        failed = run(scheduler)
+        assert failed["ran"] is True and failed["ok"] is False
+        state = scheduler.state(TASK_FORECASTS)
+        assert state["consecutive_failures"] == 1 and state["backoff_seconds"] == INTERVAL
+        assert datetime.fromisoformat(state["last_success_at"]) == NOON, "the failure is no refresh"
+        reset = sync_scheduler._next_budget_reset(clock.now)
+        assert next_due(scheduler) == min(clock.now + timedelta(seconds=INTERVAL), reset), "the backoff, clamped to the reset, as before"
+        forecast._report = completed()
+        clock.now = next_due(scheduler)
+        assert run(scheduler)["ok"] is True
+>       assert next_due(scheduler) == MIDNIGHT, "back on the grid after the pass that succeeds"
+E       AssertionError: back on the grid after the pass that succeeds
+E       assert datetime.datetime(2026, 10, 27, 6, 1, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 27, 0, 12, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 27, 6, 1, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10d71e190>)
+
+tests/services/test_forecast_cadence.py:312: AssertionError
+_________ test_a_fetching_pass_is_not_followed_by_a_slot_minutes_away __________
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d71cc10>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10d71ccd0>
+
+    def test_a_fetching_pass_is_not_followed_by_a_slot_minutes_away(clock, redis):
+        """A catch-up at 12:05 that bought the day: 12:12 would only re-check what it just fetched, and
+        the policy allows one re-check a day - so the next slot is 18:12."""
+        h = Harness(clock, redis, keys=POLICY_KEYS)
+        scheduler = scheduler_over(h, clock)
+        clock.now = DAY.replace(hour=12, minute=5)
+        run(scheduler)
+        assert h.budget.used_today() == len(POLICY_KEYS)
+>       assert next_due(scheduler) == EVENING, "not 12:12"
+E       AssertionError: not 12:12
+E       assert datetime.datetime(2026, 10, 26, 18, 5, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 26, 18, 12, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 26, 18, 5, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10b2c3750>)
+
+tests/services/test_forecast_cadence.py:323: AssertionError
+______ test_a_pass_that_spent_nothing_is_followed_by_the_slot_it_crossed _______
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d59f6d0>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10d59ec50>
+
+    def test_a_pass_that_spent_nothing_is_followed_by_the_slot_it_crossed(clock, redis):
+        h = Harness(clock, redis, keys=POLICY_KEYS)
+        scheduler = scheduler_over(h, clock)
+        clock.now = DAY.replace(hour=11, minute=58)
+        run(scheduler)                                            # before the hour: nothing bought
+        assert h.budget.used_today() == 0
+>       assert next_due(scheduler) == NOON, "the slot fourteen minutes away is still the day's first eligible pass"
+E       AssertionError: the slot fourteen minutes away is still the day's first eligible pass
+E       assert datetime.datetime(2026, 10, 26, 17, 58, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 26, 12, 12, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 26, 17, 58, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10cac0910>)
+
+tests/services/test_forecast_cadence.py:332: AssertionError
+_ test_recovery_retries_keep_their_timing_and_the_grid_resumes_from_the_interruption _
+
+cache = <app.services.match_cache.MatchCache object at 0x10d6b1410>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d6e79d0>
+
+    def test_recovery_retries_keep_their_timing_and_the_grid_resumes_from_the_interruption(cache, clock):
+        forecast = RecordingForecastService(clock, completed(), reports=[interrupted(["bundesliga"]), completed()])
+        scheduler = build(cache, clock, forecast)
+        first = run(scheduler)
+        assert first["outcome"] == PASS_PARTIAL and first["recovery"]["attempts"] == 1
+        retry_at = next_due(scheduler)
+        assert retry_at == NOON + timedelta(seconds=FORECASTS_RECOVERY_RETRY_SECONDS), "five minutes, not a slot"
+        clock.now = retry_at
+        retry = run(scheduler)
+        assert retry["ok"] is True and forecast.asked_with[-1].get("recovery") is True
+>       assert next_due(scheduler) == EVENING, "the grid, counted from the interruption, not from the retry"
+E       AssertionError: the grid, counted from the interruption, not from the retry
+E       assert datetime.datetime(2026, 10, 26, 18, 17, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 26, 18, 12, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 26, 18, 17, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10d6b1350>)
+
+tests/services/test_forecast_cadence.py:367: AssertionError
+___ test_an_interruption_inside_a_late_pass_is_retried_and_the_grid_resumes ____
+
+cache = <app.services.match_cache.MatchCache object at 0x10d6b0310>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d6b1150>
+
+    def test_an_interruption_inside_a_late_pass_is_retried_and_the_grid_resumes(cache, clock):
+        """The 10-27 incident on the grid: the 12:12 slot ran at 15:18, was interrupted at 15:18:33, retried."""
+        forecast = RecordingForecastService(clock, completed(), reports=[interrupted(["premier_league"]), completed()])
+        scheduler = build(cache, clock, forecast)
+        clock.now = DAY.replace(hour=15, minute=18, second=33)
+        run(scheduler)
+        retry_at = next_due(scheduler)
+        assert retry_at == clock.now + timedelta(seconds=FORECASTS_RECOVERY_RETRY_SECONDS)
+        clock.now = DAY.replace(hour=15, minute=34, second=38)    # the host slept through the retry's due time
+        assert run(scheduler)["ok"] is True
+>       assert next_due(scheduler) == EVENING, "18:12, not 21:34"
+E       AssertionError: 18:12, not 21:34
+E       assert datetime.datetime(2026, 10, 26, 21, 34, 38, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 26, 18, 12, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 26, 21, 34, 38, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10d6b38d0>)
+
+tests/services/test_forecast_cadence.py:380: AssertionError
+_____ test_a_slot_crossed_during_an_episode_is_run_once_the_episode_closes _____
+
+cache = <app.services.match_cache.MatchCache object at 0x10d0f1b10>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d0f37d0>
+
+    def test_a_slot_crossed_during_an_episode_is_run_once_the_episode_closes(cache, clock):
+        forecast = RecordingForecastService(clock, completed(), reports=[interrupted(["serie_a"]), completed(), completed()])
+        scheduler = build(cache, clock, forecast)
+        clock.now = EVENING - timedelta(minutes=2)                # a late pass that began at 18:10
+        run(scheduler)
+        clock.now = next_due(scheduler)                           # the retry, 18:15
+        run(scheduler)
+>       assert next_due(scheduler) == EVENING and scheduler.due(TASK_FORECASTS)[0] is True, "18:12 was crossed"
+E       AssertionError: 18:12 was crossed
+E       assert (datetime.datetime(2026, 10, 27, 0, 15, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 26, 18, 12, tzinfo=datetime.timezone.utc))
+E        +  where datetime.datetime(2026, 10, 27, 0, 15, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10d5c83d0>)
+
+tests/services/test_forecast_cadence.py:390: AssertionError
+__________ test_without_an_anchor_the_interval_counts_from_completion __________
+
+cache = <app.services.match_cache.MatchCache object at 0x10d403190>
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d0f0c50>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d0f2890>
+
+    def test_without_an_anchor_the_interval_counts_from_completion(cache, clock, monkeypatch):
+>       monkeypatch.setattr(settings, "SYNC_FORECASTS_SLOT_ANCHOR_UTC", "")
+E       AttributeError: Settings(PROJECT_NAME='Soccer Predictions Platform API', VERSION='0.1.0', API_V1_STR='/api/v1', ENVIRONMENT='development', DEBUG=True, SECRET_KEY='dca42510aaa9ed82a0c7d15ecfe39fc272b14992e16386bf67658a995dc4215b', ACCESS_TOKEN_EXPIRE_MINUTES=10080, REFRESH_TOKEN_EXPIRE_MINUTES=43200, ALGORITHM='HS256', BACKEND_CORS_ORIGINS=['http://localhost:3000', 'http://localhost:3100', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3100', 'http://127.0.0.1:5173'], ALLOWED_HOSTS=['localhost', '127.0.0.1'], POSTGRES_SERVER='localhost', POSTGRES_PORT=5432, POSTGRES_USER='postgres', POSTGRES_PASSWORD='***', POSTGRES_DB='soccer_predictions_test', DATABASE_URL='postgresql://postgres:***@localhost:5432/soccer_predictions_test', REDIS_HOST='127.0.0.1', REDIS_PORT=6390, REDIS_DB=0, REDIS_PASSWORD=None, REDIS_URL='redis://127.0.0.1:6390/0', REDIS_DB_SESSIONS=0, REDIS_DB_PREDICTIONS=1, REDIS_DB_EXPERT_TOOLS=2, REDIS_DB_ML_MODELS=3, REDIS_DB_MATCH_DATA=4, REDIS_DB_RATE_LIMIT=5, EMAIL_PROVIDER='smtp', EMAIL_ENABLED=False, SMTP_TLS=True, SMTP_PORT=587, SMTP_HOST='live.smtp.mailtrap.io', SMTP_USER=None, SMTP_PASSWORD=None, EMAILS_FROM_EMAIL='<email>', EMAILS_FROM_NAME='Soccer Predictions Platform', SENDGRID_API_KEY=None, AWS_SES_REGION=None, AWS_ACCESS_KEY_ID=None, AWS_SECRET_ACCESS_KEY=None, EMAIL_TEMPLATES_DIR='app/templates/emails', FRONTEND_URL='http://localhost:3000', API_FOOTBALL_KEY='', THESPORTSDB_KEY='', DATA_PROVIDER='sample', DATA_PROVIDER_FALLBACKS='', PREDICTION_PROVIDER='sample', COVERED_COMPETITIONS='premier_league,la_liga,serie_a,bundesliga,ligue_1,champions_league', COVERED_NATIONAL_TEAM_COMPETITIONS='active', LIVESCORE_API_KEY='', LIVESCORE_API_SECRET='', LIVESCORE_API_BASE_URL='https://livescore-api.com/api-client', LIVESCORE_DAILY_REQUEST_BUDGET=1200, LIVESCORE_COMPETITION_IDS='', GAMEFORECAST_API_KEY='', GAMEFORECAST_API_HOST='game-forecast-api.p.rapidapi.com', GAMEFORECAST_API_BASE_URL='https://game-forecast-api.p.rapidapi.com', GAMEFORECAST_DAILY_REQUEST_BUDGET=8, GAMEFORECAST_LEAGUE_IDS='', GAMEFORECAST_SYNC_DAYS_AHEAD=7, GAMEFORECAST_REFRESH_POLICY='daily-slot', GAMEFORECAST_SYNC_INTERVAL_HOURS=22, FORECAST_MAX_AGE_HOURS=72, SYNC_SCHEDULER_ENABLED=False, SYNC_SCHEDULER_TASKS='fixtures,live,results,recover,forecasts,settle', SYNC_SCHEDULER_TICK_SECONDS=60, SYNC_SCHEDULER_STARTUP_DELAY_SECONDS=120, SYNC_SCHEDULER_BUDGET_RESERVE=50, SYNC_FIXTURES_INTERVAL_SECONDS=21600, SYNC_FIXTURES_DAYS_AHEAD=3, SYNC_LIVE_INTERVAL_SECONDS=120, SYNC_RESULTS_INTERVAL_SECONDS=1800, SYNC_RESULTS_LOOKBACK_DAYS=1, SYNC_FIXTURES_MAX_NATIONAL_REQUESTS_PER_PASS=24, SYNC_RESULTS_MAX_REQUESTS_PER_PASS=8, SYNC_LIVE_MAX_REQUESTS_PER_DAY=420, SYNC_COVERAGE_CALENDAR_REFRESH_PER_PASS=8, SYNC_NATIONAL_TEAM_BUDGET_FLOOR=250, SYNC_RECOVERY_INTERVAL_SECONDS=1800, SYNC_RECOVERY_MAX_REQUESTS_PER_PASS=4, SYNC_RECOVERY_MAX_REQUESTS_PER_DAY=40, SYNC_SETTLE_INTERVAL_SECONDS=600, SYNC_SETTLE_LOOKBACK_DAYS=3, SYNC_FORECASTS_INTERVAL_SECONDS=21600, SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR=12, MATCH_CACHE_TTL_FIXTURES=1800, MATCH_CACHE_TTL_LIVE=60, MATCH_CACHE_TTL_RESULTS=1800, MATCH_CACHE_TTL_STANDINGS=3600, MATCH_CACHE_TTL_COMPETITIONS=86400, ML_MODEL_PATH='/app/ml/models', ML_ENABLED=True, EXPERT_TOOLS_ENABLED=True, EXPERT_DIRECT_PUBLISH=True, ADMIN_FEATURES_ENABLED=True, ALLOW_TEST_DATA_CLASSIFICATION=True, DEFAULT_PAGE_SIZE=20, MAX_PAGE_SIZE=100, RATE_LIMIT_PER_MINUTE=60, LOG_LEVEL='INFO', LOG_FORMAT='text', FIRST_SUPERUSER_EMAIL='<email>', FIRST_SUPERUSER_PASSWORD='isolated-worktree-placeholder') has no attribute 'SYNC_FORECASTS_SLOT_ANCHOR_UTC'
+
+tests/services/test_forecast_cadence.py:398: AttributeError
+__ test_a_listing_dropped_and_issued_again_is_the_same_match_on_the_same_row ___
+
+db = <sqlalchemy.orm.session.Session object at 0x10d6c8810>
+
+    def test_a_listing_dropped_and_issued_again_is_the_same_match_on_the_same_row(db):
+        dropped = dropped_listing(db)
+        before = snapshots_of(db, dropped.id)
+        assert len(before) == 9 and before[-1][3] is False, "the 26th's snapshot was retrieved after the dropped kickoff"
+    
+        match = stored(db, played(), LIVE_POLL_AT)
+    
+>       assert match.id == dropped.id, "the forecast and the result are on one row - the previous code made a second"
+E       AssertionError: the forecast and the result are on one row - the previous code made a second
+E       assert UUID('13b11247-f531-4e14-a808-0ffad9c87299') == UUID('357c0305-c6a4-43c3-86d4-2c779b7137ec')
+E        +  where UUID('13b11247-f531-4e14-a808-0ffad9c87299') = <app.models.predictions.Match object at 0x10d58ec10>.id
+E        +  and   UUID('357c0305-c6a4-43c3-86d4-2c779b7137ec') = <app.models.predictions.Match object at 0x10d4038d0>.id
+
+tests/services/test_superseded_listings.py:258: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 18:32:59 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['357c0305-c6a4-43c3-86d4-2c779b7137ec'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1026 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['357c0305-c6a4-43c3-86d4-2c779b7137ec'] are the same provider's other fixtures; new match row
+___________________ test_repeated_ingestion_changes_nothing ____________________
+
+db = <sqlalchemy.orm.session.Session object at 0x10d31c150>
+
+    def test_repeated_ingestion_changes_nothing(db):
+        dropped = dropped_listing(db)
+        stored(db, played(), LIVE_POLL_AT)
+        db.expire_all()
+>       first = dict(db.query(Match).filter(Match.id == dropped.id).one().match_metadata[SUPERSEDED_KEY])
+E       KeyError: 'superseded_listing'
+
+tests/services/test_superseded_listings.py:282: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 18:32:59 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['3c0931a0-ad99-429c-8a67-8ccb011c72e0'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1026 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['3c0931a0-ad99-429c-8a67-8ccb011c72e0'] are the same provider's other fixtures; new match row
+___ test_the_dead_id_sent_again_with_its_old_kickoff_is_refused_not_applied ____
+
+db = <sqlalchemy.orm.session.Session object at 0x10d3a67d0>
+
+    def test_the_dead_id_sent_again_with_its_old_kickoff_is_refused_not_applied(db):
+        dropped = dropped_listing(db)
+        stored(db, played(), LIVE_POLL_AT)
+        registry = MatchRegistry(db, now=LIVE_POLL_AT + timedelta(hours=1))
+    
+>       assert registry.upsert_fixture(listing(DEAD_ID, DROPPED_KICKOFF)) is None
+E       AssertionError: assert <app.models.predictions.Match object at 0x10d57e410> is None
+E        +  where <app.models.predictions.Match object at 0x10d57e410> = <bound method MatchRegistry.upsert_fixture of <app.services.match_registry.MatchRegistry object at 0x10d1bcc50>>(ProviderFixture(provider='livescore', external_id='1877019', competition=ProviderCompetition(provider='livescore', ext...e=None, ps_away_score=None, venue='Parc des Princes', round='8', periods_reported=False, raw={}, kickoff_supplied=True))
+E        +    where <bound method MatchRegistry.upsert_fixture of <app.services.match_registry.MatchRegistry object at 0x10d1bcc50>> = <app.services.match_registry.MatchRegistry object at 0x10d1bcc50>.upsert_fixture
+E        +    and   ProviderFixture(provider='livescore', external_id='1877019', competition=ProviderCompetition(provider='livescore', ext...e=None, ps_away_score=None, venue='Parc des Princes', round='8', periods_reported=False, raw={}, kickoff_supplied=True) = listing('1877019', datetime.datetime(2026, 10, 25, 19, 45, tzinfo=datetime.timezone.utc))
+
+tests/services/test_superseded_listings.py:299: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 18:32:59 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['55dc9f1c-33ac-46cc-a6c2-65c175a4cfb6'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1026 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['55dc9f1c-33ac-46cc-a6c2-65c175a4cfb6'] are the same provider's other fixtures; new match row
+____________ test_a_postponed_listing_is_re_issued_on_the_same_row _____________
+
+db = <sqlalchemy.orm.session.Session object at 0x10d5c9d90>
+
+    def test_a_postponed_listing_is_re_issued_on_the_same_row(db):
+        dropped = dropped_listing(db)
+        stored(db, listing(DEAD_ID, DROPPED_KICKOFF, status=STATUS_POSTPONED), DROPPED_KICKOFF - timedelta(hours=2))
+        db.expire_all()
+        assert db.query(Match).filter(Match.id == dropped.id).one().status == MatchStatus.POSTPONED
+    
+        match = stored(db, played(), LIVE_POLL_AT)
+    
+>       assert match.id == dropped.id and [m.id for m in psg_lyon_rows(db)] == [dropped.id]
+E       AssertionError: assert (UUID('334d1730-5b15-490f-aefd-ea1ce15b56e6') == UUID('e05b4686-c422-4f50-a7bf-64beac4982e1'))
+E        +  where UUID('334d1730-5b15-490f-aefd-ea1ce15b56e6') = <app.models.predictions.Match object at 0x10d31dc50>.id
+E        +  and   UUID('e05b4686-c422-4f50-a7bf-64beac4982e1') = <app.models.predictions.Match object at 0x10d2c6890>.id
+
+tests/services/test_superseded_listings.py:316: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 18:32:59 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['e05b4686-c422-4f50-a7bf-64beac4982e1'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1026 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['e05b4686-c422-4f50-a7bf-64beac4982e1'] are the same provider's other fixtures; new match row
+_____________________ test_a_played_listing_is_not_dropped _____________________
+
+db = <sqlalchemy.orm.session.Session object at 0x10d0bdc50>
+
+    def test_a_played_listing_is_not_dropped(db):
+        dropped = dropped_listing(db)
+        stored(db, listing(DEAD_ID, DROPPED_KICKOFF, status=STATUS_FINISHED, home_score=1, away_score=1),
+               DROPPED_KICKOFF + timedelta(hours=2))
+        second = stored(db, played(), LIVE_POLL_AT)
+        assert second.id != dropped.id
+>       assert [c["why"] for c in unproven_note(db, second)["candidates"]] == ["it has a stored result"]
+
+tests/services/test_superseded_listings.py:368: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+db = <sqlalchemy.orm.session.Session object at 0x10d0bdc50>
+match = <app.models.predictions.Match object at 0x10d71c050>
+
+    def unproven_note(db, match: Match) -> Dict:
+        db.expire_all()
+>       return db.query(Match).filter(Match.id == match.id).one().match_metadata[SUPERSEDED_CANDIDATES_KEY]
+E       KeyError: 'superseded_listing_candidates'
+
+tests/services/test_superseded_listings.py:326: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 18:32:59 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['bb70fc23-8223-41c0-bbf3-8afc859b11ae'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1026 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['bb70fc23-8223-41c0-bbf3-8afc859b11ae'] are the same provider's other fixtures; new match row
+_____________ test_a_listing_still_to_be_played_is_not_dropped_yet _____________
+
+db = <sqlalchemy.orm.session.Session object at 0x10d8b8190>
+
+    def test_a_listing_still_to_be_played_is_not_dropped_yet(db):
+        dropped = dropped_listing(db)
+        early = stored(db, listing(LIVE_ID, PLAYED_KICKOFF), DROPPED_KICKOFF - timedelta(days=1))
+        assert early.id != dropped.id
+        assert_untouched(db, dropped)
+>       assert [c["why"] for c in unproven_note(db, early)["candidates"]] == ["its kickoff window has not closed"]
+
+tests/services/test_superseded_listings.py:378: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+db = <sqlalchemy.orm.session.Session object at 0x10d8b8190>
+match = <app.models.predictions.Match object at 0x10d743a90>
+
+    def unproven_note(db, match: Match) -> Dict:
+        db.expire_all()
+>       return db.query(Match).filter(Match.id == match.id).one().match_metadata[SUPERSEDED_CANDIDATES_KEY]
+E       KeyError: 'superseded_listing_candidates'
+
+tests/services/test_superseded_listings.py:326: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 18:32:59 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['3fd11cda-59d0-42eb-9ff7-a9b6d9bbafc9'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1026 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['3fd11cda-59d0-42eb-9ff7-a9b6d9bbafc9'] are the same provider's other fixtures; new match row
+__________________ test_a_different_round_is_another_meeting ___________________
+
+db = <sqlalchemy.orm.session.Session object at 0x10d6573d0>
+
+    def test_a_different_round_is_another_meeting(db):
+        dropped = dropped_listing(db)
+        other = stored(db, listing(LIVE_ID, PLAYED_KICKOFF, round_="Regular Season - 12"), LIVE_POLL_AT)
+        assert other.id != dropped.id
+        assert_untouched(db, dropped)
+>       assert unproven_note(db, other)["candidates"][0]["why"].startswith("a different round")
+
+tests/services/test_superseded_listings.py:393: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+db = <sqlalchemy.orm.session.Session object at 0x10d6573d0>
+match = <app.models.predictions.Match object at 0x10d59e3d0>
+
+    def unproven_note(db, match: Match) -> Dict:
+        db.expire_all()
+>       return db.query(Match).filter(Match.id == match.id).one().match_metadata[SUPERSEDED_CANDIDATES_KEY]
+E       KeyError: 'superseded_listing_candidates'
+
+tests/services/test_superseded_listings.py:326: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 18:32:59 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['b95690e0-460a-4490-9079-2cad7f78c87e'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1026 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['b95690e0-460a-4490-9079-2cad7f78c87e'] are the same provider's other fixtures; new match row
+_____ test_the_same_round_in_another_providers_words_is_the_same_matchday ______
+
+db = <sqlalchemy.orm.session.Session object at 0x10d8b9d50>
+
+    def test_the_same_round_in_another_providers_words_is_the_same_matchday(db):
+        dropped = dropped_listing(db)
+        match = stored(db, listing(LIVE_ID, PLAYED_KICKOFF, status=STATUS_FINISHED, home_score=2, away_score=0,
+                                   round_="Regular Season - 8"), LIVE_POLL_AT)
+>       assert match.id == dropped.id
+E       AssertionError: assert UUID('426cbc1d-caf4-4cd6-b0a0-7d834f19f79d') == UUID('82ac2c01-91ff-4383-a686-ec87fdc6d786')
+E        +  where UUID('426cbc1d-caf4-4cd6-b0a0-7d834f19f79d') = <app.models.predictions.Match object at 0x10d8bb890>.id
+E        +  and   UUID('82ac2c01-91ff-4383-a686-ec87fdc6d786') = <app.models.predictions.Match object at 0x10d0bfc50>.id
+
+tests/services/test_superseded_listings.py:400: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 18:33:00 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['82ac2c01-91ff-4383-a686-ec87fdc6d786'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1026 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['82ac2c01-91ff-4383-a686-ec87fdc6d786'] are the same provider's other fixtures; new match row
+_____________ test_a_listing_a_fortnight_later_is_left_to_a_person _____________
+
+db = <sqlalchemy.orm.session.Session object at 0x10d271f90>
+
+    def test_a_listing_a_fortnight_later_is_left_to_a_person(db):
+        dropped = dropped_listing(db)
+        far = DROPPED_KICKOFF + SUPERSEDED_LISTING_WINDOW + timedelta(days=1)
+        later = stored(db, listing(LIVE_ID, far), far - timedelta(days=1))
+        assert later.id != dropped.id
+        assert_untouched(db, dropped)
+        no_note(db, later), "beyond the window the dropped listing is not even a candidate"
+        edge = DROPPED_KICKOFF + SUPERSEDED_LISTING_WINDOW
+        registry = MatchRegistry(db, now=edge - timedelta(hours=1))
+        league = registry.upsert_league(played().competition)
+        home, away = (db.query(Team).filter(Team.id == i).one() for i in (dropped.home_team_id, dropped.away_team_id))
+>       on_the_edge, _ = registry.superseded_listing_for(listing("742801", edge), home, away, league)
+E       AttributeError: 'MatchRegistry' object has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:422: AttributeError
+___________________ test_two_dropped_listings_decide_nothing ___________________
+
+db = <sqlalchemy.orm.session.Session object at 0x10d409250>
+
+    def test_two_dropped_listings_decide_nothing(db):
+        first = dropped_listing(db, kickoff=DROPPED_KICKOFF - timedelta(days=1), external_id="1877018")
+        second = dropped_listing(db)
+        third = stored(db, played(), LIVE_POLL_AT)
+        assert third.id not in (first.id, second.id)
+        assert_untouched(db, second)
+>       whys = sorted(c["why"] for c in unproven_note(db, third)["candidates"])
+
+tests/services/test_superseded_listings.py:434: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+db = <sqlalchemy.orm.session.Session object at 0x10d409250>
+match = <app.models.predictions.Match object at 0x10d0ef3d0>
+
+    def unproven_note(db, match: Match) -> Dict:
+        db.expire_all()
+>       return db.query(Match).filter(Match.id == match.id).one().match_metadata[SUPERSEDED_CANDIDATES_KEY]
+E       KeyError: 'superseded_listing_candidates'
+
+tests/services/test_superseded_listings.py:326: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 18:33:00 - app.services.match_registry - INFO - Fixture livescore:1877019 (Paris Saint Germain vs Lyon): candidates ['fc4c3327-fd93-45e4-a7d0-712a053a5d97'] are the same provider's other fixtures; new match row
+2026-10-27 18:33:00 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['bfc616f5-eaa4-4628-b903-619576545145'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1026 Fixture livescore:1877019 (Paris Saint Germain vs Lyon): candidates ['fc4c3327-fd93-45e4-a7d0-712a053a5d97'] are the same provider's other fixtures; new match row
+INFO     app.services.match_registry:match_registry.py:1026 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['bfc616f5-eaa4-4628-b903-619576545145'] are the same provider's other fixtures; new match row
+________ test_a_squad_resolved_to_its_clubs_row_is_still_another_squad _________
+
+db = <sqlalchemy.orm.session.Session object at 0x10d40b050>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d40bd10>
+
+    def test_a_squad_resolved_to_its_clubs_row_is_still_another_squad(db, monkeypatch):
+        """Whatever club row the provider's youth side resolves to, the provider's own words say another squad."""
+        dropped = dropped_listing(db)
+        original = MatchRegistry.upsert_team
+    
+        def to_the_senior_row(self, team, country=None, key=None):
+            return original(self, dataclasses.replace(team, name=team.name.replace(" U19", "")), country, key)
+    
+        monkeypatch.setattr(MatchRegistry, "upsert_team", to_the_senior_row)
+        youth = stored(db, listing(LIVE_ID, PLAYED_KICKOFF, home=f"{PSG} U19", away=f"{LYON} U19"), LIVE_POLL_AT)
+        assert youth.id != dropped.id
+        assert_untouched(db, dropped)
+        # The guard itself, asked directly with the clubs resolved to the senior rows:
+        registry = MatchRegistry(db, now=LIVE_POLL_AT)
+        league = registry.upsert_league(played().competition)
+        home, away = (db.query(Team).filter(Team.id == i).one() for i in (dropped.home_team_id, dropped.away_team_id))
+>       match, unproven = registry.superseded_listing_for(
+            listing(LIVE_ID, PLAYED_KICKOFF, home=f"{PSG} U19", away=f"{LYON} U19"), home, away, league)
+E       AttributeError: 'MatchRegistry' object has no attribute 'superseded_listing_for'
+
+tests/services/test_superseded_listings.py:461: AttributeError
+_______ test_a_cup_or_national_team_fixture_is_never_joined_by_this_rule _______
+
+db = <sqlalchemy.orm.session.Session object at 0x10d8a7450>
+
+    def test_a_cup_or_national_team_fixture_is_never_joined_by_this_rule(db):
+        """The same two sides can meet again the same way round in a cup (a replay) or in a friendly
+        window; only a league meets once a season per venue. Outside a league the re-issue stays two rows
+        and is written on the new one for a person."""
+        for key, external_ids in (("champions_league", ("7001", "7002")), ("national_teams_friendlies", ("7003", "7004"))):
+            first_id, second_id = external_ids
+            first = stored(db, listing(first_id, DROPPED_KICKOFF, key=key, round_=None), LISTED_AT)
+            second = stored(db, listing(second_id, PLAYED_KICKOFF, key=key, round_=None, status=STATUS_FINISHED,
+                                        home_score=2, away_score=0), LIVE_POLL_AT)
+            assert second.id != first.id, key
+            db.expire_all()
+            row = db.query(Match).filter(Match.id == first.id).one()
+            assert row.status == MatchStatus.SCHEDULED and row.match_date == DROPPED_KICKOFF.replace(tzinfo=None)
+>           note = unproven_note(db, second)
+
+tests/services/test_superseded_listings.py:479: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+db = <sqlalchemy.orm.session.Session object at 0x10d8a7450>
+match = <app.models.predictions.Match object at 0x10d1ff950>
+
+    def unproven_note(db, match: Match) -> Dict:
+        db.expire_all()
+>       return db.query(Match).filter(Match.id == match.id).one().match_metadata[SUPERSEDED_CANDIDATES_KEY]
+E       KeyError: 'superseded_listing_candidates'
+
+tests/services/test_superseded_listings.py:326: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 18:33:00 - app.services.match_registry - INFO - Fixture livescore:7002 (Paris Saint Germain vs Lyon): candidates ['d3906cf2-8777-477d-8b6b-9690a016adca'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1026 Fixture livescore:7002 (Paris Saint Germain vs Lyon): candidates ['d3906cf2-8777-477d-8b6b-9690a016adca'] are the same provider's other fixtures; new match row
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-45c8b0cf/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-45c8b0cf/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-45c8b0cf/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-45c8b0cf/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-45c8b0cf/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-45c8b0cf/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-45c8b0cf/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-45c8b0cf/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-45c8b0cf/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+target guard: backend-tests approved - settings database localhost:5432/soccer_predictions_test; test database localhost:5432/soccer_predictions_test; race database 127.0.0.1:5440/forecast_race_test; redis default (REDIS_DB) 127.0.0.1:6390/0; redis REDIS_DB_SESSIONS 127.0.0.1:6390/0; redis REDIS_DB_PREDICTIONS 127.0.0.1:6390/1; redis REDIS_DB_EXPERT_TOOLS 127.0.0.1:6390/2; redis REDIS_DB_ML_MODELS 127.0.0.1:6390/3; redis REDIS_DB_MATCH_DATA 127.0.0.1:6390/4; redis REDIS_DB_RATE_LIMIT 127.0.0.1:6390/5; lease redis 127.0.0.1:6390/9,10,11 (policy sha256 e2abbcc34d12)
+=========================== short test summary info ============================
+FAILED tests/services/test_forecast_cadence.py::test_a_late_pass_is_followed_by_the_grid_not_by_six_hours_after_itself
+FAILED tests/services/test_forecast_cadence.py::test_a_sleep_across_one_slot_costs_exactly_one_catch_up
+FAILED tests/services/test_forecast_cadence.py::test_a_sleep_across_several_slots_costs_exactly_one_catch_up
+FAILED tests/services/test_forecast_cadence.py::test_waking_before_noon_keeps_the_noon_slot
+FAILED tests/services/test_forecast_cadence.py::test_waking_after_noon_runs_the_catch_up_and_then_the_evening_slot
+FAILED tests/services/test_forecast_cadence.py::test_the_grid_crosses_utc_midnight
+FAILED tests/services/test_forecast_cadence.py::test_a_restart_after_a_delayed_pass_keeps_the_grid
+FAILED tests/services/test_forecast_cadence.py::test_a_long_pass_that_crosses_a_slot_is_followed_by_that_slot_once
+FAILED tests/services/test_forecast_cadence.py::test_a_catch_up_before_the_publication_hour_buys_nothing
+FAILED tests/services/test_forecast_cadence.py::test_already_served_competitions_are_ineligible_on_a_catch_up
+FAILED tests/services/test_forecast_cadence.py::test_a_spent_allowance_waits_for_the_next_slot_and_is_not_a_refresh
+FAILED tests/services/test_forecast_cadence.py::test_a_failed_pass_keeps_its_backoff_and_is_not_a_refresh
+FAILED tests/services/test_forecast_cadence.py::test_a_fetching_pass_is_not_followed_by_a_slot_minutes_away
+FAILED tests/services/test_forecast_cadence.py::test_a_pass_that_spent_nothing_is_followed_by_the_slot_it_crossed
+FAILED tests/services/test_forecast_cadence.py::test_recovery_retries_keep_their_timing_and_the_grid_resumes_from_the_interruption
+FAILED tests/services/test_forecast_cadence.py::test_an_interruption_inside_a_late_pass_is_retried_and_the_grid_resumes
+FAILED tests/services/test_forecast_cadence.py::test_a_slot_crossed_during_an_episode_is_run_once_the_episode_closes
+FAILED tests/services/test_forecast_cadence.py::test_without_an_anchor_the_interval_counts_from_completion
+FAILED tests/services/test_superseded_listings.py::test_a_listing_dropped_and_issued_again_is_the_same_match_on_the_same_row
+FAILED tests/services/test_superseded_listings.py::test_repeated_ingestion_changes_nothing
+FAILED tests/services/test_superseded_listings.py::test_the_dead_id_sent_again_with_its_old_kickoff_is_refused_not_applied
+FAILED tests/services/test_superseded_listings.py::test_a_postponed_listing_is_re_issued_on_the_same_row
+FAILED tests/services/test_superseded_listings.py::test_a_played_listing_is_not_dropped
+FAILED tests/services/test_superseded_listings.py::test_a_listing_still_to_be_played_is_not_dropped_yet
+FAILED tests/services/test_superseded_listings.py::test_a_different_round_is_another_meeting
+FAILED tests/services/test_superseded_listings.py::test_the_same_round_in_another_providers_words_is_the_same_matchday
+FAILED tests/services/test_superseded_listings.py::test_a_listing_a_fortnight_later_is_left_to_a_person
+FAILED tests/services/test_superseded_listings.py::test_two_dropped_listings_decide_nothing
+FAILED tests/services/test_superseded_listings.py::test_a_squad_resolved_to_its_clubs_row_is_still_another_squad
+FAILED tests/services/test_superseded_listings.py::test_a_cup_or_national_team_fixture_is_never_joined_by_this_rule
+SKIPPED [3] tests/services/test_forecast_cadence.py:132: the previous implementation has no grid
+30 failed, 9 passed, 3 skipped, 18 warnings, 10 errors in 1.68s
+# exit 1 at 2026-10-27T22:33:00Z

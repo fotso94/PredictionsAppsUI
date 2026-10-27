@@ -1,0 +1,14 @@
+a54658a9c2f6e7708040d3c4869620a430cb373c8a900e7a4aea5b6191c6dba9  ./REPORT.md
+a89476e27dfe4606c60b218ef6013a458c026298614cbad39a562394f7fc89eb  ./repair-rehearsal/01-dry-run.log
+7443185afde13bc4e7724d14d0299c316671fc16ca02a968d7b4ad140e431dd7  ./repair-rehearsal/03-rows-before.txt
+51f807114eaf65919a7e9dec3356d84fa9ffee35f4a81e5ec091817ab7923502  ./repair-rehearsal/04-fold.log
+873627c5d740d051cfcf486c51b8a8641c58f00b685f872e9ed4e654e15b747b  ./repair-rehearsal/06-rows-after.txt
+ed1d6057d1ec398c2d486322ee74c380494f45360e238134d3f11426383038b4  ./repair-rehearsal/07-second-application.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./repair-rehearsal/checksums-diff-after-fold-vs-second-application.txt
+354bfefd108c0f94e54e2ee965e491dcc4ca6f121ca6f26d3a9bde7585be537e  ./repair-rehearsal/checksums-diff-before-vs-after-fold.txt
+d37847460ce24d25a7caaa234e4df5836d6533f4af861cde49630fcf153f8fab  ./repair-rehearsal/checksums.sh
+92f2d080070fdc0b0a7b399b6e1e3ad19fc35f1b926525f1dd8a5f62545b9cbb  ./tests/after-new-tests.log
+d78a571470ec78bdc36daa1a65ccec6607de336035fed80883eaa0d762663dec  ./tests/before-new-tests.log
+d82344e31a8e055169d1053fecc999f6d920113da4c348e15b29b746fc2f6248  ./tests/full-suite-first-run.log
+ebb21dedb8950a3b738a5592a5dfe43e62c2a8c80a59f487943bdabf5fe5e8b7  ./tests/full-suite.log
+0ab8fdea100168c0e21b11232fa57f11530c85a76d754e9558db74ec47873ca9  ./tests/repeats-summary.txt

@@ -370,6 +370,19 @@ class Settings(BaseSettings):
     # 0 disables it. Either way every automatic request lands inside the provider's own allowance
     # window, observed to start at about 03:12 UTC.
     SYNC_FORECASTS_NOT_BEFORE_UTC_HOUR: int = 12
+    # The forecasts task's ORDINARY passes are anchored to fixed UTC slots, SYNC_FORECASTS_INTERVAL_SECONDS
+    # apart with one of them at this wall-clock time - not to the end of the previous pass. Live ran at
+    # 00:12 / 06:12 / 12:12 / 18:12 UTC from the 2026-10-25 deployment until a host sleep on 10-26 moved the
+    # cadence to 02:51/08:51/14:51 and a second one to 03:34/09:34/15:34/21:34: the pass due during the
+    # sleep ran at the wake, and the next one six hours after THAT. 12:12 is twelve minutes past the
+    # observed publication hour above (every same-day run since 10-22 was obtained at 12:09-12:14 UTC), so
+    # the day's first eligible pass follows the gate closely and the three others fall where they always
+    # did. A pass that runs late - after a sleep, a long pass, a recovery retry - is followed by the next
+    # slot on the grid, so at most one catch-up pass follows a sleep however many slots it covered.
+    # Recovery retries (FORECASTS_RECOVERY_RETRY_SECONDS) and failure backoffs keep their own timing and
+    # are not slots. Empty, malformed, or an interval that does not divide a day: the interval counted
+    # from the pass's completion, as before.
+    SYNC_FORECASTS_SLOT_ANCHOR_UTC: str = "12:12"
 
     # Cache TTLs (seconds) for provider data
     MATCH_CACHE_TTL_FIXTURES: int = 1800

@@ -11,6 +11,24 @@ WHY THIS EXISTS
     one club, is a decision about identity that belongs to a person; this script lays out the
     evidence, does exactly what it printed, and never guesses.
 
+    It also folds a listing its provider DROPPED AND ISSUED AGAIN under a new fixture id - a
+    postponement, as a rule - into the listing the provider now maintains. Paris Saint-Germain v
+    Lyon, Ligue 1 round 8, was listed by Live Score as fixture 1877019 for 2026-10-25 19:45 UTC,
+    vanished from its lists on the 25th, and came back as fixture 742799 for 2026-10-26 19:30 UTC,
+    the same clubs the same way round, played 2-0. The registry stored a second row (a provider's
+    own other id was never a candidate), so nine forecast snapshots sat on a listing that never
+    kicked off while the result sat on a row with no forecast, and the recovery sweep asked
+    results providers about the dead listing eighteen times. The conditions are exactly the
+    registry's (`MatchRegistry.superseded_listing_for`), which now joins such a re-issue at
+    ingestion; this section is for the pairs that were stored before it did, or were re-issued
+    before the dropped listing's kickoff had passed, when nothing could yet prove it dropped. The
+    dropped row's forecasts, snapshots, predictions, slip legs, saved matches and provider refs
+    MOVE to the maintained row with their timestamps untouched; the dead provider ref is kept,
+    marked `superseded_by`; the dropped row's own record (kickoff, status, legacy id, sync and
+    recovery metadata) is written onto the survivor under `match_metadata.superseded_listing`; and
+    the emptied row is deleted. Two listings that disagree - the dropped one holds a result, the
+    rounds differ, several candidates - are reported and left alone.
+
     It also reports two things it does not decide:
 
     * placeholder fixtures -- both slots naming no club, as `Home Team (TBD)` v `Away Team (TBD)`
@@ -42,6 +60,10 @@ USAGE
     ./venv/bin/python scripts/repair_duplicate_matches.py                      # report only
     ./venv/bin/python scripts/repair_duplicate_matches.py --apply              # repair
     ./venv/bin/python scripts/repair_duplicate_matches.py --database-url ...   # a restored copy
+    ./venv/bin/python scripts/repair_duplicate_matches.py --fold-superseded <dropped match id>
+        folds ONE dropped-and-re-issued listing, named by a person; `--apply` alone never folds
+        one, because a dropped listing beside a new one is a judgement about identity. Repeat the
+        flag for several. With `--apply` too, the other sections repair as well.
 
     Prove it on a restored copy before running it against the live database.
 """
@@ -54,7 +76,8 @@ import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+import json
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -63,7 +86,10 @@ from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
 from app.services.match_matching import normalize_team_name  # noqa: E402
-from app.services.match_registry import SHARED_SLOT_WINDOW  # noqa: E402
+from app.services.match_registry import (  # noqa: E402
+    RELISTED_KEY, SHARED_SLOT_WINDOW, SUPERSEDED_KEY, SUPERSEDED_LISTING_WINDOW, UNSETTLED_GRACE, round_number,
+)
+from app.services.providers import competitions as comps  # noqa: E402
 
 MATCHES_SCHEMA, MATCHES_TABLE = "predictions", "matches"
 
@@ -340,6 +366,220 @@ def delete_unreferenced(db: Session, deps: Sequence[Dependent], target: str, row
     db.execute(text(f"DELETE FROM {target} WHERE id = :rid"), {"rid": row_id})
 
 
+# --------------------------------------------------------------------------- re-issued listings
+@dataclass
+class Supersession:
+    """One listing a provider dropped (`stale`) and the listing it issued instead (`successor`)."""
+    stale: Copy
+    successor: Copy
+    provider: str
+    dead_ids: List[str]
+    live_ids: List[str]
+    blockers: List[str] = field(default_factory=list)
+    moves: Dict[str, int] = field(default_factory=dict)
+    #: Facts a person must weigh after the fold; none of them stops it.
+    consequences: List[str] = field(default_factory=list)
+
+    @property
+    def safe(self) -> bool:
+        return not self.blockers
+
+
+def _match_meta(db: Session, match_id: str) -> Dict:
+    raw = db.execute(text("SELECT match_metadata FROM predictions.matches WHERE id = :mid"), {"mid": match_id}).scalar()
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    return dict(raw or {})
+
+
+def _round_of(db: Session, match_id: str) -> Optional[str]:
+    return db.execute(text("SELECT round FROM predictions.matches WHERE id = :mid"), {"mid": match_id}).scalar()
+
+
+def superseded_listings(db: Session, now: Optional[datetime] = None,
+                        window: timedelta = SUPERSEDED_LISTING_WINDOW) -> List[Supersession]:
+    """
+    Every (dropped listing, re-issued listing) pair, by the registry's own conditions. Read-only.
+
+    A dropped listing is SCHEDULED with no result and its kickoff window (`UNSETTLED_GRACE`) closed,
+    or POSTPONED with no result, and not closed as the second listing of a played row. Its
+    successor is another row in the same competition with the identical two clubs in the same
+    order, kicking off after it and within `window`, that the SAME provider lists under a DIFFERENT
+    id. The rows are compared by club row ids, as the registry compares them, so two spellings of
+    one club are not seen here (the duplicate-clubs section above is for that). A dropped listing
+    with two successors, or a successor with two dropped listings, is reported as such and not
+    touched.
+    """
+    now = now or datetime.now(timezone.utc)
+    cutoff = (now - UNSETTLED_GRACE).replace(tzinfo=None)
+    rows = db.execute(text("""
+        SELECT s.id::text AS stale_id, m.id::text AS successor_id,
+               r1.provider AS provider, r1.external_id AS dead_id, r2.external_id AS live_id
+        FROM predictions.matches s
+        JOIN predictions.matches m
+          ON m.id <> s.id AND m.league_id = s.league_id
+         AND m.home_team_id = s.home_team_id AND m.away_team_id = s.away_team_id
+         AND m.match_date > s.match_date AND m.match_date <= s.match_date + :window
+        JOIN predictions.provider_entity_refs r1
+          ON r1.entity_type = 'match' AND r1.entity_id = s.id
+        JOIN predictions.provider_entity_refs r2
+          ON r2.entity_type = 'match' AND r2.entity_id = m.id AND r2.provider = r1.provider
+         AND r2.external_id <> r1.external_id
+        WHERE NOT EXISTS (SELECT 1 FROM predictions.match_results x WHERE x.match_id = s.id)
+          AND ((s.status::text = 'SCHEDULED' AND s.match_date <= :cutoff) OR s.status::text = 'POSTPONED')
+        ORDER BY s.match_date, s.id, m.match_date, m.id, r1.provider, r1.external_id
+    """), {"window": window, "cutoff": cutoff}).fetchall()
+    copies = {c.id: c for c in _copies(db)}
+    pairs: Dict[Tuple[str, str], Supersession] = {}
+    for row in rows:
+        stale, successor = copies.get(row.stale_id), copies.get(row.successor_id)
+        if stale is None or successor is None:
+            continue
+        if RELISTED_KEY in _match_meta(db, stale.id):
+            continue
+        key = (stale.id, successor.id)
+        if key not in pairs:
+            pairs[key] = Supersession(stale, successor, row.provider, [], [])
+        pair = pairs[key]
+        if row.provider != pair.provider:
+            pair.blockers.append(f"listed again by more than one provider ({pair.provider}, {row.provider}); a person decides")
+        if row.dead_id not in pair.dead_ids:
+            pair.dead_ids.append(row.dead_id)
+        if row.live_id not in pair.live_ids:
+            pair.live_ids.append(row.live_id)
+    by_stale: Dict[str, List[Supersession]] = defaultdict(list)
+    by_successor: Dict[str, List[Supersession]] = defaultdict(list)
+    for pair in pairs.values():
+        by_stale[pair.stale.id].append(pair)
+        by_successor[pair.successor.id].append(pair)
+    for pair in pairs.values():
+        if len(by_stale[pair.stale.id]) > 1:
+            pair.blockers.append(f"the dropped listing has {len(by_stale[pair.stale.id])} possible successors")
+        if len(by_successor[pair.successor.id]) > 1:
+            pair.blockers.append(f"the successor could replace {len(by_successor[pair.successor.id])} dropped listings")
+        mine, theirs = round_number(_round_of(db, pair.stale.id)), round_number(_round_of(db, pair.successor.id))
+        if mine is not None and theirs is not None and mine != theirs:
+            pair.blockers.append(f"the rounds differ ({_round_of(db, pair.stale.id)!r} against "
+                                 f"{_round_of(db, pair.successor.id)!r}): two meetings, not one")
+        key = _canonical_key(db, pair.stale.league_id)
+        entry = comps.COMPETITIONS.get(key) if key else None
+        if entry is None:
+            pair.blockers.append(f"not a registered competition ({key!r}); a person decides")
+        elif entry.is_cup or entry.is_national_team:
+            pair.blockers.append(f"not a league competition ({key}): a cup replays at the same ground and a "
+                                 f"national-team window can hold two friendlies the same way round; a person decides")
+    return sorted(pairs.values(), key=lambda p: (p.stale.kickoff, p.stale.id))
+
+
+def _canonical_key(db: Session, league_id: str) -> Optional[str]:
+    key = db.execute(text("SELECT league_metadata->>'canonical_key' FROM predictions.leagues WHERE id = :lid"),
+                     {"lid": league_id}).scalar()
+    if key:
+        return key
+    return db.execute(text("""
+        SELECT external_id FROM predictions.provider_entity_refs
+        WHERE entity_type = 'league' AND provider = 'canonical' AND entity_id = :lid
+    """), {"lid": league_id}).scalar()
+
+
+def plan_supersession(db: Session, pair: Supersession, deps: Sequence[Dependent]) -> Supersession:
+    """
+    What folding the dropped listing into its successor would move, and what stops it.
+
+    The successor is the survivor whatever the two rows carry: it is the listing the provider
+    maintains, with the kickoff the match was played at. Every dependent row of the dropped
+    listing moves; a unique key that the move would break (a current forecast from a provider the
+    successor already has one from, say) is a contradiction between the two rows and blocks the
+    whole pair.
+    """
+    count_dependents(db, pair.stale, deps)
+    count_dependents(db, pair.successor, deps)
+    for dep in deps:
+        n = pair.stale.counts.get(dep.qualified) or 0
+        if n:
+            pair.moves[dep.qualified] = n
+            pair.blockers.extend(collisions_for(db, dep, pair.stale, pair.successor))
+    if pair.stale.has_result:
+        pair.blockers.append("the dropped listing holds a result: it was played, so it was not dropped")
+    moved_people = sum(pair.stale.counts.get(t, 0) for t in
+                       ("predictions.predictions", "users.selection_slip_legs", "users.saved_matches"))
+    if moved_people:
+        pair.consequences.append(
+            f"{moved_people} prediction(s), slip leg(s) or saved match(es) made for the listing dated "
+            f"{pair.stale.kickoff} move to a match played {pair.successor.kickoff}"
+            + ("; the next settle pass scores them against its result" if pair.successor.has_result else "")
+            + ": whether they should stand is a separate decision")
+    late = db.execute(text("""
+        SELECT count(*) FROM predictions.provider_forecast_snapshots
+        WHERE match_id = :mid AND captured_before_kickoff IS FALSE AND first_fetched_at < :played
+    """), {"mid": pair.stale.id, "played": pair.successor.kickoff}).scalar() or 0
+    if late:
+        pair.consequences.append(
+            f"{late} snapshot(s) retrieved before the match was played but after the dropped listing's kickoff "
+            f"are recorded as captured after the kickoff known at capture (`captured_before_kickoff` false) and "
+            f"stay so: settlement will not score them unless a separate decision re-evaluates them; their "
+            f"retrieval times are untouched")
+    return pair
+
+
+def apply_supersession(db: Session, pair: Supersession, deps: Sequence[Dependent], now: Optional[datetime] = None
+                       ) -> Dict[str, int]:
+    """
+    Fold the dropped listing into its successor. One transaction, caller commits.
+
+    Dependents move with `fold_rows` (recount before the delete, as everywhere in this script). Then
+    the dead provider ref, now on the survivor, is marked `superseded_by` the live id, and the
+    dropped row's own record - kickoff, status, legacy id, metadata, created_at - is written onto
+    the survivor under `match_metadata.superseded_listing`, where a reader of the row can see
+    what it was folded from. The survivor's kickoff, status, scores and refs are its own and are
+    not touched. Re-running finds no dropped listing and changes nothing.
+    """
+    now = now or datetime.now(timezone.utc)
+    stale_meta = _match_meta(db, pair.stale.id)
+    stale_row = db.execute(text("""
+        SELECT match_date, status::text AS status, external_api_id, external_api_source, round, created_at
+        FROM predictions.matches WHERE id = :mid"""), {"mid": pair.stale.id}).first()
+    moved = fold_rows(db, deps, f"{MATCHES_SCHEMA}.{MATCHES_TABLE}", pair.successor.id, [pair.stale.id])
+    for dead_id in pair.dead_ids:
+        db.execute(text("""
+            UPDATE predictions.provider_entity_refs
+            SET ref_metadata = COALESCE(ref_metadata, '{}'::jsonb) || CAST(:note AS jsonb)
+            WHERE entity_type = 'match' AND entity_id = :surv AND provider = :prov AND external_id = :dead
+        """), {"surv": pair.successor.id, "prov": pair.provider, "dead": dead_id,
+               "note": json.dumps({"superseded_by": {"external_id": pair.live_ids[0],
+                                                     "kickoff_utc": pair.successor.kickoff.replace(tzinfo=timezone.utc).isoformat(),
+                                                     "at": now.isoformat(), "by": "scripts/repair_duplicate_matches.py"}})})
+    meta = _match_meta(db, pair.successor.id)
+    event = {
+        "provider": pair.provider,
+        "previous_external_ids": list(pair.dead_ids),
+        "external_id": pair.live_ids[0],
+        "previous": {"match_id": pair.stale.id,
+                     "kickoff_utc": stale_row.match_date.replace(tzinfo=timezone.utc).isoformat() if stale_row.match_date else None,
+                     "status": stale_row.status, "external_api_id": stale_row.external_api_id,
+                     "external_api_source": stale_row.external_api_source, "round": stale_row.round,
+                     "created_at": stale_row.created_at.isoformat() if stale_row.created_at else None,
+                     "match_metadata": stale_meta},
+        "kickoff_utc": pair.successor.kickoff.replace(tzinfo=timezone.utc).isoformat(),
+        "moved": dict(moved),
+        "detected_at": now.isoformat(),
+        "by": "scripts/repair_duplicate_matches.py",
+        "reason": (f"{pair.provider} stopped listing fixture {', '.join(pair.dead_ids)} ({stale_row.match_date} UTC, never "
+                   f"reported started, no result) and lists the same two clubs the same way round in the same "
+                   f"competition as fixture {', '.join(pair.live_ids)} ({pair.successor.kickoff} UTC): the same match, "
+                   f"re-issued. The dropped row's dependents were moved here with their timestamps untouched and the "
+                   f"row deleted."),
+    }
+    earlier = meta.get(SUPERSEDED_KEY)
+    history = list(earlier.get("history") or []) if isinstance(earlier, dict) else []
+    if isinstance(earlier, dict):
+        history.append({k: v for k, v in earlier.items() if k != "history"})
+    meta[SUPERSEDED_KEY] = {**event, "history": history}
+    db.execute(text("UPDATE predictions.matches SET match_metadata = CAST(:meta AS jsonb) WHERE id = :mid"),
+               {"meta": json.dumps(meta, default=str), "mid": pair.successor.id})
+    return moved
+
+
 # --------------------------------------------------------------------------- placeholder fixtures
 def placeholder_matches(db: Session, deps: Sequence[Dependent]) -> List[Copy]:
     """
@@ -537,7 +777,11 @@ def main() -> int:
                         help="actually move the rows and delete the duplicates (default: report only)")
     parser.add_argument("--database-url", default=None,
                         help="database to work on; defaults to the application's own")
+    parser.add_argument("--fold-superseded", action="append", default=[], metavar="MATCH_ID",
+                        help="fold this dropped-and-re-issued listing (its match id) into the listing the "
+                             "provider maintains; repeatable. Never implied by --apply.")
     args = parser.parse_args()
+    selected = {m.strip() for m in args.fold_superseded if m.strip()}
 
     if args.database_url:
         url = args.database_url
@@ -548,7 +792,8 @@ def main() -> int:
     engine = create_engine(url, echo=False)
     db = sessionmaker(autocommit=False, autoflush=False, bind=engine)()
     print(f"database: {redacted(str(url))}")
-    print(f"mode:     {'APPLY - rows will be moved and duplicates deleted' if args.apply else 'report only'}\n")
+    print(f"mode:     {'APPLY - rows will be moved and duplicates deleted' if args.apply else 'report only'}"
+          + (f"; folding {len(selected)} named dropped listing(s)" if selected else "") + "\n")
 
     deps = dependents(db)
     print(f"tables pointing at {MATCHES_SCHEMA}.{MATCHES_TABLE} ({len(deps)}):")
@@ -628,6 +873,44 @@ def main() -> int:
             print(f"    deleted: {len(plan.dead)} duplicate match row(s)")
         print()
 
+    supersessions = superseded_listings(db)
+    print(f"listings dropped and issued again under a new id: {len(supersessions)}")
+    folded = 0
+    for pair in supersessions:
+        plan_supersession(db, pair, deps)
+        print(f"{pair.successor.home} v {pair.successor.away}  {pair.successor.league or pair.successor.league_id}")
+        print(describe(pair.successor, "KEEP") + f"  {pair.provider}:{','.join(pair.live_ids)}")
+        print(describe(pair.stale, "FOLD") + f"  {pair.provider}:{','.join(pair.dead_ids)} (dropped)")
+        if not pair.safe:
+            print("    ABANDONED, nothing changed:")
+            for blocker in pair.blockers:
+                print(f"      - {blocker}")
+            exit_code = 1
+            print()
+            continue
+        print(f"    to move: {pair.moves or 'nothing'}")
+        for consequence in pair.consequences:
+            print(f"    A PERSON DECIDES AFTERWARDS: {consequence}")
+        if pair.stale.id not in selected:
+            print(f"    NOT FOLDED: name it with --fold-superseded {pair.stale.id} to fold it")
+            print()
+            continue
+        try:
+            moved = apply_supersession(db, pair, deps)
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            print(f"    FAILED, rolled back: {exc}")
+            exit_code = 1
+            print()
+            continue
+        for table, n in moved.items():
+            total_moved[table] = total_moved.get(table, 0) + n
+        folded += 1
+        print(f"    moved:   {moved or 'nothing'}")
+        print(f"    deleted: 1 dropped listing; its record is on the survivor under match_metadata.{SUPERSEDED_KEY}")
+        print()
+
     placeholders = placeholder_matches(db, deps)
     print(f"placeholder fixtures (both slots name no club): {len(placeholders)}")
     deleted_placeholders = 0
@@ -702,11 +985,17 @@ def main() -> int:
     print("    nothing in this section was changed.")
     print()
 
-    if args.apply:
+    unknown = selected - {pair.stale.id for pair in supersessions}
+    for match_id in sorted(unknown):
+        print(f"--fold-superseded {match_id}: no dropped listing with this id was found; nothing done for it")
+        exit_code = 1
+    if args.apply or selected:
         print(f"total moved: {total_moved or 'nothing'}")
-        print(f"placeholder fixtures deleted: {deleted_placeholders}")
-        print(f"settled clash markers cleared: {cleared}")
-    elif not (groups or club_groups or placeholders or conflicts):
+        print(f"dropped listings folded into their re-issue: {folded}")
+        if args.apply:
+            print(f"placeholder fixtures deleted: {deleted_placeholders}")
+            print(f"settled clash markers cleared: {cleared}")
+    elif not (groups or club_groups or placeholders or conflicts or supersessions):
         print("nothing to repair")
     else:
         print("report only; nothing was changed. Re-run with --apply to repair.")

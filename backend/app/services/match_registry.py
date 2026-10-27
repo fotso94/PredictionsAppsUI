@@ -6,10 +6,11 @@ provider-id links (`provider_entity_refs`) that make records stable across provi
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from enum import Enum
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -50,6 +51,17 @@ SHARED_SLOT_WINDOW = match_matching.EXACT_WINDOW
 RELISTING_WINDOW = timedelta(hours=24)
 #: Where a fixture listed twice names the row that was played (`MatchRegistry.retire_relisted`).
 RELISTED_KEY = "relisted_as"
+#: A provider that drops a listing and issues the fixture again under a new id - a postponement,
+#: as a rule - is recognised as describing the SAME match only when the new listing kicks off
+#: after the dropped one and no later than this. Within a competition the same two clubs meet the
+#: same way round once a season outside cup replays, which the window keeps out: a listing a
+#: fortnight or more later is left for a person (`scripts/repair_duplicate_matches.py` lists it).
+SUPERSEDED_LISTING_WINDOW = timedelta(days=14)
+#: `match_metadata` key recording that this row's provider listing was re-issued under a new id.
+SUPERSEDED_KEY = "superseded_listing"
+#: `match_metadata` key, on a NEW row, naming the stored listings it may be a re-issue of but was
+#: not proven to be. Nothing is decided by it; the repair script reports it.
+SUPERSEDED_CANDIDATES_KEY = "superseded_listing_candidates"
 
 #: How long after kickoff a fixture is left alone before anything calls it unsettled. This is THIS
 #: APPLICATION'S polling window: the live task stops considering a match 150 minutes after kickoff
@@ -356,6 +368,18 @@ def _bounded_attempts(state: Dict[str, object], attempts: int) -> Optional[str]:
     if since:
         return text + f"; the {since} since {'is' if since == 1 else 'are'} exact."
     return text + "."
+
+
+def round_number(value: Optional[str]) -> Optional[int]:
+    """The matchday a round label names, or None: "8", "Regular Season - 8" and "Round 8" are all 8.
+
+    Providers label the same round differently, so the number is the only part two of them agree
+    on; a label with no number ("Final", "Semi-finals") is compared by nobody.
+    """
+    if not value:
+        return None
+    digits = re.findall(r"\d+", str(value))
+    return int(digits[-1]) if digits else None
 
 
 def recovery_state_of(match) -> Dict[str, object]:
@@ -999,11 +1023,25 @@ class MatchRegistry:
 
         match = self.match_by_ref(fixture.provider, fixture.external_id)
         matched_by, confidence = "provider_id", "exact"
+        unproven: List[Dict[str, object]] = []
         if match is not None and not self._ref_still_describes(match, fixture, home, away):
             self._record_refusal(
                 fixture, "provider fixture id no longer names the same teams in the same order",
                 [str(match.id)])
             return None
+        if match is not None:
+            # A dead id the provider sends again (`_note_superseded` kept its ref so it lands here)
+            # with the kickoff it was dropped at would drag the match back to a date it was not
+            # played on. Two listings that disagree are a person's question, not the sync's.
+            dead = self.get_ref("match", fixture.provider, fixture.external_id)
+            successor = (dead.ref_metadata or {}).get("superseded_by") if dead is not None else None
+            if isinstance(successor, dict) and fixture.kickoff_utc is not None and match.match_date is not None \
+                    and abs(_aware_utc(match.match_date) - _aware_utc(fixture.kickoff_utc)) > match_matching.EXACT_WINDOW:
+                self._record_refusal(
+                    fixture, f"provider fixture id was superseded by {successor.get('external_id')} "
+                             f"({successor.get('kickoff_utc')}); a listing under the dead id for another "
+                             f"kickoff is not applied", [str(match.id)])
+                return None
         if match is None:
             recovered = self._recover_legacy_match(fixture)
             if recovered is not None:
@@ -1023,8 +1061,15 @@ class MatchRegistry:
                 if unclaimed:
                     self._refuse_fixture(fixture, decision)
                     return None
-                logger.info("Fixture %s:%s (%s vs %s): candidates %s are the same provider's other fixtures; new match row",
-                            fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name, decision.candidate_ids)
+                # One of those other ids may be DEAD: a listing the provider dropped and issued
+                # again under this id. Proven from the stored rows alone, or not at all.
+                superseded, unproven = self.superseded_listing_for(fixture, home, away, league)
+                if superseded is not None:
+                    match, matched_by, confidence = superseded, "superseded_listing", "high"
+                    self._note_superseded(match, fixture)
+                else:
+                    logger.info("Fixture %s:%s (%s vs %s): candidates %s are the same provider's other fixtures; new match row",
+                                fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name, decision.candidate_ids)
         clash: List[str] = []
         if match is None:
             # Last resort before a new row: the names failed, but club rows are ids, not spellings,
@@ -1061,7 +1106,9 @@ class MatchRegistry:
                           match_metadata={})
             self.db.add(match)
             self.db.flush()
-        self._apply_fixture(match, fixture, home, away, league)
+            if unproven:
+                self._record_superseded_candidates(match, fixture, unproven)
+        self._apply_fixture(match, fixture, home, away, league, rekeyed=matched_by == "superseded_listing")
         if clash:
             self._record_slot_conflict(match, fixture, clash)
         self._reconcile_relisting(match)
@@ -1096,6 +1143,185 @@ class MatchRegistry:
                        "be reconciled; stored as match %s and reported for review.",
                        fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name,
                        candidates, match.id)
+
+    # ------------------------------------------------------- one match, listed again under a new id
+    def superseded_listing_for(self, fixture: ProviderFixture, home: Team, away: Team, league: League
+                               ) -> Tuple[Optional[Match], List[Dict[str, object]]]:
+        """
+        The one stored listing this fixture is the provider's re-issue of, or None - and, for the
+        record, the candidates that could be but were not proven. Read-only.
+
+        The candidates are EVERY stored row of this competition holding these two clubs this way
+        round that kicks off before this fixture and within `SUPERSEDED_LISTING_WINDOW` of it - not
+        the ids `find_match` reported, which it narrows to its own reschedule window: a second
+        dropped listing two days back must count against a join, not be out of sight.
+
+        Live Score did this on 2026-10-25/26: Paris Saint-Germain v Lyon, Ligue 1 round 8, listed
+        since 10-18 as fixture 1877019 for 10-25 19:45 UTC, vanished from its lists after 17:09 UTC
+        on the 25th and came back on the 26th as fixture 742799, 19:30 UTC, same clubs the same way
+        round, which was played 2-0. `upsert_fixture` stored a second row, because a provider's own
+        other id is never a candidate for a new one - which holds for two LIVE ids and not for a
+        dead one - and nine forecast snapshots stayed on a listing that never kicked off while the
+        result sat on a row with no forecast. The recovery sweep asked about the dead listing
+        eighteen times.
+
+        All of it is required, and every condition is read from the stored rows, never inferred
+        from names or nearby dates: the candidate is in THIS competition; it holds THESE two clubs
+        in THIS order by row id (a return leg, another squad of the same club and another
+        competition's meeting are all other rows); the competition is a LEAGUE, where the same two
+        clubs meet the same way round once a season (a cup replays, a friendly window repeats, and
+        there two listings may be two meetings); it is listed by THIS provider under ANOTHER id;
+        it was never played - no stored result, and either still SCHEDULED with the live poll's
+        whole window (`UNSETTLED_GRACE`) passed without anyone reporting it started, or already
+        POSTPONED by a provider, and not closed as the second listing of a played row
+        (`relisting_of`, the other-way-round case, which is a different fact); the new listing
+        kicks off AFTER it and within `SUPERSEDED_LISTING_WINDOW`; and when both listings name a
+        round, it is the same matchday. Two candidates that both qualify, or none, decide nothing:
+        the fixture is stored as a new row and the candidates are written on it for a person
+        (`SUPERSEDED_CANDIDATES_KEY`).
+        """
+        now = _aware_utc(self._now or datetime.now(timezone.utc))
+        kickoff = _aware_utc(fixture.kickoff_utc) if fixture.kickoff_utc is not None else None
+        proven: List[Match] = []
+        unproven: List[Dict[str, object]] = []
+        if kickoff is None:
+            return None, unproven
+        rows = self.db.query(Match).filter(
+            Match.league_id == league.id,
+            Match.home_team_id == home.id, Match.away_team_id == away.id,
+            Match.match_date < _naive_utc(kickoff),
+            Match.match_date >= _naive_utc(kickoff - SUPERSEDED_LISTING_WINDOW),
+        ).order_by(Match.match_date.asc()).all()
+        for match in rows:
+            why = self._not_superseded_because(match, fixture, home, away, league, kickoff, now)
+            if why is None:
+                proven.append(match)
+            else:
+                unproven.append({"match_id": str(match.id), "kickoff_utc": _utc_label(match.match_date),
+                                 "status": match.status.value, "why": why})
+        if len(proven) == 1:
+            return proven[0], unproven
+        if len(proven) > 1:
+            logger.warning("Fixture %s:%s (%s vs %s): %s stored listings could each be the one it re-issues (%s); "
+                           "not decided", fixture.provider, fixture.external_id, fixture.home.name,
+                           fixture.away.name, len(proven), [str(m.id) for m in proven])
+            unproven.extend({"match_id": str(m.id), "kickoff_utc": _utc_label(m.match_date), "status": m.status.value,
+                             "why": "another stored listing qualifies as well"} for m in proven)
+        return None, unproven
+
+    def _not_superseded_because(self, match: Match, fixture: ProviderFixture, home: Team, away: Team,
+                                league: League, kickoff: Optional[datetime], now: datetime) -> Optional[str]:
+        """Why `match` is NOT a listing this fixture re-issues, or None when every condition holds."""
+        if kickoff is None or match.match_date is None:
+            return "no kickoff to compare"
+        if match.league_id != league.id:
+            return "a different competition"
+        # Only a league meets once a season per venue. A cup replays at the same ground and a
+        # national-team window can hold two friendlies the same way round, so there a dropped
+        # listing beside a new one may be two meetings - a person's question, never joined here.
+        key = self.canonical_key_for_league(league.id) or fixture.competition.key
+        entry = comps.COMPETITIONS.get(key) if key else None
+        if entry is None:
+            return f"not a registered competition ({key!r})"
+        if entry.is_cup or entry.is_national_team:
+            return f"not a league competition ({key}: cups and national-team fixtures can meet again the same way round)"
+        if match.home_team_id != home.id or match.away_team_id != away.id:
+            return "not the identical two clubs in this order"
+        # The clubs agree by row; the provider's own words must agree too. A youth, reserve or
+        # women's side resolves to its club's row where the club's name is in it, and that is a
+        # different squad, not a re-issue of the senior listing.
+        stored_home = self.db.query(Team).filter(Team.id == match.home_team_id).first()
+        stored_away = self.db.query(Team).filter(Team.id == match.away_team_id).first()
+        for sent, held in ((fixture.home.name, stored_home), (fixture.away.name, stored_away)):
+            if held is None:
+                continue
+            scope = self._scope_for(fixture.competition.key, sent)
+            if self.team_identity(sent, scope) != self.team_identity(held.name, self._scope_for(fixture.competition.key, held.name)):
+                return f"the provider names another squad or club ({sent!r} for {held.name!r})"
+        old_ids = [r.external_id for r in self.refs_for("match", match.id)
+                   if r.provider == fixture.provider and r.external_id != str(fixture.external_id)]
+        if not old_ids:
+            return f"not listed by {fixture.provider} under another id"
+        if self._has_result(match.id):
+            return "it has a stored result"
+        if RELISTED_KEY in (match.match_metadata or {}):
+            return "closed as the second listing of a played row"
+        stored = _aware_utc(match.match_date)
+        if match.status == MatchStatus.SCHEDULED:
+            if stored + UNSETTLED_GRACE > now:
+                return "its kickoff window has not closed"
+        elif match.status != MatchStatus.POSTPONED:
+            return f"its status is {match.status.value}"
+        if kickoff <= stored:
+            return "the new listing does not kick off after it"
+        if kickoff - stored > SUPERSEDED_LISTING_WINDOW:
+            return f"the new listing kicks off more than {SUPERSEDED_LISTING_WINDOW.days} days after it"
+        mine, theirs = round_number(fixture.round), round_number(match.round)
+        if mine is not None and theirs is not None and mine != theirs:
+            return f"a different round ({match.round!r} against {fixture.round!r})"
+        return None
+
+    def _note_superseded(self, match: Match, fixture: ProviderFixture) -> None:
+        """
+        Record, on the row and on its dead refs, that the provider re-issued this listing.
+
+        Nothing is moved and nothing is deleted. The dead ref stays, marked `superseded_by`: it is
+        the record of the id the forecasts were fetched under, and should the provider ever send
+        the old id again it lands on this row instead of founding another. The legacy id column
+        follows the listing the provider now uses, when no other row holds it.
+        """
+        now = _aware_utc(self._now or datetime.now(timezone.utc))
+        meta = dict(match.match_metadata or {})
+        dead = [r for r in self.refs_for("match", match.id)
+                if r.provider == fixture.provider and r.external_id != str(fixture.external_id)]
+        for ref in dead:
+            ref.ref_metadata = {**(ref.ref_metadata or {}),
+                                "superseded_by": {"external_id": str(fixture.external_id),
+                                                  "kickoff_utc": fixture.kickoff_utc.isoformat(),
+                                                  "at": now.isoformat()}}
+        event = {
+            "provider": fixture.provider,
+            "previous_external_ids": [r.external_id for r in dead],
+            "external_id": str(fixture.external_id),
+            "previous": {"kickoff_utc": _aware_utc(match.match_date).isoformat(), "status": match.status.value,
+                         "external_api_id": match.external_api_id, "round": match.round,
+                         "last_synced_at": meta.get("last_synced_at")},
+            "kickoff_utc": fixture.kickoff_utc.isoformat(),
+            "detected_at": now.isoformat(),
+            "reason": (f"{fixture.provider} stopped listing fixture {', '.join(r.external_id for r in dead)} "
+                       f"({_utc_label(match.match_date)}, never reported started, no result) and lists the same "
+                       f"two clubs the same way round in the same competition as fixture {fixture.external_id} "
+                       f"({_utc_label(fixture.kickoff_utc)}): the same match, re-issued. Forecasts, predictions "
+                       f"and refs stay where they are; the kickoff follows the provider."),
+        }
+        earlier = meta.get(SUPERSEDED_KEY)
+        history = list(earlier.get("history") or []) if isinstance(earlier, dict) else []
+        if isinstance(earlier, dict):
+            history.append({k: v for k, v in earlier.items() if k != "history"})
+        meta[SUPERSEDED_KEY] = {**event, "history": history}
+        match.match_metadata = meta
+        legacy_id = f"{fixture.provider}:{fixture.external_id}"
+        if match.external_api_id != legacy_id and \
+                not self.db.query(Match.id).filter(Match.external_api_id == legacy_id).first():
+            match.external_api_id = legacy_id
+        self.db.flush()
+        logger.warning("Fixture %s:%s (%s vs %s, %s) is match %s re-issued: the provider dropped %s (%s). "
+                       "Re-dated on the same row; nothing moved.", fixture.provider, fixture.external_id,
+                       fixture.home.name, fixture.away.name, _utc_label(fixture.kickoff_utc), match.id,
+                       event["previous_external_ids"], event["previous"]["kickoff_utc"])
+
+    def _record_superseded_candidates(self, match: Match, fixture: ProviderFixture,
+                                      candidates: List[Dict[str, object]]) -> None:
+        """Write on a new row the stored listings it might re-issue but was not proven to. Decides nothing."""
+        now = _aware_utc(self._now or datetime.now(timezone.utc))
+        meta = dict(match.match_metadata or {})
+        meta[SUPERSEDED_CANDIDATES_KEY] = {"provider": fixture.provider, "external_id": str(fixture.external_id),
+                                           "candidates": candidates, "detected_at": now.isoformat()}
+        match.match_metadata = meta
+        self.db.flush()
+        logger.info("Fixture %s:%s (%s vs %s): stored as a new row beside %s listing(s) it was not proven to "
+                    "re-issue: %s", fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name,
+                    len(candidates), "; ".join(f"{c['match_id']} ({c['why']})" for c in candidates))
 
     # ------------------------------------------------------- one match, listed twice
     def _has_result(self, match_id: uuid.UUID) -> bool:
@@ -1299,18 +1525,21 @@ class MatchRegistry:
             return match.status
         return incoming
 
-    def _apply_fixture(self, match: Match, fixture: ProviderFixture, home: Team, away: Team, league: League) -> None:
+    def _apply_fixture(self, match: Match, fixture: ProviderFixture, home: Team, away: Team, league: League,
+                       rekeyed: bool = False) -> None:
         # Only the provider that owns the match record moves the kickoff. A secondary provider with a
         # stale calendar may disagree; it is logged and ignored instead of dragging the fixture around.
         # And only a kickoff the provider actually stated: a results row with a date and no time
         # is mapped to midnight, and writing that over the stored kickoff would invent one.
+        # A listing the provider re-issued (`rekeyed`, see `superseded_listing_for`) is that
+        # provider's own record of where the match went, whoever first created the row.
         if not fixture.kickoff_supplied:
             if match.match_date is not None and \
                     _aware_utc(match.match_date).date() != _aware_utc(fixture.kickoff_utc).date():
                 logger.warning("Provider %s reports match %s on %s without a kickoff time (stored %s); "
                                "kickoff left unchanged", fixture.provider, match.id,
                                fixture.kickoff_utc.date(), match.match_date)
-        elif self._owns_match(match, fixture.provider):
+        elif rekeyed or self._owns_match(match, fixture.provider):
             match.match_date = _naive_utc(fixture.kickoff_utc)
         elif match.match_date is not None and fixture.kickoff_utc is not None and \
                 abs(_aware_utc(match.match_date) - _aware_utc(fixture.kickoff_utc)) > match_matching.EXACT_WINDOW:
