@@ -1,0 +1,468 @@
+database: postgresql://postgres@127.0.0.1:5441/psg_lyon_repair2
+mode:     report only; folding 1 named dropped listing(s)
+
+tables pointing at predictions.matches (10):
+    ml_models.ml_predictions.match_id
+    predictions.match_results.match_id
+    predictions.match_statistics.match_id
+    predictions.predictions.match_id
+    predictions.provider_forecast_results.match_id
+    predictions.provider_forecast_snapshots.match_id
+    predictions.provider_forecasts.match_id
+    users.saved_matches.match_id
+    users.selection_slip_legs.match_id
+    predictions.provider_entity_refs.entity_id  (polymorphic, no foreign key)
+
+duplicate clubs: 1
+  Troyes (France)
+    KEEP 64179b3b-e29b-41d7-81fe-837bf6f75be4  'Troyes'             fixtures=5 {'livescore': '73'}
+    FOLD ada90729-df80-44b0-bb08-7069f1392750  'Estac Troyes'       fixtures=1 {'api_football': '110'}
+
+duplicate fixtures: 2
+Tajikistan v Palestine  2026-09-28 12:00:00  (2 copies)
+    KEEP 76b7890e-7a7f-447f-b2e8-ebd3404a4274  2026-09-28 12:00:00  FINISHED   livescore:1901222        result=yes rows=2 {'ml_models.ml_predictions': 0, 'predictions.match_results': 1, 'predictions.match_statistics': 0, 'predictions.predictions': 0, 'predictions.provider_forecast_results': 0, 'predictions.provider_forecast_snapshots': 0, 'predictions.provider_forecasts': 0, 'users.saved_matches': 0, 'users.selection_slip_legs': 0, 'predictions.provider_entity_refs': 1}
+    FOLD dc2cbc24-96d1-4ebe-a712-5a7e24399604  2026-09-28 12:00:00  SCHEDULED  livescore:735608         result=no  rows=1 {'ml_models.ml_predictions': 0, 'predictions.match_results': 0, 'predictions.match_statistics': 0, 'predictions.predictions': 0, 'predictions.provider_forecast_results': 0, 'predictions.provider_forecast_snapshots': 0, 'predictions.provider_forecasts': 0, 'users.saved_matches': 0, 'users.selection_slip_legs': 0, 'predictions.provider_entity_refs': 1}
+    to move: {'predictions.provider_entity_refs': 1}
+
+Troyes v Marseille  2026-10-11 18:45:00  (2 copies)
+    KEEP e4688a8d-6e73-4cda-b5fc-270e8af91e27  2026-10-11 18:45:00  FINISHED   livescore:1877000        result=yes rows=8 {'ml_models.ml_predictions': 0, 'predictions.match_results': 1, 'predictions.match_statistics': 0, 'predictions.predictions': 0, 'predictions.provider_forecast_results': 1, 'predictions.provider_forecast_snapshots': 3, 'predictions.provider_forecasts': 1, 'users.saved_matches': 0, 'users.selection_slip_legs': 0, 'predictions.provider_entity_refs': 2}
+    FOLD 2f94ccad-cfff-4213-9a77-378f2a4faf50  2026-10-11 18:45:00  LIVE       api_football:1552782     result=no  rows=1 {'ml_models.ml_predictions': 0, 'predictions.match_results': 0, 'predictions.match_statistics': 0, 'predictions.predictions': 0, 'predictions.provider_forecast_results': 0, 'predictions.provider_forecast_snapshots': 0, 'predictions.provider_forecasts': 0, 'users.saved_matches': 0, 'users.selection_slip_legs': 0, 'predictions.provider_entity_refs': 1}
+    to move: {'predictions.provider_entity_refs': 1}
+
+listings issued again under a new id: 2
+Kyrgyzstan v Lebanon  National Teams Friendlies
+    KEEP c5912349-a167-4647-836e-e55a205fbdf5  2026-10-04 14:00:00  FINISHED   livescore:1901226        result=yes rows=2 {'ml_models.ml_predictions': 0, 'predictions.match_results': 1, 'predictions.match_statistics': 0, 'predictions.predictions': 0, 'predictions.provider_forecast_results': 0, 'predictions.provider_forecast_snapshots': 0, 'predictions.provider_forecasts': 0, 'users.saved_matches': 0, 'users.selection_slip_legs': 0, 'predictions.provider_entity_refs': 1}  livescore:1901226
+    FOLD 535ea78d-d020-4ea4-b0ba-a168d2c540a5  2026-09-28 12:00:00  SCHEDULED  livescore:1901250        result=no  rows=1 {'ml_models.ml_predictions': 0, 'predictions.match_results': 0, 'predictions.match_statistics': 0, 'predictions.predictions': 0, 'predictions.provider_forecast_results': 0, 'predictions.provider_forecast_snapshots': 0, 'predictions.provider_forecasts': 0, 'users.saved_matches': 0, 'users.selection_slip_legs': 0, 'predictions.provider_entity_refs': 1}  livescore:1901250 (earlier listing)
+    evidence: withdrawal NOT observed: last named by livescore at 2026-09-28T12:38:00.545098+00:00; no complete listing of its date recorded since without it (no result stored; nothing reported it started)
+    ABANDONED, nothing changed:
+      - not a league competition (national_teams_friendlies): a cup replays at the same ground and a national-team window can hold two friendlies the same way round; a person decides
+
+Paris Saint Germain v Lyon  Ligue 1
+    KEEP 93bc3d08-e713-4336-9747-e5e9eb5e00a1  2026-10-26 19:30:00  FINISHED   livescore:742799         result=yes rows=3 {'ml_models.ml_predictions': 0, 'predictions.match_results': 1, 'predictions.match_statistics': 0, 'predictions.predictions': 0, 'predictions.provider_forecast_results': 0, 'predictions.provider_forecast_snapshots': 0, 'predictions.provider_forecasts': 0, 'users.saved_matches': 0, 'users.selection_slip_legs': 0, 'predictions.provider_entity_refs': 2}  livescore:742799
+    FOLD 1adf0e7d-e682-42e2-bbb2-e5a5ad365752  2026-10-25 19:45:00  SCHEDULED  livescore:1877019        result=no  rows=12 {'ml_models.ml_predictions': 0, 'predictions.match_results': 0, 'predictions.match_statistics': 0, 'predictions.predictions': 0, 'predictions.provider_forecast_results': 0, 'predictions.provider_forecast_snapshots': 9, 'predictions.provider_forecasts': 1, 'users.saved_matches': 0, 'users.selection_slip_legs': 0, 'predictions.provider_entity_refs': 2}  livescore:1877019 (earlier listing)
+    evidence: withdrawal NOT observed: last named by livescore at 2026-10-25T17:09:00.514720+00:00; no complete listing of its date recorded since without it (no result stored; nothing reported it started)
+    to move: {'predictions.provider_forecast_snapshots': 9, 'predictions.provider_forecasts': 1, 'predictions.provider_entity_refs': 2}
+    A PERSON DECIDES AFTERWARDS: 1 snapshot(s) retrieved before the match was played but after the earlier listing's kickoff are recorded as captured after the kickoff known at capture (`captured_before_kickoff` false) and stay so: settlement will not score them unless a separate decision re-evaluates them; their retrieval times are untouched
+    NOT FOLDED: its withdrawal was not observed by this installation; --reviewed-evidence is required
+
+placeholder fixtures (both slots name no club): 0
+
+fixtures stored beside an unreconciled clash: 1
+  Estac Troyes v Marseille  2026-10-11 18:45:00  2f94ccad-cfff-4213-9a77-378f2a4faf50
+    stored from api_football:1552782 as 'Estac Troyes' v 'Marseille', seen 2026-10-11T19:59:37.999586+00:00
+    CLASHES WITH e4688a8d-6e73-4cda-b5fc-270e8af91e27  Troyes v Marseille  2026-10-11 18:45:00  FINISHED
+    A PERSON DECIDES: one alias line makes them one fixture, or one record is wrong
+
+competition + kickoff slots holding more than one fixture: 88
+    a normal matchday looks like this; read the provider ids, and see the docstring on same_slot_fixtures()
+  Serie A  2026-09-19 13:00:00  2 fixtures
+    68a66097-50ef-429f-bae0-2e711ab4bf1e  Udinese v Cagliari  FINISHED   {'gameforecast': '26369', 'livescore': '1877963'}
+    569d872c-a094-4223-adb6-fac1202130d3  Bologna v Torino  FINISHED   {'gameforecast': '26359', 'livescore': '1877964'}
+  Bundesliga  2026-09-19 13:30:00  4 fixtures
+    be0f3d13-8e12-4b58-9559-d523b7bc5fdc  Eintracht Frankfurt v Freiburg  FINISHED   {'api_football': '1575170', 'gameforecast': '26688', 'livescore': '1876297'}
+    9bc6a43d-0eca-4721-9999-f9ed01427b14  Werder Bremen v Augsburg  FINISHED   {'api_football': '1575172', 'gameforecast': '26690', 'livescore': '1876295'}
+    759fb61b-553c-4d5e-ab31-1af5cd60f33a  Hamburger SV v FC Cologne  FINISHED   {'api_football': '1575171', 'gameforecast': '26687', 'livescore': '1876298'}
+    39fbe31b-bb54-4828-b204-f7eb2eceb06a  Borussia Moenchengladbach v Mainz 05  FINISHED   {'api_football': '1575174', 'gameforecast': '26689', 'livescore': '1876296'}
+  Premier League  2026-09-19 14:00:00  3 fixtures
+    aae8cf63-4ad2-4c17-ba05-842e4f9958b5  Newcastle United v Hull City  FINISHED   {'api_football': '1557414', 'gameforecast': '26661', 'livescore': '1877296'}
+    b34cb67c-83ae-4a18-a6b7-738c332231d8  Brighton & Hove Albion v Arsenal  FINISHED   {'api_football': '1557409', 'gameforecast': '26659', 'livescore': '1877299'}
+    dedaa910-6070-4a6e-9716-e8e083369231  Everton v Ipswich Town  FINISHED   {'api_football': '1557410', 'gameforecast': '26660', 'livescore': '1877297'}
+  Ligue 1  2026-09-19 18:45:00  4 fixtures
+    c8ea8c17-1186-457f-8ffd-0a8d13658f60  Angers v Troyes  FINISHED   {'gameforecast': '26664', 'livescore': '1876984'}
+    d790c55d-ed6c-4f52-90d4-e03cf6a8b145  Lyon v Rennes  FINISHED   {'gameforecast': '26509', 'livescore': '1876985'}
+    25f156ff-77bd-47a7-a295-4db4b219112d  Le Mans FC v Lorient  FINISHED   {'gameforecast': '26665', 'livescore': '1876991'}
+    b57c7719-0e41-439b-8326-791de8b9114f  Toulouse v Le Havre  FINISHED   {'gameforecast': '26668', 'livescore': '1876988'}
+  Serie A  2026-09-20 13:00:00  2 fixtures
+    62d90d58-e7ba-49b9-9e54-cb6043dd2c98  Parma Calcio 1913 v Genoa  FINISHED   {'api_football': '1550134', 'gameforecast': '26368', 'livescore': '1877969'}
+    9e62123a-d2b3-46a0-a6f6-4604747171f9  Frosinone v Como  FINISHED   {'api_football': '1550131', 'gameforecast': '26367', 'livescore': '1877968'}
+  Premier League  2026-09-20 13:00:00  3 fixtures
+    cbb06aaf-415d-41f3-ab47-40be9db011f7  AFC Bournemouth v Liverpool  FINISHED   {'api_football': '1557407', 'gameforecast': '26489', 'livescore': '1877302'}
+    9f4d3095-7023-44d6-a923-f6bdcf5cfb6b  Leeds United v Crystal Palace  FINISHED   {'api_football': '1557412', 'gameforecast': '27015', 'livescore': '1877300'}
+    e6c700d4-e36d-4a59-8d21-490acb8ed67d  Manchester City v Sunderland  FINISHED   {'api_football': '1557413', 'gameforecast': '26634', 'livescore': '1877298'}
+  La Liga  2026-09-20 16:30:00  2 fixtures
+    17cd1df8-63f0-4842-9a57-b22c62d721c1  Villarreal v Levante  FINISHED   {'livescore': '1876631'}
+    73c18bf5-5aac-4684-8940-12548a55e1c1  Deportivo La Coruna v Real Betis  FINISHED   {'livescore': '1876635'}
+  National Teams Friendlies  2026-09-24 09:30:00  2 fixtures
+    f0b594b7-1bc7-4bc2-a0df-66164578566d  Turkmenistan v New Zealand  SCHEDULED  {'livescore': '1899617'}
+    58ddfd3a-73ef-4d88-a1e5-85e7f333a28f  Palestine v New Zealand  FINISHED   {'livescore': '734800'}
+  Africa Cup of Nations Qualifications  2026-09-24 16:00:00  3 fixtures
+    da32a124-8d6f-4a61-a9f0-62fdc6755d75  Congo v Equatorial Guinea  FINISHED   {'livescore': '1899628'}
+    1d81022e-402e-48f1-a42c-1f9c5c999a29  Mauritania v Central African Republic  FINISHED   {'livescore': '1899630'}
+    06922ae0-2487-4ebe-9d6d-7ff71504473e  Libya v Botswana  FINISHED   {'livescore': '1899629'}
+  UEFA Nations League  2026-09-24 18:45:00  7 fixtures
+    05f326de-15e9-4829-91ce-4456c92ef697  Netherlands v Germany  FINISHED   {'gameforecast': '27377', 'livescore': '1881629'}
+    2628024b-ccc8-453c-955e-65d3649ea3f2  Liechtenstein v Lithuania  FINISHED   {'gameforecast': '27382', 'livescore': '1881626'}
+    ee8d2591-662e-423d-b23b-dac07dfe948e  Portugal v Wales  FINISHED   {'gameforecast': '27375', 'livescore': '1881623'}
+    d893093a-a009-4e27-9f84-3a6421b09c09  Kosovo v Republic of Ireland  FINISHED   {'gameforecast': '27378', 'livescore': '1881628'}
+    2f349558-8883-4925-a238-bdadd0f50c90  Norway v Denmark  FINISHED   {'gameforecast': '27379', 'livescore': '1881625'}
+    6cba7a0b-6a5f-4856-b4bd-aace8d643422  Serbia v Greece  FINISHED   {'gameforecast': '27376', 'livescore': '1881622'}
+    cd6a16db-b8fd-41c8-aae5-bde7c7ef6090  Austria v Israel  FINISHED   {'gameforecast': '27380', 'livescore': '1881624'}
+  Africa Cup of Nations Qualifications  2026-09-24 19:00:00  4 fixtures
+    26fd3ac8-10d5-49f2-ac41-b9f1619940d7  Sierra Leone v Zimbabwe  FINISHED   {'livescore': '1899636'}
+    72cbde0f-0431-471d-977d-4ae317925e9d  Cameroon v Comoros  FINISHED   {'livescore': '1899634'}
+    af27417d-9fe9-4b75-9934-82fb74d52733  Tunisia v Uganda  FINISHED   {'livescore': '1899637'}
+    c6412603-39c1-4f86-ac0a-c9e3fa62380d  Ivory Coast v Ghana  FINISHED   {'livescore': '1899635'}
+  CONCACAF Nations League  2026-09-25 00:00:00  2 fixtures
+    2f054917-4610-4fe8-b3ee-843314594833  Dominican Republic v Nicaragua  FINISHED   {'livescore': '1900966'}
+    35ea6f75-c81e-490c-92dc-cef007207944  Cayman Islands v Dominica  FINISHED   {'livescore': '1900969'}
+  Africa Cup of Nations Qualifications  2026-09-25 13:00:00  3 fixtures
+    112190d3-4bf7-4cd7-b2d5-818d7e16d57a  Sudan v Ethiopia  FINISHED   {'livescore': '1899808'}
+    70e21f22-ac4d-4f4a-9557-ef17065b3275  Tanzania v Guinea-Bissau  FINISHED   {'livescore': '1899802'}
+    c1cb5b09-c6a0-4f90-9b18-00e555806e6d  Mozambique v Senegal  FINISHED   {'livescore': '1902057'}
+  Africa Cup of Nations Qualifications  2026-09-25 16:00:00  5 fixtures
+    e95ae601-7d5e-45b8-a2c5-33a46126939c  Togo v Burundi  FINISHED   {'livescore': '1899809'}
+    c2c252ba-2586-4927-bb1e-6b573773a9d3  Malawi v South Sudan  FINISHED   {'livescore': '1899804'}
+    025ba803-6f46-4dc4-8077-52b65a7b7abd  Nigeria v Madagascar  FINISHED   {'livescore': '1899806'}
+    b3811101-674a-40a3-897f-2a4fb7bc413c  Gambia v Somalia  FINISHED   {'livescore': '1899803'}
+    b68eda12-3add-483d-a114-451d52850c09  Rwanda v Liberia  FINISHED   {'livescore': '1899807'}
+  UEFA Nations League  2026-09-25 16:00:00  2 fixtures
+    ccad28bc-10b0-46f6-bdbf-a0abef565b4b  Armenia v Latvia  FINISHED   {'gameforecast': '27415', 'livescore': '1881630'}
+    47f40d87-865e-4aa0-a208-ffa50873c7a1  Georgia v N.Ireland  FINISHED   {'gameforecast': '27381', 'livescore': '1881631'}
+  UEFA Nations League  2026-09-25 18:45:00  6 fixtures
+    45e99343-9513-4c0f-9b08-d886455b72b9  Sweden v Romania  FINISHED   {'gameforecast': '27387', 'livescore': '1881632'}
+    72339a85-e97b-4a3b-abae-650843754b50  Montenegro v Cyprus  FINISHED   {'gameforecast': '27390', 'livescore': '1881637'}
+    7c0f360f-9885-475f-8224-2abc38d74114  Italy v Belgium  FINISHED   {'gameforecast': '27384', 'livescore': '1881634'}
+    e7187fde-82aa-42e8-83c1-cb56d4df0344  Turkey v France  FINISHED   {'gameforecast': '27383', 'livescore': '1881636'}
+    92abc86d-588b-4cf7-a95f-70a347186aac  Hungary v Ukraine  FINISHED   {'gameforecast': '27385', 'livescore': '1881635'}
+    541f1007-c1ac-4007-8b42-25685b16ae58  Poland v Bosnia and Herzegovina  FINISHED   {'gameforecast': '27386', 'livescore': '1881633'}
+  Africa Cup of Nations Qualifications  2026-09-25 19:00:00  6 fixtures
+    9dbb3854-85d2-46dc-843b-14dfbb708494  Senegal v Mozambique  POSTPONED  {'livescore': '1899816'}
+    69f3f1bd-64d3-4482-8075-141c13e87b52  Burkina Faso v Benin  FINISHED   {'livescore': '1899812'}
+    9baa7042-98d3-41bc-ab62-080481bfdfb3  Algeria v Zambia  FINISHED   {'livescore': '1899811'}
+    3ff934c8-09c6-44d1-8417-e562c02c3aff  Morocco v Gabon  FINISHED   {'livescore': '1899815'}
+    a80e19ab-401e-4a71-b630-c6d031350cf8  Egypt v Angola  FINISHED   {'livescore': '1899813'}
+    85afce75-cdc6-4907-94fb-63b0409024ac  Mali v Cape Verde  FINISHED   {'livescore': '1899814'}
+  CONCACAF Nations League  2026-09-26 00:00:00  3 fixtures
+    7804ab2e-5159-40af-b787-511e0230bad4  Bonaire v St. Kitts and Nevis  FINISHED   {'livescore': '1901021'}
+    8c0bbc06-1e5e-45f0-a57b-44d841b1209c  Jamaica v Guatemala  FINISHED   {'gameforecast': '27574', 'livescore': '1900951'}
+    53eda492-610f-4835-86ea-2a9bb0bd049b  Barbados v Saint Lucia  FINISHED   {'livescore': '1900953'}
+  Africa Cup of Nations Qualifications  2026-09-26 13:00:00  2 fixtures
+    b838229b-323f-475d-9e37-65139b99ef29  South Africa v Guinea  FINISHED   {'livescore': '1898889'}
+    da6dafc0-3d3a-400d-8b36-4dc8bd18e171  Kenya v Eritrea  FINISHED   {'livescore': '1898888'}
+  UEFA Nations League  2026-09-26 16:00:00  4 fixtures
+    52eb4e9d-0ce7-48d8-a515-5bda786024db  Faroe Islands v Kazakhstan  FINISHED   {'gameforecast': '27389', 'livescore': '1881639'}
+    ce9ea81f-e777-48c0-8219-afb9d2d21a54  Iceland v Estonia  FINISHED   {'gameforecast': '27391', 'livescore': '1881638'}
+    8223629c-c10a-4fab-b1af-8491f2c7d3f1  San Marino v Finland  FINISHED   {'gameforecast': '27388', 'livescore': '1881641'}
+    9ccb81db-d435-4fa7-a048-48cf442118eb  Bulgaria v Luxembourg  FINISHED   {'gameforecast': '27419', 'livescore': '1881640'}
+  UEFA Nations League  2026-09-26 18:45:00  5 fixtures
+    8f6043d8-0a2f-4f2a-bc28-335ea8116ed8  Czech Republic v Croatia  FINISHED   {'gameforecast': '27393', 'livescore': '1881643'}
+    cfc35ba3-a641-4d95-8eb7-5bbc86b89a14  Slovakia v Moldova  FINISHED   {'gameforecast': '27396', 'livescore': '1881644'}
+    d639bfc2-c7fb-4424-bb06-d3cd65f839cc  England v Spain  FINISHED   {'gameforecast': '27392', 'livescore': '1881642'}
+    8f5b0bde-2890-43c5-942a-805437f48579  Albania v Belarus  FINISHED   {'gameforecast': '27394', 'livescore': '1881645'}
+    36080943-5bea-4f3b-91d3-fc17ed80bda4  FYR Macedonia v Switzerland  FINISHED   {'gameforecast': '27423', 'livescore': '1881647'}
+  UEFA Nations League  2026-09-27 16:00:00  4 fixtures
+    2ebfb4e8-1bf2-4027-bbd0-2a8797946cb9  Austria v Kosovo  FINISHED   {'gameforecast': '27398', 'livescore': '1881651'}
+    8c24b17b-da37-409e-aaae-db47fce47e9a  Gibraltar v Andorra  FINISHED   {'gameforecast': '27418', 'livescore': '1881652'}
+    00cc5e02-693f-4e0e-bc61-0ad0d7de9cdc  Serbia v Netherlands  FINISHED   {'gameforecast': '27397', 'livescore': '1881649'}
+    9ffd799d-1471-4b63-9593-25705eb94419  Denmark v Wales  FINISHED   {'gameforecast': '27400', 'livescore': '1881650'}
+  UEFA Nations League  2026-09-27 18:45:00  3 fixtures
+    51e445a9-9617-4988-99e9-d522d113c92c  Norway v Portugal  FINISHED   {'gameforecast': '27401', 'livescore': '1881654'}
+    f16263a4-8dc1-478b-b584-ee12e5d07dd4  Germany v Greece  FINISHED   {'gameforecast': '27399', 'livescore': '1881653'}
+    e04a42e4-5fc5-4ae6-b8d6-66032e988e72  Israel v Republic of Ireland  FINISHED   {'gameforecast': '27403', 'livescore': '1881655'}
+  CONCACAF Nations League  2026-09-28 00:00:00  2 fixtures
+    d9a1df66-bcec-4faa-a111-604f0375e39d  Dominica v Puerto Rico  FINISHED   {'livescore': '1900936'}
+    15adefc1-2adf-4c48-8313-2ac64ec139af  Curacao v Nicaragua  FINISHED   {'livescore': '1900934'}
+  National Teams Friendlies  2026-09-28 12:00:00  3 fixtures
+    dc2cbc24-96d1-4ebe-a712-5a7e24399604  Tajikistan v Palestine  SCHEDULED  {'livescore': '735608'}  (also reported above)
+    535ea78d-d020-4ea4-b0ba-a168d2c540a5  Kyrgyzstan v Lebanon  SCHEDULED  {'livescore': '1901250'}
+    76b7890e-7a7f-447f-b2e8-ebd3404a4274  Tajikistan v Palestine  FINISHED   {'livescore': '1901222'}  (also reported above)
+  Africa Cup of Nations Qualifications  2026-09-28 16:00:00  3 fixtures
+    3aa00b48-1deb-4f29-8ce4-d55208e42d94  Central African Republic v Burkina Faso  FINISHED   {'livescore': '1900494'}
+    56c1ff5f-91e4-402a-8bba-3e48df8bbf96  Equatorial Guinea v Sierra Leone  FINISHED   {'livescore': '1900495'}
+    593ca240-daee-4e5a-8a52-91662fc18e14  Zimbabwe v Congo  FINISHED   {'livescore': '1900496'}
+  UEFA Nations League  2026-09-28 16:00:00  3 fixtures
+    569962d2-e2a2-41a1-bf43-0589c8fefcb7  Armenia v Montenegro  FINISHED   {'gameforecast': '27404', 'livescore': '1881656'}
+    1a03140b-8a15-4ebb-8850-f5eb48b039cc  Latvia v Cyprus  FINISHED   {'gameforecast': '27420', 'livescore': '1881663'}
+    8f843028-fe01-497d-98f9-f7bd5cd7f91a  Georgia v Ukraine  FINISHED   {'gameforecast': '27402', 'livescore': '1881657'}
+  UEFA Nations League  2026-09-28 18:45:00  5 fixtures
+    550530de-fbb4-4ff0-b99c-3b57147313a0  N.Ireland v Hungary  FINISHED   {'gameforecast': '27406', 'livescore': '1881660'}
+    78ba5b91-3699-4f58-a5c9-f5c005f28c38  Romania v Bosnia and Herzegovina  FINISHED   {'gameforecast': '27410', 'livescore': '1881661'}
+    b3d7df67-dd4a-4242-8318-9aabbf33cf18  Belgium v France  FINISHED   {'gameforecast': '27407', 'livescore': '1881658'}
+    65c7a78d-862f-4ff5-9470-1e634df7a147  Sweden v Poland  FINISHED   {'gameforecast': '27408', 'livescore': '1881659'}
+    d0ee69f2-6bfe-4e1a-89f5-fc623f83dccf  Turkey v Italy  FINISHED   {'gameforecast': '27405', 'livescore': '1881662'}
+  Africa Cup of Nations Qualifications  2026-09-28 19:00:00  2 fixtures
+    a2f73c7c-f386-4363-b895-1b02cf365981  Botswana v Tunisia  POSTPONED  {'livescore': '1900499'}
+    c8d9e457-0e67-4687-ac90-33f4af94c8e9  Tunisia v Botswana  FINISHED   {'livescore': '735644'}
+  CONCACAF Nations League  2026-09-29 00:00:00  3 fixtures
+    a3c9be13-08e1-4b6d-9fd6-b34957324917  Jamaica v Honduras  FINISHED   {'gameforecast': '27671', 'livescore': '1900930'}
+    68f40d4d-8ba0-4210-84be-9c34e89f9fb9  Saint Lucia v Bermuda  FINISHED   {'livescore': '1900932'}
+    2412dacd-a3f2-4414-9340-771bdf056759  St. Kitts and Nevis v Grenada  FINISHED   {'gameforecast': '27670', 'livescore': '1900929'}
+  Africa Cup of Nations Qualifications  2026-09-29 13:00:00  5 fixtures
+    b3556905-1c03-4e49-96a8-9fab8f1e39d3  Burundi v Algeria  FINISHED   {'livescore': '1900509'}
+    58c91335-a08d-4031-b038-80df67518e88  Ethiopia v Senegal  FINISHED   {'livescore': '1900510'}
+    420fa5c3-185b-4cf1-a29d-4128f80b5641  Mozambique v Sudan  FINISHED   {'livescore': '735681'}
+    ea52f56a-c053-42ac-9ea0-4a5d712a7ab2  South Sudan v Egypt  FINISHED   {'livescore': '1900514'}
+    a9aaa5b9-dfb8-482b-b17b-0534ec600533  Lesotho v Morocco  FINISHED   {'livescore': '1900511'}
+  Africa Cup of Nations Qualifications  2026-09-29 16:00:00  5 fixtures
+    060f5d60-c9ec-4db2-a024-d0ca8a01adc8  Uganda v Libya  FINISHED   {'livescore': '1900521'}
+    2f6165fe-4801-4d2d-91cf-737e5df4e66e  Ghana v Gambia  FINISHED   {'livescore': '1900519'}
+    a1048ada-9799-4f3c-814a-7396941f6a99  Zambia v Togo  FINISHED   {'livescore': '1900522'}
+    e60e789f-d840-4106-b142-0ed35596e72e  Guinea-Bissau v Nigeria  FINISHED   {'livescore': '1900520'}
+    3bc66ae8-37ed-4e4f-9a37-4eeb9818c550  Cape Verde v Rwanda  FINISHED   {'livescore': '1900518'}
+  UEFA Nations League  2026-09-29 16:00:00  2 fixtures
+    5ce69656-1599-4f13-b0d5-2424c1c6b201  Moldova v Faroe Islands  FINISHED   {'gameforecast': '27414', 'livescore': '1881672'}
+    a4eb5139-4a96-4deb-ba70-3d48a0243ef2  Finland v Belarus  FINISHED   {'gameforecast': '27581', 'livescore': '1881668'}
+  Arabian Gulf Cup  2026-09-29 17:30:00  2 fixtures
+    8e818b09-30f0-470f-8661-990db4eed229  Oman v Kuwait  FINISHED   {'livescore': '1900527'}
+    5446dca2-7ab6-40e8-bfe0-2475915a275f  Saudi Arabia v Iraq  FINISHED   {'livescore': '1900526'}
+  UEFA Nations League  2026-09-29 18:45:00  8 fixtures
+    fa2fa3eb-c125-4a9e-8837-da6771ba234a  Spain v Croatia  FINISHED   {'gameforecast': '27409', 'livescore': '1881664'}
+    3e7477e7-0978-4912-ae9c-3b5d7ca65a9d  Slovenia v FYR Macedonia  FINISHED   {'gameforecast': '27424', 'livescore': '1881667'}
+    0ef1fa68-a35d-4dfe-9e1f-98ea1d948d56  Czech Republic v England  FINISHED   {'gameforecast': '27413', 'livescore': '1881665'}
+    44b5c0c1-d5de-483a-8537-6205a0c0abf1  Scotland v Switzerland  FINISHED   {'gameforecast': '27421', 'livescore': '1881671'}
+    f4cf577f-c084-4784-848d-a1c1aa2300a8  Luxembourg v Iceland  FINISHED   {'gameforecast': '27582', 'livescore': '1881669'}
+    93219f96-655e-4e9f-b455-81e05f066139  Slovakia v Kazakhstan  FINISHED   {'gameforecast': '27412', 'livescore': '1881666'}
+    a23823cf-1273-4969-a99e-765dcbe32e70  San Marino v Albania  FINISHED   {'gameforecast': '27411', 'livescore': '1881673'}
+    bb7b5d6e-6967-4191-b8e7-6ac7616f36ec  Bulgaria v Estonia  FINISHED   {'gameforecast': '27416', 'livescore': '1881670'}
+  Africa Cup of Nations Qualifications  2026-09-29 19:00:00  4 fixtures
+    20d90eeb-c74e-4157-81a9-633cdaf71785  Gabon v Niger  FINISHED   {'livescore': '1900530'}
+    79179f78-3e63-4898-a95a-d562e05a0ec6  Somalia v Ivory Coast  FINISHED   {'livescore': '1900532'}
+    1c97b026-4e29-41a6-a1d2-41c210810bd5  Liberia v Mali  FINISHED   {'livescore': '1900531'}
+    28a52ee2-ae72-44f5-ab44-254f8764fde9  Congo v Cameroon  FINISHED   {'livescore': '1900529'}
+  National Teams Friendlies  2026-09-30 00:00:00  2 fixtures
+    0f533406-0e27-48f2-a097-ac0891be3032  USA v Chile  FINISHED   {'livescore': '1898573'}
+    2fd40360-d240-4a70-bbb3-4a8d5bfde57d  Argentina v Bolivia  FINISHED   {'livescore': '1900837'}
+  Arabian Gulf Cup  2026-09-30 17:30:00  2 fixtures
+    cc91f6d6-dc11-4648-bf9f-a11470256daf  Bahrain v Yemen  FINISHED   {'livescore': '1900832'}
+    0d39388a-a896-4c33-87b6-6d87d8cc3c2c  U.A.E. v Qatar  FINISHED   {'livescore': '1900831'}
+  National Teams Friendlies  2026-10-01 14:00:00  2 fixtures
+    408ca905-9c0a-452a-9866-a0324ef51f7c  Maldives v Lebanon  FINISHED   {'livescore': '1900998'}
+    6684f39c-86fb-4ef9-afde-d7a0110bb4d6  Uzbekistan v Syria  FINISHED   {'livescore': '1900999'}
+  UEFA Nations League  2026-10-01 18:45:00  7 fixtures
+    c7ec57fa-6bcd-4398-85e7-7c8e44f4c657  Wales v Norway  FINISHED   {'gameforecast': '27598', 'livescore': '1881677'}
+    06186f57-1cfc-403e-93b2-7105a1d87063  Israel v Kosovo  FINISHED   {'gameforecast': '27684', 'livescore': '1881680'}
+    4e38cd05-dc31-4a92-b1f0-f5a275b66987  Germany v Serbia  FINISHED   {'gameforecast': '27563', 'livescore': '1881676'}
+    26ccb630-e728-473a-8904-2685a37db4e0  Republic of Ireland v Austria  FINISHED   {'gameforecast': '27683', 'livescore': '1881678'}
+    f0416cd6-6854-4cb2-a404-785204ea0f70  Malta v Gibraltar  FINISHED   {'gameforecast': '27686', 'livescore': '1881679'}
+    3c87aa2e-dbea-4a46-b4e3-d2f7282e0c9a  Greece v Netherlands  FINISHED   {'gameforecast': '27600', 'livescore': '1881681'}
+    ed562df0-c87d-493c-94f1-3fc918b812d4  Denmark v Portugal  FINISHED   {'gameforecast': '27599', 'livescore': '1881675'}
+  CONCACAF Nations League  2026-10-02 00:00:00  5 fixtures
+    b1f6b8f3-05dc-4041-b9af-f4f8c88729c2  Cayman Islands v Puerto Rico  FINISHED   {'gameforecast': '27796', 'livescore': '1900990'}
+    b9b277bf-3590-4a55-a450-8d2ed119c857  Bonaire v Grenada  FINISHED   {'gameforecast': '27856', 'livescore': '1901093'}
+    35917448-65dc-44f9-82c4-df17598c1636  Barbados v Bermuda  FINISHED   {'gameforecast': '27855', 'livescore': '1901097'}
+    8b515951-5c8d-4381-afbb-3cc9ea8f8892  Dominican Republic v Haiti  FINISHED   {'gameforecast': '27797', 'livescore': '1900992'}
+    9b2c4291-56d3-43bf-a416-d228624e1c28  Martinique v Honduras  FINISHED   {'gameforecast': '27858', 'livescore': '1901095'}
+  UEFA Nations League  2026-10-02 16:02:00  2 fixtures
+    58fa3c98-f713-4f30-a42e-5fcf808ffdd4  Latvia v Montenegro  FINISHED   {'gameforecast': '27687', 'livescore': '1881688'}
+    b819f559-77b3-4982-9475-e0aaa6596cd7  Cyprus v Armenia  FINISHED   {'gameforecast': '27732', 'livescore': '1881690'}
+  UEFA Nations League  2026-10-02 18:45:00  7 fixtures
+    ae40c0f0-7d13-4c58-bafc-29cd99cdd52f  Poland v Romania  FINISHED   {'gameforecast': '27772', 'livescore': '1881685'}
+    d5e829db-3b76-486f-8c1c-1cb21d3b159b  Hungary v Georgia  FINISHED   {'gameforecast': '27771', 'livescore': '1881686'}
+    54f0d0cf-c667-42e1-a8a2-92e1e22241c1  Belgium v Turkey  FINISHED   {'gameforecast': '27733', 'livescore': '1881683'}
+    456c5e55-843b-4c47-8636-7ac023a01f2d  Ukraine v N.Ireland  FINISHED   {'gameforecast': '27773', 'livescore': '1881687'}
+    826fba1f-1b9b-463e-ab4f-646949a9c045  Bosnia and Herzegovina v Sweden  FINISHED   {'gameforecast': '27782', 'livescore': '1881691'}
+    54fca72e-602c-4510-a9a7-be1b5c641892  Faroe Islands v Slovakia  FINISHED   {'gameforecast': '27783', 'livescore': '1881689'}
+    cf8455c4-8506-468c-b2fd-320297cec512  France v Italy  FINISHED   {'gameforecast': '27770', 'livescore': '1881684'}
+  National Teams Friendlies  2026-10-03 10:00:00  2 fixtures
+    341ab36f-0eda-45ab-8f62-8ac66b8522b0  Tunisia v Mali  SCHEDULED  {'livescore': '1901170'}
+    8300116e-10ef-4cf9-a4d9-4a123eda09b0  Sri Lanka v Djibouti  SCHEDULED  {'livescore': '1901169'}
+  UEFA Nations League  2026-10-03 16:00:00  4 fixtures
+    a2bcce4e-841a-47ef-a8ef-1e47500a696e  Belarus v San Marino  FINISHED   {'gameforecast': '27791', 'livescore': '1881695'}
+    eb445dc5-2d86-4599-85b4-cc3a5e92bf91  Iceland v Bulgaria  FINISHED   {'gameforecast': '27806', 'livescore': '1881694'}
+    ab9588e1-4af0-46aa-842e-44da832a4e11  Estonia v Luxembourg  FINISHED   {'gameforecast': '27807', 'livescore': '1881696'}
+    a2e1562d-867d-414a-9f18-150d84084de0  Croatia v England  FINISHED   {'gameforecast': '27734', 'livescore': '1881693'}
+  UEFA Nations League  2026-10-03 18:45:00  3 fixtures
+    7f355728-4659-49ed-972e-6064517ef308  Spain v Czech Republic  FINISHED   {'gameforecast': '27774', 'livescore': '1881697'}
+    8eaf8812-d0ef-4c4b-8b6a-7e91b96f976c  FYR Macedonia v Scotland  FINISHED   {'gameforecast': '27727', 'livescore': '1881699'}
+    f8586d25-1dd2-4160-ab68-5edf446707c8  Switzerland v Slovenia  FINISHED   {'gameforecast': '27800', 'livescore': '1881698'}
+  UEFA Nations League  2026-10-04 16:00:00  2 fixtures
+    18b34d79-834b-477d-8dc6-691b4c9e5425  Kosovo v Austria  FINISHED   {'gameforecast': '27735', 'livescore': '1881701'}
+    a27582d3-35ed-4707-ba42-78e3a30dd156  Malta v Andorra  FINISHED   {'livescore': '1881702'}
+  National Teams Friendlies  2026-10-04 18:00:00  3 fixtures
+    c278d9bb-41ad-4ff4-bdaf-c89ecf2aa4b0  Morocco v Ghana  SCHEDULED  {'livescore': '1901162'}
+    4feaf366-36cb-46d6-a129-56be35e35085  Morocco v Mali  FINISHED   {'livescore': '736547'}
+    fc177543-349b-4f13-b87a-8f0e85acaf94  Egypt v South Africa  FINISHED   {'livescore': '1901161'}
+  UEFA Nations League  2026-10-04 18:45:00  5 fixtures
+    903c23e1-1eca-4457-9750-b7a728af089e  Netherlands v Serbia  FINISHED   {'gameforecast': '27736', 'livescore': '1881707'}
+    ff388807-2816-48df-87eb-5b1bc1978db7  Wales v Denmark  FINISHED   {'gameforecast': '27726', 'livescore': '1881704'}
+    c20a511f-2508-4074-8f7c-779214dc2755  Portugal v Norway  FINISHED   {'gameforecast': '27738', 'livescore': '1881703'}
+    89b2c04a-ffa1-43bb-be30-701e4fc412b4  Greece v Germany  FINISHED   {'gameforecast': '27737', 'livescore': '1881706'}
+    867ee6cd-7675-4c1f-b91a-e0d42e8064f6  Republic of Ireland v Israel  FINISHED   {'gameforecast': '27725', 'livescore': '1881705'}
+  CONCACAF Nations League  2026-10-04 20:00:00  2 fixtures
+    3383b456-ae76-44ae-bfc1-2e7b7e7a6777  Turks and Caicos Islands v British Virgin Islands  FINISHED   {'livescore': '1901063'}
+    ecab8280-195d-44b7-a3c5-dd92951e9c25  Bahamas v U.S. Virgin Islands  FINISHED   {'livescore': '1901064'}
+  CONCACAF Nations League  2026-10-04 22:00:00  2 fixtures
+    0959581f-65bb-4cf9-bbac-6ededadb94a3  Puerto Rico v Cayman Islands  FINISHED   {'livescore': '1901146'}
+    48cad3c9-0024-42bb-b54c-132fae4ef6ad  Trinidad and Tobago v Curacao  FINISHED   {'livescore': '1901145'}
+  CONCACAF Nations League  2026-10-05 00:00:00  3 fixtures
+    c27a8c4e-2895-4094-884c-874d6da0a2c5  Grenada v Bonaire  FINISHED   {'gameforecast': '28053', 'livescore': '1901815'}
+    d4bc3c0c-2552-44ee-a267-d4e2b30867ba  Bermuda v Barbados  FINISHED   {'gameforecast': '28052', 'livescore': '1901818'}
+    71c73cdd-c538-42b7-823f-1d60602937aa  Guatemala v Suriname  FINISHED   {'gameforecast': '28034', 'livescore': '1901816'}
+  UEFA Nations League  2026-10-05 18:45:00  7 fixtures
+    7f437ad7-4276-42ae-b55d-bc5468264131  Italy v Turkey  FINISHED   {'gameforecast': '27869', 'livescore': '1881709'}
+    69514532-5547-4d26-af6d-29f19900d606  Ukraine v Hungary  FINISHED   {'gameforecast': '27739', 'livescore': '1881711'}
+    b41d41dc-c715-40d2-b00c-36517e791527  Bosnia and Herzegovina v Poland  FINISHED   {'gameforecast': '27872', 'livescore': '1881715'}
+    5945face-4bd9-4c1a-863b-672165814aed  Montenegro v Armenia  FINISHED   {'gameforecast': '27912', 'livescore': '1881714'}
+    0aa69586-982e-4361-b187-c2186b17ffe7  N.Ireland v Georgia  FINISHED   {'gameforecast': '27763', 'livescore': '1881710'}
+    897decfa-9722-49ed-a49d-0b30a87f4589  France v Belgium  FINISHED   {'gameforecast': '27868', 'livescore': '1881708'}
+    a0d1d4e7-3464-4da1-addf-ab162d231b63  Romania v Sweden  FINISHED   {'gameforecast': '27870', 'livescore': '1881712'}
+  UEFA Nations League  2026-10-06 18:45:00  9 fixtures
+    0ab56f8f-556f-4192-b999-205ca4a45073  Estonia v Iceland  FINISHED   {'livescore': '1881722'}
+    7ec58414-a2da-4dad-b42c-84acf1f4960b  Croatia v Spain  SCHEDULED  {'gameforecast': '27871', 'livescore': '1881717'}
+    d315a8c7-80b3-40f5-984d-332d616696b3  Switzerland v FYR Macedonia  FINISHED   {'livescore': '1881719'}
+    c5f8d41e-7472-44ee-8d92-f14b2cd1ff88  Belarus v Finland  FINISHED   {'livescore': '1881721'}
+    ee82e2c6-eba3-46af-ad60-aa15f6872e85  England v Czech Republic  FINISHED   {'gameforecast': '27873', 'livescore': '1881718'}
+    ac47eb69-a976-40cc-a490-bbd4ceeb62f5  Moldova v Slovakia  FINISHED   {'gameforecast': '27978', 'livescore': '1881725'}
+    43c2786c-77e1-49f0-b0d0-47676a276b46  Luxembourg v Bulgaria  FINISHED   {'livescore': '1881723'}
+    e438a774-96c8-41d7-a74b-e5ea616267ad  Albania v San Marino  FINISHED   {'livescore': '1881720'}
+    427587c2-ba6c-42ae-8622-5dc21f2fa3e5  Scotland v Slovenia  FINISHED   {'gameforecast': '27792', 'livescore': '1881724'}
+  Bundesliga  2026-10-10 13:30:00  5 fixtures
+    0a1c0b64-ea55-411c-98f0-2222fd2a2edc  Union Berlin v SV 07 Elversberg  FINISHED   {'gameforecast': '27312', 'livescore': '1876309'}
+    af16aa8c-a5d8-45f2-92d4-38cb8e15f0e4  Mainz 05 v Bayer Leverkusen  FINISHED   {'gameforecast': '27313', 'livescore': '1876304'}
+    54689566-cb27-4f90-9bde-6cffd0236a62  Augsburg v Bayern Munich  FINISHED   {'gameforecast': '27239', 'livescore': '1876307'}
+    41fa7537-399a-4e3b-89bd-98806f787792  Hoffenheim v Hamburger SV  FINISHED   {'gameforecast': '27311', 'livescore': '1876306'}
+    e1d76575-d8d5-4332-bd98-318a798ced9a  Paderborn v VfB Stuttgart  FINISHED   {'gameforecast': '27315', 'livescore': '1876310'}
+  Premier League  2026-10-10 14:00:00  4 fixtures
+    f2dfca89-3b6e-46b3-9699-c4f3382db8be  Aston Villa v Brentford  FINISHED   {'gameforecast': '27273', 'livescore': '1877311'}
+    ab7deebf-c37a-4fac-882b-bf5fa2b42696  Sunderland v Brighton & Hove Albion  FINISHED   {'gameforecast': '27277', 'livescore': '1877312'}
+    6d996988-6cea-4eb7-bd84-7a588c7c562d  Chelsea v AFC Bournemouth  FINISHED   {'gameforecast': '27274', 'livescore': '1877307'}
+    7a09880a-4fdd-460e-b919-e427db6dc4bf  Ipswich Town v Fulham  FINISHED   {'gameforecast': '27102', 'livescore': '1877309'}
+  Ligue 1  2026-10-10 18:45:00  4 fixtures
+    56a70845-01ee-417c-a04d-18c8c120f003  Lorient v Paris FC  FINISHED   {'api_football': '1552777', 'gameforecast': '27292', 'livescore': '1876998'}
+    46213268-40cf-4ea8-8823-d6196a716b86  Paris Saint Germain v Le Mans FC  FINISHED   {'api_football': '1552780', 'gameforecast': '27290', 'livescore': '1876995'}
+    c72dce39-4d51-4a07-aa8f-e35d2f8f5e67  Monaco v Toulouse  FINISHED   {'api_football': '1552778', 'gameforecast': '27291', 'livescore': '1876996'}
+    566651b4-669c-43a5-a529-b2a65713e5f8  Brest v Angers  FINISHED   {'api_football': '1552774', 'gameforecast': '27289', 'livescore': '1876999'}
+  Serie A  2026-10-11 13:00:00  2 fixtures
+    e647a892-cf89-4279-a83f-1d466b0a2184  US Lecce v Bologna  FINISHED   {'api_football': '1550143', 'gameforecast': '27287', 'livescore': '1877980'}
+    63911698-b4a1-4f8a-b924-66b2cec6d6b0  Lazio v Monza  FINISHED   {'api_football': '1550142', 'gameforecast': '27285', 'livescore': '1877972'}
+  Premier League  2026-10-11 13:00:00  2 fixtures
+    f84e82e8-99ee-49fc-8b7e-607e810b1857  Crystal Palace v Nottingham Forest  FINISHED   {'api_football': '1557421', 'gameforecast': '27275', 'livescore': '1877308'}
+    ffa68263-a17a-4a83-a27a-6a89cebad22e  Hull City v Everton  FINISHED   {'api_football': '1557422', 'gameforecast': '27278', 'livescore': '1877310'}
+  Ligue 1  2026-10-11 18:45:00  2 fixtures
+    2f94ccad-cfff-4213-9a77-378f2a4faf50  Estac Troyes v Marseille  LIVE       {'api_football': '1552782'}  (also reported above)
+    e4688a8d-6e73-4cda-b5fc-270e8af91e27  Troyes v Marseille  FINISHED   {'gameforecast': '27327', 'livescore': '1877000'}  (also reported above)
+  UEFA Champions League  2026-10-13 16:45:00  2 fixtures
+    58225080-31d4-44d0-80d1-5ccb0ce4beee  Sabah v Slavia Prague  FINISHED   {'gameforecast': '28466', 'livescore': '1897994'}
+    8d9c448d-7853-41f4-afd9-fb1ce733fae8  Lens v Sporting CP  FINISHED   {'gameforecast': '28463', 'livescore': '1897993'}
+  UEFA Champions League  2026-10-13 19:00:00  7 fixtures
+    295bf0d5-61b1-48e1-b41e-1efcd2af9c4c  RasenBallsport Leipzig v PSV Eindhoven  FINISHED   {'gameforecast': '28462', 'livescore': '1897996'}
+    a65a2642-749c-458c-99ed-f9083dccb809  Viking v Bayern Munich  FINISHED   {'gameforecast': '28467', 'livescore': '1898001'}
+    6964ade8-3449-4057-b311-0fa707fdede8  Galatasaray v Barcelona  FINISHED   {'gameforecast': '28458', 'livescore': '1898000'}
+    936d2c3a-2a5c-42ac-848e-783e03c51f2d  Atletico Madrid v Manchester United  FINISHED   {'gameforecast': '28455', 'livescore': '1897998'}
+    658a060e-a58a-4ae2-bb5b-7c63435a1014  Arsenal v Lille  FINISHED   {'gameforecast': '28452', 'livescore': '1897995'}
+    85033a4e-3993-476c-bd0f-3d779ab5bb7c  Villarreal v SSC Napoli  FINISHED   {'gameforecast': '28468', 'livescore': '1897999'}
+    81ab6396-d818-4a3d-a6af-78db0bf56091  Inter v Club Brugge  FINISHED   {'gameforecast': '28457', 'livescore': '1897997'}
+  UEFA Champions League  2026-10-14 16:45:00  2 fixtures
+    e1c0f129-791f-4788-9016-03df203674db  LASK v Liverpool  FINISHED   {'livescore': '1898003'}
+    8c651cba-a7d6-4875-9f57-f877da73148b  Feyenoord v Como  FINISHED   {'gameforecast': '28459', 'livescore': '1898002'}
+  UEFA Champions League  2026-10-14 19:00:00  7 fixtures
+    829bca9e-2372-43ef-ba6f-f7c86ee34bf2  Aston Villa v Fenerbahce  FINISHED   {'api_football': '1635620', 'gameforecast': '28451', 'livescore': '1898005'}
+    338142eb-8a2a-41d9-81a5-483c97a6da1d  Real Betis v FC Porto  FINISHED   {'api_football': '1635635', 'gameforecast': '28454', 'livescore': '1898008'}
+    851f7f59-94a7-4c7c-a987-1c31cc56df69  Manchester City v Paris Saint Germain  FINISHED   {'api_football': '1635690', 'gameforecast': '28461', 'livescore': '1898004'}
+    1499e164-f96f-47fe-b6c3-ba93724f178c  Slovan Bratislava v VfB Stuttgart  FINISHED   {'api_football': '1635733', 'gameforecast': '28465', 'livescore': '1898010'}
+    ef3664bb-1150-4943-9f1c-8f4387fed536  Bodoe/Glimt v Borussia Dortmund  FINISHED   {'api_football': '1635639', 'gameforecast': '28456', 'livescore': '1898006'}
+    2873e5bf-3822-4512-9aa8-8da2bbb4f7bf  Shakhtar Donetsk v AEK Athens  FINISHED   {'api_football': '1635725', 'gameforecast': '28464', 'livescore': '1898009'}
+    e943c10f-6ff9-4420-8de2-23b55395f631  Roma v Real Madrid  FINISHED   {'api_football': '1635614', 'gameforecast': '28453', 'livescore': '1898007'}
+  Bundesliga  2026-10-17 13:30:00  5 fixtures
+    df414869-1d3a-4ae3-8b40-5c8907cbf0d8  Hamburger SV v VfB Stuttgart  FINISHED   {'api_football': '1575190', 'gameforecast': '27610', 'livescore': '1876318'}
+    5d6b4d49-c3d7-473a-886c-61f56d76f82d  SV 07 Elversberg v Augsburg  FINISHED   {'api_football': '1575193', 'gameforecast': '27612', 'livescore': '1876320'}
+    ad0ab7c2-aa52-4f88-9bbb-305960afba12  Union Berlin v Borussia Dortmund  FINISHED   {'api_football': '1575188', 'gameforecast': '27609', 'livescore': '1876319'}
+    f0d25ed1-dfd0-45aa-869d-7ff588b6e669  Werder Bremen v Paderborn  FINISHED   {'api_football': '1575191', 'gameforecast': '27611', 'livescore': '1876313'}
+    3abeb4a3-28a9-4645-a803-777bee4fee92  Schalke 04 v Mainz 05  FINISHED   {'api_football': '1575192', 'gameforecast': '27613', 'livescore': '1876317'}
+  Premier League  2026-10-17 14:00:00  3 fixtures
+    9931219a-380f-4f94-b061-e61153968dd9  Brentford v Liverpool  FINISHED   {'api_football': '1557428', 'gameforecast': '27604', 'livescore': '1877321'}
+    ac97ec92-e941-402b-815b-12c2edf3305d  Fulham v Hull City  FINISHED   {'api_football': '1557431', 'gameforecast': '27606', 'livescore': '1877316'}
+    7cc044f7-e2fd-48a0-81bc-6e08577b53a3  Manchester City v Ipswich Town  FINISHED   {'api_football': '1557433', 'gameforecast': '27605', 'livescore': '1877319'}
+  Ligue 1  2026-10-17 18:45:00  2 fixtures
+    1b2c457d-e9ed-46a2-8b2e-7b36ffe210a3  Lille v Brest  FINISHED   {'gameforecast': '27959', 'livescore': '1877003'}
+    a79c274e-9ed8-40dd-9d73-a706b4c3a2d9  Troyes v Lens  FINISHED   {'gameforecast': '27965', 'livescore': '1877007'}
+  Premier League  2026-10-18 13:00:00  3 fixtures
+    e0d09eee-6223-41ef-a67c-615999fd8342  Leeds United v Manchester United  FINISHED   {'api_football': '1557432', 'gameforecast': '28482', 'livescore': '1877322'}
+    22f2b614-0974-4729-ad6f-0106d0abc9d8  AFC Bournemouth v Sunderland  FINISHED   {'api_football': '1557427', 'gameforecast': '27655', 'livescore': '1877315'}
+    dff6c41e-e130-4c31-8ff9-e15a8094c695  Brighton & Hove Albion v Crystal Palace  FINISHED   {'api_football': '1557429', 'gameforecast': '28481', 'livescore': '1877320'}
+  Ligue 1  2026-10-18 15:15:00  3 fixtures
+    00d4d888-719d-4dac-94c5-b080925411ad  Le Havre v Auxerre  FINISHED   {'api_football': '1552784', 'gameforecast': '27961', 'livescore': '1877008'}
+    2a68611e-0b44-4f8e-b4b2-4b442e822edc  Paris FC v Rennes  FINISHED   {'api_football': '1552789', 'gameforecast': '27962', 'livescore': '1877009'}
+    9db013dc-fe8e-4700-91a7-8031f457a2e9  Lorient v Monaco  FINISHED   {'api_football': '1552787', 'gameforecast': '27964', 'livescore': '1877006'}
+  UEFA Champions League  2026-10-20 16:45:00  2 fixtures
+    1eda4daf-4d8c-431c-8a4d-3d4a05608aa9  Sabah v Borussia Dortmund  FINISHED   {'gameforecast': '29040', 'livescore': '1898012'}
+    60547caf-a719-49d6-981a-3a5065b87e8c  Fenerbahce v Slavia Prague  FINISHED   {'gameforecast': '29035', 'livescore': '1898011'}
+  UEFA Champions League  2026-10-20 19:00:00  7 fixtures
+    2ec82249-5719-4cc4-af27-7fc36c8faf48  Roma v Slovan Bratislava  FINISHED   {'gameforecast': '29032', 'livescore': '1898019'}
+    4d12825c-f84e-4347-903e-8c7960140cbe  SSC Napoli v Bodoe/Glimt  FINISHED   {'gameforecast': '29039', 'livescore': '1898018'}
+    20c1d815-3d23-4c00-b560-ca8ce9f3fcef  VfB Stuttgart v Atletico Madrid  FINISHED   {'gameforecast': '29042', 'livescore': '1898016'}
+    346b8e5b-a4fc-4b8f-a2e3-8bb5ebd3c8dc  Manchester City v AEK Athens  FINISHED   {'gameforecast': '29038', 'livescore': '1898014'}
+    50c0274b-efb9-4d9a-b2c9-039169625ec8  Liverpool v Villarreal  FINISHED   {'gameforecast': '29037', 'livescore': '1898013'}
+    bfa5eec9-ffca-41f4-b310-0078f2418d59  Paris Saint Germain v Barcelona  FINISHED   {'gameforecast': '29041', 'livescore': '1898015'}
+    ef8694c2-c7d3-4d7b-aab2-5af6b4b1d85e  FC Porto v PSV Eindhoven  FINISHED   {'gameforecast': '29034', 'livescore': '1898017'}
+  UEFA Champions League  2026-10-21 16:45:00  2 fixtures
+    e6bc0660-7f8f-4be3-a3c0-a430f4c7e241  Lille v Galatasaray  FINISHED   {'gameforecast': '29036', 'livescore': '1898020'}
+    7211aab1-f374-4090-b1c5-f61113b0a868  Como v Manchester United  FINISHED   {'gameforecast': '29033', 'livescore': '1898021'}
+  UEFA Champions League  2026-10-21 19:00:00  7 fixtures
+    dc596908-6a37-4fec-868c-af8dfccf14dc  Real Madrid v RasenBallsport Leipzig  FINISHED   {'gameforecast': '29080', 'livescore': '1898026'}
+    16be7d32-d8b4-437d-a209-b8b170d0c786  Aston Villa v Viking  FINISHED   {'gameforecast': '29075', 'livescore': '1898022'}
+    43eaa010-7c53-418e-a506-2cb2ca89ba8c  Club Brugge v Lens  FINISHED   {'gameforecast': '29078', 'livescore': '1898028'}
+    dd7270a9-f996-4d4d-ad65-eec42b70a40b  Real Betis v Feyenoord  FINISHED   {'gameforecast': '29076', 'livescore': '1898027'}
+    27417f9c-1257-45f6-9b4c-560f44e4d17b  Sporting CP v LASK  FINISHED   {'gameforecast': '29081', 'livescore': '1898024'}
+    488fed69-df6b-45d7-90dd-9e18654cc76c  Bayern Munich v Arsenal  FINISHED   {'gameforecast': '29077', 'livescore': '1898023'}
+    0eb27210-2940-49e2-8bdd-f8137275f942  Inter v Shakhtar Donetsk  FINISHED   {'gameforecast': '29079', 'livescore': '1898025'}
+  Serie A  2026-10-24 13:00:00  2 fixtures
+    7fb34ba8-e7ba-4020-9864-e75f689d941f  Como v Sassuolo  FINISHED   {'gameforecast': '28915', 'livescore': '1878001'}
+    c3dbc406-c82b-4b07-98e0-558108d4605d  Cagliari v Bologna  FINISHED   {'gameforecast': '28913', 'livescore': '1877993'}
+  Bundesliga  2026-10-24 13:30:00  5 fixtures
+    53b1ac6c-30c2-4c40-923e-3f3b7b7b17c1  Mainz 05 v Werder Bremen  FINISHED   {'gameforecast': '28695', 'livescore': '1876322'}
+    419e660e-dfed-4848-8813-8c19a9c7dcec  Paderborn v Hamburger SV  FINISHED   {'gameforecast': '28696', 'livescore': '1876328'}
+    628b69c6-ef7b-477e-a69a-ed06dc97f2cd  Augsburg v Union Berlin  FINISHED   {'gameforecast': '28694', 'livescore': '1876325'}
+    891fcc02-b29b-4d66-85c5-59791d2bc5b5  RasenBallsport Leipzig v SV 07 Elversberg  FINISHED   {'gameforecast': '28689', 'livescore': '1876327'}
+    cfb45a00-fdc6-401c-9ef9-84a43cef7bb4  FC Cologne v Schalke 04  FINISHED   {'gameforecast': '28693', 'livescore': '1876329'}
+  Premier League  2026-10-24 14:00:00  2 fixtures
+    bb919eb4-38a1-462c-8d5d-b88c31f5a044  Coventry City v Fulham  FINISHED   {'api_football': '1557440', 'gameforecast': '28661', 'livescore': '1877333'}
+    5713f370-5ced-4e30-b471-187abf1827f9  Arsenal v Everton  FINISHED   {'api_football': '1557437', 'gameforecast': '28659', 'livescore': '1877326'}
+  Serie A  2026-10-25 14:00:00  2 fixtures
+    10322a5f-6028-44eb-9495-2d1797e1a2e4  Atalanta v Frosinone  FINISHED   {'api_football': '1550157', 'gameforecast': '28914', 'livescore': '1877997'}
+    bb566392-a82b-4f55-ad29-9bc6cccaa61a  Genoa v Venezia  FINISHED   {'api_football': '1550160', 'gameforecast': '28916', 'livescore': '1877996'}
+  Premier League  2026-10-25 14:00:00  4 fixtures
+    f9801b49-3854-4185-b51c-7cb856ba2392  Manchester United v AFC Bournemouth  FINISHED   {'api_football': '1557445', 'gameforecast': '28933', 'livescore': '1877324'}
+    c1eafebd-1f7d-4fa5-81f2-fc1da0d4eeae  Liverpool v Brighton & Hove Albion  FINISHED   {'api_football': '1557444', 'gameforecast': '28932', 'livescore': '1877325'}
+    701371d7-0c9d-452d-89c7-68840f9d008e  Hull City v Brentford  FINISHED   {'api_football': '1557442', 'gameforecast': '28931', 'livescore': '1877330'}
+    23dfd4d7-4711-46df-a7ea-37b964ba7158  Crystal Palace v Newcastle United  FINISHED   {'api_football': '1557441', 'gameforecast': '28662', 'livescore': '1877328'}
+  Ligue 1  2026-10-25 16:14:00  5 fixtures
+    922e3987-4379-4327-83b5-238eb0dd0d86  Angers v Lorient  FINISHED   {'api_football': '1552792', 'gameforecast': '28640', 'livescore': '1877011'}
+    090eca1c-c35f-44d6-a3b1-5fd35a52eb6b  Auxerre v Le Mans FC  FINISHED   {'api_football': '1552793', 'gameforecast': '28707', 'livescore': '1877017'}
+    04cad183-8552-4c78-9ae8-bacb786bb1ad  Marseille v Le Havre  FINISHED   {'api_football': '1552796', 'gameforecast': '28642', 'livescore': '1877012'}
+    f2ecde06-be1b-4fe5-9cdb-f690146633c0  Toulouse v Troyes  FINISHED   {'api_football': '1552799', 'gameforecast': '28645', 'livescore': '1877015'}
+    8eb2ecbd-c742-4bf4-bf1a-8b8b84c34306  Rennes v Strasbourg  FINISHED   {'api_football': '1552798', 'gameforecast': '28646', 'livescore': '1877014'}
+  Serie A  2026-10-27 19:45:00  2 fixtures
+    3171ad5f-e757-46a1-a066-ea5c3ace5bf3  Torino v Como  FINISHED   {'api_football': '1550175', 'gameforecast': '29544', 'livescore': '1878007'}
+    4211e7c7-b4a4-439a-abe7-eea958f48297  Roma v Cagliari  FINISHED   {'api_football': '1550168', 'gameforecast': '29541', 'livescore': '1878005'}
+  Serie A  2026-10-28 17:30:00  3 fixtures
+    340f7c77-4de8-4712-8b12-4ecfcc7ab80b  Parma Calcio 1913 v Udinese  SCHEDULED  {'gameforecast': '29543', 'livescore': '1878010'}
+    b7494837-b3cc-4cf4-a45f-d4c5c10b916c  AC Milan v Bologna  SCHEDULED  {'gameforecast': '29539', 'livescore': '1878003'}
+    c82adcf3-4135-4c71-b51f-4b614f06466e  Venezia v Inter  SCHEDULED  {'gameforecast': '29546', 'livescore': '1878009'}
+  Serie A  2026-10-28 19:45:00  2 fixtures
+    b585b666-5e70-4f12-9199-d56d46cedeab  Monza v SSC Napoli  SCHEDULED  {'gameforecast': '29542', 'livescore': '1878011'}
+    1eb1aee5-3fb0-4989-890c-38447788bd1a  Genoa v Juventus  SCHEDULED  {'gameforecast': '29540', 'livescore': '1878004'}
+  Bundesliga  2026-10-31 14:30:00  5 fixtures
+    39aa95bc-2053-4eba-9f95-093e955693e3  Borussia Moenchengladbach v Paderborn  SCHEDULED  {'gameforecast': '29742', 'livescore': '1876332'}
+    14d60218-aad1-435f-aa09-c397ecce6f4f  Augsburg v Freiburg  SCHEDULED  {'gameforecast': '29738', 'livescore': '1876335'}
+    86897c9a-2438-4a9f-8e21-724b1ba5119d  Schalke 04 v RasenBallsport Leipzig  SCHEDULED  {'gameforecast': '29741', 'livescore': '1876336'}
+    5fd89bbb-1908-482d-976a-459716eed0fc  Bayer Leverkusen v VfB Stuttgart  SCHEDULED  {'gameforecast': '29737', 'livescore': '1876333'}
+    14bf3448-5e60-481a-a84e-d4c397f27d8c  Werder Bremen v Hoffenheim  SCHEDULED  {'gameforecast': '29743', 'livescore': '1876331'}
+  Premier League  2026-10-31 15:00:00  5 fixtures
+    de10db4b-fd03-464f-bda9-48bf24acbe72  Brentford v Nottingham Forest  SCHEDULED  {'gameforecast': '29299', 'livescore': '1877340'}
+    41633c92-4986-4516-8cc3-06bad1e2cf03  Hull City v Ipswich Town  SCHEDULED  {'gameforecast': '29301', 'livescore': '1877341'}
+    2a44c25e-f938-4fc9-a26f-023d3510e0df  AFC Bournemouth v Leeds United  SCHEDULED  {'gameforecast': '29300', 'livescore': '1877335'}
+    ee237747-5391-410f-9b7b-942c093f8d12  Coventry City v Sunderland  SCHEDULED  {'gameforecast': '29302', 'livescore': '1877343'}
+    e59c19ff-ef86-44d4-a069-af2242a0622a  Manchester City v Brighton & Hove Albion  SCHEDULED  {'gameforecast': '29557', 'livescore': '1877339'}
+  Ligue 1  2026-10-31 19:45:00  3 fixtures
+    c0c2e9ff-ef34-4e6c-a354-0915d25deb0d  Lyon v Angers  SCHEDULED  {'gameforecast': '29550', 'livescore': '1877021'}
+    642b3d4d-0134-4c73-805b-ccfbe71552da  Lorient v Brest  SCHEDULED  {'gameforecast': '29548', 'livescore': '1877025'}
+    05889032-9b3a-4208-8ada-82893901b1ce  Troyes v Le Mans FC  SCHEDULED  {'gameforecast': '29554', 'livescore': '1877026'}
+  Serie A  2026-11-01 14:00:00  2 fixtures
+    0765c522-ee66-4d5f-af3a-509c5c098c33  Lazio v Cagliari  SCHEDULED  {'gameforecast': '30016', 'livescore': '1878012'}
+    1eeab00d-99ce-4a53-b5aa-635e8d3ccb94  Frosinone v Torino  SCHEDULED  {'gameforecast': '30018', 'livescore': '1878019'}
+  UEFA Champions League  2026-11-03 17:45:00  2 fixtures
+    371f4496-5ade-45dc-bb76-45f0c7d98cf5  Shakhtar Donetsk v Sporting CP  SCHEDULED  {'livescore': '1898029'}
+    eeec4667-24fb-49eb-ab5c-9d8151119977  Galatasaray v VfB Stuttgart  SCHEDULED  {'livescore': '1898030'}
+  UEFA Champions League  2026-11-03 20:00:00  7 fixtures
+    b6bcd872-d0df-4a1d-be14-896800f06f7a  LASK v Slovan Bratislava  SCHEDULED  {'livescore': '1898037'}
+    b23d50f1-27f8-41b3-9989-dd66a9fdc809  Manchester United v Roma  SCHEDULED  {'livescore': '1898031'}
+    1af7478c-df7b-4ffd-b627-25fee74fc5a7  Feyenoord v Inter  SCHEDULED  {'livescore': '1898032'}
+    7712283d-c9ea-43af-a535-3d558d21a4aa  Bodoe/Glimt v Lille  SCHEDULED  {'livescore': '1898033'}
+    308d4564-684f-440c-b552-404fa870f962  Atletico Madrid v Bayern Munich  SCHEDULED  {'livescore': '1898035'}
+    6112fa6c-2382-4291-a0b8-98fe5d60eb1b  Barcelona v Aston Villa  SCHEDULED  {'livescore': '1898034'}
+    a8499407-bb2c-4d83-bada-dc22b30e8ea9  Villarreal v Paris Saint Germain  SCHEDULED  {'livescore': '1898036'}
+    nothing in this section was changed.
+
+total moved: nothing
+earlier listings folded into their re-issue: 0

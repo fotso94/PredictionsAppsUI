@@ -1,7 +1,10 @@
 # Fixture identity and forecast cadence: two isolated fixes (branch `fixture-cadence`)
 
 Branch `fixture-cadence`, from the live release `45c8b0cf`. **Isolated fix, verified in isolation. Not merged, not
-deployed.** Live (`45c8b0cf`, pid 40159, started 2026-10-25T06:13:31Z), `main`, `progress`, `origin/main` and every
+deployed.** A correction round followed (`round-2/REPORT.md`): the re-issue rule now requires an observed withdrawal
+and records what was and was not observed, the re-check spacing moved to the policy and is measured from each
+competition's own request time, every reference type is demonstrated preserved, and the repaired fixture was verified
+in the browser on a disposable pair; the numbers below are the first round's. Live (`45c8b0cf`, pid 40159, started 2026-10-25T06:13:31Z), `main`, `progress`, `origin/main` and every
 request ceiling (GameForecast 8, Live Score 1,200, API-Football 90, TheSportsDB 1,000) are exactly as they were;
 section 7 says how that was checked. The live duplicate is **not** repaired; the repair was rehearsed on a copy.
 

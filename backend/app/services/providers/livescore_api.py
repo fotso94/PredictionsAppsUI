@@ -16,7 +16,7 @@ import logging
 import threading
 import time
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from app.core.config import settings
 from app.services.providers import competitions as comps
@@ -84,6 +84,10 @@ class LiveScoreAPIProvider(MatchDataProvider):
                  competition_overrides: Optional[Dict[str, str]] = None, store: Optional[MatchCache] = None,
                  use_default_ids: bool = True):
         self.api_key = api_key if api_key is not None else settings.LIVESCORE_API_KEY
+        #: Competitions whose fixtures listing the last `get_fixtures` could not read to the end
+        #: (see there); empty until a listing was cut. Read by MatchDataService._observe_day_listing.
+        self.truncated_keys: Set[str] = set()
+        self._last_paginate_truncated = False
         self.api_secret = api_secret if api_secret is not None else settings.LIVESCORE_API_SECRET
         self.client = ProviderHttpClient(PROVIDER_NAME, base_url or settings.LIVESCORE_API_BASE_URL, transport=transport)
         self.budget = budget or RequestBudget(PROVIDER_NAME, settings.LIVESCORE_DAILY_REQUEST_BUDGET)
@@ -182,6 +186,7 @@ class LiveScoreAPIProvider(MatchDataProvider):
         """
         items: List[Dict[str, Any]] = []
         page = 1
+        self._last_paginate_truncated = False
         while True:
             data = self._get(path, reason=reason if page == 1 else "page",
                              page=page if page > 1 else None, **params)
@@ -192,6 +197,7 @@ class LiveScoreAPIProvider(MatchDataProvider):
             if page >= max_pages:
                 logger.warning("Live Score API: %s stopped at %d page(s) with more advertised (%s); the rest is unread",
                                path, page, {k: data.get(k) for k in ("total_pages", "next_page")})
+                self._last_paginate_truncated = True
                 break
             page += 1
         return items
@@ -386,9 +392,17 @@ class LiveScoreAPIProvider(MatchDataProvider):
     def get_fixtures(self, day: date, keys: Iterable[str]) -> List[ProviderFixture]:
         keys = list(keys)
         fixtures: List[ProviderFixture] = []
+        # The competitions whose listing this call could NOT read to the end: a page past
+        # MAX_PAGES was advertised and left unread. For every other competition asked here the
+        # list returned is the provider's whole listing of the day, which is what lets the sync
+        # record a fixture's ABSENCE from it (MatchRegistry.observe_listing); a cut listing says
+        # nothing about what it did not reach.
+        self.truncated_keys = set()
         for comp in self.list_competitions(keys):
             items = self._paginate("fixtures/list.json", "fixtures", date=day.strftime("%Y-%m-%d"),
                                    competition_id=comp.external_id)
+            if self._last_paginate_truncated:
+                self.truncated_keys.add(comp.key)
             self._check_competition_name(comp, items)
             for item in items:
                 fixture = self._fixture_from_scheduled(item, keys)

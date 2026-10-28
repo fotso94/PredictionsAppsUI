@@ -1,0 +1,6 @@
+isolation preflight: REFUSED - 1 problem(s); no test was loaded or started
+  1. [conflict:same-origin] E2E_ISOLATED_API_URL (http://127.0.0.1:8002) is also the main API (E2E_API_URL, http://127.0.0.1:8002); a write-producing test runs only against the isolated pair
+  (nothing was sent to any server)
+  How to run: npm run e2e:mocked; npm run e2e:live-isolated (sets E2E_STACK=live-isolated and the isolated URLs); E2E_STACK=live for the live project. The allowlist is backend/app/core/isolation_targets.json.
+Error: the isolation preflight refused this run (above); no test was loaded or started
+

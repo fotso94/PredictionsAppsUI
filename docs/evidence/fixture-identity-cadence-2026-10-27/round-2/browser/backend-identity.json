@@ -1,0 +1,21 @@
+{
+ "backend_under_test": "http://127.0.0.1:8002",
+ "database": "psg_lyon_repair2",
+ "redis_server": {
+  "port": 6391,
+  "loopback": true
+ },
+ "redis_databases": [
+  10,
+  11,
+  12,
+  13,
+  14,
+  15
+ ],
+ "scheduler_enabled": false,
+ "commit_at_start": "3dc5710f4d2dad84cfa5220fec65d62c0cd265eb",
+ "app_tree_sha256": "0b43b29a6dac0c2a9699ef7f885c23047367881eb2280e04a0d21ce0a390884a",
+ "app_files": 93,
+ "note": "the working tree was committed after this run; the tree digest is what identifies the tested code"
+}

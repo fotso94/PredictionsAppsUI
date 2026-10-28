@@ -77,7 +77,15 @@ interface PolicyDocument {
 }
 
 /** The browser's view of the policy document, validated; throws PolicyError on a malformed one. */
-export function policyFromDocument(doc: unknown, sha256 = ''): BrowserPolicy {
+/** Which `browser` side the isolated stack is: `isolated` (the shared pair on :8001/:3101) unless
+ *  E2E_ISOLATED_SIDE names another side the policy defines, such as a one-round `disposable` pair. */
+export function isolatedSideName(): string {
+  const name = (process.env.E2E_ISOLATED_SIDE || 'isolated').trim();
+  if (!/^[a-z][a-z0-9-]*$/.test(name)) throw new PolicyError(`E2E_ISOLATED_SIDE must be a side name (got ${JSON.stringify(name)})`);
+  return name;
+}
+
+export function policyFromDocument(doc: unknown, sha256 = '', isolatedSide: string = isolatedSideName()): BrowserPolicy {
   const d = (doc ?? {}) as PolicyDocument;
   if (d.format !== POLICY_FORMAT) throw new PolicyError(`the isolation policy is not format ${POLICY_FORMAT}`);
   const browser = d.browser ?? {};
@@ -90,7 +98,9 @@ export function policyFromDocument(doc: unknown, sha256 = ''): BrowserPolicy {
   const redisMarks = d.protected?.redis;
   if (!Array.isArray(marks) || !Array.isArray(redisMarks)) throw new PolicyError('protected is malformed');
   const liveRedis = redisMarks.filter((m) => m.class === 'live');
-  const roleName = browser.isolated?.role;
+  const isolatedSideDoc = browser[isolatedSide];
+  if (!isolatedSideDoc) throw new PolicyError(`the policy defines no browser side named ${isolatedSide}`);
+  const roleName = isolatedSideDoc.role;
   const role = typeof roleName === 'string' ? d.roles?.[roleName] : undefined;
   if (!role) throw new PolicyError('browser.isolated.role names no role');
   const isolatedDbs = Object.values(role.postgres ?? {}).flat().map((e) => e.database);
@@ -113,8 +123,8 @@ export function policyFromDocument(doc: unknown, sha256 = ''): BrowserPolicy {
       redisDatabases: sorted(liveRedis.flatMap((m) => (Array.isArray(m.databases) ? (m.databases as number[]) : []))),
     },
     isolated: {
-      frontendPorts: ports('isolated', 'frontend_ports'),
-      backendPorts: ports('isolated', 'backend_ports'),
+      frontendPorts: ports(isolatedSide, 'frontend_ports'),
+      backendPorts: ports(isolatedSide, 'backend_ports'),
       databases: isolatedDbs as string[],
       redisPort: isolatedRedis.length ? (isolatedRedis[0].port as number) : null,
       redisDatabases: sorted(isolatedRedis.flatMap((e) => e.databases as number[])),

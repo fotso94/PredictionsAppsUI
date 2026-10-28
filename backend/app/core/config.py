@@ -380,8 +380,10 @@ class Settings(BaseSettings):
     # did. A pass that runs late - after a sleep, a long pass, a recovery retry - is followed by the next
     # slot on the grid, so at most one catch-up pass follows a sleep however many slots it covered.
     # Recovery retries (FORECASTS_RECOVERY_RETRY_SECONDS) and failure backoffs keep their own timing and
-    # are not slots. Empty, malformed, or an interval that does not divide a day: the interval counted
-    # from the pass's completion, as before.
+    # are not slots. A slot that comes minutes after a late pass is harmless: the daily-slot policy
+    # re-checks no competition within RECHECK_MIN_GAP (one hour) of the fetch it would re-check, measured
+    # from that request's own time. Empty, malformed, or an interval that does not divide a day: the
+    # interval counted from the pass's completion, as before.
     SYNC_FORECASTS_SLOT_ANCHOR_UTC: str = "12:12"
 
     # Cache TTLs (seconds) for provider data

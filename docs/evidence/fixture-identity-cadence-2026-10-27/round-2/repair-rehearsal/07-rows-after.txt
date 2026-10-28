@@ -1,0 +1,19 @@
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|2026-10-26 19:30:00|FINISHED|Regular Season - 8|livescore:742799
+--
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|api_football|1552800|
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|gameforecast|28930|
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|livescore|1877019|742799
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|livescore|742799|
+--
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|5237fc2a-831a-4df0-aa96-a319dc1da778|2026-10-18 18:29:34.082759|2026-10-18 00:00:00|2026-10-25 19:45:00|t
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|beac5898-89cf-4890-a131-d85ef6b46590|2026-10-19 18:00:57.254187|2026-10-19 00:00:00|2026-10-25 19:45:00|t
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|99cd6634-ca12-431d-9b72-b0fa032cbb4e|2026-10-20 13:15:30.271117|2026-10-20 00:00:00|2026-10-25 19:45:00|t
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|6d55e8ac-9410-4f2f-be58-21606787b20f|2026-10-21 13:28:40.61973|2026-10-21 00:00:00|2026-10-25 19:45:00|t
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|c59f26b6-f3c8-44f5-a874-9b915e689841|2026-10-22 12:02:37.880626|2026-10-22 00:00:00|2026-10-25 19:45:00|t
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|67b8a013-4023-4372-86f6-5c150cac66e3|2026-10-23 12:05:25.562765|2026-10-23 00:00:00|2026-10-25 19:45:00|t
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|28a2c2a6-9b7a-4464-af72-e20de91769b4|2026-10-24 18:10:22.224849|2026-10-24 00:00:00|2026-10-25 19:45:00|t
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|63decce5-b955-441e-bc73-140089360ce1|2026-10-25 12:12:37.892992|2026-10-25 00:00:00|2026-10-25 19:45:00|t
+93bc3d08-e713-4336-9747-e5e9eb5e00a1|4510ebff-05fb-4ffb-bfab-caa24337ce0c|2026-10-26 12:14:31.593684|2026-10-26 00:00:00|2026-10-25 19:45:00|f
+--
+{"basis": "reviewed", "absent": null, "summary": "withdrawal NOT observed: last named by livescore at 2026-10-25T17:09:00.514720+00:00; no complete listing of its date recorded since without it (no result stored; nothing reported it started)", "reviewed": "Reviewed from the live backend log and the stored row: Live Score's complete Ligue 1 listing of 2026-10-25 made at 23:11:00Z (fixtures/list.json date=2026-10-25 competition_id=5, HTTP 200, one page) did not name fixture 1877019; the row's last_synced_at stayed 2026-10-25T17:09:00Z (the 17:08:50Z listing); no live or results report for it in 18 asks; Live Score listed 742799 (same clubs, same order, Ligue 1 round 8) on 2026-10-26, played 2-0; GameForecast kept event 28930 and re-dated it to the 26th.", "last_named_at": "2026-10-25T17:09:00.514720+00:00"}
+--

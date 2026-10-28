@@ -832,6 +832,48 @@ class MatchDataService:
         return [l.id for l in self.competitions()]
 
     # ------------------------------------------------------------------ fixtures
+    def _observe_day_listing(self, day: date, asked: List[str], fixtures: List[ProviderFixture], meta: SyncMeta) -> None:
+        """
+        Tell the registry what this day's listing said, BEFORE its fixtures are stored.
+
+        Only a fresh answer from the provider is an observation: a copy from the cache repeats one
+        already recorded, a stale copy is older still, and a day the chain could not answer says
+        nothing. Absence is recorded only for the competitions the provider was actually asked
+        about, and only where the provider can say its listing was complete - Live Score reports
+        the competitions whose pages it stopped reading (`truncated_keys`); a provider that cannot
+        say records nothing about absence, and neither does a live poll or a calendar, which name
+        only what is in play or ahead. What the listing DID name is marked seen whatever its source,
+        because a copy still names it.
+        """
+        if meta.source != "provider" or not meta.provider:
+            return
+        provider = next((p for p in self.providers if p.name == meta.provider), None)
+        truncated = getattr(provider, "truncated_keys", None) if provider is not None else None
+        knows_completeness = isinstance(truncated, (set, frozenset, list, tuple))
+        at = parse_utc(meta.fetched_at) if meta.fetched_at else None
+        at = at or self.now
+        by_key: Dict[str, List[str]] = {}
+        for fixture in fixtures:
+            by_key.setdefault(fixture.competition.key, []).append(str(fixture.external_id))
+        for key in asked:
+            try:
+                league = self.registry.ensure_canonical_league(key)
+            except Exception:  # pragma: no cover - an unknown key must not fail the day's sync
+                logger.debug("No league row for %s; its listing is not observed", key, exc_info=True)
+                continue
+            complete = knows_completeness and key not in set(truncated)
+            self.registry.observe_listing(meta.provider, by_key.get(key, []), at=at, day=day,
+                                          league_ids=[league.id], complete=complete)
+
+    def _observe_seen(self, fixtures: List[ProviderFixture], meta: SyncMeta) -> None:
+        """A live poll or a calendar names what it names: mark those seen, record nothing about absence."""
+        if meta.source != "provider" or not meta.provider:
+            return
+        at = (parse_utc(meta.fetched_at) if meta.fetched_at else None) or self.now
+        ids = [str(f.external_id) for f in fixtures if f.provider == meta.provider]
+        if ids:
+            self.registry.observe_listing(meta.provider, ids, at=at)
+
     def _store_fixtures(self, fixtures, meta: SyncMeta, *, forward: bool = False) -> int:
         """Persist fixtures, counting the ones the registry refused as too ambiguous to identify.
 
@@ -891,13 +933,18 @@ class MatchDataService:
             # source of "database" so the caller does not read this as a provider that answered.
             return meta
         key = f"matchdata:fixtures:{day.isoformat()}:{','.join(keys)}"
+        asked: Dict[str, List[str]] = {}
+
+        def fetch(p: MatchDataProvider) -> List[Dict[str, Any]]:
+            names = self._ask_only_what_it_names(p, keys, meta)
+            asked[p.name] = list(names)
+            return [_fixture_to_dict(f) for f in p.get_fixtures(day, names)]
+
         try:
             # Each provider is asked only about the competitions it can name. One that can name
             # none of them is passed over, so a day nobody could be asked about stays unanswered
             # instead of reading as a day with no fixtures.
-            payload = self._call_chain(key, settings.MATCH_CACHE_TTL_FIXTURES, meta,
-                                       lambda p: [_fixture_to_dict(f) for f in p.get_fixtures(
-                                           day, self._ask_only_what_it_names(p, keys, meta))])
+            payload = self._call_chain(key, settings.MATCH_CACHE_TTL_FIXTURES, meta, fetch)
         except ProviderError as exc:
             meta.errors.append(str(exc))
             meta.source = "database"
@@ -910,6 +957,7 @@ class MatchDataService:
         # rewrites `meta.source`, `meta.provider` and `meta.fetched_at` with their own.
         meta.forward_source, meta.forward_fetched_at = meta.source, meta.fetched_at
         fixtures = [_fixture_from_dict(d) for d in payload]
+        self._observe_day_listing(day, asked.get(meta.provider or "", []), fixtures, meta)
         self._store_fixtures(fixtures, meta, forward=True)
         self.db.commit()
         if day <= self.now.date():
@@ -1397,7 +1445,9 @@ class MatchDataService:
             meta.errors.append(f"live: {exc}")
             return
         meta.live_polled = True
-        self._store_fixtures((_fixture_from_dict(d) for d in payload), meta)
+        live_fixtures = [_fixture_from_dict(d) for d in payload]
+        self._observe_seen(live_fixtures, meta)
+        self._store_fixtures(live_fixtures, meta)
         self.db.commit()
 
     # ------------------------------------------------- fixtures no ordinary refresh reaches

@@ -1,0 +1,283 @@
+# 2026-10-28T02:12:58Z in /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend at 3dc5710f (fixture-cadence); dirty files: 13
+# python 3.11.9; pytest args: tests -q -p no:randomly -rfEs
+........................................................................ [  3%]
+........................................................................ [  6%]
+........................................................................ [ 10%]
+........................................................................ [ 13%]
+........................................................................ [ 17%]
+........................................................................ [ 20%]
+........................................................................ [ 24%]
+.................................................................F...... [ 27%]
+........................................................................ [ 31%]
+........................................................................ [ 34%]
+........................................................................ [ 37%]
+........................................................................ [ 41%]
+........................................................................ [ 44%]
+........................................................................ [ 48%]
+........................................................................ [ 51%]
+........................................................................ [ 55%]
+................................................................E....... [ 58%]
+........................................................................ [ 62%]
+........................................................................ [ 65%]
+........................................................................ [ 69%]
+........................................................................ [ 72%]
+........................................................................ [ 75%]
+........................................................................ [ 79%]
+........................................................................ [ 82%]
+........................................................................ [ 86%]
+........................................................................ [ 89%]
+........................................................................ [ 93%]
+.......EEEEEEE.......................................................... [ 96%]
+......................................................................   [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_on_a_real_redis_the_interrupted_pass_is_retried_within_fifteen_minutes_and_finishes _
+
+    @pytest.fixture(scope="module")
+    def identity():
+        """Connect, and refuse anything that is not an empty, isolated server."""
+        parsed = urlparse(URL)
+        # Explicit host, port and database: `from_url` lets the URL's own database win over `db=`.
+        clients = {offset: redis_lib.Redis(host=parsed.hostname, port=parsed.port, db=database_of(offset),
+                                           socket_connect_timeout=2, socket_timeout=5) for offset in (0, 1, 2)}
+        assert [c.connection_pool.connection_kwargs["db"] for c in clients.values()] == \
+            [database_of(0), database_of(1), database_of(2)]
+        client = clients[0]
+        info = client.info("server")
+        port = int(info["tcp_port"])
+        if port == APPLICATION_PORT or port != (urlparse(URL).port or APPLICATION_PORT):
+            pytest.fail(f"refusing Redis on port {port}: the lease tests run only on an isolated server")
+        if any(c.dbsize() != 0 for c in clients.values()):
+>           pytest.fail("refusing a Redis that already holds keys: the lease tests empty the databases they use")
+E           Failed: refusing a Redis that already holds keys: the lease tests empty the databases they use
+
+tests/services/test_sync_lease_redis.py:93: Failed
+_ ERROR at setup of test_renewal_and_release_check_the_owner_token_on_a_real_redis _
+
+    @pytest.fixture(scope="module")
+    def identity():
+        """Connect, and refuse anything that is not an empty, isolated server."""
+        parsed = urlparse(URL)
+        # Explicit host, port and database: `from_url` lets the URL's own database win over `db=`.
+        clients = {offset: redis_lib.Redis(host=parsed.hostname, port=parsed.port, db=database_of(offset),
+                                           socket_connect_timeout=2, socket_timeout=5) for offset in (0, 1, 2)}
+        assert [c.connection_pool.connection_kwargs["db"] for c in clients.values()] == \
+            [database_of(0), database_of(1), database_of(2)]
+        client = clients[0]
+        info = client.info("server")
+        port = int(info["tcp_port"])
+        if port == APPLICATION_PORT or port != (urlparse(URL).port or APPLICATION_PORT):
+            pytest.fail(f"refusing Redis on port {port}: the lease tests run only on an isolated server")
+        if any(c.dbsize() != 0 for c in clients.values()):
+>           pytest.fail("refusing a Redis that already holds keys: the lease tests empty the databases they use")
+E           Failed: refusing a Redis that already holds keys: the lease tests empty the databases they use
+
+tests/services/test_sync_lease_redis.py:93: Failed
+_ ERROR at setup of test_after_real_expiry_the_old_worker_can_neither_renew_nor_release_nor_write _
+
+    @pytest.fixture(scope="module")
+    def identity():
+        """Connect, and refuse anything that is not an empty, isolated server."""
+        parsed = urlparse(URL)
+        # Explicit host, port and database: `from_url` lets the URL's own database win over `db=`.
+        clients = {offset: redis_lib.Redis(host=parsed.hostname, port=parsed.port, db=database_of(offset),
+                                           socket_connect_timeout=2, socket_timeout=5) for offset in (0, 1, 2)}
+        assert [c.connection_pool.connection_kwargs["db"] for c in clients.values()] == \
+            [database_of(0), database_of(1), database_of(2)]
+        client = clients[0]
+        info = client.info("server")
+        port = int(info["tcp_port"])
+        if port == APPLICATION_PORT or port != (urlparse(URL).port or APPLICATION_PORT):
+            pytest.fail(f"refusing Redis on port {port}: the lease tests run only on an isolated server")
+        if any(c.dbsize() != 0 for c in clients.values()):
+>           pytest.fail("refusing a Redis that already holds keys: the lease tests empty the databases they use")
+E           Failed: refusing a Redis that already holds keys: the lease tests empty the databases they use
+
+tests/services/test_sync_lease_redis.py:93: Failed
+_ ERROR at setup of test_a_crashed_workers_lease_lapses_and_is_taken_over_on_a_real_redis _
+
+    @pytest.fixture(scope="module")
+    def identity():
+        """Connect, and refuse anything that is not an empty, isolated server."""
+        parsed = urlparse(URL)
+        # Explicit host, port and database: `from_url` lets the URL's own database win over `db=`.
+        clients = {offset: redis_lib.Redis(host=parsed.hostname, port=parsed.port, db=database_of(offset),
+                                           socket_connect_timeout=2, socket_timeout=5) for offset in (0, 1, 2)}
+        assert [c.connection_pool.connection_kwargs["db"] for c in clients.values()] == \
+            [database_of(0), database_of(1), database_of(2)]
+        client = clients[0]
+        info = client.info("server")
+        port = int(info["tcp_port"])
+        if port == APPLICATION_PORT or port != (urlparse(URL).port or APPLICATION_PORT):
+            pytest.fail(f"refusing Redis on port {port}: the lease tests run only on an isolated server")
+        if any(c.dbsize() != 0 for c in clients.values()):
+>           pytest.fail("refusing a Redis that already holds keys: the lease tests empty the databases they use")
+E           Failed: refusing a Redis that already holds keys: the lease tests empty the databases they use
+
+tests/services/test_sync_lease_redis.py:93: Failed
+_ ERROR at setup of test_a_forecast_pass_on_a_real_redis_renews_its_lease_and_shuts_out_a_second_caller _
+
+    @pytest.fixture(scope="module")
+    def identity():
+        """Connect, and refuse anything that is not an empty, isolated server."""
+        parsed = urlparse(URL)
+        # Explicit host, port and database: `from_url` lets the URL's own database win over `db=`.
+        clients = {offset: redis_lib.Redis(host=parsed.hostname, port=parsed.port, db=database_of(offset),
+                                           socket_connect_timeout=2, socket_timeout=5) for offset in (0, 1, 2)}
+        assert [c.connection_pool.connection_kwargs["db"] for c in clients.values()] == \
+            [database_of(0), database_of(1), database_of(2)]
+        client = clients[0]
+        info = client.info("server")
+        port = int(info["tcp_port"])
+        if port == APPLICATION_PORT or port != (urlparse(URL).port or APPLICATION_PORT):
+            pytest.fail(f"refusing Redis on port {port}: the lease tests run only on an isolated server")
+        if any(c.dbsize() != 0 for c in clients.values()):
+>           pytest.fail("refusing a Redis that already holds keys: the lease tests empty the databases they use")
+E           Failed: refusing a Redis that already holds keys: the lease tests empty the databases they use
+
+tests/services/test_sync_lease_redis.py:93: Failed
+_ ERROR at setup of test_on_a_real_redis_a_late_answer_after_expiry_writes_nothing _
+
+    @pytest.fixture(scope="module")
+    def identity():
+        """Connect, and refuse anything that is not an empty, isolated server."""
+        parsed = urlparse(URL)
+        # Explicit host, port and database: `from_url` lets the URL's own database win over `db=`.
+        clients = {offset: redis_lib.Redis(host=parsed.hostname, port=parsed.port, db=database_of(offset),
+                                           socket_connect_timeout=2, socket_timeout=5) for offset in (0, 1, 2)}
+        assert [c.connection_pool.connection_kwargs["db"] for c in clients.values()] == \
+            [database_of(0), database_of(1), database_of(2)]
+        client = clients[0]
+        info = client.info("server")
+        port = int(info["tcp_port"])
+        if port == APPLICATION_PORT or port != (urlparse(URL).port or APPLICATION_PORT):
+            pytest.fail(f"refusing Redis on port {port}: the lease tests run only on an isolated server")
+        if any(c.dbsize() != 0 for c in clients.values()):
+>           pytest.fail("refusing a Redis that already holds keys: the lease tests empty the databases they use")
+E           Failed: refusing a Redis that already holds keys: the lease tests empty the databases they use
+
+tests/services/test_sync_lease_redis.py:93: Failed
+_ ERROR at setup of test_on_a_real_redis_a_reservation_is_owner_checked_across_databases _
+
+    @pytest.fixture(scope="module")
+    def identity():
+        """Connect, and refuse anything that is not an empty, isolated server."""
+        parsed = urlparse(URL)
+        # Explicit host, port and database: `from_url` lets the URL's own database win over `db=`.
+        clients = {offset: redis_lib.Redis(host=parsed.hostname, port=parsed.port, db=database_of(offset),
+                                           socket_connect_timeout=2, socket_timeout=5) for offset in (0, 1, 2)}
+        assert [c.connection_pool.connection_kwargs["db"] for c in clients.values()] == \
+            [database_of(0), database_of(1), database_of(2)]
+        client = clients[0]
+        info = client.info("server")
+        port = int(info["tcp_port"])
+        if port == APPLICATION_PORT or port != (urlparse(URL).port or APPLICATION_PORT):
+            pytest.fail(f"refusing Redis on port {port}: the lease tests run only on an isolated server")
+        if any(c.dbsize() != 0 for c in clients.values()):
+>           pytest.fail("refusing a Redis that already holds keys: the lease tests empty the databases they use")
+E           Failed: refusing a Redis that already holds keys: the lease tests empty the databases they use
+
+tests/services/test_sync_lease_redis.py:93: Failed
+_ ERROR at setup of test_on_a_real_redis_provider_bookkeeping_is_fenced_across_databases _
+
+    @pytest.fixture(scope="module")
+    def identity():
+        """Connect, and refuse anything that is not an empty, isolated server."""
+        parsed = urlparse(URL)
+        # Explicit host, port and database: `from_url` lets the URL's own database win over `db=`.
+        clients = {offset: redis_lib.Redis(host=parsed.hostname, port=parsed.port, db=database_of(offset),
+                                           socket_connect_timeout=2, socket_timeout=5) for offset in (0, 1, 2)}
+        assert [c.connection_pool.connection_kwargs["db"] for c in clients.values()] == \
+            [database_of(0), database_of(1), database_of(2)]
+        client = clients[0]
+        info = client.info("server")
+        port = int(info["tcp_port"])
+        if port == APPLICATION_PORT or port != (urlparse(URL).port or APPLICATION_PORT):
+            pytest.fail(f"refusing Redis on port {port}: the lease tests run only on an isolated server")
+        if any(c.dbsize() != 0 for c in clients.values()):
+>           pytest.fail("refusing a Redis that already holds keys: the lease tests empty the databases they use")
+E           Failed: refusing a Redis that already holds keys: the lease tests empty the databases they use
+
+tests/services/test_sync_lease_redis.py:93: Failed
+=================================== FAILURES ===================================
+_____ test_the_isolated_backend_launch_entry_runs_the_guard_before_uvicorn _____
+
+tmp_path = PosixPath('/private/var/folders/yd/g079qx3d321327p49yt3rt4c0000gn/T/pytest-of-stephanefotso/pytest-266/test_the_isolated_backend_laun0')
+
+    def test_the_isolated_backend_launch_entry_runs_the_guard_before_uvicorn(tmp_path):
+        """.claude/launch.json's backend-isolated entry started uvicorn directly, so a DATABASE_URL in
+        backend/.env (or the environment) that redirects the database - an unencoded '#' or '?' in its
+        password, a ?dbname= parameter - put the isolated backend on the live database with nothing to
+        refuse it. scripts/local-servers.sh already ran the guard first; the entry now does the same."""
+        launch = json.loads((BACKEND.parent / ".claude" / "launch.json").read_text(encoding="utf-8"))
+>       entry = next(c for c in launch["configurations"] if c["name"] == "backend-isolated")
+E       StopIteration
+
+tests/core/test_target_guard.py:831: StopIteration
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+tests/services/test_provider_switching_db.py::test_rescheduled_fixture_follows_the_provider_ref
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/tests/services/test_provider_switching_db.py:205: LegacyAPIWarning: The Query.get() method is considered legacy as of the 1.x series of SQLAlchemy and becomes a legacy construct in 2.0. The method is now available as Session.get() (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    assert db.query(Match).get(matches[0].id).match_date == moved.kickoff_utc.replace(tzinfo=None)
+
+tests/services/test_provider_switching_db.py::test_matches_endpoint_serves_sample_provider_with_forecasts_and_expert_predictions
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/tests/services/test_provider_switching_db.py:400: LegacyAPIWarning: The Query.get() method is considered legacy as of the 1.x series of SQLAlchemy and becomes a legacy construct in 2.0. The method is now available as Session.get() (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    match = db.query(Match).get(uuid.UUID(first["id"]))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+target guard: backend-tests approved - settings database localhost:5432/soccer_predictions_test; test database localhost:5432/soccer_predictions_test; race database 127.0.0.1:5440/forecast_race_test; redis default (REDIS_DB) 127.0.0.1:6390/0; redis REDIS_DB_SESSIONS 127.0.0.1:6390/0; redis REDIS_DB_PREDICTIONS 127.0.0.1:6390/1; redis REDIS_DB_EXPERT_TOOLS 127.0.0.1:6390/2; redis REDIS_DB_ML_MODELS 127.0.0.1:6390/3; redis REDIS_DB_MATCH_DATA 127.0.0.1:6390/4; redis REDIS_DB_RATE_LIMIT 127.0.0.1:6390/5; lease redis 127.0.0.1:6390/9,10,11 (policy sha256 9b2b8880bc11)
+=========================== short test summary info ============================
+FAILED tests/core/test_target_guard.py::test_the_isolated_backend_launch_entry_runs_the_guard_before_uvicorn
+ERROR tests/services/test_forecast_recovery.py::test_on_a_real_redis_the_interrupted_pass_is_retried_within_fifteen_minutes_and_finishes
+ERROR tests/services/test_sync_lease_redis.py::test_renewal_and_release_check_the_owner_token_on_a_real_redis
+ERROR tests/services/test_sync_lease_redis.py::test_after_real_expiry_the_old_worker_can_neither_renew_nor_release_nor_write
+ERROR tests/services/test_sync_lease_redis.py::test_a_crashed_workers_lease_lapses_and_is_taken_over_on_a_real_redis
+ERROR tests/services/test_sync_lease_redis.py::test_a_forecast_pass_on_a_real_redis_renews_its_lease_and_shuts_out_a_second_caller
+ERROR tests/services/test_sync_lease_redis.py::test_on_a_real_redis_a_late_answer_after_expiry_writes_nothing
+ERROR tests/services/test_sync_lease_redis.py::test_on_a_real_redis_a_reservation_is_owner_checked_across_databases
+ERROR tests/services/test_sync_lease_redis.py::test_on_a_real_redis_provider_bookkeeping_is_fenced_across_databases
+1 failed, 2077 passed, 20 warnings, 8 errors in 69.19s (0:01:09)
+# exit 1 at 2026-10-28T02:14:09Z

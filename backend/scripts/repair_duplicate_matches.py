@@ -11,23 +11,30 @@ WHY THIS EXISTS
     one club, is a decision about identity that belongs to a person; this script lays out the
     evidence, does exactly what it printed, and never guesses.
 
-    It also folds a listing its provider DROPPED AND ISSUED AGAIN under a new fixture id - a
-    postponement, as a rule - into the listing the provider now maintains. Paris Saint-Germain v
-    Lyon, Ligue 1 round 8, was listed by Live Score as fixture 1877019 for 2026-10-25 19:45 UTC,
-    vanished from its lists on the 25th, and came back as fixture 742799 for 2026-10-26 19:30 UTC,
-    the same clubs the same way round, played 2-0. The registry stored a second row (a provider's
-    own other id was never a candidate), so nine forecast snapshots sat on a listing that never
-    kicked off while the result sat on a row with no forecast, and the recovery sweep asked
-    results providers about the dead listing eighteen times. The conditions are exactly the
-    registry's (`MatchRegistry.superseded_listing_for`), which now joins such a re-issue at
-    ingestion; this section is for the pairs that were stored before it did, or were re-issued
-    before the dropped listing's kickoff had passed, when nothing could yet prove it dropped. The
-    dropped row's forecasts, snapshots, predictions, slip legs, saved matches and provider refs
-    MOVE to the maintained row with their timestamps untouched; the dead provider ref is kept,
-    marked `superseded_by`; the dropped row's own record (kickoff, status, legacy id, sync and
-    recovery metadata) is written onto the survivor under `match_metadata.superseded_listing`; and
-    the emptied row is deleted. Two listings that disagree - the dropped one holds a result, the
-    rounds differ, several candidates - are reported and left alone.
+    It also folds a listing its provider LISTED AGAIN UNDER A NEW FIXTURE ID - a postponement, as a
+    rule - into the listing the provider now maintains. Paris Saint-Germain v Lyon, Ligue 1 round
+    8, was listed by Live Score as fixture 1877019 for 2026-10-25 19:45 UTC, was last named by it
+    at 17:09 UTC on the 25th, was not in the complete listing of that date made at 23:11 UTC, and
+    came back as fixture 742799 for 2026-10-26 19:30 UTC, the same clubs the same way round, played
+    2-0. The registry stored a second row (a provider's own other id was never a candidate), so
+    nine forecast snapshots sat on a listing that never kicked off while the result sat on a row
+    with no forecast, and the recovery sweep asked results providers about the old listing
+    eighteen times. The pairs are found by the registry's own conditions
+    (`MatchRegistry.superseded_listing_for`, which now joins such a re-issue at ingestion); this
+    section is for pairs stored before it did, or re-issued while the earlier listing was still to
+    be played. Each pair says what was OBSERVED: an absence from a complete listing of its date
+    recorded by this installation (`match_metadata.listings`), or nothing - an old timestamp, a
+    missing result and elapsed time are not observations of a withdrawal. Nothing is folded by
+    `--apply`: a pair is folded only when a person names it with `--fold-superseded <match id>`,
+    and a pair whose withdrawal was not observed only with `--reviewed-evidence` stating what the
+    person reviewed, which goes into the record. The earlier row's forecasts, snapshots,
+    predictions, slip legs, saved matches, settlement records and provider refs MOVE to the
+    maintained row with their timestamps untouched; the earlier provider ref is kept, marked
+    `superseded_by`; the earlier row's own record (kickoff, status, legacy id, sync and recovery
+    metadata) is written onto the survivor under `match_metadata.superseded_listing`; and the
+    emptied row is deleted. Two listings that disagree - the earlier one holds a result, the
+    rounds differ, several candidates, a cup or national-team competition - are reported and left
+    alone.
 
     It also reports two things it does not decide:
 
@@ -60,10 +67,12 @@ USAGE
     ./venv/bin/python scripts/repair_duplicate_matches.py                      # report only
     ./venv/bin/python scripts/repair_duplicate_matches.py --apply              # repair
     ./venv/bin/python scripts/repair_duplicate_matches.py --database-url ...   # a restored copy
-    ./venv/bin/python scripts/repair_duplicate_matches.py --fold-superseded <dropped match id>
-        folds ONE dropped-and-re-issued listing, named by a person; `--apply` alone never folds
-        one, because a dropped listing beside a new one is a judgement about identity. Repeat the
-        flag for several. With `--apply` too, the other sections repair as well.
+    ./venv/bin/python scripts/repair_duplicate_matches.py --fold-superseded <earlier match id>
+        folds ONE listing-re-issued pair, named by a person; `--apply` alone never folds one,
+        because an earlier listing beside a new one is a judgement about identity. Repeat the flag
+        for several. A pair whose withdrawal this installation did not observe also needs
+        --reviewed-evidence "<what the person reviewed>", which is written into the record.
+        With `--apply` too, the other sections repair as well.
 
     Prove it on a restored copy before running it against the live database.
 """
@@ -87,7 +96,8 @@ from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
 from app.services.match_matching import normalize_team_name  # noqa: E402
 from app.services.match_registry import (  # noqa: E402
-    RELISTED_KEY, SHARED_SLOT_WINDOW, SUPERSEDED_KEY, SUPERSEDED_LISTING_WINDOW, UNSETTLED_GRACE, round_number,
+    LISTINGS_KEY, RELISTED_KEY, SHARED_SLOT_WINDOW, SUPERSEDED_KEY, SUPERSEDED_LISTING_WINDOW, UNSETTLED_GRACE,
+    round_number,
 )
 from app.services.providers import competitions as comps  # noqa: E402
 
@@ -369,7 +379,7 @@ def delete_unreferenced(db: Session, deps: Sequence[Dependent], target: str, row
 # --------------------------------------------------------------------------- re-issued listings
 @dataclass
 class Supersession:
-    """One listing a provider dropped (`stale`) and the listing it issued instead (`successor`)."""
+    """One earlier listing (`stale`) and the listing the provider issued later (`successor`)."""
     stale: Copy
     successor: Copy
     provider: str
@@ -379,10 +389,28 @@ class Supersession:
     moves: Dict[str, int] = field(default_factory=dict)
     #: Facts a person must weigh after the fold; none of them stops it.
     consequences: List[str] = field(default_factory=list)
+    #: What this installation observed of the provider's listing of the earlier row: the absence
+    #: record (`match_metadata.listings.<provider>.absent`) when a complete listing of its date did
+    #: not name it after it was last named, else None - "not observed", which is not "withdrawn".
+    absence: Optional[Dict] = None
+    last_named_at: Optional[str] = None
 
     @property
     def safe(self) -> bool:
         return not self.blockers
+
+    @property
+    def withdrawal_observed(self) -> bool:
+        return bool(self.absence)
+
+    @property
+    def evidence(self) -> str:
+        if self.absence:
+            return (f"withdrawal observed: last named by {self.provider} at {self.last_named_at or 'an unrecorded time'}; "
+                    f"absent from {self.absence.get('listings')} complete listing(s) of its date since "
+                    f"({self.absence.get('since')} to {self.absence.get('last')})")
+        return (f"withdrawal NOT observed: last named by {self.provider} at {self.last_named_at or 'an unrecorded time'}; "
+                f"no complete listing of its date recorded since without it (no result stored; nothing reported it started)")
 
 
 def _match_meta(db: Session, match_id: str) -> Dict:
@@ -399,15 +427,15 @@ def _round_of(db: Session, match_id: str) -> Optional[str]:
 def superseded_listings(db: Session, now: Optional[datetime] = None,
                         window: timedelta = SUPERSEDED_LISTING_WINDOW) -> List[Supersession]:
     """
-    Every (dropped listing, re-issued listing) pair, by the registry's own conditions. Read-only.
+    Every (earlier listing, re-issued listing) pair, by the registry's own conditions. Read-only.
 
-    A dropped listing is SCHEDULED with no result and its kickoff window (`UNSETTLED_GRACE`) closed,
+    An earlier listing is SCHEDULED with no result and its kickoff window (`UNSETTLED_GRACE`) closed,
     or POSTPONED with no result, and not closed as the second listing of a played row. Its
     successor is another row in the same competition with the identical two clubs in the same
     order, kicking off after it and within `window`, that the SAME provider lists under a DIFFERENT
     id. The rows are compared by club row ids, as the registry compares them, so two spellings of
-    one club are not seen here (the duplicate-clubs section above is for that). A dropped listing
-    with two successors, or a successor with two dropped listings, is reported as such and not
+    one club are not seen here (the duplicate-clubs section above is for that). An earlier listing
+    with two successors, or a successor with two earlier listings, is reported as such and not
     touched.
     """
     now = now or datetime.now(timezone.utc)
@@ -435,11 +463,18 @@ def superseded_listings(db: Session, now: Optional[datetime] = None,
         stale, successor = copies.get(row.stale_id), copies.get(row.successor_id)
         if stale is None or successor is None:
             continue
-        if RELISTED_KEY in _match_meta(db, stale.id):
+        stale_meta = _match_meta(db, stale.id)
+        if RELISTED_KEY in stale_meta:
             continue
         key = (stale.id, successor.id)
         if key not in pairs:
-            pairs[key] = Supersession(stale, successor, row.provider, [], [])
+            listing = dict((stale_meta.get(LISTINGS_KEY) or {}).get(row.provider) or {})
+            absent = listing.get("absent") if isinstance(listing.get("absent"), dict) else None
+            seen = listing.get("seen_at")
+            if absent and isinstance(seen, str) and seen >= str(absent.get("last") or ""):
+                absent = None  # named again after the absence: contradicted, so no observation stands
+            pairs[key] = Supersession(stale, successor, row.provider, [], [], absence=absent,
+                                      last_named_at=seen or stale_meta.get("last_synced_at"))
         pair = pairs[key]
         if row.provider != pair.provider:
             pair.blockers.append(f"listed again by more than one provider ({pair.provider}, {row.provider}); a person decides")
@@ -454,9 +489,9 @@ def superseded_listings(db: Session, now: Optional[datetime] = None,
         by_successor[pair.successor.id].append(pair)
     for pair in pairs.values():
         if len(by_stale[pair.stale.id]) > 1:
-            pair.blockers.append(f"the dropped listing has {len(by_stale[pair.stale.id])} possible successors")
+            pair.blockers.append(f"the earlier listing has {len(by_stale[pair.stale.id])} possible successors")
         if len(by_successor[pair.successor.id]) > 1:
-            pair.blockers.append(f"the successor could replace {len(by_successor[pair.successor.id])} dropped listings")
+            pair.blockers.append(f"the successor could replace {len(by_successor[pair.successor.id])} earlier listings")
         mine, theirs = round_number(_round_of(db, pair.stale.id)), round_number(_round_of(db, pair.successor.id))
         if mine is not None and theirs is not None and mine != theirs:
             pair.blockers.append(f"the rounds differ ({_round_of(db, pair.stale.id)!r} against "
@@ -484,10 +519,10 @@ def _canonical_key(db: Session, league_id: str) -> Optional[str]:
 
 def plan_supersession(db: Session, pair: Supersession, deps: Sequence[Dependent]) -> Supersession:
     """
-    What folding the dropped listing into its successor would move, and what stops it.
+    What folding the earlier listing into its successor would move, and what stops it.
 
     The successor is the survivor whatever the two rows carry: it is the listing the provider
-    maintains, with the kickoff the match was played at. Every dependent row of the dropped
+    maintains, with the kickoff the match was played at. Every dependent row of the earlier
     listing moves; a unique key that the move would break (a current forecast from a provider the
     successor already has one from, say) is a contradiction between the two rows and blocks the
     whole pair.
@@ -500,7 +535,7 @@ def plan_supersession(db: Session, pair: Supersession, deps: Sequence[Dependent]
             pair.moves[dep.qualified] = n
             pair.blockers.extend(collisions_for(db, dep, pair.stale, pair.successor))
     if pair.stale.has_result:
-        pair.blockers.append("the dropped listing holds a result: it was played, so it was not dropped")
+        pair.blockers.append("the earlier listing holds a result: it was played, so it was not replaced")
     moved_people = sum(pair.stale.counts.get(t, 0) for t in
                        ("predictions.predictions", "users.selection_slip_legs", "users.saved_matches"))
     if moved_people:
@@ -515,26 +550,29 @@ def plan_supersession(db: Session, pair: Supersession, deps: Sequence[Dependent]
     """), {"mid": pair.stale.id, "played": pair.successor.kickoff}).scalar() or 0
     if late:
         pair.consequences.append(
-            f"{late} snapshot(s) retrieved before the match was played but after the dropped listing's kickoff "
+            f"{late} snapshot(s) retrieved before the match was played but after the earlier listing's kickoff "
             f"are recorded as captured after the kickoff known at capture (`captured_before_kickoff` false) and "
             f"stay so: settlement will not score them unless a separate decision re-evaluates them; their "
             f"retrieval times are untouched")
     return pair
 
 
-def apply_supersession(db: Session, pair: Supersession, deps: Sequence[Dependent], now: Optional[datetime] = None
-                       ) -> Dict[str, int]:
+def apply_supersession(db: Session, pair: Supersession, deps: Sequence[Dependent], now: Optional[datetime] = None,
+                       reviewed_evidence: Optional[str] = None) -> Dict[str, int]:
     """
-    Fold the dropped listing into its successor. One transaction, caller commits.
+    Fold the earlier listing into its successor. One transaction, caller commits.
 
     Dependents move with `fold_rows` (recount before the delete, as everywhere in this script). Then
     the dead provider ref, now on the survivor, is marked `superseded_by` the live id, and the
-    dropped row's own record - kickoff, status, legacy id, metadata, created_at - is written onto
+    earlier row's own record - kickoff, status, legacy id, metadata, created_at - is written onto
     the survivor under `match_metadata.superseded_listing`, where a reader of the row can see
     what it was folded from. The survivor's kickoff, status, scores and refs are its own and are
-    not touched. Re-running finds no dropped listing and changes nothing.
+    not touched. Re-running finds no earlier listing and changes nothing.
     """
     now = now or datetime.now(timezone.utc)
+    if not pair.withdrawal_observed and not (reviewed_evidence or "").strip():
+        raise ValueError("this installation did not observe the provider withdrawing the earlier listing; a fold "
+                         "needs the person's reviewed evidence (--reviewed-evidence)")
     stale_meta = _match_meta(db, pair.stale.id)
     stale_row = db.execute(text("""
         SELECT match_date, status::text AS status, external_api_id, external_api_source, round, created_at
@@ -564,11 +602,15 @@ def apply_supersession(db: Session, pair: Supersession, deps: Sequence[Dependent
         "moved": dict(moved),
         "detected_at": now.isoformat(),
         "by": "scripts/repair_duplicate_matches.py",
-        "reason": (f"{pair.provider} stopped listing fixture {', '.join(pair.dead_ids)} ({stale_row.match_date} UTC, never "
-                   f"reported started, no result) and lists the same two clubs the same way round in the same "
-                   f"competition as fixture {', '.join(pair.live_ids)} ({pair.successor.kickoff} UTC): the same match, "
-                   f"re-issued. The dropped row's dependents were moved here with their timestamps untouched and the "
-                   f"row deleted."),
+        "evidence": {"basis": "observed" if pair.withdrawal_observed else "reviewed",
+                     "last_named_at": pair.last_named_at, "absent": pair.absence,
+                     "reviewed": (reviewed_evidence or "").strip() or None,
+                     "summary": pair.evidence},
+        "reason": (f"Folded on a person's instruction (--fold-superseded). {pair.evidence}. {pair.provider} lists the "
+                   f"same two clubs the same way round in the same competition as fixture {', '.join(pair.live_ids)} "
+                   f"({pair.successor.kickoff} UTC); the earlier listing {', '.join(pair.dead_ids)} "
+                   f"({stale_row.match_date} UTC) holds no result. The earlier row's dependents were moved here with "
+                   f"their timestamps untouched and the row deleted."),
     }
     earlier = meta.get(SUPERSEDED_KEY)
     history = list(earlier.get("history") or []) if isinstance(earlier, dict) else []
@@ -778,8 +820,11 @@ def main() -> int:
     parser.add_argument("--database-url", default=None,
                         help="database to work on; defaults to the application's own")
     parser.add_argument("--fold-superseded", action="append", default=[], metavar="MATCH_ID",
-                        help="fold this dropped-and-re-issued listing (its match id) into the listing the "
-                             "provider maintains; repeatable. Never implied by --apply.")
+                        help="fold this earlier listing (its match id) into the listing the provider issued "
+                             "later; repeatable. Never implied by --apply.")
+    parser.add_argument("--reviewed-evidence", default=None, metavar="TEXT",
+                        help="what the person reviewed, for a pair whose withdrawal this installation did not "
+                             "observe; written into the record. Required for such a pair, ignored otherwise.")
     args = parser.parse_args()
     selected = {m.strip() for m in args.fold_superseded if m.strip()}
 
@@ -874,13 +919,14 @@ def main() -> int:
         print()
 
     supersessions = superseded_listings(db)
-    print(f"listings dropped and issued again under a new id: {len(supersessions)}")
+    print(f"listings issued again under a new id: {len(supersessions)}")
     folded = 0
     for pair in supersessions:
         plan_supersession(db, pair, deps)
         print(f"{pair.successor.home} v {pair.successor.away}  {pair.successor.league or pair.successor.league_id}")
         print(describe(pair.successor, "KEEP") + f"  {pair.provider}:{','.join(pair.live_ids)}")
-        print(describe(pair.stale, "FOLD") + f"  {pair.provider}:{','.join(pair.dead_ids)} (dropped)")
+        print(describe(pair.stale, "FOLD") + f"  {pair.provider}:{','.join(pair.dead_ids)} (earlier listing)")
+        print(f"    evidence: {pair.evidence}")
         if not pair.safe:
             print("    ABANDONED, nothing changed:")
             for blocker in pair.blockers:
@@ -892,11 +938,17 @@ def main() -> int:
         for consequence in pair.consequences:
             print(f"    A PERSON DECIDES AFTERWARDS: {consequence}")
         if pair.stale.id not in selected:
-            print(f"    NOT FOLDED: name it with --fold-superseded {pair.stale.id} to fold it")
+            print(f"    NOT FOLDED: name it with --fold-superseded {pair.stale.id} to fold it"
+                  + ("" if pair.withdrawal_observed else " and state the reviewed evidence with --reviewed-evidence"))
+            print()
+            continue
+        if not pair.withdrawal_observed and not (args.reviewed_evidence or "").strip():
+            print("    NOT FOLDED: its withdrawal was not observed by this installation; --reviewed-evidence is required")
+            exit_code = 1
             print()
             continue
         try:
-            moved = apply_supersession(db, pair, deps)
+            moved = apply_supersession(db, pair, deps, reviewed_evidence=args.reviewed_evidence)
             db.commit()
         except Exception as exc:
             db.rollback()
@@ -908,7 +960,7 @@ def main() -> int:
             total_moved[table] = total_moved.get(table, 0) + n
         folded += 1
         print(f"    moved:   {moved or 'nothing'}")
-        print(f"    deleted: 1 dropped listing; its record is on the survivor under match_metadata.{SUPERSEDED_KEY}")
+        print(f"    deleted: 1 earlier listing; its record is on the survivor under match_metadata.{SUPERSEDED_KEY}")
         print()
 
     placeholders = placeholder_matches(db, deps)
@@ -987,11 +1039,11 @@ def main() -> int:
 
     unknown = selected - {pair.stale.id for pair in supersessions}
     for match_id in sorted(unknown):
-        print(f"--fold-superseded {match_id}: no dropped listing with this id was found; nothing done for it")
+        print(f"--fold-superseded {match_id}: no earlier listing with this id was found; nothing done for it")
         exit_code = 1
     if args.apply or selected:
         print(f"total moved: {total_moved or 'nothing'}")
-        print(f"dropped listings folded into their re-issue: {folded}")
+        print(f"earlier listings folded into their re-issue: {folded}")
         if args.apply:
             print(f"placeholder fixtures deleted: {deleted_placeholders}")
             print(f"settled clash markers cleared: {cleared}")

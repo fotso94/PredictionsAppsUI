@@ -1,0 +1,635 @@
+# 2026-10-28T02:08:19Z in /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend at 3dc5710f (); dirty files: 2
+# python 3.11.9; pytest args: tests/services/test_superseded_listings.py tests/services/test_forecast_cadence.py -q -rfE
+F...FFFFFFFFFF...F.........FF.FFF....................FFF.FF.........     [100%]
+=================================== FAILURES ===================================
+_ test_a_listing_withdrawn_and_issued_again_is_the_same_match_on_the_same_row __
+
+db = <sqlalchemy.orm.session.Session object at 0x10da82fd0>
+
+    def test_a_listing_withdrawn_and_issued_again_is_the_same_match_on_the_same_row(db):
+        earlier = earlier_listing(db)
+        before = snapshots_of(db, earlier.id)
+        assert len(before) == 9 and before[-1][4] is False, "the 26th's snapshot was retrieved after the earlier kickoff"
+>       observed = fresh(db, earlier.id).match_metadata[LISTINGS_KEY][PROVIDER]
+E       KeyError: 'listings'
+
+tests/services/test_superseded_listings.py:298: KeyError
+____ test_an_overdue_listing_the_provider_just_refreshed_is_not_superseded _____
+
+db = <sqlalchemy.orm.session.Session object at 0x10dc33c90>
+
+    def test_an_overdue_listing_the_provider_just_refreshed_is_not_superseded(db):
+        """The reviewer's reproduction: an overdue SCHEDULED fixture with no result whose old id the
+        provider named again minutes before the new id arrived. Nothing was withdrawn; nothing joins."""
+        earlier = earlier_listing(db, withdrawal_observed=False)
+        refreshed_at = LIVE_POLL_AT - timedelta(minutes=1)
+        observe(db, [DEAD_ID, "1877020"], refreshed_at, day=None, complete=False)   # the provider named it again
+        stored(db, listing(DEAD_ID, DROPPED_KICKOFF), refreshed_at)
+    
+        second = stored(db, played(), LIVE_POLL_AT)
+    
+>       assert second.id != earlier.id, "joined on elapsed time alone - the previous implementation's defect"
+E       AssertionError: joined on elapsed time alone - the previous implementation's defect
+E       assert UUID('d94db676-7d4e-47d3-8611-d3544806f8dc') != UUID('d94db676-7d4e-47d3-8611-d3544806f8dc')
+E        +  where UUID('d94db676-7d4e-47d3-8611-d3544806f8dc') = <app.models.predictions.Match object at 0x10de26350>.id
+E        +  and   UUID('d94db676-7d4e-47d3-8611-d3544806f8dc') = <app.models.predictions.Match object at 0x10de26350>.id
+
+tests/services/test_superseded_listings.py:370: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:21 - app.services.match_registry - WARNING - Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match d94db676-7d4e-47d3-8611-d3544806f8dc re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.match_registry:match_registry.py:1308 Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match d94db676-7d4e-47d3-8611-d3544806f8dc re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+______ test_an_absence_contradicted_by_a_later_listing_counts_for_nothing ______
+
+db = <sqlalchemy.orm.session.Session object at 0x10da39d50>
+
+    def test_an_absence_contradicted_by_a_later_listing_counts_for_nothing(db):
+        earlier = earlier_listing(db)                                                   # absent at 23:11 on the 25th
+        observe(db, [DEAD_ID], LIVE_POLL_AT - timedelta(hours=3), day=None, complete=False)   # named again on the 26th
+        second = stored(db, played(), LIVE_POLL_AT)
+>       assert second.id != earlier.id
+E       AssertionError: assert UUID('d4906e77-ff5f-4941-8427-987430cd0596') != UUID('d4906e77-ff5f-4941-8427-987430cd0596')
+E        +  where UUID('d4906e77-ff5f-4941-8427-987430cd0596') = <app.models.predictions.Match object at 0x10ddee3d0>.id
+E        +  and   UUID('d4906e77-ff5f-4941-8427-987430cd0596') = <app.models.predictions.Match object at 0x10ddee3d0>.id
+
+tests/services/test_superseded_listings.py:385: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:21 - app.services.match_registry - WARNING - Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match d4906e77-ff5f-4941-8427-987430cd0596 re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.match_registry:match_registry.py:1308 Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match d4906e77-ff5f-4941-8427-987430cd0596 re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+_ test_both_ids_in_one_listing_are_two_rows_whichever_comes_first[old-then-new] _
+
+db = <sqlalchemy.orm.session.Session object at 0x10dcab450>
+order = 'old-then-new'
+
+    @pytest.mark.parametrize("order", ["old-then-new", "new-then-old"])
+    def test_both_ids_in_one_listing_are_two_rows_whichever_comes_first(db, order):
+        """One calendar answer naming both 1877019 (still on the 25th) and 742799 (the 26th): the
+        provider returns both ids, so neither replaces the other, in either processing order. The sync
+        tells the registry what the answer named before it stores a single fixture of it."""
+        earlier = earlier_listing(db)                                        # absent from the 25th's listing at 23:11
+        batch = [listing(DEAD_ID, DROPPED_KICKOFF), listing(LIVE_ID, PLAYED_KICKOFF)]
+        if order == "new-then-old":
+            batch.reverse()
+        at = PLAYED_KICKOFF - timedelta(hours=8)
+        observe(db, [f.external_id for f in batch], at, day=None, complete=False)   # a calendar: names, no absence
+        rows = [stored(db, f, at) for f in batch]
+>       assert len({r.id for r in rows}) == 2 and earlier.id in {r.id for r in rows}
+E       AssertionError: assert (1 == 2)
+E        +  where 1 = len({UUID('6a005bfe-772d-4a9e-9bec-7203bb91f047')})
+
+tests/services/test_superseded_listings.py:404: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:21 - app.services.match_registry - WARNING - Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match 6a005bfe-772d-4a9e-9bec-7203bb91f047 re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.match_registry:match_registry.py:1308 Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match 6a005bfe-772d-4a9e-9bec-7203bb91f047 re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+_ test_both_ids_in_one_listing_are_two_rows_whichever_comes_first[new-then-old] _
+
+db = <sqlalchemy.orm.session.Session object at 0x10dcaaed0>
+order = 'new-then-old'
+
+    @pytest.mark.parametrize("order", ["old-then-new", "new-then-old"])
+    def test_both_ids_in_one_listing_are_two_rows_whichever_comes_first(db, order):
+        """One calendar answer naming both 1877019 (still on the 25th) and 742799 (the 26th): the
+        provider returns both ids, so neither replaces the other, in either processing order. The sync
+        tells the registry what the answer named before it stores a single fixture of it."""
+        earlier = earlier_listing(db)                                        # absent from the 25th's listing at 23:11
+        batch = [listing(DEAD_ID, DROPPED_KICKOFF), listing(LIVE_ID, PLAYED_KICKOFF)]
+        if order == "new-then-old":
+            batch.reverse()
+        at = PLAYED_KICKOFF - timedelta(hours=8)
+        observe(db, [f.external_id for f in batch], at, day=None, complete=False)   # a calendar: names, no absence
+>       rows = [stored(db, f, at) for f in batch]
+
+tests/services/test_superseded_listings.py:403: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/services/test_superseded_listings.py:403: in <listcomp>
+    rows = [stored(db, f, at) for f in batch]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+db = <sqlalchemy.orm.session.Session object at 0x10dcaaed0>
+fixture = ProviderFixture(provider='livescore', external_id='1877019', competition=ProviderCompetition(provider='livescore', ext...e=None, ps_away_score=None, venue='Parc des Princes', round='8', periods_reported=False, raw={}, kickoff_supplied=True)
+at = datetime.datetime(2026, 10, 26, 11, 30, tzinfo=datetime.timezone.utc)
+
+    def stored(db, fixture: ProviderFixture, at: datetime) -> Match:
+        match = store(db, fixture, at)
+>       assert match is not None, "the fixture was refused"
+E       AssertionError: the fixture was refused
+E       assert None is not None
+
+tests/services/test_superseded_listings.py:178: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:21 - app.services.match_registry - WARNING - Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match d7f28a82-6f6f-43d6-9c6c-aa2a1de8a05c re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+2026-10-27 22:08:21 - app.services.match_registry - WARNING - Refusing fixture livescore:1877019 (Paris Saint Germain vs Lyon): provider fixture id was superseded by 742799 (2026-10-26T19:30:00+00:00); a listing under the dead id for another kickoff is not applied; candidates=['d7f28a82-6f6f-43d6-9c6c-aa2a1de8a05c']. No match row written.
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.match_registry:match_registry.py:1308 Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match d7f28a82-6f6f-43d6-9c6c-aa2a1de8a05c re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+WARNING  app.services.match_registry:match_registry.py:916 Refusing fixture livescore:1877019 (Paris Saint Germain vs Lyon): provider fixture id was superseded by 742799 (2026-10-26T19:30:00+00:00); a listing under the dead id for another kickoff is not applied; candidates=['d7f28a82-6f6f-43d6-9c6c-aa2a1de8a05c']. No match row written.
+__________________ test_without_any_observation_nothing_joins __________________
+
+db = <sqlalchemy.orm.session.Session object at 0x10dca9350>
+
+    def test_without_any_observation_nothing_joins(db):
+        earlier = earlier_listing(db, withdrawal_observed=False)
+        second = stored(db, played(), LIVE_POLL_AT)
+>       assert second.id != earlier.id
+E       AssertionError: assert UUID('8e889eb0-01b8-4c76-9c3c-1d88fb905475') != UUID('8e889eb0-01b8-4c76-9c3c-1d88fb905475')
+E        +  where UUID('8e889eb0-01b8-4c76-9c3c-1d88fb905475') = <app.models.predictions.Match object at 0x10dc8b0d0>.id
+E        +  and   UUID('8e889eb0-01b8-4c76-9c3c-1d88fb905475') = <app.models.predictions.Match object at 0x10dc8b0d0>.id
+
+tests/services/test_superseded_listings.py:415: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:21 - app.services.match_registry - WARNING - Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match 8e889eb0-01b8-4c76-9c3c-1d88fb905475 re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.match_registry:match_registry.py:1308 Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match 8e889eb0-01b8-4c76-9c3c-1d88fb905475 re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+________________ test_an_incomplete_listing_records_no_absence _________________
+
+db = <sqlalchemy.orm.session.Session object at 0x10ddee450>
+
+    def test_an_incomplete_listing_records_no_absence(db):
+        earlier = earlier_listing(db, withdrawal_observed=False)
+        observe(db, ["1877020"], ABSENT_LISTING_AT, day=DROPPED_KICKOFF.date(), complete=False)   # a page unread
+>       assert fresh(db, earlier.id).match_metadata[LISTINGS_KEY][PROVIDER].get("absent") is None
+E       KeyError: 'listings'
+
+tests/services/test_superseded_listings.py:424: KeyError
+_______ test_a_listing_of_another_day_or_competition_records_no_absence ________
+
+db = <sqlalchemy.orm.session.Session object at 0x10d6c6450>
+
+    def test_a_listing_of_another_day_or_competition_records_no_absence(db):
+        earlier = earlier_listing(db, withdrawal_observed=False)
+        observe(db, ["9001"], ABSENT_LISTING_AT, day=DROPPED_KICKOFF.date() + timedelta(days=1))
+        observe(db, ["9002"], ABSENT_LISTING_AT, day=DROPPED_KICKOFF.date(), key="champions_league")
+>       assert fresh(db, earlier.id).match_metadata[LISTINGS_KEY][PROVIDER].get("absent") is None
+E       KeyError: 'listings'
+
+tests/services/test_superseded_listings.py:433: KeyError
+_______________ test_a_row_named_under_any_of_its_ids_is_present _______________
+
+db = <sqlalchemy.orm.session.Session object at 0x10da80a50>
+
+    def test_a_row_named_under_any_of_its_ids_is_present(db):
+        earlier = earlier_listing(db, withdrawal_observed=False)
+        MatchRegistry(db, now=LAST_LISTED_AT).set_ref("match", earlier.id, PROVIDER, "1877099", confidence="high",
+                                                       matched_by="name_kickoff")
+        observe(db, ["1877099", "1877020"], ABSENT_LISTING_AT, day=DROPPED_KICKOFF.date())
+>       assert fresh(db, earlier.id).match_metadata[LISTINGS_KEY][PROVIDER].get("absent") is None
+E       KeyError: 'listings'
+
+tests/services/test_superseded_listings.py:441: KeyError
+___________ test_the_day_sync_observes_only_a_fresh_complete_answer ____________
+
+db = <sqlalchemy.orm.session.Session object at 0x10dda6150>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10dda4190>
+
+    def test_the_day_sync_observes_only_a_fresh_complete_answer(db, monkeypatch):
+        from app.core.config import settings
+        monkeypatch.setattr(settings, "SYNC_RESULTS_LOOKBACK_DAYS", 0)
+        earlier = earlier_listing(db, withdrawal_observed=False)
+        clock = Clock(ABSENT_LISTING_AT)
+        redis = LockingFakeRedis(clock=clock)
+        cache = MatchCache(client=redis)
+        provider = ListingProvider()
+        provider.answers[DROPPED_KICKOFF.date()] = [listing("1877020", DROPPED_KICKOFF.replace(hour=14))]
+    
+        meta = day_sync(db, provider, clock, cache).sync_day(DROPPED_KICKOFF.date())
+        assert meta.source == "provider" and provider.calls == 1, (meta.source, meta.errors, meta.declined)
+>       record = fresh(db, earlier.id).match_metadata[LISTINGS_KEY][PROVIDER]
+E       KeyError: 'listings'
+
+tests/services/test_superseded_listings.py:501: KeyError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:21 - app.services.match_registry - INFO - Fixture livescore:1877020 (Paris Saint Germain vs Lyon): candidates ['744f12aa-13ae-4807-9fe3-a79e74649c1d'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1071 Fixture livescore:1877020 (Paris Saint Germain vs Lyon): candidates ['744f12aa-13ae-4807-9fe3-a79e74649c1d'] are the same provider's other fixtures; new match row
+________ test_the_day_sync_names_the_rows_it_lists_before_storing_them _________
+
+db = <sqlalchemy.orm.session.Session object at 0x10df9dd90>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10df9c690>
+
+    def test_the_day_sync_names_the_rows_it_lists_before_storing_them(db, monkeypatch):
+        from app.core.config import settings
+        monkeypatch.setattr(settings, "SYNC_RESULTS_LOOKBACK_DAYS", 0)
+        earlier = earlier_listing(db)                                        # absent on the 25th
+        clock = Clock(PLAYED_KICKOFF - timedelta(hours=8))
+        cache = MatchCache(client=LockingFakeRedis(clock=clock))
+        provider = ListingProvider()
+        provider.answers[PLAYED_KICKOFF.date()] = [listing(LIVE_ID, PLAYED_KICKOFF),
+                                                   listing(DEAD_ID, PLAYED_KICKOFF - timedelta(hours=3))]
+        day_sync(db, provider, clock, cache).sync_day(PLAYED_KICKOFF.date())
+>       assert len(psg_lyon_rows(db)) == 2, "both ids named in one listing: two rows, in the order the provider sent them"
+E       AssertionError: both ids named in one listing: two rows, in the order the provider sent them
+E       assert 1 == 2
+E        +  where 1 = len([<app.models.predictions.Match object at 0x10d7168d0>])
+E        +    where [<app.models.predictions.Match object at 0x10d7168d0>] = psg_lyon_rows(<sqlalchemy.orm.session.Session object at 0x10df9dd90>)
+
+tests/services/test_superseded_listings.py:541: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:22 - app.services.match_registry - WARNING - Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match 676cd877-c097-4204-909e-094948c08839 re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+2026-10-27 22:08:22 - app.services.match_registry - WARNING - Refusing fixture livescore:1877019 (Paris Saint Germain vs Lyon): provider fixture id was superseded by 742799 (2026-10-26T19:30:00+00:00); a listing under the dead id for another kickoff is not applied; candidates=['676cd877-c097-4204-909e-094948c08839']. No match row written.
+2026-10-27 22:08:22 - app.services.match_data_service - WARNING - 1 fixture(s) were not stored because they could not be identified unambiguously
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.match_registry:match_registry.py:1308 Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match 676cd877-c097-4204-909e-094948c08839 re-issued: the provider dropped ['1877019'] (2026-10-25T19:45:00+00:00). Re-dated on the same row; nothing moved.
+WARNING  app.services.match_registry:match_registry.py:916 Refusing fixture livescore:1877019 (Paris Saint Germain vs Lyon): provider fixture id was superseded by 742799 (2026-10-26T19:30:00+00:00); a listing under the dead id for another kickoff is not applied; candidates=['676cd877-c097-4204-909e-094948c08839']. No match row written.
+WARNING  app.services.match_data_service:match_data_service.py:862 1 fixture(s) were not stored because they could not be identified unambiguously
+____________ test_a_listing_still_to_be_played_is_not_replaced_yet _____________
+
+db = <sqlalchemy.orm.session.Session object at 0x10d951350>
+
+    def test_a_listing_still_to_be_played_is_not_replaced_yet(db):
+        earlier = earlier_listing(db, withdrawal_observed=False)
+        early = stored(db, listing(LIVE_ID, PLAYED_KICKOFF), DROPPED_KICKOFF - timedelta(days=1))
+        assert early.id != earlier.id
+        assert_untouched(db, earlier)
+>       assert note_of(db, early)["candidates"][0]["why"].startswith("its withdrawal has not been observed")
+E       AssertionError: assert False
+E        +  where False = <built-in method startswith of str object at 0x10dc79a10>('its withdrawal has not been observed')
+E        +    where <built-in method startswith of str object at 0x10dc79a10> = 'its kickoff window has not closed'.startswith
+
+tests/services/test_superseded_listings.py:581: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:22 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['4e2fc402-a4d6-4761-9e6d-a74a8e29b9eb'] are the same provider's other fixtures; new match row
+2026-10-27 22:08:22 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): stored as a new row beside 1 listing(s) it was not proven to re-issue: 4e2fc402-a4d6-4761-9e6d-a74a8e29b9eb (its kickoff window has not closed)
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1071 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['4e2fc402-a4d6-4761-9e6d-a74a8e29b9eb'] are the same provider's other fixtures; new match row
+INFO     app.services.match_registry:match_registry.py:1322 Fixture livescore:742799 (Paris Saint Germain vs Lyon): stored as a new row beside 1 listing(s) it was not proven to re-issue: 4e2fc402-a4d6-4761-9e6d-a74a8e29b9eb (its kickoff window has not closed)
+__________ test_the_repair_finds_the_split_and_plans_every_reference ___________
+
+db = <sqlalchemy.orm.session.Session object at 0x10d90f810>
+repair_script = <module 'repair_duplicate_matches_superseded' from '/Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/scripts/repair_duplicate_matches.py'>
+as_the_previous_code = None
+
+    def test_the_repair_finds_the_split_and_plans_every_reference(db, repair_script, as_the_previous_code):
+        earlier, second, _ = the_split(db)
+        deps = repair_script.dependents(db)
+        pairs = repair_script.superseded_listings(db, now=AT)
+        assert [(p.stale.id, p.successor.id) for p in pairs] == [(str(earlier.id), str(second.id))]
+        pair = repair_script.plan_supersession(db, pairs[0], deps)
+        assert pair.provider == PROVIDER and pair.dead_ids == [DEAD_ID] and pair.live_ids == [LIVE_ID]
+>       assert pair.withdrawal_observed and pair.evidence.startswith("withdrawal observed")
+E       AttributeError: 'Supersession' object has no attribute 'withdrawal_observed'
+
+tests/services/test_superseded_listings.py:763: AttributeError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:22 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['9e098878-032a-466b-b7cf-4d93032a441f'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1071 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['9e098878-032a-466b-b7cf-4d93032a441f'] are the same provider's other fixtures; new match row
+_ test_an_unobserved_withdrawal_is_reported_as_such_and_folds_only_with_reviewed_evidence _
+
+db = <sqlalchemy.orm.session.Session object at 0x10ddfb150>
+repair_script = <module 'repair_duplicate_matches_superseded' from '/Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/scripts/repair_duplicate_matches.py'>
+as_the_previous_code = None
+
+    def test_an_unobserved_withdrawal_is_reported_as_such_and_folds_only_with_reviewed_evidence(db, repair_script, as_the_previous_code):
+        earlier, second, _ = the_split(db, withdrawal_observed=False)
+        second_id = second.id
+        deps = repair_script.dependents(db)
+        pair = repair_script.plan_supersession(db, repair_script.superseded_listings(db, now=AT)[0], deps)
+>       assert not pair.withdrawal_observed and pair.evidence.startswith("withdrawal NOT observed")
+E       AttributeError: 'Supersession' object has no attribute 'withdrawal_observed'
+
+tests/services/test_superseded_listings.py:777: AttributeError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:22 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['0697a343-766d-4e5c-b1c9-768ce4357961'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1071 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['0697a343-766d-4e5c-b1c9-768ce4357961'] are the same provider's other fixtures; new match row
+___ test_the_repair_folds_the_earlier_listing_and_preserves_every_reference ____
+
+db = <sqlalchemy.orm.session.Session object at 0x10d841050>
+repair_script = <module 'repair_duplicate_matches_superseded' from '/Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/scripts/repair_duplicate_matches.py'>
+as_the_previous_code = None
+
+    def test_the_repair_folds_the_earlier_listing_and_preserves_every_reference(db, repair_script, as_the_previous_code):
+        earlier, second, people = the_split(db)
+        earlier_id, second_id = earlier.id, second.id
+        before_snapshots = snapshots_of(db, earlier_id)
+        previous_meta = dict(fresh(db, earlier_id).match_metadata)
+        kept = {name: without_match_id(db, table, people[name]) for name, table in (
+            ("leg", "users.selection_slip_legs"), ("forecast_result", "predictions.provider_forecast_results"),
+            ("prediction", "predictions.predictions"), ("saved", "users.saved_matches"))}
+        kept_whole = {"prediction_result": row_text(db, "predictions.prediction_results", people["prediction_result"]),
+                      "slip": row_text(db, "users.selection_slips", people["slip"]),
+                      "audit": [row_text(db, "predictions.prediction_audit", a) for a in people["audit"]]}
+        result_counts = {t: db.execute(text(f"SELECT count(*) FROM {t}")).scalar()
+                         for t in ("predictions.prediction_results", "predictions.provider_forecast_results")}
+        deps = repair_script.dependents(db)
+        pair = repair_script.plan_supersession(db, repair_script.superseded_listings(db, now=AT)[0], deps)
+    
+>       moved = apply(db, repair_script, pair, deps, AT)
+
+tests/services/test_superseded_listings.py:818: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+db = <sqlalchemy.orm.session.Session object at 0x10d841050>
+repair_script = <module 'repair_duplicate_matches_superseded' from '/Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/scripts/repair_duplicate_matches.py'>
+pair = Supersession(stale=Copy(id='bbaba17e-9f36-4c2b-a863-731298ea89b9', league_id='5f902328-ad12-4f00-b520-f5b4e1652e3e', k...so: settlement will not score them unless a separate decision re-evaluates them; their retrieval times are untouched"])
+deps = [Dependent(schema='ml_models', table='ml_predictions', column='match_id', where=None), Dependent(schema='predictions',... where=None), Dependent(schema='predictions', table='provider_forecast_snapshots', column='match_id', where=None), ...]
+at = datetime.datetime(2026, 10, 26, 22, 56, 8, tzinfo=datetime.timezone.utc)
+reviewed = None
+
+    def apply(db, repair_script, pair, deps, at: datetime, reviewed: Optional[str] = None) -> Dict[str, int]:
+>       moved = repair_script.apply_supersession(db, pair, deps, now=at, reviewed_evidence=reviewed)
+E       TypeError: apply_supersession() got an unexpected keyword argument 'reviewed_evidence'
+
+tests/services/test_superseded_listings.py:744: TypeError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:23 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['bbaba17e-9f36-4c2b-a863-731298ea89b9'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1071 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['bbaba17e-9f36-4c2b-a863-731298ea89b9'] are the same provider's other fixtures; new match row
+__________________ test_a_second_application_changes_nothing ___________________
+
+db = <sqlalchemy.orm.session.Session object at 0x10dc5f990>
+repair_script = <module 'repair_duplicate_matches_superseded' from '/Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/scripts/repair_duplicate_matches.py'>
+as_the_previous_code = None
+
+    def test_a_second_application_changes_nothing(db, repair_script, as_the_previous_code):
+        the_split(db)
+        deps = repair_script.dependents(db)
+        pair = repair_script.plan_supersession(db, repair_script.superseded_listings(db, now=AT)[0], deps)
+>       apply(db, repair_script, pair, deps, AT)
+
+tests/services/test_superseded_listings.py:860: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+db = <sqlalchemy.orm.session.Session object at 0x10dc5f990>
+repair_script = <module 'repair_duplicate_matches_superseded' from '/Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/scripts/repair_duplicate_matches.py'>
+pair = Supersession(stale=Copy(id='a3528ed5-ac45-4fcd-9f43-bb201fc512c9', league_id='0e1a349a-5574-4160-ad13-2aa2d204285a', k...so: settlement will not score them unless a separate decision re-evaluates them; their retrieval times are untouched"])
+deps = [Dependent(schema='ml_models', table='ml_predictions', column='match_id', where=None), Dependent(schema='predictions',... where=None), Dependent(schema='predictions', table='provider_forecast_snapshots', column='match_id', where=None), ...]
+at = datetime.datetime(2026, 10, 26, 22, 56, 8, tzinfo=datetime.timezone.utc)
+reviewed = None
+
+    def apply(db, repair_script, pair, deps, at: datetime, reviewed: Optional[str] = None) -> Dict[str, int]:
+>       moved = repair_script.apply_supersession(db, pair, deps, now=at, reviewed_evidence=reviewed)
+E       TypeError: apply_supersession() got an unexpected keyword argument 'reviewed_evidence'
+
+tests/services/test_superseded_listings.py:744: TypeError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:23 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['a3528ed5-ac45-4fcd-9f43-bb201fc512c9'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1071 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['a3528ed5-ac45-4fcd-9f43-bb201fc512c9'] are the same provider's other fixtures; new match row
+_____________________ test_the_repair_touches_no_other_row _____________________
+
+db = <sqlalchemy.orm.session.Session object at 0x10ddbad90>
+repair_script = <module 'repair_duplicate_matches_superseded' from '/Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/scripts/repair_duplicate_matches.py'>
+as_the_previous_code = None
+
+    def test_the_repair_touches_no_other_row(db, repair_script, as_the_previous_code):
+        bystander = stored(db, listing("6001", PLAYED_KICKOFF + timedelta(hours=1), home="Marseille", away="Nice",
+                                       status=STATUS_FINISHED, home_score=0, away_score=0), LIVE_POLL_AT)
+        bystander_id = str(bystander.id)
+        bystander_before = row_text(db, "predictions.matches", bystander_id)
+        the_split(db)
+        deps = repair_script.dependents(db)
+        pair = repair_script.plan_supersession(db, repair_script.superseded_listings(db, now=AT)[0], deps)
+>       apply(db, repair_script, pair, deps, AT)
+
+tests/services/test_superseded_listings.py:875: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+db = <sqlalchemy.orm.session.Session object at 0x10ddbad90>
+repair_script = <module 'repair_duplicate_matches_superseded' from '/Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/scripts/repair_duplicate_matches.py'>
+pair = Supersession(stale=Copy(id='6ac34f0c-e25a-4146-a9df-b2de51317ff5', league_id='c6af5616-cdb4-470f-a1cb-f776072ba98c', k...so: settlement will not score them unless a separate decision re-evaluates them; their retrieval times are untouched"])
+deps = [Dependent(schema='ml_models', table='ml_predictions', column='match_id', where=None), Dependent(schema='predictions',... where=None), Dependent(schema='predictions', table='provider_forecast_snapshots', column='match_id', where=None), ...]
+at = datetime.datetime(2026, 10, 26, 22, 56, 8, tzinfo=datetime.timezone.utc)
+reviewed = None
+
+    def apply(db, repair_script, pair, deps, at: datetime, reviewed: Optional[str] = None) -> Dict[str, int]:
+>       moved = repair_script.apply_supersession(db, pair, deps, now=at, reviewed_evidence=reviewed)
+E       TypeError: apply_supersession() got an unexpected keyword argument 'reviewed_evidence'
+
+tests/services/test_superseded_listings.py:744: TypeError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:23 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['6ac34f0c-e25a-4146-a9df-b2de51317ff5'] are the same provider's other fixtures; new match row
+------------------------------ Captured log call -------------------------------
+INFO     app.services.match_registry:match_registry.py:1071 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['6ac34f0c-e25a-4146-a9df-b2de51317ff5'] are the same provider's other fixtures; new match row
+_______ test_a_pass_is_followed_by_the_slot_it_crossed_whatever_it_spent _______
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10d9851d0>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10dd1ac10>
+
+    def test_a_pass_is_followed_by_the_slot_it_crossed_whatever_it_spent(clock, redis):
+        h = Harness(clock, redis, keys=POLICY_KEYS)
+        scheduler = scheduler_over(h, clock)
+        clock.now = DAY.replace(hour=5)
+        run(scheduler)                                            # a pass at 05:00, before the hour: next 06:12
+        assert h.budget.used_today() == 0 and next_due(scheduler) == DAY.replace(hour=6, minute=12)
+        clock.now = DAY.replace(hour=12, minute=5)                # slept through 06:12; the catch-up buys the day
+        assert run(scheduler)["ran"] is True
+>       assert h.budget.used_today() == len(POLICY_KEYS) and next_due(scheduler) == NOON, "12:12 still comes"
+E       AssertionError: 12:12 still comes
+E       assert (3 == 3 and datetime.datetime(2026, 10, 26, 18, 12, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 26, 12, 12, tzinfo=datetime.timezone.utc))
+E        +  where 3 = <bound method RequestBudget.used_today of <app.services.providers.budget.RequestBudget object at 0x11606bad0>>()
+E        +    where <bound method RequestBudget.used_today of <app.services.providers.budget.RequestBudget object at 0x11606bad0>> = <app.services.providers.budget.RequestBudget object at 0x11606bad0>.used_today
+E        +      where <app.services.providers.budget.RequestBudget object at 0x11606bad0> = <tests.services.test_forecast_refresh_policy.Harness object at 0x10dd1bf90>.budget
+E        +  and   3 = len(['premier_league', 'la_liga', 'serie_a'])
+E        +  and   datetime.datetime(2026, 10, 26, 18, 12, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x10d6a4910>)
+
+tests/services/test_forecast_cadence.py:328: AssertionError
+__________ test_a_re_check_waits_an_hour_after_the_fetch_it_re_checks __________
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10dd838d0>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10dd82190>
+
+    def test_a_re_check_waits_an_hour_after_the_fetch_it_re_checks(clock, redis):
+        """The run is published at 13:00 today. A catch-up at 12:05 is served yesterday's run (older-run);
+        the 12:12 slot seven minutes later re-checks nothing; 18:12 re-checks and gets today's."""
+        h = Harness(clock, redis, keys=POLICY_KEYS, run_at=PUBLISHED_AT_13)
+        scheduler = scheduler_over(h, clock)
+        clock.now = DAY.replace(hour=12, minute=5)
+        run(scheduler)
+        policy = h.new_service().policy
+        assert all(policy.slot(k)["outcome"] == OUTCOME_OLDER_RUN for k in POLICY_KEYS) and h.budget.used_today() == 3
+        clock.now = NOON
+        soon = run(scheduler)
+>       assert soon["ok"] is True and h.budget.used_today() == 3, "nothing re-checked within the hour"
+E       KeyError: 'ok'
+
+tests/services/test_forecast_cadence.py:348: KeyError
+_______________ test_the_gap_is_at_least_one_hour_to_the_minute ________________
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10df9c490>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10df9eb90>
+
+    def test_the_gap_is_at_least_one_hour_to_the_minute(clock, redis):
+        """A fetch at 17:12 permits the 18:12 re-check; a fetch at 17:13 does not."""
+        for minute, permitted in ((12, True), (13, False)):
+            h = Harness(clock, redis, keys=["premier_league"], run_at=yesterdays_run)   # always an older run
+            scheduler = scheduler_over(h, clock)
+            clock.now = DAY.replace(hour=17, minute=minute)
+            run(scheduler)                                        # older-run, fetched at 17:12 or 17:13
+            clock.now = EVENING
+            report = run(scheduler)
+>           assert (report["result"].get("rechecked") == ["premier_league"]) is permitted, minute
+E           KeyError: 'result'
+
+tests/services/test_forecast_cadence.py:366: KeyError
+_ test_case_a_a_lease_held_retry_and_an_empty_recovery_keep_the_grid_and_the_re_check _
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x10da966d0>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x10da975d0>
+
+    def test_case_a_a_lease_held_retry_and_an_empty_recovery_keep_the_grid_and_the_re_check(clock, redis):
+        """12:00 partial pass spends one (Serie A, older-run); 12:05 retry finds the lease held and spends
+        zero; 12:15 the recovery completes spending zero because the other worker bought Bundesliga.
+        The grid's next slot, 12:12, is due at once: it re-checks nothing (Serie A was fetched fifteen
+        minutes ago) and spends nothing; 18:12 re-checks Serie A."""
+        from tests.services.test_forecast_recovery import stepping_the_server_clock_before
+        redis_clock = clock                                        # one clock: the lease is lost by an explicit lapse below
+        h = Harness(clock, redis, keys=["serie_a", "bundesliga"], run_at=PUBLISHED_AT_13,
+                    kickoffs={"serie_a": EVENING + timedelta(hours=1), "bundesliga": EVENING + timedelta(hours=2)})
+        noon = DAY.replace(hour=12, minute=0)
+        clock.now = noon
+    
+        once = {}
+    
+        def lose_the_lease_before_bundesliga(svc):
+            record = svc.policy.record_calendar
+    
+            def gone(evidence):
+                if evidence.key == "bundesliga" and not once.get("done"):
+                    once["done"] = True
+                    redis.delete(LOCK)                             # the lease expired under us, this once
+                return record(evidence)
+    
+            svc.policy.record_calendar = gone
+            return svc
+    
+        scheduler = scheduler_over(h, clock, lose_the_lease_before_bundesliga)
+        first = run(scheduler)
+        assert first["outcome"] == PASS_PARTIAL and h.calls() == ["serie_a"]
+        assert next_due(scheduler) == noon + timedelta(minutes=5)
+        clock.now = noon + timedelta(minutes=5)
+        redis.set(LOCK, "another-worker", ex=300)                  # another worker holds the lease...
+        held = run(scheduler)
+        assert held["outcome"] == "deferred" and held["result"].get("lease_held") is True and h.calls() == ["serie_a"]
+        redis.delete(LOCK)
+        other = h.new_service().ensure_synced()                    # ...and does the outstanding work outside the scheduler
+>       assert other.get("outcome") == PASS_COMPLETED and h.calls() == ["serie_a", "bundesliga"]
+E       AssertionError: assert ('completed' == 'completed'
+E           completed and ['serie_a', '...a', 'serie_a'] == ['serie_a', 'bundesliga']
+E         Left contains one more item: 'serie_a'
+E         Use -v to get more diff)
+
+tests/services/test_forecast_cadence.py:426: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:23 - app.services.sync_lease - WARNING - stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+_______ test_case_b_a_sleep_after_an_interruption_keeps_the_evening_slot _______
+
+clock = <tests.services.test_sync_scheduler.Clock object at 0x1160fae90>
+redis = <tests.services.test_sync_scheduler.LockingFakeRedis object at 0x1160fb090>
+
+    def test_case_b_a_sleep_after_an_interruption_keeps_the_evening_slot(clock, redis):
+        """12:12 partial pass spends one (Serie A). The host sleeps through the retries. 18:05 the recovery
+        runs and spends zero (Bundesliga has no fixture in the window). The grid's next slot is 18:12 -
+        not midnight - and Serie A's re-check, owed since 12:12, is made there."""
+        h = Harness(clock, redis, keys=["serie_a", "bundesliga"], run_at=PUBLISHED_AT_13, calendar=ANSWERED_CALENDAR,
+                    kickoffs={"serie_a": EVENING + timedelta(hours=1), "bundesliga": EVENING + timedelta(hours=2)})
+    
+        once = {}
+    
+        def lose_the_lease_before_bundesliga(svc):
+            record = svc.policy.record_calendar
+    
+            def gone(evidence):
+                if evidence.key == "bundesliga" and not once.get("done"):
+                    once["done"] = True
+                    redis.delete(LOCK)
+                return record(evidence)
+    
+            svc.policy.record_calendar = gone
+            return svc
+    
+        scheduler = scheduler_over(h, clock, lose_the_lease_before_bundesliga)
+        first = run(scheduler)
+        assert first["outcome"] == PASS_PARTIAL and h.calls() == ["serie_a"] and next_due(scheduler) == NOON + timedelta(minutes=5)
+        clock.now = DAY.replace(hour=18, minute=5)                 # the host slept through 12:17
+        h.counts["bundesliga"] = 0                                 # nothing to buy for the owed turn: no fixture in the window
+        h.kickoffs["bundesliga"] = None
+        recovered = run(scheduler_over(h, clock))
+        assert recovered["ok"] is True and h.calls() == ["serie_a"], ("the recovery spent nothing", recovered["result"])
+        assert "serie_a" in recovered["result"].get("recheck_skipped", {}), "the owed re-check is left to the ordinary pass"
+>       assert next_due(scheduler) == EVENING, "18:12, not midnight: the grid counts from the interruption"
+E       AssertionError: 18:12, not midnight: the grid counts from the interruption
+E       assert datetime.datetime(2026, 10, 27, 0, 12, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 26, 18, 12, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 27, 0, 12, tzinfo=datetime.timezone.utc) = next_due(<app.services.sync_scheduler.SyncScheduler object at 0x1160fae50>)
+
+tests/services/test_forecast_cadence.py:475: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-27 22:08:23 - app.services.sync_lease - WARNING - stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.sync_lease:sync_lease.py:221 stub forecast sync lease lost: a write was refused: the lease is no longer this worker's
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-3dc5710f/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+target guard: backend-tests approved - settings database localhost:5432/soccer_predictions_test; test database localhost:5432/soccer_predictions_test; race database 127.0.0.1:5440/forecast_race_test; redis default (REDIS_DB) 127.0.0.1:6390/0; redis REDIS_DB_SESSIONS 127.0.0.1:6390/0; redis REDIS_DB_PREDICTIONS 127.0.0.1:6390/1; redis REDIS_DB_EXPERT_TOOLS 127.0.0.1:6390/2; redis REDIS_DB_ML_MODELS 127.0.0.1:6390/3; redis REDIS_DB_MATCH_DATA 127.0.0.1:6390/4; redis REDIS_DB_RATE_LIMIT 127.0.0.1:6390/5; lease redis 127.0.0.1:6390/9,10,11 (policy sha256 e2abbcc34d12)
+=========================== short test summary info ============================
+FAILED tests/services/test_superseded_listings.py::test_a_listing_withdrawn_and_issued_again_is_the_same_match_on_the_same_row
+FAILED tests/services/test_superseded_listings.py::test_an_overdue_listing_the_provider_just_refreshed_is_not_superseded
+FAILED tests/services/test_superseded_listings.py::test_an_absence_contradicted_by_a_later_listing_counts_for_nothing
+FAILED tests/services/test_superseded_listings.py::test_both_ids_in_one_listing_are_two_rows_whichever_comes_first[old-then-new]
+FAILED tests/services/test_superseded_listings.py::test_both_ids_in_one_listing_are_two_rows_whichever_comes_first[new-then-old]
+FAILED tests/services/test_superseded_listings.py::test_without_any_observation_nothing_joins
+FAILED tests/services/test_superseded_listings.py::test_an_incomplete_listing_records_no_absence
+FAILED tests/services/test_superseded_listings.py::test_a_listing_of_another_day_or_competition_records_no_absence
+FAILED tests/services/test_superseded_listings.py::test_a_row_named_under_any_of_its_ids_is_present
+FAILED tests/services/test_superseded_listings.py::test_the_day_sync_observes_only_a_fresh_complete_answer
+FAILED tests/services/test_superseded_listings.py::test_the_day_sync_names_the_rows_it_lists_before_storing_them
+FAILED tests/services/test_superseded_listings.py::test_a_listing_still_to_be_played_is_not_replaced_yet
+FAILED tests/services/test_superseded_listings.py::test_the_repair_finds_the_split_and_plans_every_reference
+FAILED tests/services/test_superseded_listings.py::test_an_unobserved_withdrawal_is_reported_as_such_and_folds_only_with_reviewed_evidence
+FAILED tests/services/test_superseded_listings.py::test_the_repair_folds_the_earlier_listing_and_preserves_every_reference
+FAILED tests/services/test_superseded_listings.py::test_a_second_application_changes_nothing
+FAILED tests/services/test_superseded_listings.py::test_the_repair_touches_no_other_row
+FAILED tests/services/test_forecast_cadence.py::test_a_pass_is_followed_by_the_slot_it_crossed_whatever_it_spent
+FAILED tests/services/test_forecast_cadence.py::test_a_re_check_waits_an_hour_after_the_fetch_it_re_checks
+FAILED tests/services/test_forecast_cadence.py::test_the_gap_is_at_least_one_hour_to_the_minute
+FAILED tests/services/test_forecast_cadence.py::test_case_a_a_lease_held_retry_and_an_empty_recovery_keep_the_grid_and_the_re_check
+FAILED tests/services/test_forecast_cadence.py::test_case_b_a_sleep_after_an_interruption_keeps_the_evening_slot
+22 failed, 46 passed, 18 warnings in 2.89s
+# exit 1 at 2026-10-28T02:08:23Z

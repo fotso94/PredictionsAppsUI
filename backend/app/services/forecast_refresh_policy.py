@@ -70,6 +70,15 @@ OBSERVATION_DAYS = 14
 
 OUTCOME_SAME_DAY_RUN = "same-day-run"
 OUTCOME_OLDER_RUN = "older-run"
+#: A competition served an older run is re-checked ONCE a day, and not within this long of the
+#: fetch it re-checks: a re-check minutes after that fetch gets the same answer and spends the day's
+#: one re-check on it. The gap is measured from the slot's own `fetched_at` - the request's real
+#: time, kept in Redis - per competition, so one competition's fresh fetch never holds up another's
+#: re-check, and it survives restarts, empty recovery retries and the scheduler's own timing. A
+#: fetch at 17:12 permits a re-check at 18:12 ("at least" the gap). New in October 2026, with the
+#: scheduler's anchored cadence (`SYNC_FORECASTS_SLOT_ANCHOR_UTC`), whose slot after a late pass can
+#: come minutes after it.
+RECHECK_MIN_GAP = timedelta(hours=1)
 OUTCOME_EMPTY = "empty"
 OUTCOME_DORMANT = "dormant"
 OUTCOME_FAILED = "failed"
@@ -82,6 +91,17 @@ SUFFICIENT_CALENDAR_SOURCES = ("provider", "cache")
 
 def _aware(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def _parse_iso(value: Any) -> Optional[datetime]:
+    """An ISO instant as an aware UTC datetime, or None for anything that is not one."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return _aware(parsed)
 
 
 def _iso(value: Optional[datetime]) -> Optional[str]:
@@ -399,6 +419,12 @@ class RefreshPolicy:
                     plan.deferred_first.append(key)
                 continue
             if outcome == OUTCOME_OLDER_RUN and not slot.get("recheck"):
+                fetched = _parse_iso(slot.get("fetched_at"))
+                if fetched is not None and now - fetched < RECHECK_MIN_GAP:
+                    plan.ineligible[key] = (f"served an older run at {slot.get('fetched_at')}; its one re-check of the "
+                                            f"day waits until at least {int(RECHECK_MIN_GAP.total_seconds() // 60)} min "
+                                            f"after that fetch ({(fetched + RECHECK_MIN_GAP).isoformat()})")
+                    continue
                 plan.recheck.append(key)
                 continue
             when = slot.get("fetched_at") or slot.get("recorded_at")

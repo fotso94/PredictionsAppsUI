@@ -62,6 +62,12 @@ SUPERSEDED_KEY = "superseded_listing"
 #: `match_metadata` key, on a NEW row, naming the stored listings it may be a re-issue of but was
 #: not proven to be. Nothing is decided by it; the repair script reports it.
 SUPERSEDED_CANDIDATES_KEY = "superseded_listing_candidates"
+#: `match_metadata` key: per provider, what this installation OBSERVED of the provider's listing of
+#: this row - when a fresh listing last named its id (`seen_at`, `seen_day`) and, under `absent`,
+#: the complete listings of its own date that did NOT name it since (`since`, `last`, `listings`,
+#: `day`). An absence is the one observation that can support "the provider stopped listing it";
+#: elapsed time, a missing result and an old timestamp are not observations of anything.
+LISTINGS_KEY = "listings"
 
 #: How long after kickoff a fixture is left alone before anything calls it unsettled. This is THIS
 #: APPLICATION'S polling window: the live task stops considering a match 150 minutes after kickoff
@@ -1144,6 +1150,93 @@ class MatchRegistry:
                        fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name,
                        candidates, match.id)
 
+    # ------------------------------------------------------- what a provider's listing said
+    def observe_listing(self, provider: str, external_ids: Iterable[str], *, at: datetime,
+                        day: Optional[date] = None, league_ids: Optional[Iterable[uuid.UUID]] = None,
+                        complete: bool = False) -> Dict[str, int]:
+        """
+        Record what one FRESH listing by `provider` said about the rows this installation holds.
+
+        Every stored match the listing names (by this provider's ref) is marked seen at `at`; an
+        absence recorded against it earlier no longer stands (`withdrawal_observed` compares the
+        two), because the provider lists it again, whatever else is true. When the listing is a COMPLETE listing of one day's fixtures for `league_ids` - every
+        page read, straight from the provider, not a cached or stale copy - every stored SCHEDULED
+        or POSTPONED match of those competitions on that day that this provider links to under an
+        id the listing does not name is marked absent. That absence is the only observation this
+        installation can make of a provider withdrawing a listing. An incomplete listing (a page
+        unread), a copy, a live poll (which names only what is in play) or a day nobody could be
+        asked about records nothing about absence. Called BEFORE the listing's fixtures are
+        stored, so what it records does not depend on the order the fixtures come in.
+        """
+        ids = {str(x) for x in external_ids if x is not None}
+        stamp = _aware_utc(at).isoformat()
+        counts = {"seen": 0, "absent": 0}
+        if ids:
+            refs = self.db.query(ProviderEntityRef).filter(
+                ProviderEntityRef.entity_type == "match", ProviderEntityRef.provider == provider,
+                ProviderEntityRef.external_id.in_(sorted(ids))).all()
+            for ref in refs:
+                match = self.db.query(Match).filter(Match.id == ref.entity_id).first()
+                if match is None:
+                    continue
+                # The absence record, if any, is kept: with a later `seen_at` it is a contradiction
+                # the rule can name, not an observation that stands (`withdrawal_observed`).
+                self._note_listing(match, provider, {"seen_at": stamp, "seen_day": day.isoformat() if day else None})
+                counts["seen"] += 1
+        if complete and day is not None and league_ids is not None:
+            start = datetime.combine(day, datetime.min.time())
+            rows = self.db.query(Match, ProviderEntityRef).join(
+                ProviderEntityRef, (ProviderEntityRef.entity_type == "match") & (ProviderEntityRef.entity_id == Match.id)
+            ).filter(
+                ProviderEntityRef.provider == provider,
+                Match.league_id.in_(list(league_ids)),
+                Match.match_date >= start, Match.match_date < start + timedelta(days=1),
+                Match.status.in_((MatchStatus.SCHEDULED, MatchStatus.POSTPONED)),
+            ).all()
+            # A row the listing names under ANY of its ids for this provider is present.
+            present = {match.id for match, ref in rows if ref.external_id in ids}
+            absent_matches: Dict[uuid.UUID, Match] = {}
+            for match, ref in rows:
+                if match.id not in present:
+                    absent_matches.setdefault(match.id, match)
+            for match_id, match in absent_matches.items():
+                record = dict(((match.match_metadata or {}).get(LISTINGS_KEY) or {}).get(provider) or {})
+                absent = dict(record.get("absent") or {})
+                absent = {"since": absent.get("since") or stamp, "last": stamp,
+                          "listings": int(absent.get("listings") or 0) + 1, "day": day.isoformat()}
+                self._note_listing(match, provider, {**record, "absent": absent})
+                counts["absent"] += 1
+        self.db.flush()
+        return counts
+
+    def _note_listing(self, match: Match, provider: str, record: Dict[str, object]) -> None:
+        meta = dict(match.match_metadata or {})
+        listings = dict(meta.get(LISTINGS_KEY) or {})
+        listings[provider] = {**(listings.get(provider) or {}), **record}
+        meta[LISTINGS_KEY] = listings
+        match.match_metadata = meta
+
+    @staticmethod
+    def listing_record(match: Match, provider: str) -> Dict[str, object]:
+        return dict(((match.match_metadata or {}).get(LISTINGS_KEY) or {}).get(provider) or {})
+
+    @staticmethod
+    def withdrawal_observed(match: Match, provider: str) -> Optional[Dict[str, object]]:
+        """The absence record that supports "the provider withdrew this listing", or None.
+
+        An absence stands only while nothing later named the id: `observe_listing` closes it the
+        moment the provider lists the row again, so a stored absence with a later `seen_at` is a
+        contradiction and counts as nothing.
+        """
+        record = MatchRegistry.listing_record(match, provider)
+        absent = record.get("absent")
+        if not isinstance(absent, dict) or not absent.get("last"):
+            return None
+        seen = record.get("seen_at")
+        if isinstance(seen, str) and seen >= str(absent["last"]):
+            return None
+        return absent
+
     # ------------------------------------------------------- one match, listed again under a new id
     def superseded_listing_for(self, fixture: ProviderFixture, home: Team, away: Team, league: League
                                ) -> Tuple[Optional[Match], List[Dict[str, object]]]:
@@ -1166,19 +1259,23 @@ class MatchRegistry:
         eighteen times.
 
         All of it is required, and every condition is read from the stored rows, never inferred
-        from names or nearby dates: the candidate is in THIS competition; it holds THESE two clubs
-        in THIS order by row id (a return leg, another squad of the same club and another
-        competition's meeting are all other rows); the competition is a LEAGUE, where the same two
-        clubs meet the same way round once a season (a cup replays, a friendly window repeats, and
-        there two listings may be two meetings); it is listed by THIS provider under ANOTHER id;
-        it was never played - no stored result, and either still SCHEDULED with the live poll's
-        whole window (`UNSETTLED_GRACE`) passed without anyone reporting it started, or already
-        POSTPONED by a provider, and not closed as the second listing of a played row
+        from names or nearby dates: the candidate is in THIS competition; the competition is a
+        LEAGUE, where the same two clubs meet the same way round once a season (a cup replays, a
+        friendly window repeats, and there two listings may be two meetings); it holds THESE two
+        clubs in THIS order by row id and under the provider's own names (a return leg, another
+        squad of the same club and another competition's meeting are all other rows); it is listed
+        by THIS provider under ANOTHER id; **its withdrawal was observed**: a complete listing of
+        its date by this provider, made after the provider last named it, did not name it, and
+        nothing named it since (`observe_listing`) - elapsed time, a missing result and an old
+        timestamp are not observations of anything, and a provider that returns both ids, in one
+        batch or in succession, contradicts a replacement; no result is stored and nothing reported
+        it started (SCHEDULED with the live poll's whole window, `UNSETTLED_GRACE`, passed) or a
+        provider called it POSTPONED, and it is not closed as the second listing of a played row
         (`relisting_of`, the other-way-round case, which is a different fact); the new listing
         kicks off AFTER it and within `SUPERSEDED_LISTING_WINDOW`; and when both listings name a
         round, it is the same matchday. Two candidates that both qualify, or none, decide nothing:
         the fixture is stored as a new row and the candidates are written on it for a person
-        (`SUPERSEDED_CANDIDATES_KEY`).
+        (`SUPERSEDED_CANDIDATES_KEY`), the record saying what was and was not observed.
         """
         now = _aware_utc(self._now or datetime.now(timezone.utc))
         kickoff = _aware_utc(fixture.kickoff_utc) if fixture.kickoff_utc is not None else None
@@ -1242,6 +1339,15 @@ class MatchRegistry:
                    if r.provider == fixture.provider and r.external_id != str(fixture.external_id)]
         if not old_ids:
             return f"not listed by {fixture.provider} under another id"
+        record = self.listing_record(match, fixture.provider)
+        if self.withdrawal_observed(match, fixture.provider) is None:
+            seen = record.get("seen_at")
+            absent = record.get("absent")
+            if isinstance(absent, dict) and seen:
+                return (f"its withdrawal is contradicted: {fixture.provider} named it again at {seen} after a "
+                        f"complete listing of its date had not ({absent.get('last')})")
+            return (f"its withdrawal has not been observed: no complete listing of its date by {fixture.provider} "
+                    f"since it was last named ({seen or 'never recorded'}) is recorded without it")
         if self._has_result(match.id):
             return "it has a stored result"
         if RELISTED_KEY in (match.match_metadata or {}):
@@ -1265,9 +1371,9 @@ class MatchRegistry:
         """
         Record, on the row and on its dead refs, that the provider re-issued this listing.
 
-        Nothing is moved and nothing is deleted. The dead ref stays, marked `superseded_by`: it is
-        the record of the id the forecasts were fetched under, and should the provider ever send
-        the old id again it lands on this row instead of founding another. The legacy id column
+        Nothing is moved and nothing is deleted. The previous ref stays, marked `superseded_by`: it
+        is the record of the id the forecasts were fetched under, and should the provider ever send
+        that id again it lands on this row instead of founding another. The legacy id column
         follows the listing the provider now uses, when no other row holds it.
         """
         now = _aware_utc(self._now or datetime.now(timezone.utc))
@@ -1279,6 +1385,8 @@ class MatchRegistry:
                                 "superseded_by": {"external_id": str(fixture.external_id),
                                                   "kickoff_utc": fixture.kickoff_utc.isoformat(),
                                                   "at": now.isoformat()}}
+        record = self.listing_record(match, fixture.provider)
+        absent = dict(self.withdrawal_observed(match, fixture.provider) or {})
         event = {
             "provider": fixture.provider,
             "previous_external_ids": [r.external_id for r in dead],
@@ -1288,11 +1396,15 @@ class MatchRegistry:
                          "last_synced_at": meta.get("last_synced_at")},
             "kickoff_utc": fixture.kickoff_utc.isoformat(),
             "detected_at": now.isoformat(),
-            "reason": (f"{fixture.provider} stopped listing fixture {', '.join(r.external_id for r in dead)} "
-                       f"({_utc_label(match.match_date)}, never reported started, no result) and lists the same "
-                       f"two clubs the same way round in the same competition as fixture {fixture.external_id} "
-                       f"({_utc_label(fixture.kickoff_utc)}): the same match, re-issued. Forecasts, predictions "
-                       f"and refs stay where they are; the kickoff follows the provider."),
+            "evidence": {"basis": "observed", "last_named_at": record.get("seen_at"), "absent": absent},
+            "reason": (f"{fixture.provider} last named fixture {', '.join(r.external_id for r in dead)} "
+                       f"({_utc_label(match.match_date)}) at {record.get('seen_at') or 'an unrecorded time'}; "
+                       f"{absent.get('listings', 0)} complete listing(s) of its date since then did not name it "
+                       f"({absent.get('since')} to {absent.get('last')}); no result is stored and nothing reported it "
+                       f"started; the provider now lists the same two clubs the same way round in the same competition "
+                       f"as fixture {fixture.external_id} ({_utc_label(fixture.kickoff_utc)}). Treated as the same "
+                       f"match, re-issued. Forecasts, predictions and refs stay where they are; the kickoff follows "
+                       f"the provider."),
         }
         earlier = meta.get(SUPERSEDED_KEY)
         history = list(earlier.get("history") or []) if isinstance(earlier, dict) else []
@@ -1305,10 +1417,11 @@ class MatchRegistry:
                 not self.db.query(Match.id).filter(Match.external_api_id == legacy_id).first():
             match.external_api_id = legacy_id
         self.db.flush()
-        logger.warning("Fixture %s:%s (%s vs %s, %s) is match %s re-issued: the provider dropped %s (%s). "
-                       "Re-dated on the same row; nothing moved.", fixture.provider, fixture.external_id,
-                       fixture.home.name, fixture.away.name, _utc_label(fixture.kickoff_utc), match.id,
-                       event["previous_external_ids"], event["previous"]["kickoff_utc"])
+        logger.warning("Fixture %s:%s (%s vs %s, %s) is match %s re-issued: %s (%s) was last named at %s and absent "
+                       "from %s complete listing(s) of its date since. Re-dated on the same row; nothing moved.",
+                       fixture.provider, fixture.external_id, fixture.home.name, fixture.away.name,
+                       _utc_label(fixture.kickoff_utc), match.id, event["previous_external_ids"],
+                       event["previous"]["kickoff_utc"], record.get("seen_at"), absent.get("listings", 0))
 
     def _record_superseded_candidates(self, match: Match, fixture: ProviderFixture,
                                       candidates: List[Dict[str, object]]) -> None:

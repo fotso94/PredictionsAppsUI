@@ -124,13 +124,6 @@ BACKOFF_MAX_SECONDS = 6 * 3600
 #: repeats finished work.
 FORECASTS_RECOVERY_RETRY_SECONDS = 300
 FORECASTS_RECOVERY_MAX_RETRIES = 3
-#: A pass that SPENT requests is followed by the first ordinary slot at least this long after it
-#: ended, not by a slot minutes away: the only thing such a slot could do is re-check the fetch
-#: just made, and the policy allows one re-check a day per competition - spent on the same answer,
-#: it is gone, and the day's run is missed when it is published an hour later. A pass that spent
-#: nothing (before the publication hour; every slot already served) is followed by the first slot
-#: after it BEGAN, so a slot it crossed is run at once, exactly once.
-FORECASTS_SLOT_SPACING_SECONDS = 3600
 FORECAST_PASS_OUTCOMES: FrozenSet[str] = frozenset({FORECAST_PASS_COMPLETED, FORECAST_PASS_PARTIAL,
                                                      FORECAST_PASS_DEFERRED, FORECAST_PASS_FAILED})
 
@@ -466,19 +459,19 @@ class SyncScheduler:
             return None
         return parse_slot_anchor(settings.SYNC_FORECASTS_SLOT_ANCHOR_UTC)
 
-    def _ordinary_due(self, name: str, after: datetime, spent: bool = False) -> datetime:
+    def _ordinary_due(self, name: str, after: datetime) -> datetime:
         """When the next ORDINARY pass is due, once a pass that began at `after` has ended.
 
-        The forecasts task is anchored: the first grid slot after the pass began, or - when the
-        pass spent requests - the first slot no sooner than FORECASTS_SLOT_SPACING_SECONDS after it
-        ended. A pass that ran late keeps the grid where it was, so a sleep across any number of
-        slots costs one catch-up pass (the one that was due when the host went to sleep) and the
-        slots after it stand; a pass that spent nothing and was long enough to cross the next slot
-        is followed by that slot at once, exactly once. Every other task, and the forecasts task
-        without a grid, waits its interval from now.
+        The forecasts task is anchored: the first grid slot after the pass began. A pass that ran
+        late keeps the grid where it was, so a sleep across any number of slots costs one catch-up
+        pass (the one that was due when the host went to sleep) and the slots after it stand; a
+        pass long enough to cross the next slot is followed by that slot at once, exactly once.
+        A slot minutes after a pass that fetched is harmless: what it may re-check is the policy's
+        decision, and the policy re-checks nothing within `RECHECK_MIN_GAP` of the fetch it would
+        re-check, per competition, from the request's own time. Every other task, and the
+        forecasts task without a grid, waits its interval from now.
         """
-        floor = max(after, self.now + timedelta(seconds=FORECASTS_SLOT_SPACING_SECONDS)) if spent else after
-        slot = forecast_slot_after(floor, self.slot_anchor(name), self.interval(name))
+        slot = forecast_slot_after(after, self.slot_anchor(name), self.interval(name))
         return slot if slot is not None else self.now + timedelta(seconds=self.interval(name))
 
     def _record(self, name: str, *, result: Optional[Dict[str, Any]], ok: bool,
@@ -486,9 +479,6 @@ class SyncScheduler:
                 sent: Optional[Dict[str, int]] = None) -> Dict[str, Any]:
         now = self.now
         state = self.state(name)
-        # What the pass before this one sent: a recovery pass that closes an episode inherits the
-        # interrupted pass's spending when it decides how soon the next ordinary slot may come.
-        previous_sent = dict(state.get("last_requests_sent") or {})
         state["last_run_at"] = now.isoformat()
         state["last_duration_ms"] = int(max((now - started).total_seconds(), 0) * 1000)
         state["runs"] = int(state.get("runs") or 0) + 1
@@ -496,7 +486,6 @@ class SyncScheduler:
         # Per provider, every request this pass was granted - including by a pass that then raised,
         # because the provider charged those all the same.
         state["last_requests_sent"] = dict(sent or {})
-        spent = any(int(v or 0) > 0 for v in (sent or {}).values())
         state["last_skip_reason"] = None
         # The ordinary grid counts from when this pass began. A recovery pass that closes an episode
         # counts from the interrupted pass instead: the retries were never slots, and the slot the
@@ -515,13 +504,12 @@ class SyncScheduler:
             if isinstance(episode, dict):
                 state["last_recovery"] = {**episode, "ended": kind, "ended_at": now.isoformat()}
                 anchor_from = _parse(episode.get("started_at")) or started
-                spent = spent or any(int(v or 0) > 0 for v in previous_sent.values())
         if ok:
             state["last_success_at"] = now.isoformat()
             state["consecutive_failures"] = 0
             state["last_error"] = None
             state["backoff_seconds"] = None
-            state["next_due_at"] = self._ordinary_due(name, anchor_from, spent=spent).isoformat()
+            state["next_due_at"] = self._ordinary_due(name, anchor_from).isoformat()
         else:
             failures = int(state.get("consecutive_failures") or 0) + 1
             state["failures"] = int(state.get("failures") or 0) + 1
