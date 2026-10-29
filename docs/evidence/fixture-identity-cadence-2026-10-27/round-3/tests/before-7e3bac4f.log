@@ -1,0 +1,344 @@
+# 2026-10-29T21:40:58Z in /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-7e3bac4f/backend at 7e3bac4f (); dirty files: 1
+# python 3.11.9; pytest args: tests/services/test_listing_observation_paths.py -q -rf
+FFFF.FFFFF.                                                              [100%]
+=================================== FAILURES ===================================
+_ test_a_calendar_naming_both_ids_merges_nothing_whichever_comes_first[old-first] _
+
+db = <sqlalchemy.orm.session.Session object at 0x10b1554d0>, order = 'old-first'
+
+    @pytest.mark.parametrize("order", ["old-first", "new-first"])
+    def test_a_calendar_naming_both_ids_merges_nothing_whichever_comes_first(db, order):
+        """An absence stands against the earlier listing; the calendar answer then names BOTH ids. The
+        old id is marked seen before either is stored, so the new id finds its withdrawal contradicted
+        and becomes its own row; the old id is applied to its own row and refused by nothing."""
+        earlier = earlier_listing(db)                          # absent from the 25th's complete listing at 23:11
+        replies = Replies()
+        rows = [OLD_LISTED, NEW_LISTED] if order == "old-first" else [NEW_LISTED, OLD_LISTED]
+        replies.fixtures(None, 1, rows, next_page=False)
+    
+        meta = service_at(db, replies, MORNING_AFTER).sync_upcoming(LEAGUE, 7)
+    
+        assert meta.source == "provider" and meta.errors == [] and meta.ambiguous == 0, (meta.source, meta.errors)
+        assert [dict(c) for c in replies.calls("fixtures/list.json")] == [{"competition_id": "5"}], "one calendar page"
+        rows_now = psg_lyon_rows(db)
+>       assert [m.id for m in rows_now if m.id == earlier.id] == [earlier.id] and len(rows_now) == 2, (
+            "two rows: the new id was merged onto the earlier row on an absence the same answer contradicted")
+E       AssertionError: two rows: the new id was merged onto the earlier row on an absence the same answer contradicted
+E       assert ([UUID('2acdb4...1e602f9d9a5')] == [UUID('2acdb4...1e602f9d9a5')]
+E         Use -v to get more diff and 1 == 2)
+E        +  where 1 = len([<app.models.predictions.Match object at 0x10b69ff10>])
+
+tests/services/test_listing_observation_paths.py:189: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&competition_id=5 "HTTP/1.1 200 OK"
+2026-10-29 17:41:00 - app.services.match_registry - WARNING - Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match 2acdb40a-f6f4-47b0-b22b-31e602f9d9a5 re-issued: ['1877019'] (2026-10-25T19:45:00+00:00) was last named at 2026-10-25T17:08:50+00:00 and absent from 1 complete listing(s) of its date since. Re-dated on the same row; nothing moved.
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&competition_id=5 "HTTP/1.1 200 OK"
+WARNING  app.services.match_registry:match_registry.py:1420 Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match 2acdb40a-f6f4-47b0-b22b-31e602f9d9a5 re-issued: ['1877019'] (2026-10-25T19:45:00+00:00) was last named at 2026-10-25T17:08:50+00:00 and absent from 1 complete listing(s) of its date since. Re-dated on the same row; nothing moved.
+_ test_a_calendar_naming_both_ids_merges_nothing_whichever_comes_first[new-first] _
+
+db = <sqlalchemy.orm.session.Session object at 0x10afb81d0>, order = 'new-first'
+
+    @pytest.mark.parametrize("order", ["old-first", "new-first"])
+    def test_a_calendar_naming_both_ids_merges_nothing_whichever_comes_first(db, order):
+        """An absence stands against the earlier listing; the calendar answer then names BOTH ids. The
+        old id is marked seen before either is stored, so the new id finds its withdrawal contradicted
+        and becomes its own row; the old id is applied to its own row and refused by nothing."""
+        earlier = earlier_listing(db)                          # absent from the 25th's complete listing at 23:11
+        replies = Replies()
+        rows = [OLD_LISTED, NEW_LISTED] if order == "old-first" else [NEW_LISTED, OLD_LISTED]
+        replies.fixtures(None, 1, rows, next_page=False)
+    
+        meta = service_at(db, replies, MORNING_AFTER).sync_upcoming(LEAGUE, 7)
+    
+>       assert meta.source == "provider" and meta.errors == [] and meta.ambiguous == 0, (meta.source, meta.errors)
+E       AssertionError: ('provider', [])
+E       assert ('provider' == 'provider'
+E           provider and [] == []
+E         Use -v to get more diff and 1 == 0)
+E        +  where 1 = SyncMeta(provider='livescore', source='provider', stale=False, fetched_at='2026-10-26T08:00:00+00:00', errors=[], live...fetched_at='2026-10-26T08:00:00+00:00', requests=1, request_failed=False, not_sent=[], declined=[], failed_requests=[]).ambiguous
+
+tests/services/test_listing_observation_paths.py:186: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&competition_id=5 "HTTP/1.1 200 OK"
+2026-10-29 17:41:00 - app.services.match_registry - WARNING - Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match a5eed78b-0283-4bf0-8dac-cf3add52086e re-issued: ['1877019'] (2026-10-25T19:45:00+00:00) was last named at 2026-10-25T17:08:50+00:00 and absent from 1 complete listing(s) of its date since. Re-dated on the same row; nothing moved.
+2026-10-29 17:41:00 - app.services.match_registry - WARNING - Refusing fixture livescore:1877019 (Paris Saint Germain vs Lyon): provider fixture id was superseded by 742799 (2026-10-26T19:30:00+00:00); a listing under the dead id for another kickoff is not applied; candidates=['a5eed78b-0283-4bf0-8dac-cf3add52086e']. No match row written.
+2026-10-29 17:41:00 - app.services.match_data_service - WARNING - 1 fixture(s) were not stored because they could not be identified unambiguously
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&competition_id=5 "HTTP/1.1 200 OK"
+WARNING  app.services.match_registry:match_registry.py:1420 Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 19:30 UTC) is match a5eed78b-0283-4bf0-8dac-cf3add52086e re-issued: ['1877019'] (2026-10-25T19:45:00+00:00) was last named at 2026-10-25T17:08:50+00:00 and absent from 1 complete listing(s) of its date since. Re-dated on the same row; nothing moved.
+WARNING  app.services.match_registry:match_registry.py:922 Refusing fixture livescore:1877019 (Paris Saint Germain vs Lyon): provider fixture id was superseded by 742799 (2026-10-26T19:30:00+00:00); a listing under the dead id for another kickoff is not applied; candidates=['a5eed78b-0283-4bf0-8dac-cf3add52086e']. No match row written.
+WARNING  app.services.match_data_service:match_data_service.py:904 1 fixture(s) were not stored because they could not be identified unambiguously
+_ test_a_results_answer_naming_both_ids_merges_nothing_whichever_comes_first[old-first] _
+
+db = <sqlalchemy.orm.session.Session object at 0x10afa9010>, order = 'old-first'
+
+    @pytest.mark.parametrize("order", ["old-first", "new-first"])
+    def test_a_results_answer_naming_both_ids_merges_nothing_whichever_comes_first(db, order):
+        """The results import for the 25th: the earlier listing is pending, so Live Score's archive is
+        asked and answers with both ids finished. Neither order merges: the old id's result lands on its
+        own row, the new id is its own row, and nothing is refused."""
+        earlier = earlier_listing(db)
+        replies = Replies()
+        rows = [OLD_FINISHED, NEW_FINISHED] if order == "old-first" else [NEW_FINISHED, OLD_FINISHED]
+        replies.history_pages = {1: {"match": rows, "total_pages": 1}}
+        service = service_at(db, replies, MORNING_AFTER)
+        meta = SyncMeta()
+    
+        outcome = service._sync_results(DROPPED_KICKOFF.date(), meta)
+    
+        assert outcome in ("answered", "mixed"), (outcome, meta.errors)
+        assert meta.source == "provider" and meta.ambiguous == 0, (meta.source, meta.errors)
+        history = replies.calls("matches/history.json")
+        assert len(history) == 1 and history[0]["from"] == history[0]["to"] == "2026-10-25"
+        rows_now = psg_lyon_rows(db)
+        assert len(rows_now) == 2, "two rows: a merge happened on an absence the same answer contradicted"
+        assert_earlier_row_as_it_was(db, earlier, with_result=True)
+        assert fresh(db, earlier.id).status == MatchStatus.FINISHED
+        new_row = next(m for m in rows_now if m.id != earlier.id)
+        assert result_of(db, new_row.id) == (2, 0) and (PROVIDER, LIVE_ID) in refs_of(db, new_row.id)
+        assert len(snapshots_of(db, new_row.id)) == 0
+>       assert MatchRegistry.withdrawal_observed(fresh(db, earlier.id), PROVIDER) is None
+E       AssertionError: assert {'day': '2026-10-25', 'last': '2026-10-25T23:11:00+00:00', 'listings': 1, 'since': '2026-10-25T23:11:00+00:00'} is None
+E        +  where {'day': '2026-10-25', 'last': '2026-10-25T23:11:00+00:00', 'listings': 1, 'since': '2026-10-25T23:11:00+00:00'} = <function MatchRegistry.withdrawal_observed at 0x109b8e5c0>(<app.models.predictions.Match object at 0x10adccfd0>, 'livescore')
+E        +    where <function MatchRegistry.withdrawal_observed at 0x109b8e5c0> = MatchRegistry.withdrawal_observed
+E        +    and   <app.models.predictions.Match object at 0x10adccfd0> = fresh(<sqlalchemy.orm.session.Session object at 0x10afa9010>, UUID('8a02f6c9-4dc2-49c3-b9d5-495f3978fc47'))
+E        +      where UUID('8a02f6c9-4dc2-49c3-b9d5-495f3978fc47') = <app.models.predictions.Match object at 0x10adccfd0>.id
+
+tests/services/test_listing_observation_paths.py:224: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+2026-10-29 17:41:00 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['8a02f6c9-4dc2-49c3-b9d5-495f3978fc47'] are the same provider's other fixtures; new match row
+2026-10-29 17:41:00 - app.services.match_registry - INFO - Fixture livescore:742799 (Paris Saint Germain vs Lyon): stored as a new row beside 1 listing(s) it was not proven to re-issue: 8a02f6c9-4dc2-49c3-b9d5-495f3978fc47 (it has a stored result)
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+INFO     app.services.match_registry:match_registry.py:1077 Fixture livescore:742799 (Paris Saint Germain vs Lyon): candidates ['8a02f6c9-4dc2-49c3-b9d5-495f3978fc47'] are the same provider's other fixtures; new match row
+INFO     app.services.match_registry:match_registry.py:1435 Fixture livescore:742799 (Paris Saint Germain vs Lyon): stored as a new row beside 1 listing(s) it was not proven to re-issue: 8a02f6c9-4dc2-49c3-b9d5-495f3978fc47 (it has a stored result)
+_ test_a_results_answer_naming_both_ids_merges_nothing_whichever_comes_first[new-first] _
+
+db = <sqlalchemy.orm.session.Session object at 0x10aeba750>, order = 'new-first'
+
+    @pytest.mark.parametrize("order", ["old-first", "new-first"])
+    def test_a_results_answer_naming_both_ids_merges_nothing_whichever_comes_first(db, order):
+        """The results import for the 25th: the earlier listing is pending, so Live Score's archive is
+        asked and answers with both ids finished. Neither order merges: the old id's result lands on its
+        own row, the new id is its own row, and nothing is refused."""
+        earlier = earlier_listing(db)
+        replies = Replies()
+        rows = [OLD_FINISHED, NEW_FINISHED] if order == "old-first" else [NEW_FINISHED, OLD_FINISHED]
+        replies.history_pages = {1: {"match": rows, "total_pages": 1}}
+        service = service_at(db, replies, MORNING_AFTER)
+        meta = SyncMeta()
+    
+        outcome = service._sync_results(DROPPED_KICKOFF.date(), meta)
+    
+        assert outcome in ("answered", "mixed"), (outcome, meta.errors)
+>       assert meta.source == "provider" and meta.ambiguous == 0, (meta.source, meta.errors)
+E       AssertionError: ('provider', [])
+E       assert ('provider' == 'provider'
+E           provider and 1 == 0)
+E        +  where 1 = SyncMeta(provider='livescore', source='provider', stale=False, fetched_at='2026-10-26T08:00:00+00:00', errors=[], live...d_source=None, forward_fetched_at=None, requests=1, request_failed=False, not_sent=[], declined=[], failed_requests=[]).ambiguous
+
+tests/services/test_listing_observation_paths.py:214: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+2026-10-29 17:41:00 - app.services.match_registry - WARNING - Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 00:00 UTC) is match 3b9a03e3-8890-45b4-ba13-45ee92cea760 re-issued: ['1877019'] (2026-10-25T19:45:00+00:00) was last named at 2026-10-25T17:08:50+00:00 and absent from 1 complete listing(s) of its date since. Re-dated on the same row; nothing moved.
+2026-10-29 17:41:00 - app.services.match_registry - WARNING - Provider livescore reports match 3b9a03e3-8890-45b4-ba13-45ee92cea760 on 2026-10-26 without a kickoff time (stored 2026-10-25 19:45:00); kickoff left unchanged
+2026-10-29 17:41:00 - app.services.match_registry - WARNING - Refusing fixture livescore:1877019 (Paris Saint Germain vs Lyon): provider fixture id was superseded by 742799 (2026-10-26T00:00:00+00:00); a listing under the dead id for another kickoff is not applied; candidates=['3b9a03e3-8890-45b4-ba13-45ee92cea760']. No match row written.
+2026-10-29 17:41:00 - app.services.match_data_service - WARNING - 1 fixture(s) were not stored because they could not be identified unambiguously
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+WARNING  app.services.match_registry:match_registry.py:1420 Fixture livescore:742799 (Paris Saint Germain vs Lyon, 2026-10-26 00:00 UTC) is match 3b9a03e3-8890-45b4-ba13-45ee92cea760 re-issued: ['1877019'] (2026-10-25T19:45:00+00:00) was last named at 2026-10-25T17:08:50+00:00 and absent from 1 complete listing(s) of its date since. Re-dated on the same row; nothing moved.
+WARNING  app.services.match_registry:match_registry.py:1652 Provider livescore reports match 3b9a03e3-8890-45b4-ba13-45ee92cea760 on 2026-10-26 without a kickoff time (stored 2026-10-25 19:45:00); kickoff left unchanged
+WARNING  app.services.match_registry:match_registry.py:922 Refusing fixture livescore:1877019 (Paris Saint Germain vs Lyon): provider fixture id was superseded by 742799 (2026-10-26T00:00:00+00:00); a listing under the dead id for another kickoff is not applied; candidates=['3b9a03e3-8890-45b4-ba13-45ee92cea760']. No match row written.
+WARNING  app.services.match_data_service:match_data_service.py:904 1 fixture(s) were not stored because they could not be identified unambiguously
+_ test_an_empty_first_page_with_a_next_page_is_read_on_and_the_old_id_found_on_page_two _
+
+db = <sqlalchemy.orm.session.Session object at 0x10aff7d10>
+
+    def test_an_empty_first_page_with_a_next_page_is_read_on_and_the_old_id_found_on_page_two(db):
+        earlier = earlier_listing(db)                          # one absence already stands
+        replies = Replies()
+        replies.fixtures("2026-10-25", 1, [], next_page=True)
+        replies.fixtures("2026-10-25", 2, [OLD_LISTED], next_page=False)
+    
+        meta = day_listing(db, replies)
+    
+>       assert meta.errors == [] and fixture_pages_asked(replies) == ["1", "2"], "page two was read"
+E       AssertionError: page two was read
+E       assert ([] == []
+E         Use -v to get more diff and ['1'] == ['1', '2']
+E         Right contains one more item: '2'
+E         Use -v to get more diff)
+
+tests/services/test_listing_observation_paths.py:261: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+__________ test_an_empty_page_in_the_middle_does_not_end_the_listing ___________
+
+db = <sqlalchemy.orm.session.Session object at 0x10b73e690>
+
+    def test_an_empty_page_in_the_middle_does_not_end_the_listing(db):
+        earlier = earlier_listing(db)
+        replies = Replies()
+        replies.fixtures("2026-10-25", 1, [OTHER_LISTED], next_page=True)
+        replies.fixtures("2026-10-25", 2, [], next_page=True)
+        replies.fixtures("2026-10-25", 3, [OLD_LISTED], next_page=False)
+    
+        meta = day_listing(db, replies)
+    
+>       assert meta.errors == [] and fixture_pages_asked(replies) == ["1", "2", "3"]
+E       AssertionError: assert ([] == []
+E         Use -v to get more diff and ['1', '2'] == ['1', '2', '3']
+E         Right contains one more item: '3'
+E         Use -v to get more diff)
+
+tests/services/test_listing_observation_paths.py:279: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&page=2&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&page=2&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+_______ test_the_total_pages_form_of_an_empty_first_page_is_read_on_too ________
+
+db = <sqlalchemy.orm.session.Session object at 0x10af2d110>
+
+    def test_the_total_pages_form_of_an_empty_first_page_is_read_on_too(db):
+        earlier = earlier_listing(db)
+        replies = Replies()
+        replies.fixtures("2026-10-25", 1, [], total_pages=2)
+        replies.fixtures("2026-10-25", 2, [OLD_LISTED], total_pages=2)
+    
+        meta = day_listing(db, replies)
+    
+>       assert meta.errors == [] and fixture_pages_asked(replies) == ["1", "2"]
+E       AssertionError: assert ([] == []
+E         Use -v to get more diff and ['1'] == ['1', '2']
+E         Right contains one more item: '2'
+E         Use -v to get more diff)
+
+tests/services/test_listing_observation_paths.py:291: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+_________ test_a_listing_cut_at_the_page_cap_is_no_evidence_of_absence _________
+
+db = <sqlalchemy.orm.session.Session object at 0x10afa9910>
+
+    def test_a_listing_cut_at_the_page_cap_is_no_evidence_of_absence(db):
+        """Every page up to MAX_PAGES is empty and advertises another; the old id would be on the page
+        after the cap. The cap is not raised; the answer is marked cut, and nothing is recorded absent."""
+        earlier = earlier_listing(db)
+        replies = Replies()
+        for page in range(1, MAX_PAGES + 1):
+            replies.fixtures("2026-10-25", page, [], next_page=True)
+        replies.fixtures("2026-10-25", MAX_PAGES + 1, [OLD_LISTED], next_page=False)
+    
+        meta = day_listing(db, replies)
+    
+>       assert meta.errors == [] and fixture_pages_asked(replies) == [str(p) for p in range(1, MAX_PAGES + 1)]
+E       AssertionError: assert ([] == []
+E         Use -v to get more diff and ['1'] == ['1', '2', '3', '4', '5']
+E         Right contains 4 more items, first extra item: '2'
+E         Use -v to get more diff)
+
+tests/services/test_listing_observation_paths.py:306: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+______________ test_a_later_page_that_fails_leaves_no_observation ______________
+
+db = <sqlalchemy.orm.session.Session object at 0x10afc52d0>
+
+    def test_a_later_page_that_fails_leaves_no_observation(db):
+        earlier = earlier_listing(db)
+        replies = Replies()
+        replies.fixtures("2026-10-25", 1, [], next_page=True)
+        replies.failures[("2026-10-25", 2)] = 500
+    
+        meta = day_listing(db, replies)
+    
+>       assert meta.errors and fixture_pages_asked(replies) == ["1", "2"]
+E       AssertionError: assert ([])
+E        +  where [] = SyncMeta(provider='livescore', source='provider', stale=False, fetched_at='2026-10-26T08:00:00+00:00', errors=[], live...fetched_at='2026-10-26T08:00:00+00:00', requests=2, request_failed=False, not_sent=[], declined=[], failed_requests=[]).errors
+
+tests/services/test_listing_observation_paths.py:321: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+2026-10-29 17:41:00 - httpx - INFO - HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/fixtures/list.json?key=REDACTED&secret=REDACTED&date=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1013 HTTP Request: GET https://livescore-api.com/api-client/matches/history.json?key=REDACTED&secret=REDACTED&from=2026-10-25&to=2026-10-25&competition_id=5 "HTTP/1.1 200 OK"
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-7e3bac4f/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-7e3bac4f/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-7e3bac4f/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-7e3bac4f/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-7e3bac4f/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-7e3bac4f/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-7e3bac4f/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-7e3bac4f/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-old-7e3bac4f/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+target guard: backend-tests approved - settings database localhost:5432/soccer_predictions_test; test database localhost:5432/soccer_predictions_test; race database 127.0.0.1:5440/forecast_race_test; redis default (REDIS_DB) 127.0.0.1:6390/0; redis REDIS_DB_SESSIONS 127.0.0.1:6390/0; redis REDIS_DB_PREDICTIONS 127.0.0.1:6390/1; redis REDIS_DB_EXPERT_TOOLS 127.0.0.1:6390/2; redis REDIS_DB_ML_MODELS 127.0.0.1:6390/3; redis REDIS_DB_MATCH_DATA 127.0.0.1:6390/4; redis REDIS_DB_RATE_LIMIT 127.0.0.1:6390/5; lease redis 127.0.0.1:6390/9,10,11 (policy sha256 b53f554c6514)
+=========================== short test summary info ============================
+FAILED tests/services/test_listing_observation_paths.py::test_a_calendar_naming_both_ids_merges_nothing_whichever_comes_first[old-first]
+FAILED tests/services/test_listing_observation_paths.py::test_a_calendar_naming_both_ids_merges_nothing_whichever_comes_first[new-first]
+FAILED tests/services/test_listing_observation_paths.py::test_a_results_answer_naming_both_ids_merges_nothing_whichever_comes_first[old-first]
+FAILED tests/services/test_listing_observation_paths.py::test_a_results_answer_naming_both_ids_merges_nothing_whichever_comes_first[new-first]
+FAILED tests/services/test_listing_observation_paths.py::test_an_empty_first_page_with_a_next_page_is_read_on_and_the_old_id_found_on_page_two
+FAILED tests/services/test_listing_observation_paths.py::test_an_empty_page_in_the_middle_does_not_end_the_listing
+FAILED tests/services/test_listing_observation_paths.py::test_the_total_pages_form_of_an_empty_first_page_is_read_on_too
+FAILED tests/services/test_listing_observation_paths.py::test_a_listing_cut_at_the_page_cap_is_no_evidence_of_absence
+FAILED tests/services/test_listing_observation_paths.py::test_a_later_page_that_fails_leaves_no_observation
+9 failed, 2 passed, 18 warnings in 1.06s
+# exit 1 at 2026-10-29T21:41:00Z

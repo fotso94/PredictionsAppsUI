@@ -1,0 +1,90 @@
+# 2026-10-29T21:41:50Z in /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend at 7e3bac4f (fixture-cadence); dirty files: 3
+# python 3.11.9; pytest args: tests -q -p no:randomly -rfEs
+........................................................................ [  3%]
+........................................................................ [  6%]
+........................................................................ [ 10%]
+........................................................................ [ 13%]
+........................................................................ [ 17%]
+........................................................................ [ 20%]
+........................................................................ [ 24%]
+........................................................................ [ 27%]
+........................................................................ [ 30%]
+........................................................................ [ 34%]
+........................................................................ [ 37%]
+........................................................................ [ 41%]
+........................................................................ [ 44%]
+........................................................................ [ 48%]
+........................................................................ [ 51%]
+........................................................................ [ 54%]
+........................................................................ [ 58%]
+........................................................................ [ 61%]
+........................................................................ [ 65%]
+........................................................................ [ 68%]
+........................................................................ [ 72%]
+........................................................................ [ 75%]
+........................................................................ [ 78%]
+........................................................................ [ 82%]
+........................................................................ [ 85%]
+........................................................................ [ 89%]
+........................................................................ [ 92%]
+........................................................................ [ 96%]
+........................................................................ [ 99%]
+.........                                                                [100%]
+=============================== warnings summary ===============================
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/venv311/lib/python3.11/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/venv311/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+venv311/lib/python3.11/site-packages/pydantic/fields.py:774
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/venv311/lib/python3.11/site-packages/pydantic/fields.py:774: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn('`max_items` is deprecated and will be removed, use `max_length` instead', DeprecationWarning)
+
+app/schemas/predictions.py:335
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:335: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', pre=True)
+
+app/schemas/predictions.py:442
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:442: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:498
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:498: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:543
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:543: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('away_win_prob')
+
+app/schemas/predictions.py:676
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:676: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('id', 'match_id', 'created_by', 'superseded_by', pre=True)
+
+app/schemas/predictions.py:683
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/app/schemas/predictions.py:683: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('home_win_prob', 'draw_prob', 'away_win_prob', 'confidence_score',
+
+tests/services/test_provider_switching_db.py::test_rescheduled_fixture_follows_the_provider_ref
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/tests/services/test_provider_switching_db.py:205: LegacyAPIWarning: The Query.get() method is considered legacy as of the 1.x series of SQLAlchemy and becomes a legacy construct in 2.0. The method is now available as Session.get() (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    assert db.query(Match).get(matches[0].id).match_date == moved.kickoff_utc.replace(tzinfo=None)
+
+tests/services/test_provider_switching_db.py::test_matches_endpoint_serves_sample_provider_with_forecasts_and_expert_predictions
+  /Users/stephanefotso/Documents/DevProjects/PredictionsAppsUI-fixture-cadence/backend/tests/services/test_provider_switching_db.py:400: LegacyAPIWarning: The Query.get() method is considered legacy as of the 1.x series of SQLAlchemy and becomes a legacy construct in 2.0. The method is now available as Session.get() (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    match = db.query(Match).get(uuid.UUID(first["id"]))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+target guard: backend-tests approved - settings database localhost:5432/soccer_predictions_test; test database localhost:5432/soccer_predictions_test; race database 127.0.0.1:5440/forecast_race_test; redis default (REDIS_DB) 127.0.0.1:6390/0; redis REDIS_DB_SESSIONS 127.0.0.1:6390/0; redis REDIS_DB_PREDICTIONS 127.0.0.1:6390/1; redis REDIS_DB_EXPERT_TOOLS 127.0.0.1:6390/2; redis REDIS_DB_ML_MODELS 127.0.0.1:6390/3; redis REDIS_DB_MATCH_DATA 127.0.0.1:6390/4; redis REDIS_DB_RATE_LIMIT 127.0.0.1:6390/5; lease redis 127.0.0.1:6390/9,10,11 (policy sha256 b53f554c6514)
+2097 passed, 20 warnings in 67.93s (0:01:07)
+# exit 0 at 2026-10-29T21:42:59Z

@@ -192,7 +192,12 @@ class LiveScoreAPIProvider(MatchDataProvider):
                              page=page if page > 1 else None, **params)
             chunk = data.get(list_key) or []
             items.extend(chunk)
-            if not chunk or not self._has_more_pages(data, page):
+            # An empty page is not the end of the list while another page is advertised: on
+            # 2026-10-28 a reviewer showed an empty first page with `next_page` set, whose second
+            # page held a fixture - stopping there and calling the answer complete would have
+            # made that fixture's absence an observation. The list ends where the provider says
+            # it ends, or at `max_pages`, which marks the answer as cut (`_last_paginate_truncated`).
+            if not self._has_more_pages(data, page):
                 break
             if page >= max_pages:
                 logger.warning("Live Score API: %s stopped at %d page(s) with more advertised (%s); the rest is unread",

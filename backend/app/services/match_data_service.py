@@ -866,7 +866,11 @@ class MatchDataService:
                                           league_ids=[league.id], complete=complete)
 
     def _observe_seen(self, fixtures: List[ProviderFixture], meta: SyncMeta) -> None:
-        """A live poll or a calendar names what it names: mark those seen, record nothing about absence."""
+        """A live poll, a calendar or a results answer names what it names: mark those seen, attributed
+        to the provider that answered, and record nothing about absence. Only a fresh answer counts; a
+        copy repeats an observation already made. Every ingestion path calls this (or
+        `_observe_day_listing`) BEFORE `_store_fixtures`, so an id the same answer names cannot be
+        taken as withdrawn while another id of the answer is being matched."""
         if meta.source != "provider" or not meta.provider:
             return
         at = (parse_utc(meta.fetched_at) if meta.fetched_at else None) or self.now
@@ -1179,6 +1183,9 @@ class MatchDataService:
                 call.source, call.provider, call.fetched_at, call.stale)
             meta.results_polled = call.results_polled = True
             fixtures = [_fixture_from_dict(d) for d in payload.get("fixtures") or []]
+            # What this round's answer NAMED, before any of it is stored: a row the provider still
+            # names is not one it withdrew, whichever order its fixtures come in.
+            self._observe_seen(fixtures, meta)
             self._store_fixtures(fixtures, meta)
             spoke_for = set(payload.get("asked") or [])
             if call.source == "stale-cache" or not spoke_for & set(asking):
@@ -1922,7 +1929,11 @@ class MatchDataService:
         # is. Nothing reads these counters off this path today; they are here so the two forward
         # fetches cannot drift into meaning different things.
         meta.forward_source, meta.forward_fetched_at = meta.source, meta.fetched_at
-        self._store_fixtures((_fixture_from_dict(d) for d in payload), meta, forward=True)
+        calendar = [_fixture_from_dict(d) for d in payload]
+        # Named before stored, as above. A calendar names what lies ahead and nothing else, so it
+        # is never evidence of absence; it is evidence of presence for every id it carries.
+        self._observe_seen(calendar, meta)
+        self._store_fixtures(calendar, meta, forward=True)
         self.db.commit()
         return meta
 

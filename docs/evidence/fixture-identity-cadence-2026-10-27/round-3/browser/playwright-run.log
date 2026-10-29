@@ -1,0 +1,15 @@
+isolation preflight: PASS (policy sha256 b53f554c6514)
+  mocked-desktop, mocked-mobile, mocked-mobile-360: frontend http://localhost:3102; every /api/v1 call is answered by the stubs
+  live-isolated: frontend http://localhost:3102 calls http://127.0.0.1:8002 (observed); backend http://127.0.0.1:8002: database psg_lyon_repair2, Redis databases 10-15 on this machine's :6391, scheduler off
+  (only this was sent: GET http://127.0.0.1:8002/health; browser: loaded http://localhost:3102/ with every API request aborted in the browser (its first API call was to http://127.0.0.1:8002))
+
+Running 6 tests using 1 worker
+
+  ✓  1 [live-isolated] › e2e/live-isolated/repaired-fixture.spec.ts:103:3 › the repaired fixture (disposable pair over the folded copy) › the API describes one row: the played kickoff, the result, both provider ids and the forecast (355ms)
+  ✓  2 [live-isolated] › e2e/live-isolated/repaired-fixture.spec.ts:122:3 › the repaired fixture (disposable pair over the folded copy) › the fixture page shows the played kickoff, the result and the attached forecast; the folded id is gone (742ms)
+  ✓  3 [live-isolated] › e2e/live-isolated/repaired-fixture.spec.ts:131:3 › the repaired fixture (disposable pair over the folded copy) › the day lists carry one card for the match and none for the folded listing (2.1s)
+  ✓  4 [live-isolated] › e2e/live-isolated/repaired-fixture.spec.ts:148:3 › the repaired fixture (disposable pair over the folded copy) › a reader's saved match, expert prediction and slip leg still resolve, and say what the rows say (2.4s)
+  ✓  5 [live-isolated] › e2e/live-isolated/repaired-fixture.spec.ts:188:3 › the repaired fixture (disposable pair over the folded copy) › reloading preserves what the pages show (2.0s)
+  ✓  6 [live-isolated] › e2e/live-isolated/repaired-fixture.spec.ts:211:3 › the same, on a phone › the fixture page and the day list fit the screen without errors (1.6s)
+
+  6 passed (10.2s)

@@ -33,6 +33,13 @@ a020295dd4a24da2ce1d3d1dda74ecc4f1a1a32050abaefa124bd48b30bfd82a  ./round-2/test
 7f4d19155b8a08c558cfd21c51de5d31a24ae6e28b2afbe5e498ae087967f3bb  ./round-2/tests/full-suite-second-run.log
 82df42094ca5ca0326abae35fb6455d4cb4677124115f1a2fd1e976fc3deceab  ./round-2/tests/full-suite.log
 da1916de71090bd03edaf383899c90ec60ac0cce71efa9b01646a17ef7392174  ./round-2/tests/repeats-summary.txt
+42505a461ce68bd1fa4c138eaa45ce3e65795f9880dc60794d7ec10b9d0a4b6d  ./round-3/REPORT.md
+a8153f43b14db71c16a2026377384f75498b5209ea57fd8be9559c4ec571d464  ./round-3/browser/backend-identity.json
+7aa9f7bad95ff1307db59549664d76ba6cd25b04f91f6d32680cdccb83994d53  ./round-3/browser/playwright-run.log
+db84bb7dae4a1638ac03b0ad47f4da6dcf2a2209ae8e3dc92446b11066588ed5  ./round-3/tests/affected-suites.log
+84695a28dd923129fd2b769aee2f879150beb9bbd756f66e7ef01a821c63c52c  ./round-3/tests/after-new-tests.log
+eed08c79516316120cb37a576aa38f1d4c8d88c01244166de272b1701a286625  ./round-3/tests/before-7e3bac4f.log
+02514d86cdf85dc27691ca301aefe4c0e4e43175a3082c5dee7145d7cb1f6320  ./round-3/tests/full-suite.log
 92f2d080070fdc0b0a7b399b6e1e3ad19fc35f1b926525f1dd8a5f62545b9cbb  ./tests/after-new-tests.log
 d78a571470ec78bdc36daa1a65ccec6607de336035fed80883eaa0d762663dec  ./tests/before-new-tests.log
 d82344e31a8e055169d1053fecc999f6d920113da4c348e15b29b746fc2f6248  ./tests/full-suite-first-run.log
